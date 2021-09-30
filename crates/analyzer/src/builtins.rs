@@ -1,5 +1,5 @@
 use std::str::FromStr;
-use strum::{AsRefStr, EnumString, IntoStaticStr};
+use strum::{AsRefStr, EnumIter, EnumString};
 
 #[derive(Debug, PartialEq, EnumString, AsRefStr)]
 #[strum(serialize_all = "lowercase")]
@@ -32,7 +32,7 @@ pub enum TypeName {
     #[strum(serialize = "Map")]
     Map,
     #[strum(serialize = "String")]
-    String_,
+    String,
 
     Address,
     Bool,
@@ -58,20 +58,20 @@ pub enum ValueMethod {
     AbiEncode,
 }
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq, EnumString, IntoStaticStr, Hash)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, EnumString, AsRefStr, Hash)]
 #[strum(serialize_all = "snake_case")]
 pub enum GlobalMethod {
     Keccak256,
 }
 
-#[derive(strum::ToString, Debug, PartialEq, EnumString)]
+#[derive(Debug, PartialEq, EnumString, AsRefStr)]
 #[strum(serialize_all = "snake_case")]
 pub enum ContractTypeMethod {
     Create,
     Create2,
 }
 
-#[derive(strum::ToString, Debug, PartialEq, EnumString)]
+#[derive(Copy, Clone, Debug, Eq, PartialEq, EnumString, EnumIter, AsRefStr)]
 #[strum(serialize_all = "lowercase")]
 pub enum Object {
     Block,

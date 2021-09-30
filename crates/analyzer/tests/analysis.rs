@@ -168,7 +168,7 @@ fn build_snapshot(path: &str, src: &str, module: items::ModuleId, db: &dyn Analy
         .all_type_defs(db)
         .iter()
         .filter_map(|def| match def {
-            items::TypeDefId::Alias(alias) => {
+            items::TypeDef::Alias(alias) => {
                 Some((alias.data(db).ast.span, alias.typ(db).unwrap()))
             }
             _ => None,

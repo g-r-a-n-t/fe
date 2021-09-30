@@ -2,7 +2,7 @@ use crate::context::ModuleContext;
 use crate::mappers::{contracts, types};
 use crate::names;
 use crate::utils::ZeroSpanNode;
-use fe_analyzer::namespace::items::{ModuleId, TypeDefId};
+use fe_analyzer::namespace::items::{ModuleId, TypeDef};
 use fe_analyzer::namespace::types::{Base, FixedSize, Tuple};
 use fe_analyzer::AnalyzerDb;
 use fe_parser::ast;
@@ -25,7 +25,7 @@ pub fn module(db: &dyn AnalyzerDb, module: ModuleId) -> ast::Module {
         .collect::<Vec<_>>();
 
     lowered_body.extend(module.all_type_defs(db).iter().map(|def| match def {
-        TypeDefId::Alias(id) => {
+        TypeDef::Alias(id) => {
             let node = &id.data(db).ast;
             let name = node.kind.name.clone();
             ast::ModuleStmt::TypeAlias(Node::new(
@@ -40,8 +40,8 @@ pub fn module(db: &dyn AnalyzerDb, module: ModuleId) -> ast::Module {
                 id.span(db),
             ))
         }
-        TypeDefId::Struct(id) => ast::ModuleStmt::Struct(id.data(db).ast.clone()),
-        TypeDefId::Contract(id) => {
+        TypeDef::Struct(id) => ast::ModuleStmt::Struct(id.data(db).ast.clone()),
+        TypeDef::Contract(id) => {
             ast::ModuleStmt::Contract(contracts::contract_def(&mut context, *id))
         }
     }));

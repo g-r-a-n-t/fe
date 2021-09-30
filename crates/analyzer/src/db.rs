@@ -1,8 +1,8 @@
 use crate::context::{Analysis, FunctionBody};
 use crate::errors::TypeError;
 use crate::namespace::items::{
-    self, ContractFieldId, ContractId, EventId, FunctionId, ModuleId, StructFieldId, StructId,
-    TypeAliasId, TypeDefId,
+    self, ContractFieldId, ContractId, EventId, FunctionId, ModuleId, NamedItem, StructFieldId,
+    StructId, TypeAliasId, TypeDef,
 };
 use crate::namespace::types;
 use indexmap::IndexMap;
@@ -46,10 +46,14 @@ pub trait AnalyzerDb {
     fn intern_event(&self, data: Rc<items::Event>) -> EventId;
 
     // Module
+    #[salsa::invoke(queries::module::module_all_named_items)]
+    fn module_all_named_items(&self, module: ModuleId) -> Rc<Vec<NamedItem>>;
+    #[salsa::invoke(queries::module::module_named_item_map)]
+    fn module_named_item_map(&self, module: ModuleId) -> Analysis<Rc<IndexMap<String, NamedItem>>>;
     #[salsa::invoke(queries::module::module_all_type_defs)]
-    fn module_all_type_defs(&self, module: ModuleId) -> Rc<Vec<TypeDefId>>;
+    fn module_all_type_defs(&self, module: ModuleId) -> Rc<Vec<TypeDef>>;
     #[salsa::invoke(queries::module::module_type_def_map)]
-    fn module_type_def_map(&self, module: ModuleId) -> Analysis<Rc<IndexMap<String, TypeDefId>>>;
+    fn module_type_def_map(&self, module: ModuleId) -> Analysis<Rc<IndexMap<String, TypeDef>>>;
     #[salsa::invoke(queries::module::module_resolve_type)]
     #[salsa::cycle(queries::module::module_resolve_type_cycle)]
     fn module_resolve_type(

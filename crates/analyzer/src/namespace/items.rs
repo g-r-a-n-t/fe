@@ -1,31 +1,15 @@
+use crate::builtins;
 use crate::context;
 use crate::errors::{self, TypeError};
 use crate::impl_intern_key;
-use crate::namespace::types;
-use crate::namespace::types::SelfDecl;
+use crate::namespace::types::{self, GenericType, SelfDecl};
 use crate::traversal::pragma::check_pragma_version;
 use crate::AnalyzerDb;
 use fe_common::diagnostics::Diagnostic;
 use fe_parser::ast;
-use fe_parser::node::{Node, Span};
+use fe_parser::node::{Node, NodeId, Span};
 use indexmap::IndexMap;
 use std::rc::Rc;
-
-pub trait DiagnosticSink {
-    fn push(&mut self, diag: &Diagnostic);
-    fn push_all<'a>(&mut self, iter: impl Iterator<Item = &'a Diagnostic>) {
-        iter.for_each(|diag| self.push(diag))
-    }
-}
-
-impl DiagnosticSink for Vec<Diagnostic> {
-    fn push(&mut self, diag: &Diagnostic) {
-        self.push(diag.clone())
-    }
-    fn push_all<'a>(&mut self, iter: impl Iterator<Item = &'a Diagnostic>) {
-        self.extend(iter.cloned())
-    }
-}
 
 #[derive(Debug, PartialEq, Eq, Hash, Clone)]
 pub struct Module {
@@ -43,17 +27,32 @@ impl ModuleId {
         db.lookup_intern_module(*self)
     }
 
-    /// Maps defined type name to its [`TypeDefId`].
+    /// Returns a map of the named items in the module
+    pub fn named_items(&self, db: &dyn AnalyzerDb) -> Rc<IndexMap<String, NamedItem>> {
+        db.module_named_item_map(*self).value
+    }
+
+    /// Includes duplicate names
+    pub fn all_named_items(&self, db: &dyn AnalyzerDb) -> Rc<Vec<NamedItem>> {
+        db.module_all_named_items(*self)
+    }
+
+    /// Maps defined type name to its [`TypeDef`].
     /// Type defs include structs, type aliases, and contracts.
-    pub fn type_defs(&self, db: &dyn AnalyzerDb) -> Rc<IndexMap<String, TypeDefId>> {
+    pub fn type_defs(&self, db: &dyn AnalyzerDb) -> Rc<IndexMap<String, TypeDef>> {
         db.module_type_def_map(*self).value
     }
 
     /// Includes type defs with duplicate names
-    pub fn all_type_defs(&self, db: &dyn AnalyzerDb) -> Rc<Vec<TypeDefId>> {
+    pub fn all_type_defs(&self, db: &dyn AnalyzerDb) -> Rc<Vec<TypeDef>> {
         db.module_all_type_defs(*self)
     }
 
+    pub fn resolve_name(&self, db: &dyn AnalyzerDb, name: &str) -> Option<NamedItem> {
+        self.named_items(db).get(name).copied()
+    }
+
+    // XXX remove?
     pub fn resolve_type(
         &self,
         db: &dyn AnalyzerDb,
@@ -103,58 +102,176 @@ impl ModuleId {
     }
 }
 
-#[derive(Debug, PartialEq, Eq, Copy, Clone)]
-pub enum TypeDefId {
-    Alias(TypeAliasId),
-    Struct(StructId),
-    Contract(ContractId),
-    // Event(EventDefId),
+#[derive(Debug, PartialEq, Eq, Clone, Copy)]
+pub enum NamedItem {
+    Type(TypeDef),
+    GenericType(GenericType),
+    Function(FunctionId),
+    // Needed until we can represent keccak256 as a FunctionId.
+    // We can't represent keccak256's arg type yet.
+    BuiltinFunction(builtins::GlobalMethod),
+    Variable(VariableId),
+    // Soon the globals will go away, and `self` and `ctx`
+    // will be fn params, so this can probably just be scrapped.
+    Object(builtins::Object),
+    // Module   // TODO: modules don't have names yet
+    // Constant // TODO: when `const` is implemented
 }
-impl TypeDefId {
+
+impl NamedItem {
+    // is this needed?
     pub fn name(&self, db: &dyn AnalyzerDb) -> String {
         match self {
-            TypeDefId::Alias(id) => id.data(db).ast.name().to_string(),
-            TypeDefId::Struct(id) => id.data(db).ast.name().to_string(),
-            TypeDefId::Contract(id) => id.data(db).ast.name().to_string(),
+            NamedItem::Type(id) => id.name(db),
+            NamedItem::GenericType(id) => id.name().to_string(),
+            NamedItem::Function(id) => id.name(db),
+            NamedItem::BuiltinFunction(id) => id.as_ref().to_string(),
+            NamedItem::Object(id) => id.as_ref().to_string(),
+            NamedItem::Variable(id) => todo!(),
         }
     }
 
-    pub fn name_span(&self, db: &dyn AnalyzerDb) -> Span {
+    pub fn name_span(&self, db: &dyn AnalyzerDb) -> Option<Span> {
         match self {
-            TypeDefId::Alias(id) => id.data(db).ast.kind.name.span,
-            TypeDefId::Struct(id) => id.data(db).ast.kind.name.span,
-            TypeDefId::Contract(id) => id.data(db).ast.kind.name.span,
+            NamedItem::Type(id) => Some(id.name_span(db)),
+            NamedItem::GenericType(_) => None,
+            NamedItem::Function(id) => Some(id.name_span(db)),
+            NamedItem::BuiltinFunction(id) => None,
+            NamedItem::Object(id) => None,
+            NamedItem::Variable(id) => Some(id.name_span(db)),
         }
     }
 
-    pub fn span(&self, db: &dyn AnalyzerDb) -> Span {
+    pub fn span(&self, db: &dyn AnalyzerDb) -> Option<Span> {
         match self {
-            TypeDefId::Alias(id) => id.data(db).ast.span,
-            TypeDefId::Struct(id) => id.data(db).ast.span,
-            TypeDefId::Contract(id) => id.data(db).ast.span,
+            NamedItem::Type(id) => Some(id.span(db)),
+            NamedItem::GenericType(_) => None,
+            NamedItem::Function(id) => Some(id.span(db)),
+            NamedItem::BuiltinFunction(id) => None,
+            NamedItem::Object(id) => None,
+            NamedItem::Variable(id) => Some(id.name_span(db)), // for lack of a better span
         }
     }
 
-    pub fn typ(&self, db: &dyn AnalyzerDb) -> Result<types::Type, TypeError> {
+    pub fn is_builtin(&self) -> bool {
         match self {
-            TypeDefId::Alias(id) => id.typ(db),
-            TypeDefId::Struct(id) => Ok(types::Type::Struct(types::Struct {
-                id: *id,
-                name: id.name(db),
-                field_count: id.fields(db).len(), // for the EvmSized trait
-            })),
-            TypeDefId::Contract(id) => Ok(types::Type::Contract(types::Contract {
-                id: *id,
-                name: id.name(db),
-            })),
+            NamedItem::Type(TypeDef::Primitive(_)) => true,
+            NamedItem::Type(_) => false,
+            NamedItem::GenericType(_) => true,
+            NamedItem::Function(_) => false,
+            NamedItem::BuiltinFunction(_) => false,
+            NamedItem::Object(_) => true,
+            NamedItem::Variable(_) => false,
+        }
+    }
+
+    pub fn item_kind_display_name(&self) -> &'static str {
+        match self {
+            NamedItem::Type(_) => "type",
+            NamedItem::GenericType(_) => "type",
+            NamedItem::Function(_) => "function",
+            NamedItem::BuiltinFunction(_) => "function",
+            NamedItem::Object(_) => "object",
+            NamedItem::Variable(_) => "variable",
         }
     }
 
     pub fn sink_diagnostics(&self, db: &dyn AnalyzerDb, sink: &mut impl DiagnosticSink) {
         match self {
-            TypeDefId::Alias(id) => id.sink_diagnostics(db, sink),
-            TypeDefId::Struct(id) => id.sink_diagnostics(db, sink),
-            TypeDefId::Contract(id) => id.sink_diagnostics(db, sink),
+            NamedItem::Type(id) => id.sink_diagnostics(db, sink),
+            NamedItem::GenericType(_) => {}
+            NamedItem::Function(id) => id.sink_diagnostics(db, sink),
+            NamedItem::BuiltinFunction(id) => {}
+            NamedItem::Object(_) => {}
+            NamedItem::Variable(_) => {}
+        }
+    }
+}
+
+// VarDecls aren't interned into salsa (yet?), but we can get their
+// type and span via the FunctionBody object with the FunctionId and NodeId
+#[derive(Debug, PartialEq, Eq, Copy, Clone)]
+pub struct VariableId {
+    pub function: FunctionId,
+    pub node_id: NodeId,
+}
+impl VariableId {
+    pub fn name_span(&self, db: &dyn AnalyzerDb) -> Span {
+        *self
+            .function
+            .body(db)
+            .spans
+            .get(&self.node_id)
+            .expect("missing var decl span")
+    }
+    pub fn typ(&self, db: &dyn AnalyzerDb) -> types::FixedSize {
+        self.function
+            .body(db)
+            .var_decl_types
+            .get(&self.node_id)
+            .expect("missing var decl type")
+            .clone()
+    }
+}
+
+#[derive(Debug, PartialEq, Eq, Copy, Clone)]
+pub enum TypeDef {
+    Alias(TypeAliasId),
+    Struct(StructId),
+    Contract(ContractId),
+    Primitive(types::Base),
+    // Event(EventDefId),
+}
+impl TypeDef {
+    pub fn name(&self, db: &dyn AnalyzerDb) -> String {
+        match self {
+            TypeDef::Alias(id) => id.name(db),
+            TypeDef::Struct(id) => id.name(db),
+            TypeDef::Contract(id) => id.name(db),
+            TypeDef::Primitive(typ) => typ.to_string(),
+        }
+    }
+
+    pub fn name_span(&self, db: &dyn AnalyzerDb) -> Span {
+        match self {
+            TypeDef::Alias(id) => id.name_span(db),
+            TypeDef::Struct(id) => id.name_span(db),
+            TypeDef::Contract(id) => id.name_span(db),
+            TypeDef::Primitive(_) => Span::zero(), // XXX
+        }
+    }
+
+    pub fn span(&self, db: &dyn AnalyzerDb) -> Span {
+        match self {
+            TypeDef::Alias(id) => id.span(db),
+            TypeDef::Struct(id) => id.span(db),
+            TypeDef::Contract(id) => id.span(db),
+            TypeDef::Primitive(_) => Span::zero(), // XXX
+        }
+    }
+
+    pub fn typ(&self, db: &dyn AnalyzerDb) -> Result<types::Type, TypeError> {
+        match self {
+            TypeDef::Alias(id) => id.typ(db),
+            TypeDef::Struct(id) => Ok(types::Type::Struct(types::Struct {
+                id: *id,
+                name: id.name(db),
+                field_count: id.fields(db).len(), // for the EvmSized trait
+            })),
+            TypeDef::Contract(id) => Ok(types::Type::Contract(types::Contract {
+                id: *id,
+                name: id.name(db),
+            })),
+            TypeDef::Primitive(base) => Ok(types::Type::Base(*base)),
+        }
+    }
+
+    pub fn sink_diagnostics(&self, db: &dyn AnalyzerDb, sink: &mut impl DiagnosticSink) {
+        match self {
+            TypeDef::Alias(id) => id.sink_diagnostics(db, sink),
+            TypeDef::Struct(id) => id.sink_diagnostics(db, sink),
+            TypeDef::Contract(id) => id.sink_diagnostics(db, sink),
+            TypeDef::Primitive(_) => {}
         }
     }
 }
@@ -175,6 +292,12 @@ impl TypeAliasId {
     }
     pub fn span(&self, db: &dyn AnalyzerDb) -> Span {
         self.data(db).ast.span
+    }
+    pub fn name(&self, db: &dyn AnalyzerDb) -> String {
+        self.data(db).ast.name().to_string()
+    }
+    pub fn name_span(&self, db: &dyn AnalyzerDb) -> Span {
+        self.data(db).ast.kind.name.span
     }
     pub fn typ(&self, db: &dyn AnalyzerDb) -> Result<types::Type, TypeError> {
         db.type_alias_type(*self).value
@@ -198,12 +321,19 @@ pub struct Contract {
 pub struct ContractId(pub(crate) u32);
 impl_intern_key!(ContractId);
 impl ContractId {
-    pub fn name(&self, db: &dyn AnalyzerDb) -> String {
-        self.data(db).name.clone()
-    }
     pub fn data(&self, db: &dyn AnalyzerDb) -> Rc<Contract> {
         db.lookup_intern_contract(*self)
     }
+    pub fn span(&self, db: &dyn AnalyzerDb) -> Span {
+        self.data(db).ast.span
+    }
+    pub fn name(&self, db: &dyn AnalyzerDb) -> String {
+        self.data(db).ast.name().to_string()
+    }
+    pub fn name_span(&self, db: &dyn AnalyzerDb) -> Span {
+        self.data(db).ast.kind.name.span
+    }
+
     pub fn module(&self, db: &dyn AnalyzerDb) -> ModuleId {
         self.data(db).module
     }
@@ -236,6 +366,7 @@ impl ContractId {
         db.contract_function_map(*self).value
     }
 
+    // XXX does this include self functions and "pure" fns?
     /// Lookup a function by name. Searches all user functions, private or not. Excludes init function.
     pub fn function(&self, db: &dyn AnalyzerDb, name: &str) -> Option<FunctionId> {
         self.functions(db).get(name).copied()
@@ -340,45 +471,44 @@ impl ContractFieldId {
 #[derive(Debug, PartialEq, Eq, Hash, Clone)]
 pub struct Function {
     pub ast: Node<ast::Function>,
-    pub parent: ContractId,
+    pub module: ModuleId,
+    pub contract: Option<ContractId>,
 }
 
 #[derive(Debug, PartialEq, Eq, Hash, Copy, Clone)]
 pub struct FunctionId(pub(crate) u32);
 impl_intern_key!(FunctionId);
 impl FunctionId {
-    pub fn name(&self, db: &dyn AnalyzerDb) -> String {
-        self.data(db).ast.name().to_string()
-    }
-
-    pub fn is_public(&self, db: &dyn AnalyzerDb) -> bool {
-        self.data(db).ast.kind.is_pub
-    }
-
-    pub fn is_pure(&self, db: &dyn AnalyzerDb) -> bool {
-        self.signature(db).self_decl == SelfDecl::None
-    }
-
     pub fn data(&self, db: &dyn AnalyzerDb) -> Rc<Function> {
         db.lookup_intern_function(*self)
     }
-
-    pub fn parent(&self, db: &dyn AnalyzerDb) -> ContractId {
-        self.data(db).parent
+    pub fn span(&self, db: &dyn AnalyzerDb) -> Span {
+        self.data(db).ast.span
     }
-
+    pub fn name(&self, db: &dyn AnalyzerDb) -> String {
+        self.data(db).ast.name().to_string()
+    }
+    pub fn name_span(&self, db: &dyn AnalyzerDb) -> Span {
+        self.data(db).ast.kind.name.span
+    }
+    pub fn is_public(&self, db: &dyn AnalyzerDb) -> bool {
+        self.data(db).ast.kind.is_pub
+    }
+    pub fn is_pure(&self, db: &dyn AnalyzerDb) -> bool {
+        self.signature(db).self_decl == SelfDecl::None
+    }
+    pub fn contract(&self, db: &dyn AnalyzerDb) -> Option<ContractId> {
+        self.data(db).contract
+    }
     pub fn module(&self, db: &dyn AnalyzerDb) -> ModuleId {
-        self.parent(db).module(db)
+        self.data(db).module
     }
-
     pub fn signature(&self, db: &dyn AnalyzerDb) -> Rc<types::FunctionSignature> {
         db.function_signature(*self).value
     }
-
     pub fn body(&self, db: &dyn AnalyzerDb) -> Rc<context::FunctionBody> {
         db.function_body(*self).value
     }
-
     pub fn sink_diagnostics(&self, db: &dyn AnalyzerDb, sink: &mut impl DiagnosticSink) {
         sink.push_all(db.function_signature(*self).diagnostics.iter());
         sink.push_all(db.function_body(*self).diagnostics.iter());
@@ -398,8 +528,14 @@ impl StructId {
     pub fn data(&self, db: &dyn AnalyzerDb) -> Rc<Struct> {
         db.lookup_intern_struct(*self)
     }
+    pub fn span(&self, db: &dyn AnalyzerDb) -> Span {
+        self.data(db).ast.span
+    }
     pub fn name(&self, db: &dyn AnalyzerDb) -> String {
         self.data(db).ast.name().to_string()
+    }
+    pub fn name_span(&self, db: &dyn AnalyzerDb) -> Span {
+        self.data(db).ast.kind.name.span
     }
     pub fn module(&self, db: &dyn AnalyzerDb) -> ModuleId {
         self.data(db).module
@@ -475,5 +611,21 @@ impl EventId {
 
     pub fn sink_diagnostics(&self, db: &dyn AnalyzerDb, sink: &mut impl DiagnosticSink) {
         sink.push_all(db.event_type(*self).diagnostics.iter());
+    }
+}
+
+pub trait DiagnosticSink {
+    fn push(&mut self, diag: &Diagnostic);
+    fn push_all<'a>(&mut self, iter: impl Iterator<Item = &'a Diagnostic>) {
+        iter.for_each(|diag| self.push(diag))
+    }
+}
+
+impl DiagnosticSink for Vec<Diagnostic> {
+    fn push(&mut self, diag: &Diagnostic) {
+        self.push(diag.clone())
+    }
+    fn push_all<'a>(&mut self, iter: impl Iterator<Item = &'a Diagnostic>) {
+        self.extend(iter.cloned())
     }
 }

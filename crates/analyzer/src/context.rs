@@ -1,7 +1,8 @@
 use crate::builtins::GlobalMethod;
-use crate::errors::{self, CannotMove, TypeError};
-use crate::namespace::items::{DiagnosticSink, EventId};
+use crate::errors::{self, CannotMove};
+use crate::namespace::items::{DiagnosticSink, EventId, FunctionId, NamedItem};
 use crate::namespace::types::{FixedSize, Type};
+use crate::AnalyzerDb;
 use fe_common::diagnostics::Diagnostic;
 pub use fe_common::diagnostics::Label;
 use fe_common::Span;
@@ -26,8 +27,9 @@ impl<T> Analysis<T> {
 }
 
 pub trait AnalyzerContext {
-    fn resolve_type(&self, name: &str) -> Option<Result<Type, TypeError>>;
+    fn resolve_name(&self, name: &str) -> Option<NamedItem>;
     fn add_diagnostic(&mut self, diag: Diagnostic);
+    fn db(&self) -> &dyn AnalyzerDb;
 
     fn error(&mut self, message: &str, label_span: Span, label: &str) -> DiagnosticVoucher {
         self.register_diag(errors::error(message, label_span, label))
@@ -83,8 +85,11 @@ pub struct TempContext {
     pub diagnostics: Vec<Diagnostic>,
 }
 impl AnalyzerContext for TempContext {
-    fn resolve_type(&self, _name: &str) -> Option<Result<Type, TypeError>> {
-        panic!("TempContext can't resolve types")
+    fn db(&self) -> &dyn AnalyzerDb {
+        panic!("TempContext has no analyzer db")
+    }
+    fn resolve_name(&self, _name: &str) -> Option<NamedItem> {
+        panic!("TempContext can't resolve names")
     }
     fn add_diagnostic(&mut self, diag: Diagnostic) {
         self.diagnostics.push(diag)
@@ -189,10 +194,10 @@ impl fmt::Display for ExpressionAttributes {
 /// The type of a function call.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum CallType {
-    BuiltinFunction { func: GlobalMethod },
+    BuiltinFunction(GlobalMethod),
     TypeConstructor { typ: Type },
-    SelfAttribute { func_name: String, self_span: Span },
-    Pure { func_name: String },
+    SelfAttribute { func_name: String, self_span: Span }, // XXX replace func_name with functionid
+    PureFunction(FunctionId),
     ValueAttribute,
     TypeAttribute { typ: Type, func_name: String },
 }

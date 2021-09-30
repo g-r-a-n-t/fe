@@ -19,6 +19,7 @@ pub enum ModuleStmt {
     TypeAlias(Node<TypeAlias>),
     Contract(Node<Contract>),
     Struct(Node<Struct>),
+    Function(Node<Function>),
 }
 
 #[derive(Serialize, Deserialize, Debug, PartialEq, Eq, Hash, Clone)]
@@ -59,6 +60,7 @@ pub struct Struct {
 #[derive(Serialize, Deserialize, Debug, PartialEq, Eq, Hash, Clone)]
 pub enum TypeDesc {
     Unit,
+    // TODO: change `Base { base: String }` to `Name(String)`
     Base {
         base: String,
     },
@@ -377,6 +379,7 @@ impl Spanned for ModuleStmt {
             ModuleStmt::TypeAlias(inner) => inner.span,
             ModuleStmt::Contract(inner) => inner.span,
             ModuleStmt::Struct(inner) => inner.span,
+            ModuleStmt::Function(inner) => inner.span,
         }
     }
 }
@@ -404,6 +407,7 @@ impl fmt::Display for ModuleStmt {
             ModuleStmt::TypeAlias(node) => write!(f, "{}", node.kind),
             ModuleStmt::Contract(node) => write!(f, "{}", node.kind),
             ModuleStmt::Struct(node) => write!(f, "{}", node.kind),
+            ModuleStmt::Function(node) => write!(f, "{}", node.kind),
         }
     }
 }

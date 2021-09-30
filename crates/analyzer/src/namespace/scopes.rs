@@ -3,13 +3,13 @@
 use crate::builtins;
 use crate::context::{AnalyzerContext, CallType, ExpressionAttributes, FunctionBody};
 use crate::errors::{AlreadyDefined, TypeError};
-use crate::namespace::items::{EventId, FunctionId, ModuleId};
+use crate::namespace::items::{ContractId, EventId, FunctionId, ModuleId, NamedItem, VariableId};
 use crate::namespace::types::{FixedSize, Type};
 use crate::AnalyzerDb;
 use fe_common::diagnostics::Diagnostic;
 use fe_common::Span;
 use fe_parser::ast;
-use fe_parser::node::Node;
+use fe_parser::node::{Node, NodeId};
 use std::cell::RefCell;
 use std::collections::BTreeMap;
 
@@ -29,8 +29,11 @@ impl<'a> ItemScope<'a> {
 }
 
 impl<'a> AnalyzerContext for ItemScope<'a> {
-    fn resolve_type(&self, name: &str) -> Option<Result<Type, TypeError>> {
-        self.module.resolve_type(self.db, name)
+    fn db(&self) -> &dyn AnalyzerDb {
+        self.db
+    }
+    fn resolve_name(&self, name: &str) -> Option<NamedItem> {
+        self.module.resolve_name(self.db, name)
     }
     fn add_diagnostic(&mut self, diag: Diagnostic) {
         self.diagnostics.push(diag)
@@ -73,23 +76,32 @@ impl<'a> FunctionScope<'a> {
     }
 
     pub fn contract_field(&self, name: &str) -> Option<(Result<Type, TypeError>, usize)> {
-        self.function.parent(self.db).field_type(self.db, name)
+        // XXX contract fields should be resolved via the self object type (contractid)
+        // The None case here is ambiguous now (fn might not be part of a contract)
+        self.function.contract(self.db)?.field_type(self.db, name)
     }
 
+    // XXX how do these differ?
     pub fn contract_function(&self, name: &str) -> Option<FunctionId> {
-        self.function.parent(self.db).function(self.db, name)
+        // XXX this should be resolve_fn_name or something
+        self.function.contract(self.db)?.function(self.db, name)
+    }
+    pub fn pure_contract_function(&self, name: &str) -> Option<FunctionId> {
+        // XXX
+        self.function
+            .contract(self.db)?
+            .pure_function(self.db, name)
     }
 
     pub fn self_contract_function(&self, name: &str) -> Option<FunctionId> {
-        self.function.parent(self.db).self_function(self.db, name)
-    }
-
-    pub fn pure_contract_function(&self, name: &str) -> Option<FunctionId> {
-        self.function.parent(self.db).pure_function(self.db, name)
+        // XXX should be resolved via the self object type (contractid)
+        self.function
+            .contract(self.db)?
+            .self_function(self.db, name)
     }
 
     pub fn resolve_event(&self, name: &str) -> Option<EventId> {
-        self.function.parent(self.db).event(self.db, name)
+        self.function.contract(self.db)?.event(self.db, name)
     }
 
     pub fn function_return_type(&self) -> Result<FixedSize, TypeError> {
@@ -167,19 +179,24 @@ impl<'a> FunctionScope<'a> {
 }
 
 impl<'a> AnalyzerContext for FunctionScope<'a> {
+    fn db(&self) -> &dyn AnalyzerDb {
+        self.db
+    }
+
     fn add_diagnostic(&mut self, diag: Diagnostic) {
         self.diagnostics.borrow_mut().push(diag)
     }
 
-    fn resolve_type(&self, name: &str) -> Option<Result<Type, TypeError>> {
-        self.function.module(self.db).resolve_type(self.db, name)
+    fn resolve_name(&self, name: &str) -> Option<NamedItem> {
+        // XXX check parameter names
+        self.function.module(self.db).resolve_name(self.db, name)
     }
 }
 
 pub struct BlockScope<'a, 'b> {
     pub root: &'a FunctionScope<'b>,
     pub parent: Option<&'a BlockScope<'a, 'b>>,
-    pub variable_defs: BTreeMap<String, (FixedSize, Span)>,
+    pub variable_defs: BTreeMap<String, NodeId>,
     pub typ: BlockScopeType,
 }
 
@@ -191,8 +208,24 @@ pub enum BlockScopeType {
 }
 
 impl AnalyzerContext for BlockScope<'_, '_> {
-    fn resolve_type(&self, name: &str) -> Option<Result<Type, TypeError>> {
-        self.root.resolve_type(name)
+    fn db(&self) -> &dyn AnalyzerDb {
+        self.root.db
+    }
+    fn resolve_name(&self, name: &str) -> Option<NamedItem> {
+        self.variable_defs
+            .get(name)
+            .map(|node_id| {
+                NamedItem::Variable(VariableId {
+                    function: self.root.function,
+                    node_id: *node_id,
+                })
+            })
+            .or_else(|| {
+                Some(NamedItem::Function(
+                    self.contract()?.function(self.db(), name)?,
+                ))
+            })
+            .or_else(|| self.module().resolve_name(self.db(), name))
     }
     fn add_diagnostic(&mut self, diag: Diagnostic) {
         self.root.diagnostics.borrow_mut().push(diag)
@@ -218,30 +251,42 @@ impl<'a, 'b> BlockScope<'a, 'b> {
         }
     }
 
-    pub fn contract_name(&self) -> String {
-        self.root.function.parent(self.root.db).name(self.root.db)
+    pub fn contract(&self) -> Option<ContractId> {
+        self.root.function.contract(self.root.db)
     }
 
-    pub fn db(&self) -> &dyn AnalyzerDb {
-        self.root.db
+    pub fn module(&self) -> ModuleId {
+        self.root.function.module(self.root.db)
     }
 
-    /// Lookup a definition in current or inherited block scope
-    pub fn var_type(&self, name: &str) -> Option<Result<FixedSize, TypeError>> {
-        self.variable_defs
-            .get(name)
-            .map(|(typ, _span)| Ok(typ.clone()))
-            .or_else(|| self.parent?.var_type(name))
-            .or_else(|| self.root.var_type(name))
+    // XXX remove?
+    pub fn contract_name(&self) -> Option<String> {
+        Some(
+            self.root
+                .function
+                .contract(self.root.db)?
+                .name(self.root.db),
+        )
     }
 
-    pub fn var_def_span(&self, name: &str) -> Option<Span> {
-        self.variable_defs
-            .get(name)
-            .map(|(_typ, span)| *span)
-            .or_else(|| self.parent?.var_def_span(name))
-            .or_else(|| self.root.var_def_span(name))
-    }
+    // // XXX remove?
+    // /// Lookup a definition in current or inherited block scope
+    // pub fn var_type(&self, name: &str) -> Option<Result<FixedSize, TypeError>> {
+    //     self.variable_defs
+    //         .get(name)
+    //         .map(|(typ, _span)| Ok(typ.clone()))
+    //         .or_else(|| self.parent?.var_type(name))
+    //         .or_else(|| self.root.var_type(name))
+    // }
+
+    // // XXX remove?
+    // pub fn var_def_span(&self, name: &str) -> Option<Span> {
+    //     self.variable_defs
+    //         .get(name)
+    //         .map(|(_typ, span)| *span)
+    //         .or_else(|| self.parent?.var_def_span(name))
+    //         .or_else(|| self.root.var_def_span(name))
+    // }
 
     /// Add a variable to the block scope.
     pub fn add_var(
@@ -249,34 +294,38 @@ impl<'a, 'b> BlockScope<'a, 'b> {
         name: &str,
         typ: FixedSize,
         span: Span,
+        node_id: NodeId,
     ) -> Result<(), AlreadyDefined> {
-        if let Some(reserved) = builtins::reserved_name(name) {
-            self.error(
-                &format!(
-                    "variable name conflicts with built-in {}",
-                    reserved.as_ref()
-                ),
-                span,
-                &format!("`{}` is a built-in {}", name, reserved.as_ref()),
-            );
-            return Err(AlreadyDefined);
-        }
-
-        // It's (currently) an error to shadow a variable in a nested scope
-        match self.var_def_span(name) {
-            Some(prev_span) => {
+        if let Some(named_item) = self.resolve_name(name) {
+            if named_item.is_builtin() {
+                self.error(
+                    &format!(
+                        "variable name conflicts with built-in {}",
+                        named_item.item_kind_display_name(),
+                    ),
+                    span,
+                    &format!(
+                        "`{}` is a built-in {}",
+                        name,
+                        named_item.item_kind_display_name()
+                    ),
+                );
+                return Err(AlreadyDefined);
+            } else {
+                // It's (currently) an error to shadow a variable in a nested scope
                 self.duplicate_name_error(
                     &format!("duplicate definition of variable `{}`", name),
                     name,
-                    prev_span,
+                    named_item
+                        .name_span(self.db())
+                        .expect("missing name_span of non-builtin"),
                     span,
                 );
-                Err(AlreadyDefined)
             }
-            None => {
-                self.variable_defs.insert(name.to_string(), (typ, span));
-                Ok(())
-            }
+            Err(AlreadyDefined)
+        } else {
+            self.variable_defs.insert(name.to_string(), node_id);
+            Ok(())
         }
     }
 

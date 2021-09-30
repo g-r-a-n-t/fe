@@ -57,10 +57,12 @@ note:
   ┌─ features/return_u256_from_called_fn.fe:5:16
   │
 5 │         return foo()
-  │                ^^^ attributes hash: 1664590513608378371
+  │                ^^^ attributes hash: 5348760640954559882
   │
-  = Pure {
-        func_name: "foo",
-    }
+  = PureFunction(
+        FunctionId(
+            1,
+        ),
+    )
 
 

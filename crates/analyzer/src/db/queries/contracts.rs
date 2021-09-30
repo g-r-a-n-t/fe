@@ -13,6 +13,7 @@ use indexmap::map::{Entry, IndexMap};
 use std::rc::Rc;
 
 pub fn contract_all_functions(db: &dyn AnalyzerDb, contract: ContractId) -> Rc<Vec<FunctionId>> {
+    let module = contract.module(db);
     let body = &contract.data(db).ast.kind.body;
     Rc::new(
         body.iter()
@@ -21,7 +22,8 @@ pub fn contract_all_functions(db: &dyn AnalyzerDb, contract: ContractId) -> Rc<V
                 ast::ContractStmt::Function(node) => {
                     Some(db.intern_function(Rc::new(items::Function {
                         ast: node.clone(),
-                        parent: contract,
+                        contract: Some(contract),
+                        module,
                     })))
                 }
             })

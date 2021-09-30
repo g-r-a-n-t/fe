@@ -1,15 +1,14 @@
 #![allow(unstable_name_collisions)] // expect_none, which ain't gonna be stabilized
 
-use crate::builtins;
-use crate::context::{AnalyzerContext, CallType, ExpressionAttributes, FunctionBody};
+use crate::context::{AnalyzerContext, CallType, ExpressionAttributes, FunctionBody, NamedThing};
 use crate::errors::{AlreadyDefined, TypeError};
-use crate::namespace::items::{ContractId, EventId, FunctionId, ModuleId, NamedItem, VariableId};
+use crate::namespace::items::{ContractId, EventId, FunctionId, Item, ModuleId};
 use crate::namespace::types::{FixedSize, Type};
 use crate::AnalyzerDb;
 use fe_common::diagnostics::Diagnostic;
 use fe_common::Span;
 use fe_parser::ast;
-use fe_parser::node::{Node, NodeId};
+use fe_parser::node::Node;
 use std::cell::RefCell;
 use std::collections::BTreeMap;
 
@@ -32,8 +31,10 @@ impl<'a> AnalyzerContext for ItemScope<'a> {
     fn db(&self) -> &dyn AnalyzerDb {
         self.db
     }
-    fn resolve_name(&self, name: &str) -> Option<NamedItem> {
-        self.module.resolve_name(self.db, name)
+    fn resolve_name(&self, name: &str) -> Option<NamedThing> {
+        self.module
+            .resolve_name(self.db, name)
+            .map(NamedThing::Item)
     }
     fn add_diagnostic(&mut self, diag: Diagnostic) {
         self.diagnostics.push(diag)
@@ -187,16 +188,43 @@ impl<'a> AnalyzerContext for FunctionScope<'a> {
         self.diagnostics.borrow_mut().push(diag)
     }
 
-    fn resolve_name(&self, name: &str) -> Option<NamedItem> {
-        // XXX check parameter names
-        self.function.module(self.db).resolve_name(self.db, name)
+    fn resolve_name(&self, name: &str) -> Option<NamedThing> {
+        self.function
+            .signature(self.db)
+            .params
+            .iter()
+            .find_map(|param| {
+                (param.name == name).then(|| {
+                    let span = self
+                        .function
+                        .data(self.db)
+                        .ast
+                        .kind
+                        .args
+                        .iter()
+                        .find_map(|param| (param.name() == name).then(|| param.name_span()))
+                        .expect("found param type but not span");
+
+                    NamedThing::Variable {
+                        name: name.to_string(),
+                        typ: param.typ.clone(),
+                        span,
+                    }
+                })
+            })
+            .or_else(|| {
+                self.function
+                    .module(self.db)
+                    .resolve_name(self.db, name)
+                    .map(NamedThing::Item)
+            })
     }
 }
 
 pub struct BlockScope<'a, 'b> {
     pub root: &'a FunctionScope<'b>,
     pub parent: Option<&'a BlockScope<'a, 'b>>,
-    pub variable_defs: BTreeMap<String, NodeId>,
+    pub variable_defs: BTreeMap<String, (FixedSize, Span)>,
     pub typ: BlockScopeType,
 }
 
@@ -211,21 +239,22 @@ impl AnalyzerContext for BlockScope<'_, '_> {
     fn db(&self) -> &dyn AnalyzerDb {
         self.root.db
     }
-    fn resolve_name(&self, name: &str) -> Option<NamedItem> {
+    fn resolve_name(&self, name: &str) -> Option<NamedThing> {
         self.variable_defs
             .get(name)
-            .map(|node_id| {
-                NamedItem::Variable(VariableId {
-                    function: self.root.function,
-                    node_id: *node_id,
-                })
+            .map(|(typ, span)| NamedThing::Variable {
+                name: name.to_string(),
+                typ: Ok(typ.clone()),
+                span: *span,
             })
+            .or_else(|| self.parent?.resolve_name(name))
+            // XXX this is checked once for each block in the stack
             .or_else(|| {
-                Some(NamedItem::Function(
-                    self.contract()?.function(self.db(), name)?,
-                ))
+                Some(NamedThing::Item(Item::Function(
+                    self.contract()?.pure_function(self.db(), name)?,
+                )))
             })
-            .or_else(|| self.module().resolve_name(self.db(), name))
+            .or_else(|| self.root.resolve_name(name))
     }
     fn add_diagnostic(&mut self, diag: Diagnostic) {
         self.root.diagnostics.borrow_mut().push(diag)
@@ -294,7 +323,6 @@ impl<'a, 'b> BlockScope<'a, 'b> {
         name: &str,
         typ: FixedSize,
         span: Span,
-        node_id: NodeId,
     ) -> Result<(), AlreadyDefined> {
         if let Some(named_item) = self.resolve_name(name) {
             if named_item.is_builtin() {
@@ -324,7 +352,7 @@ impl<'a, 'b> BlockScope<'a, 'b> {
             }
             Err(AlreadyDefined)
         } else {
-            self.variable_defs.insert(name.to_string(), node_id);
+            self.variable_defs.insert(name.to_string(), (typ, span));
             Ok(())
         }
     }

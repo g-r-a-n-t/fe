@@ -55,7 +55,7 @@ fn add_var(
     match &target.kind {
         fe::VarDeclTarget::Name(name) => {
             // this logs a message on err, so it's safe to ignore here.
-            let _ = scope.add_var(name, typ, target.span, target.id);
+            let _ = scope.add_var(name, typ, target.span);
             Ok(())
         }
         fe::VarDeclTarget::Tuple(items) => {

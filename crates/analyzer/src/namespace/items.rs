@@ -7,7 +7,7 @@ use crate::traversal::pragma::check_pragma_version;
 use crate::AnalyzerDb;
 use fe_common::diagnostics::Diagnostic;
 use fe_parser::ast;
-use fe_parser::node::{Node, NodeId, Span};
+use fe_parser::node::{Node, Span};
 use indexmap::IndexMap;
 use std::rc::Rc;
 
@@ -28,37 +28,28 @@ impl ModuleId {
     }
 
     /// Returns a map of the named items in the module
-    pub fn named_items(&self, db: &dyn AnalyzerDb) -> Rc<IndexMap<String, NamedItem>> {
+    pub fn named_items(&self, db: &dyn AnalyzerDb) -> Rc<IndexMap<String, Item>> {
         db.module_named_item_map(*self).value
     }
 
     /// Includes duplicate names
-    pub fn all_named_items(&self, db: &dyn AnalyzerDb) -> Rc<Vec<NamedItem>> {
+    pub fn all_named_items(&self, db: &dyn AnalyzerDb) -> Rc<Vec<Item>> {
         db.module_all_named_items(*self)
     }
 
-    /// Maps defined type name to its [`TypeDef`].
-    /// Type defs include structs, type aliases, and contracts.
-    pub fn type_defs(&self, db: &dyn AnalyzerDb) -> Rc<IndexMap<String, TypeDef>> {
-        db.module_type_def_map(*self).value
-    }
+    // /// Maps defined type name to its [`TypeDef`].
+    // /// Type defs include structs, type aliases, and contracts.
+    // pub fn type_defs(&self, db: &dyn AnalyzerDb) -> Rc<IndexMap<String, TypeDef>> {
+    //     db.module_type_def_map(*self).value
+    // }
 
     /// Includes type defs with duplicate names
     pub fn all_type_defs(&self, db: &dyn AnalyzerDb) -> Rc<Vec<TypeDef>> {
         db.module_all_type_defs(*self)
     }
 
-    pub fn resolve_name(&self, db: &dyn AnalyzerDb, name: &str) -> Option<NamedItem> {
+    pub fn resolve_name(&self, db: &dyn AnalyzerDb, name: &str) -> Option<Item> {
         self.named_items(db).get(name).copied()
-    }
-
-    // XXX remove?
-    pub fn resolve_type(
-        &self,
-        db: &dyn AnalyzerDb,
-        name: &str,
-    ) -> Option<Result<types::Type, TypeError>> {
-        db.module_resolve_type(*self, name.into())
     }
 
     /// All contracts, including duplicates
@@ -102,15 +93,15 @@ impl ModuleId {
     }
 }
 
+/// A named item
 #[derive(Debug, PartialEq, Eq, Clone, Copy)]
-pub enum NamedItem {
+pub enum Item {
     Type(TypeDef),
     GenericType(GenericType),
     Function(FunctionId),
     // Needed until we can represent keccak256 as a FunctionId.
     // We can't represent keccak256's arg type yet.
     BuiltinFunction(builtins::GlobalMethod),
-    Variable(VariableId),
     // Soon the globals will go away, and `self` and `ctx`
     // will be fn params, so this can probably just be scrapped.
     Object(builtins::Object),
@@ -118,99 +109,56 @@ pub enum NamedItem {
     // Constant // TODO: when `const` is implemented
 }
 
-impl NamedItem {
-    // is this needed?
+impl Item {
     pub fn name(&self, db: &dyn AnalyzerDb) -> String {
         match self {
-            NamedItem::Type(id) => id.name(db),
-            NamedItem::GenericType(id) => id.name().to_string(),
-            NamedItem::Function(id) => id.name(db),
-            NamedItem::BuiltinFunction(id) => id.as_ref().to_string(),
-            NamedItem::Object(id) => id.as_ref().to_string(),
-            NamedItem::Variable(id) => todo!(),
+            Item::Type(id) => id.name(db),
+            Item::GenericType(id) => id.name().to_string(),
+            Item::Function(id) => id.name(db),
+            Item::BuiltinFunction(id) => id.as_ref().to_string(),
+            Item::Object(id) => id.as_ref().to_string(),
         }
     }
 
     pub fn name_span(&self, db: &dyn AnalyzerDb) -> Option<Span> {
         match self {
-            NamedItem::Type(id) => Some(id.name_span(db)),
-            NamedItem::GenericType(_) => None,
-            NamedItem::Function(id) => Some(id.name_span(db)),
-            NamedItem::BuiltinFunction(id) => None,
-            NamedItem::Object(id) => None,
-            NamedItem::Variable(id) => Some(id.name_span(db)),
-        }
-    }
-
-    pub fn span(&self, db: &dyn AnalyzerDb) -> Option<Span> {
-        match self {
-            NamedItem::Type(id) => Some(id.span(db)),
-            NamedItem::GenericType(_) => None,
-            NamedItem::Function(id) => Some(id.span(db)),
-            NamedItem::BuiltinFunction(id) => None,
-            NamedItem::Object(id) => None,
-            NamedItem::Variable(id) => Some(id.name_span(db)), // for lack of a better span
+            Item::Type(id) => id.name_span(db),
+            Item::GenericType(_) => None,
+            Item::Function(id) => Some(id.name_span(db)),
+            Item::BuiltinFunction(_) => None,
+            Item::Object(_) => None,
         }
     }
 
     pub fn is_builtin(&self) -> bool {
         match self {
-            NamedItem::Type(TypeDef::Primitive(_)) => true,
-            NamedItem::Type(_) => false,
-            NamedItem::GenericType(_) => true,
-            NamedItem::Function(_) => false,
-            NamedItem::BuiltinFunction(_) => false,
-            NamedItem::Object(_) => true,
-            NamedItem::Variable(_) => false,
+            Item::Type(TypeDef::Primitive(_)) => true,
+            Item::Type(_) => false,
+            Item::GenericType(_) => true,
+            Item::Function(_) => false,
+            Item::BuiltinFunction(_) => false,
+            Item::Object(_) => true,
         }
     }
 
     pub fn item_kind_display_name(&self) -> &'static str {
         match self {
-            NamedItem::Type(_) => "type",
-            NamedItem::GenericType(_) => "type",
-            NamedItem::Function(_) => "function",
-            NamedItem::BuiltinFunction(_) => "function",
-            NamedItem::Object(_) => "object",
-            NamedItem::Variable(_) => "variable",
+            Item::Type(_) => "type",
+            Item::GenericType(_) => "type",
+            Item::Function(_) => "function",
+            Item::BuiltinFunction(_) => "function",
+            Item::Object(_) => "object",
         }
     }
 
     pub fn sink_diagnostics(&self, db: &dyn AnalyzerDb, sink: &mut impl DiagnosticSink) {
         match self {
-            NamedItem::Type(id) => id.sink_diagnostics(db, sink),
-            NamedItem::GenericType(_) => {}
-            NamedItem::Function(id) => id.sink_diagnostics(db, sink),
-            NamedItem::BuiltinFunction(id) => {}
-            NamedItem::Object(_) => {}
-            NamedItem::Variable(_) => {}
+            Item::Type(id) => id.sink_diagnostics(db, sink),
+            Item::GenericType(_) => {}
+            Item::Function(id) => id.sink_diagnostics(db, sink),
+            Item::BuiltinFunction(_) => {}
+            Item::Object(_) => {}
         }
-    }
-}
-
-// VarDecls aren't interned into salsa (yet?), but we can get their
-// type and span via the FunctionBody object with the FunctionId and NodeId
-#[derive(Debug, PartialEq, Eq, Copy, Clone)]
-pub struct VariableId {
-    pub function: FunctionId,
-    pub node_id: NodeId,
-}
-impl VariableId {
-    pub fn name_span(&self, db: &dyn AnalyzerDb) -> Span {
-        *self
-            .function
-            .body(db)
-            .spans
-            .get(&self.node_id)
-            .expect("missing var decl span")
-    }
-    pub fn typ(&self, db: &dyn AnalyzerDb) -> types::FixedSize {
-        self.function
-            .body(db)
-            .var_decl_types
-            .get(&self.node_id)
-            .expect("missing var decl type")
-            .clone()
     }
 }
 
@@ -232,23 +180,23 @@ impl TypeDef {
         }
     }
 
-    pub fn name_span(&self, db: &dyn AnalyzerDb) -> Span {
+    pub fn name_span(&self, db: &dyn AnalyzerDb) -> Option<Span> {
         match self {
-            TypeDef::Alias(id) => id.name_span(db),
-            TypeDef::Struct(id) => id.name_span(db),
-            TypeDef::Contract(id) => id.name_span(db),
-            TypeDef::Primitive(_) => Span::zero(), // XXX
+            TypeDef::Alias(id) => Some(id.name_span(db)),
+            TypeDef::Struct(id) => Some(id.name_span(db)),
+            TypeDef::Contract(id) => Some(id.name_span(db)),
+            TypeDef::Primitive(_) => None,
         }
     }
 
-    pub fn span(&self, db: &dyn AnalyzerDb) -> Span {
-        match self {
-            TypeDef::Alias(id) => id.span(db),
-            TypeDef::Struct(id) => id.span(db),
-            TypeDef::Contract(id) => id.span(db),
-            TypeDef::Primitive(_) => Span::zero(), // XXX
-        }
-    }
+    // pub fn span(&self, db: &dyn AnalyzerDb) -> Span {
+    //     match self {
+    //         TypeDef::Alias(id) => id.span(db),
+    //         TypeDef::Struct(id) => id.span(db),
+    //         TypeDef::Contract(id) => id.span(db),
+    //         TypeDef::Primitive(_) => Span::zero(), // XXX
+    //     }
+    // }
 
     pub fn typ(&self, db: &dyn AnalyzerDb) -> Result<types::Type, TypeError> {
         match self {

@@ -363,6 +363,13 @@ impl Node<FunctionArg> {
             FunctionArg::Zelf => "self",
         }
     }
+
+    pub fn name_span(&self) -> Span {
+        match &self.kind {
+            FunctionArg::Regular(arg) => arg.name.span,
+            FunctionArg::Zelf => self.span,
+        }
+    }
 }
 
 impl Node<TypeAlias> {

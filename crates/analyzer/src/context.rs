@@ -1,6 +1,6 @@
 use crate::builtins::GlobalMethod;
-use crate::errors::{self, CannotMove};
-use crate::namespace::items::{DiagnosticSink, EventId, FunctionId, NamedItem};
+use crate::errors::{self, CannotMove, TypeError};
+use crate::namespace::items::{DiagnosticSink, EventId, FunctionId, Item};
 use crate::namespace::types::{FixedSize, Type};
 use crate::AnalyzerDb;
 use fe_common::diagnostics::Diagnostic;
@@ -27,7 +27,7 @@ impl<T> Analysis<T> {
 }
 
 pub trait AnalyzerContext {
-    fn resolve_name(&self, name: &str) -> Option<NamedItem>;
+    fn resolve_name(&self, name: &str) -> Option<NamedThing>;
     fn add_diagnostic(&mut self, diag: Diagnostic);
     fn db(&self) -> &dyn AnalyzerDb;
 
@@ -76,6 +76,39 @@ pub trait AnalyzerContext {
     }
 }
 
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum NamedThing {
+    Item(Item),
+    Variable {
+        name: String,
+        typ: Result<FixedSize, TypeError>,
+        span: Span,
+    },
+}
+
+impl NamedThing {
+    pub fn name_span(&self, db: &dyn AnalyzerDb) -> Option<Span> {
+        match self {
+            NamedThing::Item(item) => item.name_span(db),
+            NamedThing::Variable { span, .. } => Some(*span),
+        }
+    }
+
+    pub fn is_builtin(&self) -> bool {
+        match self {
+            NamedThing::Item(item) => item.is_builtin(),
+            NamedThing::Variable { .. } => false,
+        }
+    }
+
+    pub fn item_kind_display_name(&self) -> &str {
+        match self {
+            NamedThing::Item(item) => item.item_kind_display_name(),
+            NamedThing::Variable { .. } => "variable",
+        }
+    }
+}
+
 /// This should only be created by [`AnalyzerContext`].
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct DiagnosticVoucher(PhantomData<()>);
@@ -88,7 +121,7 @@ impl AnalyzerContext for TempContext {
     fn db(&self) -> &dyn AnalyzerDb {
         panic!("TempContext has no analyzer db")
     }
-    fn resolve_name(&self, _name: &str) -> Option<NamedItem> {
+    fn resolve_name(&self, _name: &str) -> Option<NamedThing> {
         panic!("TempContext can't resolve names")
     }
     fn add_diagnostic(&mut self, diag: Diagnostic) {

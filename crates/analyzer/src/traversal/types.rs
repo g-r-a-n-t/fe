@@ -1,8 +1,8 @@
-use crate::context::AnalyzerContext;
+use crate::context::{AnalyzerContext, NamedThing};
 use crate::errors::TypeError;
-use crate::namespace::items::NamedItem;
+use crate::namespace::items::Item;
 use crate::namespace::types::{
-    Array, Base, FeString, FixedSize, GenericArg, GenericParamKind, GenericType, Map, Tuple, Type,
+    Array, FixedSize, GenericArg, GenericParamKind, GenericType, Tuple, Type,
 };
 use crate::traversal::call_args::validate_arg_count;
 use fe_common::diagnostics::Label;
@@ -11,7 +11,6 @@ use fe_common::Spanned;
 use fe_parser::ast;
 use fe_parser::node::{Node, Span};
 use std::convert::TryFrom;
-use std::str::FromStr;
 use vec1::Vec1;
 
 pub fn apply_generic_type_args(
@@ -120,14 +119,14 @@ pub fn resolve_concrete_type(
 ) -> Result<Type, TypeError> {
     let named_item = context.resolve_name(name).ok_or_else(|| {
         TypeError::new(context.error(
-            &format!("`{}` is not defined", name),
+            "undefined type",
             name_span,
-            &format!("`{}` has not been defined in this scope", name),
+            &format!("`{}` has not been defined", name),
         ))
     })?;
 
     match named_item {
-        NamedItem::Type(id) => {
+        NamedThing::Item(Item::Type(id)) => {
             if let Some(args) = generic_args {
                 context.fancy_error(
                     &format!("`{}` type is not generic", name),
@@ -140,7 +139,7 @@ pub fn resolve_concrete_type(
             }
             id.typ(context.db())
         }
-        NamedItem::GenericType(generic) => {
+        NamedThing::Item(Item::GenericType(generic)) => {
             apply_generic_type_args(context, generic, name_span, generic_args)
         }
         _ => Err(TypeError::new(context.fancy_error(

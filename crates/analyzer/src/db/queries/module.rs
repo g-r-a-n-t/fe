@@ -3,7 +3,7 @@ use crate::context::Analysis;
 use crate::db::AnalyzerDb;
 use crate::errors;
 use crate::namespace::items::{
-    Contract, ContractId, Function, ModuleId, NamedItem, Struct, StructId, TypeAlias, TypeDef,
+    Contract, ContractId, Function, Item, ModuleId, Struct, StructId, TypeAlias, TypeDef,
 };
 use crate::namespace::types;
 use fe_common::diagnostics::Label;
@@ -13,48 +13,47 @@ use std::rc::Rc;
 use strum::IntoEnumIterator;
 
 // Placeholder; someday std::prelude will be a proper module.
-fn std_prelude_items() -> Vec<NamedItem> {
+fn std_prelude_items() -> Vec<Item> {
     let mut items = vec![
-        NamedItem::BuiltinFunction(builtins::GlobalMethod::Keccak256),
-        NamedItem::Type(TypeDef::Primitive(types::Base::Bool)),
-        NamedItem::Type(TypeDef::Primitive(types::Base::Address)),
+        Item::BuiltinFunction(builtins::GlobalMethod::Keccak256),
+        Item::Type(TypeDef::Primitive(types::Base::Bool)),
+        Item::Type(TypeDef::Primitive(types::Base::Address)),
     ];
     items.extend(
-        types::Integer::iter()
-            .map(|typ| NamedItem::Type(TypeDef::Primitive(types::Base::Numeric(typ)))),
+        types::Integer::iter().map(|typ| Item::Type(TypeDef::Primitive(types::Base::Numeric(typ)))),
     );
-    items.extend(types::GenericType::iter().map(NamedItem::GenericType));
-    items.extend(builtins::Object::iter().map(NamedItem::Object));
+    items.extend(types::GenericType::iter().map(Item::GenericType));
+    items.extend(builtins::Object::iter().map(Item::Object));
     items
 }
 
 // This tentatively includes all imported items as well as those defined in the module
-pub fn module_all_named_items(db: &dyn AnalyzerDb, module: ModuleId) -> Rc<Vec<NamedItem>> {
+pub fn module_all_named_items(db: &dyn AnalyzerDb, module: ModuleId) -> Rc<Vec<Item>> {
     let ast::Module { body } = &module.data(db).ast;
 
     let mut items = std_prelude_items();
     items.extend(body.iter().filter_map(|stmt| match stmt {
-        ast::ModuleStmt::TypeAlias(node) => Some(NamedItem::Type(TypeDef::Alias(
-            db.intern_type_alias(Rc::new(TypeAlias {
+        ast::ModuleStmt::TypeAlias(node) => Some(Item::Type(TypeDef::Alias(db.intern_type_alias(
+            Rc::new(TypeAlias {
                 ast: node.clone(),
                 module,
-            })),
-        ))),
-        ast::ModuleStmt::Contract(node) => Some(NamedItem::Type(TypeDef::Contract(
-            db.intern_contract(Rc::new(Contract {
+            }),
+        )))),
+        ast::ModuleStmt::Contract(node) => Some(Item::Type(TypeDef::Contract(db.intern_contract(
+            Rc::new(Contract {
                 name: node.name().to_string(),
                 ast: node.clone(),
                 module,
-            })),
-        ))),
-        ast::ModuleStmt::Struct(node) => Some(NamedItem::Type(TypeDef::Struct(db.intern_struct(
+            }),
+        )))),
+        ast::ModuleStmt::Struct(node) => Some(Item::Type(TypeDef::Struct(db.intern_struct(
             Rc::new(Struct {
                 ast: node.clone(),
                 module,
             }),
         )))),
         ast::ModuleStmt::Function(node) => {
-            Some(NamedItem::Function(db.intern_function(Rc::new(Function {
+            Some(Item::Function(db.intern_function(Rc::new(Function {
                 ast: node.clone(),
                 module,
                 contract: None,
@@ -69,10 +68,10 @@ pub fn module_all_named_items(db: &dyn AnalyzerDb, module: ModuleId) -> Rc<Vec<N
 pub fn module_named_item_map(
     db: &dyn AnalyzerDb,
     module: ModuleId,
-) -> Analysis<Rc<IndexMap<String, NamedItem>>> {
+) -> Analysis<Rc<IndexMap<String, Item>>> {
     let mut diagnostics = vec![];
 
-    let mut map = IndexMap::<String, NamedItem>::new();
+    let mut map = IndexMap::<String, Item>::new();
     for item in module.all_named_items(db).iter() {
         match map.entry(item.name(db)) {
             Entry::Occupied(entry) => {
@@ -88,11 +87,11 @@ pub fn module_named_item_map(
                         "duplicate type name",
                         vec![
                             Label::primary(
-                                entry.get().span(db).unwrap(),
+                                entry.get().name_span(db).unwrap(),
                                 format!("`{}` first defined here", entry.key()),
                             ),
                             Label::secondary(
-                                item.span(db)
+                                item.name_span(db)
                                     .expect("built-in conflicts with user-defined name?"),
                                 format!("`{}` redefined here", entry.key()),
                             ),
@@ -154,7 +153,7 @@ pub fn module_type_def_map(
         if let Some(reserved) = builtins::reserved_name(&def_name) {
             diagnostics.push(errors::error(
                 &format!("type name conflicts with built-in {}", reserved.as_ref()),
-                def.name_span(db),
+                def.name_span(db).unwrap(), // XXX
                 &format!("`{}` is a built-in {}", def_name, reserved.as_ref()),
             ));
             continue;
@@ -166,10 +165,13 @@ pub fn module_type_def_map(
                     "duplicate type name",
                     vec![
                         Label::primary(
-                            entry.get().span(db),
+                            entry.get().name_span(db).unwrap(), // XXX
                             format!("`{}` first defined here", entry.key()),
                         ),
-                        Label::secondary(def.span(db), format!("`{}` redefined here", entry.key())),
+                        Label::secondary(
+                            def.name_span(db).unwrap(), // XXX
+                            format!("`{}` redefined here", entry.key()),
+                        ),
                     ],
                     vec![],
                 ));
@@ -185,14 +187,14 @@ pub fn module_type_def_map(
     }
 }
 
-// XXX use named_items? return TypeError::NotAType?
-pub fn module_resolve_type(
-    db: &dyn AnalyzerDb,
-    module: ModuleId,
-    name: String,
-) -> Option<Result<types::Type, errors::TypeError>> {
-    Some(module.type_defs(db).get(&name)?.typ(db))
-}
+// // XXX use named_items? return TypeError::NotAType?
+// pub fn module_resolve_type(
+//     db: &dyn AnalyzerDb,
+//     module: ModuleId,
+//     name: String,
+// ) -> Option<Result<types::Type, errors::TypeError>> {
+//     Some(module.type_defs(db).get(&name)?.typ(db))
+// }
 
 #[allow(clippy::ptr_arg)]
 pub fn module_resolve_type_cycle(

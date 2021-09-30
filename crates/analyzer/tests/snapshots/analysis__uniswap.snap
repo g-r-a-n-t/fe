@@ -6441,11 +6441,11 @@ note:
     ┌─ demos/uniswap.fe:319:26
     │
 319 │         let salt: u256 = keccak256((token0, token1).abi_encode())
-    │                          ^^^^^^^^^ attributes hash: 11888120106960716956
+    │                          ^^^^^^^^^ attributes hash: 3985281278010092305
     │
-    = BuiltinFunction {
-          func: Keccak256,
-      }
+    = BuiltinFunction(
+          Keccak256,
+      )
 
 note: 
     ┌─ demos/uniswap.fe:319:36

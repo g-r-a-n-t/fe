@@ -28,28 +28,35 @@ impl ModuleId {
     }
 
     /// Returns a map of the named items in the module
-    pub fn named_items(&self, db: &dyn AnalyzerDb) -> Rc<IndexMap<String, Item>> {
-        db.module_named_item_map(*self).value
+    pub fn items(&self, db: &dyn AnalyzerDb) -> Rc<IndexMap<String, Item>> {
+        db.module_item_map(*self).value
     }
 
     /// Includes duplicate names
-    pub fn all_named_items(&self, db: &dyn AnalyzerDb) -> Rc<Vec<Item>> {
-        db.module_all_named_items(*self)
+    pub fn all_items(&self, db: &dyn AnalyzerDb) -> Rc<Vec<Item>> {
+        db.module_all_items(*self)
     }
 
+    pub fn imported_items(&self, db: &dyn AnalyzerDb) -> Rc<IndexMap<String, Item>> {
+        db.module_imported_item_map(*self)
+    }
+
+    // XXX
     // /// Maps defined type name to its [`TypeDef`].
     // /// Type defs include structs, type aliases, and contracts.
     // pub fn type_defs(&self, db: &dyn AnalyzerDb) -> Rc<IndexMap<String, TypeDef>> {
     //     db.module_type_def_map(*self).value
     // }
-
-    /// Includes type defs with duplicate names
-    pub fn all_type_defs(&self, db: &dyn AnalyzerDb) -> Rc<Vec<TypeDef>> {
-        db.module_all_type_defs(*self)
-    }
+    // /// Includes type defs with duplicate names
+    // pub fn all_type_defs(&self, db: &dyn AnalyzerDb) -> Rc<Vec<TypeDef>> {
+    //     db.module_all_type_defs(*self)
+    // }
 
     pub fn resolve_name(&self, db: &dyn AnalyzerDb, name: &str) -> Option<Item> {
-        self.named_items(db).get(name).copied()
+        self.items(db)
+            .get(name)
+            .copied()
+            .or_else(|| self.imported_items(db).get(name).copied())
     }
 
     /// All contracts, including duplicates
@@ -83,11 +90,11 @@ impl ModuleId {
             }
         }
 
-        // duplicate type name errors
-        sink.push_all(db.module_type_def_map(*self).diagnostics.iter());
+        // duplicate item name errors
+        sink.push_all(db.module_item_map(*self).diagnostics.iter());
 
-        // errors for each type def
-        self.all_type_defs(db)
+        // errors for each item
+        self.all_items(db)
             .iter()
             .for_each(|id| id.sink_diagnostics(db, sink));
     }

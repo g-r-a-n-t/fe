@@ -8,97 +8,117 @@ use crate::namespace::items::{
 use crate::namespace::types;
 use fe_common::diagnostics::Label;
 use fe_parser::ast;
+use indexmap::indexmap;
 use indexmap::map::{Entry, IndexMap};
 use std::rc::Rc;
 use strum::IntoEnumIterator;
 
 // Placeholder; someday std::prelude will be a proper module.
-fn std_prelude_items() -> Vec<Item> {
-    let mut items = vec![
-        Item::BuiltinFunction(builtins::GlobalMethod::Keccak256),
-        Item::Type(TypeDef::Primitive(types::Base::Bool)),
-        Item::Type(TypeDef::Primitive(types::Base::Address)),
-    ];
+fn std_prelude_items() -> IndexMap<String, Item> {
+    let mut items = indexmap! {
+        "bool".to_string() => Item::Type(TypeDef::Primitive(types::Base::Bool)),
+        "address".to_string() => Item::Type(TypeDef::Primitive(types::Base::Address)),
+    };
+
     items.extend(
-        types::Integer::iter().map(|typ| Item::Type(TypeDef::Primitive(types::Base::Numeric(typ)))),
+        builtins::GlobalMethod::iter()
+            .map(|fun| (fun.as_ref().to_string(), Item::BuiltinFunction(fun))),
     );
-    items.extend(types::GenericType::iter().map(Item::GenericType));
-    items.extend(builtins::Object::iter().map(Item::Object));
+    items.extend(types::Integer::iter().map(|typ| {
+        (
+            typ.as_ref().to_string(),
+            Item::Type(TypeDef::Primitive(types::Base::Numeric(typ))),
+        )
+    }));
+    items.extend(
+        types::GenericType::iter().map(|typ| (typ.name().to_string(), Item::GenericType(typ))),
+    );
+    items.extend(builtins::Object::iter().map(|obj| (obj.as_ref().to_string(), Item::Object(obj))));
     items
 }
 
-// This tentatively includes all imported items as well as those defined in the module
-pub fn module_all_named_items(db: &dyn AnalyzerDb, module: ModuleId) -> Rc<Vec<Item>> {
+// This is probably too simple for real module imports
+pub fn module_imported_item_map(_: &dyn AnalyzerDb, _: ModuleId) -> Rc<IndexMap<String, Item>> {
+    Rc::new(std_prelude_items())
+}
+
+pub fn module_all_items(db: &dyn AnalyzerDb, module: ModuleId) -> Rc<Vec<Item>> {
     let ast::Module { body } = &module.data(db).ast;
 
-    let mut items = std_prelude_items();
-    items.extend(body.iter().filter_map(|stmt| match stmt {
-        ast::ModuleStmt::TypeAlias(node) => Some(Item::Type(TypeDef::Alias(db.intern_type_alias(
-            Rc::new(TypeAlias {
-                ast: node.clone(),
-                module,
-            }),
-        )))),
-        ast::ModuleStmt::Contract(node) => Some(Item::Type(TypeDef::Contract(db.intern_contract(
-            Rc::new(Contract {
-                name: node.name().to_string(),
-                ast: node.clone(),
-                module,
-            }),
-        )))),
-        ast::ModuleStmt::Struct(node) => Some(Item::Type(TypeDef::Struct(db.intern_struct(
-            Rc::new(Struct {
-                ast: node.clone(),
-                module,
-            }),
-        )))),
-        ast::ModuleStmt::Function(node) => {
-            Some(Item::Function(db.intern_function(Rc::new(Function {
-                ast: node.clone(),
-                module,
-                contract: None,
-            }))))
-        }
-        ast::ModuleStmt::Pragma(_) => None,
-        ast::ModuleStmt::Import(_) => todo!(),
-    }));
+    let items = body
+        .iter()
+        .filter_map(|stmt| match stmt {
+            ast::ModuleStmt::TypeAlias(node) => Some(Item::Type(TypeDef::Alias(
+                db.intern_type_alias(Rc::new(TypeAlias {
+                    ast: node.clone(),
+                    module,
+                })),
+            ))),
+            ast::ModuleStmt::Contract(node) => Some(Item::Type(TypeDef::Contract(
+                db.intern_contract(Rc::new(Contract {
+                    name: node.name().to_string(),
+                    ast: node.clone(),
+                    module,
+                })),
+            ))),
+            ast::ModuleStmt::Struct(node) => Some(Item::Type(TypeDef::Struct(db.intern_struct(
+                Rc::new(Struct {
+                    ast: node.clone(),
+                    module,
+                }),
+            )))),
+            ast::ModuleStmt::Function(node) => {
+                Some(Item::Function(db.intern_function(Rc::new(Function {
+                    ast: node.clone(),
+                    module,
+                    contract: None,
+                }))))
+            }
+            ast::ModuleStmt::Pragma(_) => None,
+            ast::ModuleStmt::Import(_) => todo!(),
+        })
+        .collect();
     Rc::new(items)
 }
 
-pub fn module_named_item_map(
+pub fn module_item_map(
     db: &dyn AnalyzerDb,
     module: ModuleId,
 ) -> Analysis<Rc<IndexMap<String, Item>>> {
     let mut diagnostics = vec![];
 
+    let imports = db.module_imported_item_map(module);
     let mut map = IndexMap::<String, Item>::new();
-    for item in module.all_named_items(db).iter() {
-        match map.entry(item.name(db)) {
+
+    for item in module.all_items(db).iter() {
+        let item_name = item.name(db);
+        if let Some(builtin) = imports.get(&item_name) {
+            let builtin_kind = builtin.item_kind_display_name();
+            diagnostics.push(errors::error(
+                &format!("type name conflicts with built-in {}", builtin_kind),
+                item.name_span(db).expect("duplicate built-in names?"),
+                &format!("`{}` is a built-in {}", item_name, builtin_kind),
+            ));
+            continue;
+        }
+
+        match map.entry(item_name) {
             Entry::Occupied(entry) => {
-                if entry.get().is_builtin() {
-                    let builtin_kind = entry.get().item_kind_display_name();
-                    diagnostics.push(errors::error(
-                        &format!("type name conflicts with built-in {}", builtin_kind),
-                        item.name_span(db).expect("duplicate built-in names?"),
-                        &format!("`{}` is a built-in {}", entry.key(), builtin_kind),
-                    ));
-                } else {
-                    diagnostics.push(errors::fancy_error(
-                        "duplicate type name",
-                        vec![
-                            Label::primary(
-                                entry.get().name_span(db).unwrap(),
-                                format!("`{}` first defined here", entry.key()),
-                            ),
-                            Label::secondary(
-                                item.name_span(db)
-                                    .expect("built-in conflicts with user-defined name?"),
-                                format!("`{}` redefined here", entry.key()),
-                            ),
-                        ],
-                        vec![],
-                    ));
-                }
+                diagnostics.push(errors::fancy_error(
+                    "duplicate type name",
+                    vec![
+                        Label::primary(
+                            entry.get().name_span(db).unwrap(),
+                            format!("`{}` first defined here", entry.key()),
+                        ),
+                        Label::secondary(
+                            item.name_span(db)
+                                .expect("built-in conflicts with user-defined name?"),
+                            format!("`{}` redefined here", entry.key()),
+                        ),
+                    ],
+                    vec![],
+                ));
             }
             Entry::Vacant(entry) => {
                 entry.insert(*item);
@@ -111,113 +131,89 @@ pub fn module_named_item_map(
     }
 }
 
-pub fn module_all_type_defs(db: &dyn AnalyzerDb, module: ModuleId) -> Rc<Vec<TypeDef>> {
-    let ast::Module { body } = &module.data(db).ast;
-    let ids = body
-        .iter()
-        .filter_map(|stmt| match stmt {
-            ast::ModuleStmt::TypeAlias(node) => {
-                Some(TypeDef::Alias(db.intern_type_alias(Rc::new(TypeAlias {
-                    ast: node.clone(),
-                    module,
-                }))))
-            }
-            ast::ModuleStmt::Contract(node) => {
-                Some(TypeDef::Contract(db.intern_contract(Rc::new(Contract {
-                    name: node.name().to_string(),
-                    ast: node.clone(),
-                    module,
-                }))))
-            }
-            ast::ModuleStmt::Struct(node) => {
-                Some(TypeDef::Struct(db.intern_struct(Rc::new(Struct {
-                    ast: node.clone(),
-                    module,
-                }))))
-            }
-            _ => None,
-        })
-        .collect();
-    Rc::new(ids)
-}
-
-pub fn module_type_def_map(
-    db: &dyn AnalyzerDb,
-    module: ModuleId,
-) -> Analysis<Rc<IndexMap<String, TypeDef>>> {
-    let mut diagnostics = vec![];
-
-    let mut map = IndexMap::<String, TypeDef>::new();
-    for def in module.all_type_defs(db).iter() {
-        let def_name = def.name(db);
-        if let Some(reserved) = builtins::reserved_name(&def_name) {
-            diagnostics.push(errors::error(
-                &format!("type name conflicts with built-in {}", reserved.as_ref()),
-                def.name_span(db).unwrap(), // XXX
-                &format!("`{}` is a built-in {}", def_name, reserved.as_ref()),
-            ));
-            continue;
-        }
-
-        match map.entry(def.name(db)) {
-            Entry::Occupied(entry) => {
-                diagnostics.push(errors::fancy_error(
-                    "duplicate type name",
-                    vec![
-                        Label::primary(
-                            entry.get().name_span(db).unwrap(), // XXX
-                            format!("`{}` first defined here", entry.key()),
-                        ),
-                        Label::secondary(
-                            def.name_span(db).unwrap(), // XXX
-                            format!("`{}` redefined here", entry.key()),
-                        ),
-                    ],
-                    vec![],
-                ));
-            }
-            Entry::Vacant(entry) => {
-                entry.insert(*def);
-            }
-        }
-    }
-    Analysis {
-        value: Rc::new(map),
-        diagnostics: Rc::new(diagnostics),
-    }
-}
-
-// // XXX use named_items? return TypeError::NotAType?
-// pub fn module_resolve_type(
-//     db: &dyn AnalyzerDb,
-//     module: ModuleId,
-//     name: String,
-// ) -> Option<Result<types::Type, errors::TypeError>> {
-//     Some(module.type_defs(db).get(&name)?.typ(db))
+// pub fn module_all_type_defs(db: &dyn AnalyzerDb, module: ModuleId) -> Rc<Vec<TypeDef>> {
+//     let ast::Module { body } = &module.data(db).ast;
+//     let ids = body
+//         .iter()
+//         .filter_map(|stmt| match stmt {
+//             ast::ModuleStmt::TypeAlias(node) => {
+//                 Some(TypeDef::Alias(db.intern_type_alias(Rc::new(TypeAlias {
+//                     ast: node.clone(),
+//                     module,
+//                 }))))
+//             }
+//             ast::ModuleStmt::Contract(node) => {
+//                 Some(TypeDef::Contract(db.intern_contract(Rc::new(Contract {
+//                     name: node.name().to_string(),
+//                     ast: node.clone(),
+//                     module,
+//                 }))))
+//             }
+//             ast::ModuleStmt::Struct(node) => {
+//                 Some(TypeDef::Struct(db.intern_struct(Rc::new(Struct {
+//                     ast: node.clone(),
+//                     module,
+//                 }))))
+//             }
+//             _ => None,
+//         })
+//         .collect();
+//     Rc::new(ids)
 // }
 
-#[allow(clippy::ptr_arg)]
-pub fn module_resolve_type_cycle(
-    _db: &dyn AnalyzerDb,
-    _cycle: &[String],
-    _module: &ModuleId,
-    _name: &String,
-) -> Option<Result<types::Type, errors::TypeError>> {
-    // The only possible type cycle currently is a recursive type alias,
-    // which is handled in queries/types.rs
-    // However, salsa will also call this function if there's such a cycle,
-    // so we can't panic here, and we can't return a TypeError because
-    // there's no way to emit a diagnostic! The only option is to return
-    // None, and handle type cycles in more specifc cycle handlers.
-    None
-}
+// pub fn module_type_def_map(
+//     db: &dyn AnalyzerDb,
+//     module: ModuleId,
+// ) -> Analysis<Rc<IndexMap<String, TypeDef>>> {
+//     let mut diagnostics = vec![];
+
+//     let mut map = IndexMap::<String, TypeDef>::new();
+//     for def in module.all_type_defs(db).iter() {
+//         let def_name = def.name(db);
+//         if let Some(reserved) = builtins::reserved_name(&def_name) {
+//             diagnostics.push(errors::error(
+//                 &format!("type name conflicts with built-in {}", reserved.as_ref()),
+//                 def.name_span(db).unwrap(), // XXX
+//                 &format!("`{}` is a built-in {}", def_name, reserved.as_ref()),
+//             ));
+//             continue;
+//         }
+
+//         match map.entry(def.name(db)) {
+//             Entry::Occupied(entry) => {
+//                 diagnostics.push(errors::fancy_error(
+//                     "duplicate type name",
+//                     vec![
+//                         Label::primary(
+//                             entry.get().name_span(db).unwrap(), // XXX
+//                             format!("`{}` first defined here", entry.key()),
+//                         ),
+//                         Label::secondary(
+//                             def.name_span(db).unwrap(), // XXX
+//                             format!("`{}` redefined here", entry.key()),
+//                         ),
+//                     ],
+//                     vec![],
+//                 ));
+//             }
+//             Entry::Vacant(entry) => {
+//                 entry.insert(*def);
+//             }
+//         }
+//     }
+//     Analysis {
+//         value: Rc::new(map),
+//         diagnostics: Rc::new(diagnostics),
+//     }
+// }
 
 pub fn module_contracts(db: &dyn AnalyzerDb, module: ModuleId) -> Rc<Vec<ContractId>> {
-    let defs = module.all_type_defs(db);
     Rc::new(
-        defs.iter()
-            .filter_map(|def| match def {
-                TypeDef::Contract(id) => Some(*id),
+        module
+            .all_items(db)
+            .iter()
+            .filter_map(|item| match item {
+                Item::Type(TypeDef::Contract(id)) => Some(*id),
                 _ => None,
             })
             .collect(),
@@ -225,11 +221,12 @@ pub fn module_contracts(db: &dyn AnalyzerDb, module: ModuleId) -> Rc<Vec<Contrac
 }
 
 pub fn module_structs(db: &dyn AnalyzerDb, module: ModuleId) -> Rc<Vec<StructId>> {
-    let defs = module.all_type_defs(db);
     Rc::new(
-        defs.iter()
-            .filter_map(|def| match def {
-                TypeDef::Struct(id) => Some(*id),
+        module
+            .all_items(db)
+            .iter()
+            .filter_map(|item| match item {
+                Item::Type(TypeDef::Struct(id)) => Some(*id),
                 _ => None,
             })
             .collect(),

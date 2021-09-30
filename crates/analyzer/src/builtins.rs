@@ -58,7 +58,7 @@ pub enum ValueMethod {
     AbiEncode,
 }
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq, EnumString, AsRefStr, Hash)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, EnumString, AsRefStr, Hash, EnumIter)]
 #[strum(serialize_all = "snake_case")]
 pub enum GlobalMethod {
     Keccak256,

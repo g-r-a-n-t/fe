@@ -44,6 +44,7 @@ pub fn contract_function_map(
         if def_name == "__init__" {
             continue;
         }
+        // XXX
         if let Some(reserved) = builtins::reserved_name(def_name) {
             scope.error(
                 &format!(

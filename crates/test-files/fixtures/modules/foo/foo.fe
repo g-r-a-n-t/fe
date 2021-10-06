@@ -1,0 +1,5 @@
+use bar::my_struct
+
+contract Foo:
+    pub fn my_func() -> my_struct:
+        pass

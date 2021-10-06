@@ -1,0 +1,3 @@
+pub struct my_struct:
+    my_num: u256
+    my_bool: bool

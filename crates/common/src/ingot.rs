@@ -1,9 +1,10 @@
 use camino::Utf8PathBuf;
 use radix_immutable::StringPrefixView;
 use serde::Serialize;
+use smol_str::SmolStr;
 use url::Url;
 
-use crate::config::IngotMetadata;
+use crate::config::{Config, DependencyDescription, IngotMetadata};
 // use crate::config::IngotManifest;
 use crate::core::BUILTIN_CORE_BASE_URL;
 use crate::file::{File, Workspace};
@@ -68,10 +69,7 @@ pub struct Ingot<'db> {
     pub standalone_file: Option<File>,
     #[tracked]
     pub index: Workspace,
-    pub version: Version,
     pub kind: IngotKind,
-    #[tracked]
-    pub dependencies: Vec<(String, Url)>,
 }
 
 #[derive(Debug)]
@@ -109,6 +107,49 @@ impl<'db> Ingot<'db> {
             // For regular ingots, use the ingot base URL
             db.workspace().items_at_base(db, self.base(db))
         }
+    }
+
+    #[salsa::tracked]
+    pub fn config(self, db: &'db dyn InputDb) -> Option<Config> {
+        db.workspace()
+            .containing_ingot_config(db, self.base(db))
+            .map(|config_file| Config::from_string(config_file.text(db).clone()))
+    }
+
+    #[salsa::tracked]
+    pub fn version(self, db: &'db dyn InputDb) -> Option<Version> {
+        self.config(db).map(|config| config.ingot.version).flatten()
+    }
+
+    #[salsa::tracked]
+    pub fn dependencies(self, db: &'db dyn InputDb) -> Vec<(SmolStr, Url)> {
+        let base_url = self.base(db);
+        let mut deps = match self.config(db) {
+            Some(config) => config
+                .dependencies
+                .into_iter()
+                .map(|dependency| {
+                    let mut path = match dependency.description {
+                        DependencyDescription::Path(path) => path,
+                        DependencyDescription::PathWithArguments { path, arguments } => path,
+                    };
+                    if !path.ends_with("/") {
+                        path.push("");
+                    }
+                    let url = base_url.join(path.as_str()).unwrap().directory().unwrap();
+                    (dependency.alias, url)
+                })
+                .collect(),
+            None => vec![],
+        };
+
+        if self.kind(db) != IngotKind::Core {
+            deps.push((
+                "core".into(),
+                Url::parse(BUILTIN_CORE_BASE_URL).expect("couldn't parse core ingot URL"),
+            ))
+        }
+        deps
     }
 }
 
@@ -193,24 +234,17 @@ pub(super) fn ingot_at_base_url<'db>(
 ) -> Ingot<'db> {
     let core_url = Url::parse(BUILTIN_CORE_BASE_URL).expect("Failed to parse core URL");
     let is_core = base_url.scheme().contains("core");
-    let dependencies = if is_core {
-        vec![]
-    } else {
-        vec![("core".into(), core_url)]
-    };
 
     let ingot = Ingot::new(
         db,
         base_url,
         None,
         index,
-        Version::new(1, 0, 0),
         if is_core {
             IngotKind::Core
         } else {
             IngotKind::Local
         },
-        dependencies,
     );
 
     // this is a sad necessity :(( for now
@@ -228,17 +262,8 @@ pub(super) fn standalone_ingot<'db>(
     root_file: Option<File>,
 ) -> Ingot<'db> {
     let core_url = Url::parse(BUILTIN_CORE_BASE_URL).expect("Failed to parse core URL");
-    let dependencies = vec![("core".into(), core_url)];
 
-    let ingot = Ingot::new(
-        db,
-        base_url,
-        root_file,
-        index,
-        Version::new(0, 0, 0),
-        IngotKind::StandAlone,
-        dependencies,
-    );
+    let ingot = Ingot::new(db, base_url, root_file, index, IngotKind::StandAlone);
 
     // this is a sad necessity :(( for now
     let _ = ingot.files(db);

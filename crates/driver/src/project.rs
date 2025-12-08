@@ -1,7 +1,7 @@
 use std::fs;
 
 use camino::Utf8PathBuf;
-use common::file::File;
+use common::{InputDb, file::File};
 use hir::Ingot;
 use url::Url;
 
@@ -41,6 +41,7 @@ impl IngotTarget {
     }
 }
 
+#[allow(clippy::result_unit_err)]
 pub fn resolve_target(db: &mut DriverDataBase, path: &Utf8PathBuf) -> Result<Target, ()> {
     if path.is_file() && path.extension() == Some("fe") {
         resolve_single_file(db, path).map(Target::SingleFile)

@@ -64,19 +64,12 @@ pub fn build(path: &Utf8PathBuf, dump_mir: bool) {
 
 fn emit_yul(db: &DriverDataBase, top_mod: TopLevelMod<'_>) {
     match emit_module_yul(db, top_mod) {
-        Ok(results) => {
-            for result in results {
-                match result {
-                    Ok(yul) => {
-                        println!("=== Yul ===");
-                        println!("{yul}");
-                        println!();
-                    }
-                    Err(err) => eprintln!("⚠️  yul emission skipped: {err}"),
-                }
-            }
+        Ok(yul) => {
+            println!("=== Yul ===");
+            println!("{yul}");
+            println!();
         }
-        Err(err) => eprintln!("⚠️  failed to lower MIR for yul emission: {err}"),
+        Err(err) => eprintln!("⚠️  failed to emit Yul: {err}"),
     }
 }
 
@@ -160,6 +153,27 @@ fn format_inst(db: &DriverDataBase, inst: &MirInst<'_>) -> String {
         MirInst::Eval { stmt, value } => {
             format!("{}: eval {}", stmt_label(*stmt), value_label(*value))
         }
+        MirInst::EvalExpr {
+            expr,
+            value,
+            bind_value,
+        } => {
+            let bind_suffix = if *bind_value { " (bind)" } else { "" };
+            format!(
+                "{}: eval_expr{} {}",
+                expr_label(*expr),
+                bind_suffix,
+                value_label(*value)
+            )
+        }
+        MirInst::IntrinsicStmt { expr, op, args } => {
+            let args = args
+                .iter()
+                .map(|arg| value_label(*arg))
+                .collect::<Vec<_>>()
+                .join(", ");
+            format!("{}: intrinsic {:?}({args})", expr_label(*expr), op)
+        }
     }
 }
 
@@ -177,6 +191,11 @@ fn format_terminator(term: &Terminator) -> String {
             value_label(*cond),
             then_bb.index(),
             else_bb.index()
+        ),
+        Terminator::ReturnData { offset, size } => format!(
+            "return_data {}, {}",
+            value_label(*offset),
+            value_label(*size)
         ),
         Terminator::Switch {
             discr,

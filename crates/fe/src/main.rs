@@ -29,6 +29,8 @@ pub enum Command {
         path: Utf8PathBuf,
         #[arg(short, long)]
         core: Option<Utf8PathBuf>,
+        #[arg(long, help = "Show detailed errors from downstream ingots")]
+        show_downstream: bool,
     },
     #[cfg(not(target_arch = "wasm32"))]
     Tree {
@@ -50,9 +52,13 @@ pub fn run(opts: &Options) {
         Command::Build { path, dump_mir } => {
             build(path, *dump_mir);
         }
-        Command::Check { path, core: _ } => {
+        Command::Check {
+            path,
+            core: _,
+            show_downstream,
+        } => {
             //: TODO readd custom core
-            check(path);
+            check(path, *show_downstream);
         }
         #[cfg(not(target_arch = "wasm32"))]
         Command::Tree { path } => {

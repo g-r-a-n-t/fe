@@ -1,6 +1,8 @@
 ---
 source: crates/fe/tests/cli_output.rs
+assertion_line: 175
 expression: output
+input_file: tests/fixtures/cli_output/build/simple_dump_mir.snap
 ---
 === STDOUT ===
 === MIR for module ===
@@ -9,10 +11,8 @@ fn main:
     terminator: return v0
 
 === Yul ===
-{
-  function main() -> ret {
-    ret := 42
-  }
+function main() -> ret {
+  ret := 42
 }
 
 

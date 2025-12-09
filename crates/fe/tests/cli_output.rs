@@ -21,6 +21,10 @@ fn run_fe_check(path: &str) -> (String, i32) {
     run_fe_command(&["check", path])
 }
 
+fn run_fe_check_with_downstream(path: &str) -> (String, i32) {
+    run_fe_command(&["check", "--show-downstream", path])
+}
+
 // Helper function to run fe build
 fn run_fe_build(path: &str) -> (String, i32) {
     run_fe_command(&["build", path])
@@ -139,6 +143,17 @@ fn test_tree_output(fixture: Fixture<&str>) {
 }
 
 #[test]
+fn test_cli_ingot_via_file_path() {
+    let ingot_file = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("tests/fixtures/cli_output/ingots/basic/src/lib.fe");
+    let (output, _) = run_fe_check(ingot_file.to_str().unwrap());
+
+    let snapshot = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("tests/fixtures/cli_output/ingots/basic_file.snap");
+    snap_test!(output, snapshot.to_str().unwrap());
+}
+
+#[test]
 fn test_build_outputs_yul() {
     let simple_file = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
         .join("tests/fixtures/cli_output/build/simple.fe");
@@ -157,5 +172,27 @@ fn test_build_can_dump_mir() {
 
     let snapshot = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
         .join("tests/fixtures/cli_output/build/simple_dump_mir.snap");
+    snap_test!(output, snapshot.to_str().unwrap());
+}
+
+#[test]
+fn test_cli_single_file_scope_in_ingot() {
+    let file_path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("tests/fixtures/cli_output/ingots/file_scope/src/lib.fe");
+    let (output, _) = run_fe_check(file_path.to_str().unwrap());
+
+    let snapshot = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("tests/fixtures/cli_output/ingots/file_scope_lib.snap");
+    snap_test!(output, snapshot.to_str().unwrap());
+}
+
+#[test]
+fn test_cli_ingot_show_downstream() {
+    let ingot_dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("tests/fixtures/cli_output/ingots/dependency_root");
+    let (output, _) = run_fe_check_with_downstream(ingot_dir.to_str().unwrap());
+
+    let snapshot = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("tests/fixtures/cli_output/ingots/dependency_root_show_downstream.snap");
     snap_test!(output, snapshot.to_str().unwrap());
 }

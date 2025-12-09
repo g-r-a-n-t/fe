@@ -1,13 +1,13 @@
 ---
 source: crates/fe/tests/cli_output.rs
+assertion_line: 164
 expression: output
+input_file: tests/fixtures/cli_output/build/simple.snap
 ---
 === STDOUT ===
 === Yul ===
-{
-  function main() -> ret {
-    ret := 42
-  }
+function main() -> ret {
+  ret := 42
 }
 
 

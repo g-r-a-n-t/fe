@@ -160,8 +160,10 @@ impl<'db> TyChecker<'db> {
             return (TyId::invalid(self.db, InvalidCause::Other), None);
         }
 
-        // Look up Seq trait (panics if not found - shouldn't happen in normal builds)
-        let seq_trait = resolve_core_trait(self.db, self.env.scope(), &["seq", "Seq"]);
+        // Look up Seq trait (if missing, treat as invalid).
+        let Some(seq_trait) = resolve_core_trait(self.db, self.env.scope(), &["seq", "Seq"]) else {
+            return (TyId::invalid(self.db, InvalidCause::Other), None);
+        };
 
         let ingot = self.env.body().top_mod(self.db).ingot(self.db);
         let canonical_ty = Canonical::new(self.db, iterable_ty);

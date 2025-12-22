@@ -202,12 +202,22 @@ impl<'db> TargetHostContext<'db> {
         spec: TargetSpec,
     ) -> MirLowerResult<(Self, TyId<'db>)> {
         let target_ty = resolve_ty_path(db, top_mod, scope, spec.target_ty_path)?;
-        let target_trait = resolve_core_trait(db, scope, &["contracts", "Target"]);
+        let target_trait =
+            resolve_core_trait(db, scope, &["contracts", "Target"]).ok_or_else(|| {
+                MirLowerError::Unsupported {
+                    func_name: "<contract lowering>".into(),
+                    message: "missing core trait `contracts::Target`".into(),
+                }
+            })?;
         let inst_target = TraitInstId::new(db, target_trait, vec![target_ty], IndexMap::new());
         let root_effect_ty = resolve_assoc_ty(db, inst_target, scope, assumptions, "RootEffect");
         let default_abi_ty = resolve_assoc_ty(db, inst_target, scope, assumptions, "DefaultAbi");
 
-        let contract_host_trait = resolve_core_trait(db, scope, &["contracts", "ContractHost"]);
+        let contract_host_trait = resolve_core_trait(db, scope, &["contracts", "ContractHost"])
+            .ok_or_else(|| MirLowerError::Unsupported {
+                func_name: "<contract lowering>".into(),
+                message: "missing core trait `contracts::ContractHost`".into(),
+            })?;
         let contract_host_inst = TraitInstId::new(
             db,
             contract_host_trait,
@@ -219,7 +229,11 @@ impl<'db> TargetHostContext<'db> {
             resolve_assoc_ty(db, contract_host_inst, scope, assumptions, "InitInput");
         let input_ty = resolve_assoc_ty(db, contract_host_inst, scope, assumptions, "Input");
 
-        let effect_ref_trait = resolve_core_trait(db, scope, &["effect_ref", "EffectRef"]);
+        let effect_ref_trait = resolve_core_trait(db, scope, &["effect_ref", "EffectRef"])
+            .ok_or_else(|| MirLowerError::Unsupported {
+                func_name: "<contract lowering>".into(),
+                message: "missing core trait `effect_ref::EffectRef`".into(),
+            })?;
         let effect_ref_from_raw = require_trait_method(db, effect_ref_trait, "from_raw")?;
 
         let alloc_func = resolve_value_func_path(db, top_mod, scope, spec.alloc_func_path)?;
@@ -284,7 +298,12 @@ impl<'db> AbiContext<'db> {
         abi_ty: TyId<'db>,
         host: &TargetHostContext<'db>,
     ) -> MirLowerResult<Self> {
-        let abi_trait = resolve_core_trait(db, scope, &["abi", "Abi"]);
+        let abi_trait = resolve_core_trait(db, scope, &["abi", "Abi"]).ok_or_else(|| {
+            MirLowerError::Unsupported {
+                func_name: "<contract lowering>".into(),
+                message: "missing core trait `abi::Abi`".into(),
+            }
+        })?;
         let abi_inst = TraitInstId::new(db, abi_trait, vec![abi_ty], IndexMap::new());
         let selector_ty = resolve_assoc_ty(db, abi_inst, scope, assumptions, "Selector");
 
@@ -303,7 +322,12 @@ impl<'db> AbiContext<'db> {
         );
 
         let abi_decoder_new = require_trait_method(db, abi_trait, "decoder_new")?;
-        let decode_trait = resolve_core_trait(db, scope, &["abi", "Decode"]);
+        let decode_trait = resolve_core_trait(db, scope, &["abi", "Decode"]).ok_or_else(|| {
+            MirLowerError::Unsupported {
+                func_name: "<contract lowering>".into(),
+                message: "missing core trait `abi::Decode`".into(),
+            }
+        })?;
         let decode_decode = require_trait_method(db, decode_trait, "decode")?;
 
         Ok(Self {

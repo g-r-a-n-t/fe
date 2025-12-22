@@ -680,8 +680,15 @@ impl<'db> RecvArmView<'db> {
             .and_then(|s| get_variant_selector(db, s))
             .unwrap_or_default();
 
-        let msg_variant_trait =
-            resolve_core_trait(db, contract.scope(), &["message", "MsgVariant"]);
+        let Some(msg_variant_trait) =
+            resolve_core_trait(db, contract.scope(), &["message", "MsgVariant"])
+        else {
+            return RecvArmAbiInfo {
+                selector_value,
+                args_ty: variant_ty,
+                ret_ty: None,
+            };
+        };
         let return_ident = IdentId::new(db, "Return".to_string());
 
         let variant_ret_ty = if !variant_ty.has_invalid(db) && !abi.has_invalid(db) {
@@ -875,7 +882,9 @@ impl<'db> Contract<'db> {
         let assumptions = PredicateListId::empty_list(db);
         let ingot = self.top_mod(db).ingot(db);
 
-        let effect_ref = resolve_core_trait(db, scope, &["effect_ref", "EffectRef"]);
+        let Some(effect_ref) = resolve_core_trait(db, scope, &["effect_ref", "EffectRef"]) else {
+            return IndexMap::new();
+        };
         let target_ident = IdentId::new(db, "Target".to_string());
 
         let hir_fields = self.hir_fields(db).data(db);
@@ -1288,7 +1297,7 @@ fn get_variant_selector<'db>(db: &'db dyn HirAnalysisDb, struct_: Struct<'db>) -
     use crate::hir_def::{Expr, LitKind};
     use num_traits::ToPrimitive;
 
-    let msg_variant_trait = resolve_core_trait(db, struct_.scope(), &["message", "MsgVariant"]);
+    let msg_variant_trait = resolve_core_trait(db, struct_.scope(), &["message", "MsgVariant"])?;
 
     let adt_def = crate::analysis::ty::adt_def::AdtRef::from(struct_).as_adt(db);
     let ty = TyId::adt(db, adt_def);

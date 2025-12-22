@@ -327,6 +327,7 @@ pub enum BodyDiag<'db> {
         op: IdentId<'db>,
         trait_path: PathId<'db>,
     },
+    UnsupportedUnaryPlus(DynLazySpan<'db>),
 
     NonAssignableExpr(DynLazySpan<'db>),
 
@@ -590,6 +591,7 @@ impl<'db> BodyDiag<'db> {
             Self::InvalidCast { .. } => 55,
             Self::AccessedFieldNotFound { .. } => 15,
             Self::OpsTraitNotImplemented { .. } => 16,
+            Self::UnsupportedUnaryPlus(..) => 52,
             Self::NonAssignableExpr(..) => 17,
             Self::ImmutableAssignment { .. } => 18,
             Self::LoopControlOutsideOfLoop { .. } => 19,

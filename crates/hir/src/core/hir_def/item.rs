@@ -1220,7 +1220,7 @@ impl<'db> Use<'db> {
         ScopeId::from_item(self.into())
     }
 
-    pub fn is_prelude_use(self, db: &'db dyn HirDb) -> bool {
+    pub fn is_synthetic_use(self, db: &'db dyn HirDb) -> bool {
         matches!(self.origin(db), &HirOrigin::Synthetic)
     }
 

@@ -1,6 +1,5 @@
 ---
 source: crates/mir/tests/lowering_snapshots.rs
-assertion_line: 26
 expression: mir_output
 ---
 fn answer_decode(v0: SolDecoder<CallData>) -> Answer:
@@ -46,7 +45,7 @@ fn init_contract(v0: u256, v1: u256, v2: u256) -> ():
 
 fn init(v0: u256) -> ():
   bb0:
-    v1: StorPtr<Foo> = stor_ptr__Evm_Foo__c3089d776807df8e(v0, 0)
+    v1: StorPtr<Foo> = stor_ptr__Evm_Foo__c3089d776807df8e((), 0)
     v4: SolDecoder<CallData> = soldecoder_i__new__CallData__b9ab8dc8a4b2f9e(())
     v5: u256 = calldatasize()
     br (v5 < (32 + 32)) bb1 bb2
@@ -64,7 +63,7 @@ fn init(v0: u256) -> ():
 
 fn runtime(v0: u256) -> ():
   bb0:
-    v1: StorPtr<Foo> = stor_ptr__Evm_Foo__c3089d776807df8e(v0, 0)
+    v1: StorPtr<Foo> = stor_ptr__Evm_Foo__c3089d776807df8e((), 0)
     v4: u256 = calldatasize()
     br (v4 < 4) bb1 bb2
   bb1:
@@ -138,8 +137,7 @@ fn u256_decode_decode__Sol_SolDecoder_CallData___828c6f2e3bda3cab(v0: D) -> u256
 
 fn stor_ptr__Evm_Foo__c3089d776807df8e(v0: Self, v1: u256) -> StorPtr<T>:
   bb0:
-    v2: StorPtr<Foo> = v1
-    ret v2
+    ret v1
 
 fn soldecoder_i__new__CallData__b9ab8dc8a4b2f9e(v0: I) -> SolDecoder<I>:
   bb0:
@@ -151,7 +149,7 @@ fn soldecoder_i__new__CallData__b9ab8dc8a4b2f9e(v0: I) -> SolDecoder<I>:
 
 fn runtime(v0: u256) -> ():
   bb0:
-    v1: StorPtr<Foo> = stor_ptr__Evm_Foo__c3089d776807df8e(v0, 0)
+    v1: StorPtr<Foo> = stor_ptr__Evm_Foo__c3089d776807df8e((), 0)
     v4: u256 = calldatasize()
     br (v4 < 4) bb1 bb2
   bb1:

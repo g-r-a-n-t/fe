@@ -158,6 +158,10 @@ pub trait Log {
     fn log2(mut self, offset: u256, len: u256, topic0: u256, topic1: u256)
     fn log3(mut self, offset: u256, len: u256, topic0: u256, topic1: u256, topic2: u256)
     fn log4(mut self, offset: u256, len: u256, topic0: u256, topic1: u256, topic2: u256, topic3: u256)
+
+    fn emit<T>(mut self, _ event: T) {
+        core::todo()
+    }
 }
 
 pub trait Create {

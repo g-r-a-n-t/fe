@@ -37,8 +37,7 @@ impl<'db, 'a> MirBuilder<'db, 'a> {
             },
         });
         self.builder.body.values[value_id.index()].origin = ValueOrigin::Local(dest);
-        self.value_address_space
-            .insert(value_id, AddressSpaceKind::Memory);
+        self.builder.body.values[value_id.index()].repr = ValueRepr::Ref(AddressSpaceKind::Memory);
         value_id
     }
 
@@ -50,8 +49,7 @@ impl<'db, 'a> MirBuilder<'db, 'a> {
         if inits.is_empty() {
             return;
         }
-        let addr_space = self.value_address_space(base_value);
-        let place = Place::new(base_value, MirProjectionPath::new(), addr_space);
+        let place = Place::new(base_value, MirProjectionPath::new());
         self.push_inst_here(MirInst::InitAggregate { place, inits });
     }
 
@@ -94,9 +92,12 @@ impl<'db, 'a> MirBuilder<'db, 'a> {
         }
 
         if effect_ptr_bases.contains(&record_base) && lowered_fields.len() == 1 {
-            let value = lowered_fields[0].1;
-            self.builder.body.expr_values.insert(expr, value);
-            return value;
+            let field_value = lowered_fields[0].1;
+            self.builder.body.values[fallback.index()].origin =
+                ValueOrigin::TransparentCast { value: field_value };
+            self.builder.body.values[fallback.index()].repr =
+                self.value_repr_for_expr(expr, record_ty);
+            return fallback;
         }
 
         let value_id = self.emit_alloc(expr, record_ty);
@@ -312,6 +313,7 @@ impl<'db, 'a> MirBuilder<'db, 'a> {
         self.builder.body.alloc_value(ValueData {
             ty,
             origin: ValueOrigin::Synthetic(SyntheticValue::Int(value)),
+            repr: ValueRepr::Word,
         })
     }
 }

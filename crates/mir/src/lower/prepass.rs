@@ -57,10 +57,6 @@ impl<'db, 'a> MirBuilder<'db, 'a> {
     /// The `ValueId` bound to the expression.
     pub(super) fn ensure_value(&mut self, expr: ExprId) -> ValueId {
         if let Some(&val) = self.builder.body.expr_values.get(&expr) {
-            if !self.value_address_space.contains_key(&val) {
-                let space = self.expr_address_space(expr);
-                self.value_address_space.insert(val, space);
-            }
             return val;
         }
 
@@ -87,7 +83,6 @@ impl<'db, 'a> MirBuilder<'db, 'a> {
         };
 
         self.builder.body.expr_values.insert(expr, value);
-        // Note: record_value_address_space is already called in alloc_expr_value.
         value
     }
 
@@ -100,11 +95,11 @@ impl<'db, 'a> MirBuilder<'db, 'a> {
     /// The allocated `ValueId` (lowered call/field/const where applicable).
     pub(super) fn alloc_expr_value(&mut self, expr: ExprId) -> ValueId {
         if let Some(value) = self.try_const_expr(expr) {
-            self.record_value_address_space(expr, value);
             return value;
         }
 
         let ty = self.typed_body.expr_ty(self.db, expr);
+        let repr = self.value_repr_for_expr(expr, ty);
         let origin = match expr.data(self.db, self.body) {
             Partial::Present(Expr::Lit(LitKind::Int(int_id))) => {
                 ValueOrigin::Synthetic(SyntheticValue::Int(int_id.data(self.db).clone()))
@@ -116,10 +111,26 @@ impl<'db, 'a> MirBuilder<'db, 'a> {
                 SyntheticValue::Bytes(str_id.data(self.db).as_bytes().to_vec()),
             ),
             Partial::Present(Expr::Path(_)) => {
-                if let Some(binding) = self.typed_body.expr_prop(self.db, expr).binding
-                    && let Some(local) = self.local_for_binding(binding)
-                {
-                    ValueOrigin::Local(local)
+                let expr_prop = self.typed_body.expr_prop(self.db, expr);
+                if let Some(binding) = expr_prop.binding {
+                    if extract_contract_function(self.db, self.func).is_some()
+                        && matches!(binding, LocalBinding::EffectParam { .. })
+                    {
+                        // TODO: document/enforce this rule:
+                        //   effect params on contract_init/contract_runtime must be zero-sized concrete types
+                        debug_assert!(
+                            crate::layout::ty_size_bytes(self.db, ty) == Some(0),
+                            "contract entrypoint effect params must be concrete zero-sized providers; got `{}`",
+                            ty.pretty_print(self.db)
+                        );
+                        ValueOrigin::Unit
+                    } else if let Some(local) = self.local_for_binding(binding) {
+                        ValueOrigin::Local(local)
+                    } else if let Some(target) = self.code_region_target(expr) {
+                        ValueOrigin::FuncItem(target)
+                    } else {
+                        ValueOrigin::Expr(expr)
+                    }
                 } else if let Some(target) = self.code_region_target(expr) {
                     ValueOrigin::FuncItem(target)
                 } else {
@@ -143,9 +154,9 @@ impl<'db, 'a> MirBuilder<'db, 'a> {
             _ => ValueOrigin::Expr(expr),
         };
 
-        let value = self.builder.body.alloc_value(ValueData { ty, origin });
-        self.record_value_address_space(expr, value);
-        value
+        self.builder
+            .body
+            .alloc_value(ValueData { ty, origin, repr })
     }
 
     /// Collect all argument expressions and their lowered values for a call or method call.
@@ -356,6 +367,7 @@ impl<'db, 'a> MirBuilder<'db, 'a> {
         self.builder.body.alloc_value(ValueData {
             ty,
             origin: ValueOrigin::Synthetic(value),
+            repr: ValueRepr::Word,
         })
     }
 }

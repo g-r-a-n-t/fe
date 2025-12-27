@@ -162,6 +162,7 @@ impl<'db> FunctionEmitter<'db> {
             ValueOrigin::Synthetic(synth) => self.lower_synthetic_value(synth),
             ValueOrigin::FieldPtr(field_ptr) => self.lower_field_ptr(field_ptr, state),
             ValueOrigin::PlaceRef(place) => self.lower_place_ref(place, state),
+            ValueOrigin::TransparentCast { value } => self.lower_value(*value, state),
         }
     }
 
@@ -256,7 +257,7 @@ impl<'db> FunctionEmitter<'db> {
             return Ok("0".into());
         }
         let addr = self.lower_place_address(place, state)?;
-        let raw_load = match place.address_space {
+        let raw_load = match self.mir_func.body.place_address_space(place) {
             mir::ir::AddressSpaceKind::Memory => format!("mload({addr})"),
             mir::ir::AddressSpaceKind::Storage => format!("sload({addr})"),
         };
@@ -389,7 +390,10 @@ impl<'db> FunctionEmitter<'db> {
         let base_value = self.mir_func.body.value(place.base);
         let mut current_ty = base_value.ty;
         let mut total_offset: usize = 0;
-        let is_storage = matches!(place.address_space, mir::ir::AddressSpaceKind::Storage);
+        let is_storage = matches!(
+            self.mir_func.body.place_address_space(place),
+            mir::ir::AddressSpaceKind::Storage
+        );
 
         for proj in place.projection.iter() {
             match proj {

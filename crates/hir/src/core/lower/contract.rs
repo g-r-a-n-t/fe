@@ -10,7 +10,7 @@ use crate::{
         FieldDef, FieldDefListId, Func, FuncParam, FuncParamListId, FuncParamName, GenericArg,
         GenericArgListId, GenericParamListId, IdentId, IntegerId, ItemModifier, LitKind, MatchArm,
         NormalAttr, Partial, Pat, PatId, PathId, PathKind, Stmt, StmtId, TrackedItemVariant,
-        TypeGenericArg, TypeId, TypeKind, Use, Visibility, WhereClauseId,
+        TypeGenericArg, TypeId, TypeKind, Use, Visibility, WhereClauseId, WithBinding,
         use_tree::{UsePathId, UsePathSegment},
     },
     lower::{FileLowerCtxt, body::BodyCtxt, item::lower_uses_clause_opt},
@@ -345,25 +345,12 @@ impl<'a, 'ctxt, 'db> HirBuilder<'a, 'ctxt, 'db> {
     }
 
     /// Creates a with-expression wrapping a call with effect bindings.
-    fn with_expr(&mut self, bindings: Vec<IdentId<'db>>, inner: ExprId) -> ExprId {
+    fn with_expr(&mut self, bindings: Vec<WithBinding<'db>>, inner: ExprId) -> ExprId {
         if bindings.is_empty() {
             return inner;
         }
-        let with_bindings = bindings
-            .into_iter()
-            .map(|binding| {
-                let value = self.body_ctxt.push_expr(
-                    Expr::Path(Partial::Present(PathId::from_ident(self.db(), binding))),
-                    self.origin(),
-                );
-                crate::hir_def::WithBinding {
-                    key_path: None,
-                    value,
-                }
-            })
-            .collect();
         self.body_ctxt
-            .push_expr(Expr::With(with_bindings, inner), self.origin())
+            .push_expr(Expr::With(bindings, inner), self.origin())
     }
 
     /// Creates a path expression with generic type arguments appended.
@@ -778,6 +765,42 @@ fn contract_effect_type_paths<'db>(
     map
 }
 
+fn entrypoint_with_bindings_from_uses<'ctxt, 'db>(
+    b: &mut HirBuilder<'_, 'ctxt, 'db>,
+    contract: Contract<'db>,
+    raw_uses: EffectParamListId<'db>,
+) -> Vec<WithBinding<'db>> {
+    let db = b.db();
+    let field_types = contract_field_type_paths(db, contract);
+
+    let mut bindings_out = Vec::new();
+
+    for eff in raw_uses.data(db) {
+        let Some(raw_key_path) = eff.key_path.to_opt() else {
+            continue;
+        };
+        let Some(binding) = eff.name.or_else(|| raw_key_path.as_ident(db)) else {
+            continue;
+        };
+
+        if field_types.contains_key(&binding) {
+            let value = b.var_expr(binding.data(db));
+            bindings_out.push(WithBinding {
+                key_path: None,
+                value,
+            });
+        } else {
+            let value = b.var_expr("evm");
+            bindings_out.push(WithBinding {
+                key_path: Some(Partial::Present(raw_key_path)),
+                value,
+            });
+        }
+    }
+
+    bindings_out
+}
+
 fn lower_contract_typed_uses_clause<'db>(
     ctxt: &mut FileLowerCtxt<'db>,
     contract: Contract<'db>,
@@ -1115,15 +1138,12 @@ fn lower_contract_init_entrypoint_func<'db>(
             }
 
             // Call init_user(...) under the init block's `uses` bindings.
-            let raw_uses = lower_uses_clause_opt(b.body_ctxt.f_ctxt, init_ast.uses_clause());
-            let with_names: Vec<_> = raw_uses
-                .data(db)
-                .iter()
-                .filter_map(|eff| {
-                    eff.name
-                        .or_else(|| eff.key_path.to_opt().and_then(|p| p.as_ident(db)))
-                })
-                .collect();
+            let typed_uses = lower_contract_typed_uses_clause(
+                b.body_ctxt.f_ctxt,
+                contract,
+                init_ast.uses_clause(),
+            );
+            let with_bindings = entrypoint_with_bindings_from_uses(&mut b, contract, typed_uses);
 
             let init_user_ident = IdentId::new(db, "init_contract".to_string());
             let init_user = b.body_ctxt.push_expr(
@@ -1135,7 +1155,7 @@ fn lower_contract_init_entrypoint_func<'db>(
                 .map(|name| b.var_expr(name.data(db)))
                 .collect();
             let call = b.call(init_user, call_args);
-            let wrapped = b.with_expr(with_names, call);
+            let wrapped = b.with_expr(with_bindings, call);
             b.expr_stmt(&mut stmts, wrapped);
         }
 
@@ -1173,24 +1193,15 @@ fn lower_contract_init_entrypoint_func<'db>(
     let body = body_ctxt.build(None, root_expr, BodyKind::FuncBody);
 
     let entrypoint_effects = {
-        let mut effects = contract.effects(db).data(db).clone();
         let evm_ident = IdentId::new(db, "evm".to_string());
-        let has_evm = effects.iter().any(|effect| {
-            effect.name.is_some_and(|name| name == evm_ident)
-                || effect.key_path.to_opt().is_some_and(|path| {
-                    path.ident(db)
-                        .to_opt()
-                        .is_some_and(|id| id.data(db) == "Evm")
-                })
-        });
-        if !has_evm {
-            effects.push(EffectParam {
+        EffectParamListId::new(
+            db,
+            vec![EffectParam {
                 name: Some(evm_ident),
                 key_path: Partial::Present(PathId::from_str(db, "Evm")),
                 is_mut: true,
-            });
-        }
-        EffectParamListId::new(db, effects)
+            }],
+        )
     };
 
     let init_fn = Func::new(
@@ -1414,24 +1425,18 @@ fn lower_contract_runtime_entrypoint_func<'db>(
 
             let selector_const_path = variant_ty_path.push_str(db, "SELECTOR");
 
-            let raw_uses = lower_uses_clause_opt(body_ctxt.f_ctxt, arm_ast.uses_clause());
-            let with_names: Vec<_> = raw_uses
-                .data(db)
-                .iter()
-                .filter_map(|eff| {
-                    eff.name
-                        .or_else(|| eff.key_path.to_opt().and_then(|p| p.as_ident(db)))
-                })
-                .collect();
+            let raw_uses =
+                lower_contract_typed_uses_clause(body_ctxt.f_ctxt, contract, arm_ast.uses_clause());
 
             let arm_body = lower_contract_runtime_dispatch_arm_body(
                 &mut body_ctxt,
+                contract,
                 call_data_ident,
                 handler_name,
                 variant_ty_path,
                 arm_desugared.clone(),
                 arm_ast,
-                with_names,
+                raw_uses,
             );
 
             dispatch_arms.push((arm_desugared, selector_const_path, arm_body));
@@ -1482,24 +1487,15 @@ fn lower_contract_runtime_entrypoint_func<'db>(
     let body = body_ctxt.build(None, root_expr, BodyKind::FuncBody);
 
     let entrypoint_effects = {
-        let mut effects = contract.effects(db).data(db).clone();
         let evm_ident = IdentId::new(db, "evm".to_string());
-        let has_evm = effects.iter().any(|effect| {
-            effect.name.is_some_and(|name| name == evm_ident)
-                || effect.key_path.to_opt().is_some_and(|path| {
-                    path.ident(db)
-                        .to_opt()
-                        .is_some_and(|id| id.data(db) == "Evm")
-                })
-        });
-        if !has_evm {
-            effects.push(EffectParam {
+        EffectParamListId::new(
+            db,
+            vec![EffectParam {
                 name: Some(evm_ident),
                 key_path: Partial::Present(PathId::from_str(db, "Evm")),
                 is_mut: true,
-            });
-        }
-        EffectParamListId::new(db, effects)
+            }],
+        )
     };
 
     let runtime_fn = Func::new(
@@ -1521,14 +1517,16 @@ fn lower_contract_runtime_entrypoint_func<'db>(
     ctxt.leave_item_scope(runtime_fn)
 }
 
+#[allow(clippy::too_many_arguments)] // TODO refactor
 fn lower_contract_runtime_dispatch_arm_body<'ctxt, 'db>(
     body_ctxt: &mut BodyCtxt<'ctxt, 'db>,
+    contract: Contract<'db>,
     call_data_ident: IdentId<'db>,
     handler_name: IdentId<'db>,
     variant_ty_path: PathId<'db>,
     desugared: ContractLoweringDesugared,
     arm_ast: ast::RecvArm,
-    with_names: Vec<IdentId<'db>>,
+    raw_uses: EffectParamListId<'db>,
 ) -> ExprId {
     let db = body_ctxt.f_ctxt.db();
     let mut stmts: Vec<StmtId> = Vec::new();
@@ -1595,7 +1593,8 @@ fn lower_contract_runtime_dispatch_arm_body<'ctxt, 'db>(
         );
         let args_expr = b.var_expr("__args");
         let call = b.call(handler, vec![args_expr]);
-        b.with_expr(with_names, call)
+        let with_bindings = entrypoint_with_bindings_from_uses(&mut b, contract, raw_uses);
+        b.with_expr(with_bindings, call)
     };
 
     // Handle unit return case (no return type annotation)

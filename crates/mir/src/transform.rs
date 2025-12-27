@@ -390,6 +390,7 @@ fn value_deps_in_eval_order(origin: &ValueOrigin<'_>) -> Vec<ValueId> {
             }
             deps
         }
+        ValueOrigin::TransparentCast { value } => vec![*value],
         ValueOrigin::Expr(..)
         | ValueOrigin::ControlFlowResult { .. }
         | ValueOrigin::Unit

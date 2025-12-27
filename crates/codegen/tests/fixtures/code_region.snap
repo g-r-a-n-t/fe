@@ -27,20 +27,19 @@ object "Foo" {
       leave
     }
     function init() {
-      let v0 := 0
-      let v1 := datasize("Child")
-      let v2 := dataoffset("Child")
-      let v3 := allocate(v1, 0)
-      let v4 := v3
-      codecopy(v4, v2, v1)
-      let v5 := evm_create_create2(v0, 0, v2, v1, 4660)
-      pop(v5)
-      let v6 := datasize("Foo_deployed")
-      let v7 := dataoffset("Foo_deployed")
-      let v8 := allocate(v6, 0)
-      let v9 := v8
-      codecopy(v9, v7, v6)
-      return(v9, v6)
+      let v0 := datasize("Child")
+      let v1 := dataoffset("Child")
+      let v2 := allocate(v0, 0)
+      let v3 := v2
+      codecopy(v3, v1, v0)
+      let v4 := evm_create_create2(0, 0, v1, v0, 4660)
+      pop(v4)
+      let v5 := datasize("Foo_deployed")
+      let v6 := dataoffset("Foo_deployed")
+      let v7 := allocate(v5, 0)
+      let v8 := v7
+      codecopy(v8, v6, v5)
+      return(v8, v5)
     }
     init()
   }
@@ -56,9 +55,8 @@ object "Foo" {
         leave
       }
       function runtime() {
-        let v0 := 0
-        let v1 := read_selector(0)
-        switch v1
+        let v0 := read_selector(0)
+        switch v0
           case 305419896 {
             transfer(0)
           }
@@ -79,11 +77,10 @@ object "Foo" {
   object "Child" {
     code {
       function child_init() {
-        let v0 := 0
-        let v1 := datasize("Child_deployed")
-        let v2 := dataoffset("Child_deployed")
-        codecopy(0, v2, v1)
-        return(0, v1)
+        let v0 := datasize("Child_deployed")
+        let v1 := dataoffset("Child_deployed")
+        codecopy(0, v1, v0)
+        return(0, v0)
       }
       child_init()
     }
@@ -91,7 +88,6 @@ object "Foo" {
     object "Child_deployed" {
       code {
         function child_runtime() {
-          let v0 := 0
           calldatacopy(0, 0, 4)
           return(0, 4)
         }

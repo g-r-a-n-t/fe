@@ -43,8 +43,6 @@ impl<'db, 'a> MirBuilder<'db, 'a> {
         } else {
             self.emit_alloc(expr, enum_ty)
         };
-
-        let addr_space = self.value_address_space(value_id);
         let mut inits = Vec::with_capacity(1 + lowered_args.len());
         let discr_value = self.synthetic_u256(BigUint::from(variant.idx as u64));
         inits.push((
@@ -59,7 +57,7 @@ impl<'db, 'a> MirBuilder<'db, 'a> {
             });
             inits.push((projection, *field_value));
         }
-        let place = Place::new(value_id, MirProjectionPath::new(), addr_space);
+        let place = Place::new(value_id, MirProjectionPath::new());
         self.push_inst_here(MirInst::InitAggregate { place, inits });
 
         Some(value_id)
@@ -99,13 +97,12 @@ impl<'db, 'a> MirBuilder<'db, 'a> {
         } else {
             self.emit_alloc(expr, enum_ty)
         };
-        let addr_space = self.value_address_space(value_id);
         let discr_value = self.synthetic_u256(BigUint::from(variant.variant.idx as u64));
         let inits = vec![(
             MirProjectionPath::from_projection(Projection::Discriminant),
             discr_value,
         )];
-        let place = Place::new(value_id, MirProjectionPath::new(), addr_space);
+        let place = Place::new(value_id, MirProjectionPath::new());
         self.push_inst_here(MirInst::InitAggregate { place, inits });
 
         Some(value_id)

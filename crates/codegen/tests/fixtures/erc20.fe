@@ -1,4 +1,5 @@
 use std::evm::{Address, Ctx, StorageMap, assert}
+use std::evm::effects::Log
 
 // roles
 const MINTER: u256 = 1
@@ -249,11 +250,4 @@ struct ApprovalEvent {
     #[indexed]
     spender: Address,
     value: u256,
-}
-
-pub struct Log {}
-impl Log {
-    pub fn emit<T>(self, _ event: T) {
-        todo()
-    }
 }

@@ -259,6 +259,9 @@ fn format_value_inner(
             }
         }
         ValueOrigin::PlaceRef(place) => format!("&{}", format_place(body, place)),
+        ValueOrigin::TransparentCast { value } => {
+            format_value_inner(body, *value, stack, depth + 1)
+        }
     };
 
     stack.remove(&val);
@@ -270,7 +273,7 @@ fn format_local(local: LocalId) -> String {
 }
 
 fn format_place(body: &MirBody<'_>, place: &Place<'_>) -> String {
-    let space = match place.address_space {
+    let space = match body.place_address_space(place) {
         AddressSpaceKind::Memory => "mem",
         AddressSpaceKind::Storage => "stor",
     };

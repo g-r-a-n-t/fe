@@ -30,8 +30,7 @@ function test_effect_ptr_domains(st, mem) {
   leave
 }
 function mem_ptr__mem__RawMem_Foo__19292a5189c12f79(self, addr) -> ret {
-  let v0 := addr
-  ret := v0
+  ret := addr
   leave
 }
 function bump__eff_mem(foo) {
@@ -42,7 +41,6 @@ function bump__eff_mem(foo) {
   leave
 }
 function stor_ptr__st__RawStorage_Foo__d44156c896232646(self, slot) -> ret {
-  let v0 := slot
-  ret := v0
+  ret := slot
   leave
 }

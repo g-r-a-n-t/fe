@@ -109,6 +109,46 @@ impl<'db> MirBody<'db> {
     pub fn local(&self, id: LocalId) -> &LocalData<'db> {
         &self.locals[id.index()]
     }
+
+    /// Determines the address space associated with a MIR value.
+    ///
+    /// This is only meaningful for pointer-like values (`ValueRepr::Ptr`/`ValueRepr::Ref`) and for
+    /// locals that store such values. Calling this on a pure scalar value is a bug and triggers a
+    /// debug assertion.
+    pub fn value_address_space(&self, value: ValueId) -> AddressSpaceKind {
+        if let Some(space) = self.try_value_address_space(value) {
+            return space;
+        }
+
+        let value_data = self.value(value);
+        panic!(
+            "requested address space for MIR value without one: {value:?} (repr={:?}, origin={:?})",
+            value_data.repr, value_data.origin
+        );
+    }
+
+    /// Determines the address space associated with a place.
+    pub fn place_address_space(&self, place: &Place<'db>) -> AddressSpaceKind {
+        self.value_address_space(place.base)
+    }
+
+    fn try_place_address_space(&self, place: &Place<'db>) -> Option<AddressSpaceKind> {
+        self.try_value_address_space(place.base)
+    }
+
+    fn try_value_address_space(&self, value: ValueId) -> Option<AddressSpaceKind> {
+        let value_data = self.value(value);
+        if let Some(space) = value_data.repr.address_space() {
+            return Some(space);
+        }
+        match &value_data.origin {
+            ValueOrigin::Local(local) => Some(self.local(*local).address_space),
+            ValueOrigin::TransparentCast { value } => self.try_value_address_space(*value),
+            ValueOrigin::FieldPtr(field_ptr) => Some(field_ptr.addr_space),
+            ValueOrigin::PlaceRef(place) => self.try_place_address_space(place),
+            _ => None,
+        }
+    }
 }
 
 impl<'db> Default for MirBody<'db> {
@@ -330,6 +370,11 @@ pub struct LoopInfo {
 pub struct ValueData<'db> {
     pub ty: TyId<'db>,
     pub origin: ValueOrigin<'db>,
+    /// Runtime representation category for this MIR value.
+    ///
+    /// Most values are represented as a single EVM word. Aggregate values (structs/tuples/arrays/enums)
+    /// are represented by-reference as an address/slot pointing at their backing storage.
+    pub repr: ValueRepr,
 }
 
 #[derive(Debug, Clone)]
@@ -370,6 +415,13 @@ pub enum ValueOrigin<'db> {
     FieldPtr(FieldPtrOrigin),
     /// Reference to a place (for aggregates - pointer arithmetic only, no load).
     PlaceRef(Place<'db>),
+    /// A representation-preserving coercion (e.g. transparent wrapper construction).
+    ///
+    /// This keeps the logical type of the value (`ValueData::ty`) while reusing the runtime
+    /// representation of `value` unchanged.
+    TransparentCast {
+        value: ValueId,
+    },
 }
 
 /// Captures compile-time literals synthesized by lowering.
@@ -390,6 +442,35 @@ pub enum SyntheticValue {
 pub enum AddressSpaceKind {
     Memory,
     Storage,
+}
+
+/// Runtime representation category for a MIR value.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum ValueRepr {
+    /// A direct EVM word value (e.g. integer, bool, pointer-provider newtypes).
+    Word,
+    /// A pointer-like word value in an address space.
+    ///
+    /// Unlike [`ValueRepr::Ref`], this does *not* imply by-reference aggregate semantics (deep
+    /// copy on assignment). It is used for opaque pointers such as effect pointer providers
+    /// (`MemPtr`/`StorPtr`/`CalldataPtr`) where the value is a raw address/slot.
+    Ptr(AddressSpaceKind),
+    /// An address/slot into an address space that points at a value of `ValueData::ty`.
+    Ref(AddressSpaceKind),
+}
+
+impl ValueRepr {
+    pub fn is_ref(self) -> bool {
+        matches!(self, Self::Ref(_))
+    }
+
+    pub fn address_space(self) -> Option<AddressSpaceKind> {
+        match self {
+            Self::Word => None,
+            Self::Ptr(space) => Some(space),
+            Self::Ref(space) => Some(space),
+        }
+    }
 }
 
 /// Runtime "domain" for an effect provider value.
@@ -436,21 +517,11 @@ pub struct Place<'db> {
     pub base: ValueId,
     /// Sequence of projections to apply to reach the target location.
     pub projection: MirProjectionPath<'db>,
-    /// Address space where this place resides (memory vs storage).
-    pub address_space: AddressSpaceKind,
 }
 
 impl<'db> Place<'db> {
-    pub fn new(
-        base: ValueId,
-        projection: MirProjectionPath<'db>,
-        address_space: AddressSpaceKind,
-    ) -> Self {
-        Self {
-            base,
-            projection,
-            address_space,
-        }
+    pub fn new(base: ValueId, projection: MirProjectionPath<'db>) -> Self {
+        Self { base, projection }
     }
 }
 

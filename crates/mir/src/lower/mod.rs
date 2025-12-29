@@ -238,7 +238,6 @@ pub(crate) fn lower_function<'db>(
         &typed_body,
         receiver_space,
         effect_provider_kinds,
-        generic_args.clone(),
     )?;
     let entry = builder.builder.entry_block();
     builder.move_to_block(entry);
@@ -291,7 +290,6 @@ pub(super) struct MirBuilder<'db, 'a> {
     /// For methods, the address space variant being lowered.
     pub(super) receiver_space: Option<AddressSpaceKind>,
     pub(super) effect_provider_kinds: Vec<EffectProviderKind>,
-    pub(super) generic_subst_args: Vec<TyId<'db>>,
 }
 
 /// Loop context capturing break/continue targets.
@@ -318,7 +316,6 @@ impl<'db, 'a> MirBuilder<'db, 'a> {
         typed_body: &'a TypedBody<'db>,
         receiver_space: Option<AddressSpaceKind>,
         effect_provider_kinds: Vec<EffectProviderKind>,
-        generic_subst_args: Vec<TyId<'db>>,
     ) -> Result<Self, MirLowerError> {
         let core = CoreLib::new(db, body)?;
 
@@ -335,7 +332,6 @@ impl<'db, 'a> MirBuilder<'db, 'a> {
             binding_locals: FxHashMap::default(),
             receiver_space,
             effect_provider_kinds,
-            generic_subst_args,
         };
 
         builder.seed_signature_locals();

@@ -17,7 +17,7 @@ use smallvec1::SmallVec;
 use thin_vec::ThinVec;
 
 use super::owner::BodyOwner;
-use super::{Callable, TypedBody};
+use super::{Callable, ConstRef, TypedBody};
 use crate::analysis::{
     HirAnalysisDb,
     name_resolution::{PathRes, resolve_path},
@@ -47,6 +47,7 @@ pub(super) struct TyCheckEnv<'db> {
 
     pat_ty: FxHashMap<PatId, TyId<'db>>,
     expr_ty: FxHashMap<ExprId, ExprProp<'db>>,
+    const_refs: FxHashMap<ExprId, ConstRef<'db>>,
     callables: FxHashMap<ExprId, Callable<'db>>,
 
     deferred: Vec<DeferredTask<'db>>,
@@ -106,6 +107,7 @@ impl<'db> TyCheckEnv<'db> {
             body,
             pat_ty: FxHashMap::default(),
             expr_ty: FxHashMap::default(),
+            const_refs: FxHashMap::default(),
             callables: FxHashMap::default(),
             deferred: Vec::new(),
             effect_env: EffectEnv::new(),
@@ -449,6 +451,12 @@ impl<'db> TyCheckEnv<'db> {
         }
     }
 
+    pub(super) fn register_const_ref(&mut self, expr: ExprId, const_ref: ConstRef<'db>) {
+        if self.const_refs.insert(expr, const_ref).is_some() {
+            panic!("const ref is already registered for the given expr")
+        }
+    }
+
     pub(super) fn callable_expr(&self, expr: ExprId) -> Option<&Callable<'db>> {
         self.callables.get(&expr)
     }
@@ -770,6 +778,10 @@ impl<'db> TyCheckEnv<'db> {
             .values_mut()
             .for_each(|ty| *ty = ty.fold_with(self.db, &mut prober));
 
+        self.const_refs
+            .values_mut()
+            .for_each(|cref| *cref = (*cref).fold_with(self.db, &mut prober));
+
         let callables = self
             .callables
             .into_iter()
@@ -780,6 +792,7 @@ impl<'db> TyCheckEnv<'db> {
             body: Some(self.body),
             pat_ty: self.pat_ty,
             expr_ty: self.expr_ty,
+            const_refs: self.const_refs,
             callables,
             call_effect_args: self.call_effect_args,
             param_bindings: self.param_bindings,

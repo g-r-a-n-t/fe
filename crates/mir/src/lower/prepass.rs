@@ -1,24 +1,7 @@
 //! Prepass utilities for MIR lowering: ensures expressions have values and resolves consts.
 
 use super::*;
-use hir::analysis::ty::fold::{TyFoldable, TyFolder};
-use hir::analysis::ty::trait_def::assoc_const_body_for_trait_inst;
-use num_traits::ToPrimitive;
-
-/// Substitute monomorphized generic arguments into types originating from
-/// the HIR body (e.g. associated const receiver types like `<T as Trait>::CONST`).
-struct GenericSubstFolder<'db, 'a> {
-    args: &'a [TyId<'db>],
-}
-
-impl<'db> TyFolder<'db> for GenericSubstFolder<'db, '_> {
-    fn fold_ty(&mut self, db: &'db dyn HirAnalysisDb, ty: TyId<'db>) -> TyId<'db> {
-        match ty.data(db) {
-            TyData::TyParam(param) => self.args.get(param.idx).copied().unwrap_or(ty),
-            _ => ty.super_fold_with(db, self),
-        }
-    }
-}
+use hir::analysis::ty::const_eval::{ConstValue, try_eval_const_ref};
 
 impl<'db, 'a> MirBuilder<'db, 'a> {
     /// Helper to iterate expressions and conditionally force value lowering.
@@ -225,172 +208,28 @@ impl<'db, 'a> MirBuilder<'db, 'a> {
     /// # Returns
     /// A MIR `ValueId` referencing a synthetic literal when successful.
     pub(super) fn try_const_expr(&mut self, expr: ExprId) -> Option<ValueId> {
-        let Partial::Present(Expr::Path(path)) = expr.data(self.db, self.body) else {
+        let Partial::Present(Expr::Path(_)) = expr.data(self.db, self.body) else {
             return None;
         };
-        let path = path.to_opt()?;
-        let mut visited = FxHashSet::default();
-        self.const_literal_from_path(path, self.body.scope(), &mut visited)
-    }
 
-    pub(super) fn const_usize_from_body(&mut self, body: Body<'db>) -> Option<usize> {
-        let expr_id = body.expr(self.db);
-        let expr = match expr_id.data(self.db, body) {
-            Partial::Present(expr) => expr,
-            Partial::Absent => return None,
-        };
-        match expr {
-            Expr::Lit(LitKind::Int(value)) => value.data(self.db).to_usize(),
-            Expr::Path(path) => {
-                let path = path.to_opt()?;
-                let mut visited = FxHashSet::default();
-                let value_id = self.const_literal_from_path(path, body.scope(), &mut visited)?;
-                match &self.builder.body.value(value_id).origin {
-                    ValueOrigin::Synthetic(SyntheticValue::Int(int)) => int.to_usize(),
-                    _ => None,
-                }
-            }
-            _ => None,
+        let cref = self.typed_body.expr_const_ref(expr)?;
+        if let hir::analysis::ty::ty_check::ConstRef::Const(const_def) = cref
+            && let Some(&cached) = self.const_cache.get(&const_def)
+        {
+            return Some(cached);
         }
-    }
 
-    /// Resolves the given path to a const definition in `scope` and lowers it to a literal.
-    ///
-    /// # Parameters
-    /// - `path`: Path to resolve.
-    /// - `scope`: Scope used for resolution.
-    /// - `visited`: Set used to detect const evaluation cycles.
-    ///
-    /// # Returns
-    /// The literal `ValueId` if resolution succeeds.
-    fn const_literal_from_path(
-        &mut self,
-        path: PathId<'db>,
-        scope: ScopeId<'db>,
-        visited: &mut FxHashSet<Const<'db>>,
-    ) -> Option<ValueId> {
-        let assumptions = PredicateListId::empty_list(self.db);
-        match resolve_path(self.db, path, scope, assumptions, true).ok()? {
-            PathRes::Const(const_def, ty) => self.const_literal_from_def(const_def, ty, visited),
-            PathRes::TraitConst(ty, trait_inst, const_name) => self.trait_const_literal_from_inst(
-                ty,
-                trait_inst,
-                const_name,
-                scope,
-                assumptions,
-                visited,
-            ),
-            _ => None,
-        }
-    }
-
-    fn trait_const_literal_from_inst(
-        &mut self,
-        ty: TyId<'db>,
-        trait_inst: hir::analysis::ty::trait_def::TraitInstId<'db>,
-        const_name: hir::hir_def::IdentId<'db>,
-        scope: ScopeId<'db>,
-        assumptions: PredicateListId<'db>,
-        visited: &mut FxHashSet<Const<'db>>,
-    ) -> Option<ValueId> {
-        let trait_inst = if self.generic_subst_args.is_empty() {
-            trait_inst
-        } else {
-            let mut folder = GenericSubstFolder {
-                args: &self.generic_subst_args,
-            };
-            trait_inst.fold_with(self.db, &mut folder)
-        };
-        let trait_inst = {
-            let normalized_args: Vec<_> = trait_inst
-                .args(self.db)
-                .iter()
-                .map(|&arg| {
-                    hir::analysis::ty::normalize::normalize_ty(self.db, arg, scope, assumptions)
-                })
-                .collect();
-            hir::analysis::ty::trait_def::TraitInstId::new(
-                self.db,
-                trait_inst.def(self.db),
-                normalized_args,
-                trait_inst.assoc_type_bindings(self.db).clone(),
-            )
+        let ty = self.typed_body.expr_ty(self.db, expr);
+        let value = match try_eval_const_ref(self.db, cref)? {
+            ConstValue::Int(int) => SyntheticValue::Int(int),
+            ConstValue::Bool(flag) => SyntheticValue::Bool(flag),
         };
 
-        let body = assoc_const_body_for_trait_inst(self.db, trait_inst, const_name)?;
-        let expr_id = body.expr(self.db);
-        let expr = match expr_id.data(self.db, body) {
-            Partial::Present(expr) => expr,
-            Partial::Absent => return None,
-        };
-
-        let const_scope = body.scope();
-        match expr {
-            Expr::Lit(LitKind::Int(value)) => Some(
-                self.alloc_synthetic_value(ty, SyntheticValue::Int(value.data(self.db).clone())),
-            ),
-            Expr::Lit(LitKind::Bool(flag)) => {
-                Some(self.alloc_synthetic_value(ty, SyntheticValue::Bool(*flag)))
-            }
-            Expr::Path(path) => path
-                .to_opt()
-                .and_then(|inner| self.const_literal_from_path(inner, const_scope, visited)),
-            _ => None,
-        }
-    }
-
-    /// Converts a concrete const definition into a MIR literal value.
-    ///
-    /// # Parameters
-    /// - `const_def`: Const definition to evaluate.
-    /// - `ty`: Type of the const.
-    /// - `visited`: Set used to detect const evaluation cycles.
-    ///
-    /// # Returns
-    /// Cached or newly allocated `ValueId` for the literal, or `None` on failure.
-    fn const_literal_from_def(
-        &mut self,
-        const_def: Const<'db>,
-        ty: TyId<'db>,
-        visited: &mut FxHashSet<Const<'db>>,
-    ) -> Option<ValueId> {
-        if let Some(&value) = self.const_cache.get(&const_def) {
-            return Some(value);
-        }
-        if !visited.insert(const_def) {
-            return None;
-        }
-        let body = const_def.body(self.db).to_opt()?;
-        let expr_id = body.expr(self.db);
-        let expr = match expr_id.data(self.db, body) {
-            Partial::Present(expr) => expr,
-            Partial::Absent => {
-                visited.remove(&const_def);
-                return None;
-            }
-        };
-        let const_scope = body.scope();
-        let result = match expr {
-            Expr::Lit(LitKind::Int(value)) => Some(
-                self.alloc_synthetic_value(ty, SyntheticValue::Int(value.data(self.db).clone())),
-            ),
-            Expr::Lit(LitKind::Bool(flag)) => {
-                Some(self.alloc_synthetic_value(ty, SyntheticValue::Bool(*flag)))
-            }
-            Expr::Path(path) => {
-                if let Some(inner_path) = path.to_opt() {
-                    self.const_literal_from_path(inner_path, const_scope, visited)
-                } else {
-                    None
-                }
-            }
-            _ => None,
-        };
-        visited.remove(&const_def);
-        if let Some(value_id) = result {
+        let value_id = self.alloc_synthetic_value(ty, value);
+        if let hir::analysis::ty::ty_check::ConstRef::Const(const_def) = cref {
             self.const_cache.insert(const_def, value_id);
         }
-        result
+        Some(value_id)
     }
 
     /// Allocates a synthetic literal value with the provided type.

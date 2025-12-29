@@ -1,7 +1,10 @@
 //! Aggregate lowering helpers for MIR: allocations, initializer emission, and type helpers.
 
 use super::*;
-use hir::projection::{IndexSource, Projection};
+use hir::{
+    analysis::ty::const_eval::{ConstValue, try_eval_const_body},
+    projection::{IndexSource, Projection},
+};
 use num_bigint::BigUint;
 
 impl<'db, 'a> MirBuilder<'db, 'a> {
@@ -207,9 +210,10 @@ impl<'db, 'a> MirBuilder<'db, 'a> {
         let Some(len_body) = len.to_opt() else {
             return fallback;
         };
-        let Some(count) = self.const_usize_from_body(len_body) else {
-            return fallback;
+        let Some(ConstValue::Int(count)) = try_eval_const_body(self.db, len_body) else {
+            unreachable!("array len must be an int")
         };
+        let count = count.to_u32().expect("array with more than 2^32 elements") as usize;
 
         let elem_value = self.lower_expr(elem);
         if self.current_block().is_none() {

@@ -11,11 +11,13 @@ pub use self::contract::{
     check_contract_recv_arm_body, check_contract_recv_block, check_contract_recv_blocks,
 };
 pub use self::path::RecordLike;
+use crate::analysis::ty::fold::TyFoldable;
+use crate::analysis::ty::visitor::TyVisitable;
 use crate::hir_def::CallableDef;
 use crate::{
     hir_def::{
-        Body, Contract, ContractRecvArm, Expr, ExprId, Func, LitKind, Partial, Pat, PatId, PathId,
-        TypeId as HirTyId,
+        Body, Const, Contract, ContractRecvArm, Expr, ExprId, Func, IdentId, LitKind, Partial, Pat,
+        PatId, PathId, TypeId as HirTyId,
     },
     span::{
         DynLazySpan, expr::LazyExprSpan, pat::LazyPatSpan, path::LazyPathSpan, types::LazyTySpan,
@@ -36,7 +38,6 @@ use crate::analysis::place::Place;
 
 use super::{
     diagnostics::{BodyDiag, FuncBodyDiag, TyDiagCollection, TyLowerDiag},
-    fold::TyFoldable,
     trait_def::TraitInstId,
     trait_resolution::PredicateListId,
     ty_def::{InvalidCause, Kind, TyId, TyVarSort},
@@ -603,11 +604,49 @@ pub struct ResolvedEffectArg<'db> {
     pub pass_mode: EffectPassMode,
 }
 
+/// Resolved reference for a `const`-valued path expression.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Update)]
+pub enum ConstRef<'db> {
+    Const(Const<'db>),
+    TraitConst {
+        inst: TraitInstId<'db>,
+        name: IdentId<'db>,
+    },
+}
+
+impl<'db> TyVisitable<'db> for ConstRef<'db> {
+    fn visit_with<V>(&self, visitor: &mut V)
+    where
+        V: crate::analysis::ty::visitor::TyVisitor<'db> + ?Sized,
+    {
+        match self {
+            ConstRef::Const(_) => {}
+            ConstRef::TraitConst { inst, .. } => inst.visit_with(visitor),
+        }
+    }
+}
+
+impl<'db> TyFoldable<'db> for ConstRef<'db> {
+    fn super_fold_with<F>(self, db: &'db dyn HirAnalysisDb, folder: &mut F) -> Self
+    where
+        F: crate::analysis::ty::fold::TyFolder<'db>,
+    {
+        match self {
+            ConstRef::Const(const_def) => ConstRef::Const(const_def),
+            ConstRef::TraitConst { inst, name } => ConstRef::TraitConst {
+                inst: inst.fold_with(db, folder),
+                name,
+            },
+        }
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, Update)]
 pub struct TypedBody<'db> {
     body: Option<Body<'db>>,
     pat_ty: FxHashMap<PatId, TyId<'db>>,
     expr_ty: FxHashMap<ExprId, ExprProp<'db>>,
+    const_refs: FxHashMap<ExprId, ConstRef<'db>>,
     callables: FxHashMap<ExprId, Callable<'db>>,
     call_effect_args: FxHashMap<ExprId, Vec<ResolvedEffectArg<'db>>>,
     /// Bindings for function parameters (indexed by param position)
@@ -616,7 +655,7 @@ pub struct TypedBody<'db> {
     pat_bindings: FxHashMap<PatId, LocalBinding<'db>>,
 }
 
-impl<'db> crate::analysis::ty::visitor::TyVisitable<'db> for TypedBody<'db> {
+impl<'db> TyVisitable<'db> for TypedBody<'db> {
     fn visit_with<V>(&self, visitor: &mut V)
     where
         V: crate::analysis::ty::visitor::TyVisitor<'db> + ?Sized,
@@ -627,13 +666,16 @@ impl<'db> crate::analysis::ty::visitor::TyVisitable<'db> for TypedBody<'db> {
         for prop in self.expr_ty.values() {
             prop.visit_with(visitor);
         }
+        for cref in self.const_refs.values() {
+            cref.visit_with(visitor);
+        }
         for callable in self.callables.values() {
             callable.visit_with(visitor);
         }
     }
 }
 
-impl<'db> crate::analysis::ty::fold::TyFoldable<'db> for TypedBody<'db> {
+impl<'db> TyFoldable<'db> for TypedBody<'db> {
     fn super_fold_with<F>(self, db: &'db dyn HirAnalysisDb, folder: &mut F) -> Self
     where
         F: crate::analysis::ty::fold::TyFolder<'db>,
@@ -648,6 +690,11 @@ impl<'db> crate::analysis::ty::fold::TyFoldable<'db> for TypedBody<'db> {
             .into_iter()
             .map(|(expr, prop)| (expr, prop.fold_with(db, folder)))
             .collect();
+        let const_refs = self
+            .const_refs
+            .into_iter()
+            .map(|(expr, cref)| (expr, cref.fold_with(db, folder)))
+            .collect();
         let callables = self
             .callables
             .into_iter()
@@ -658,6 +705,7 @@ impl<'db> crate::analysis::ty::fold::TyFoldable<'db> for TypedBody<'db> {
             body: self.body,
             pat_ty,
             expr_ty,
+            const_refs,
             callables,
             call_effect_args: self.call_effect_args,
             param_bindings: self.param_bindings,
@@ -680,6 +728,10 @@ impl<'db> TypedBody<'db> {
             .get(&expr)
             .cloned()
             .unwrap_or_else(|| ExprProp::invalid(db))
+    }
+
+    pub fn expr_const_ref(&self, expr: ExprId) -> Option<ConstRef<'db>> {
+        self.const_refs.get(&expr).copied()
     }
 
     pub fn pat_ty(&self, db: &'db dyn HirAnalysisDb, pat: PatId) -> TyId<'db> {
@@ -777,6 +829,7 @@ impl<'db> TypedBody<'db> {
             body: None,
             pat_ty: FxHashMap::default(),
             expr_ty: FxHashMap::default(),
+            const_refs: FxHashMap::default(),
             callables: FxHashMap::default(),
             call_effect_args: FxHashMap::default(),
             param_bindings: Vec::new(),

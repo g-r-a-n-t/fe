@@ -31,21 +31,21 @@ pub trait ContractHost {
 
     fn runtime_selector<A: Abi>(self) -> A::Selector {
         let input = self.input()
-        if input.len() < <A as Abi>::SELECTOR_SIZE {
+        if input.len() < A::SELECTOR_SIZE {
             self.abort()
         }
         A::selector_from_prefix(input.word_at(0))
     }
 
     fn runtime_decoder<A: Abi>(mut self) -> A::Decoder<Self::Input> {
-        A::decoder_with_base(self.input(), <A as Abi>::SELECTOR_SIZE)
+        A::decoder_with_base(self.input(), A::SELECTOR_SIZE)
     }
 
     fn return_value<A: Abi, T>(mut self, value: T) -> !
         where T: Encode<A> + AbiSize
     {
         let mut enc = A::encoder_new()
-        enc.reserve_head(<T as AbiSize>::ENCODED_SIZE)
+        enc.reserve_head(T::ENCODED_SIZE)
         value.encode(enc)
         let out: (u256, u256) = enc.finish()
         self.return_bytes(out.0, out.1)
@@ -72,14 +72,14 @@ pub fn init_decoder<A: Abi, H: ContractHost>(mut host: H) -> A::Decoder<H::Input
 
 pub fn runtime_selector<A: Abi, H: ContractHost>(host: H) -> A::Selector {
     let input = host.input()
-    if input.len() < <A as Abi>::SELECTOR_SIZE {
+    if input.len() < A::SELECTOR_SIZE {
         host.abort()
     }
     A::selector_from_prefix(input.word_at(0))
 }
 
 pub fn runtime_decoder<A: Abi, H: ContractHost>(mut host: H) -> A::Decoder<H::Input> {
-    A::decoder_with_base(host.input(), <A as Abi>::SELECTOR_SIZE)
+    A::decoder_with_base(host.input(), A::SELECTOR_SIZE)
 }
 
 pub fn create_contract<H: ContractHost, F>(mut host: H, runtime: F) -> ! {
@@ -102,7 +102,7 @@ pub fn return_value<A: Abi, H: ContractHost, T>(mut host: H, value: T) -> !
     where T: Encode<A> + AbiSize
 {
     let mut enc = A::encoder_new()
-    enc.reserve_head(<T as AbiSize>::ENCODED_SIZE)
+    enc.reserve_head(T::ENCODED_SIZE)
     value.encode(enc)
     let out: (u256, u256) = enc.finish()
     host.return_bytes(out.0, out.1)

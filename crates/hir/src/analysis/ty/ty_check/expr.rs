@@ -8,7 +8,7 @@ use crate::core::hir_def::{
 use crate::span::DynLazySpan;
 
 use super::{
-    RecordLike, Typeable,
+    ConstRef, RecordLike, Typeable,
     env::{EffectOrigin, ExprProp, LocalBinding, ProvidedEffect, TyCheckEnv},
     path::ResolvedPathInBody,
 };
@@ -1061,7 +1061,11 @@ impl<'db> TyChecker<'db> {
 
                     ExprProp::new(self.table.instantiate_to_term(ty), true)
                 }
-                PathRes::Const(_, ty) => ExprProp::new(ty, true),
+                PathRes::Const(const_def, ty) => {
+                    self.env
+                        .register_const_ref(expr, ConstRef::Const(const_def));
+                    ExprProp::new(ty, true)
+                }
                 PathRes::Method(receiver_ty, candidate) => {
                     let canonical_r_ty = Canonicalized::new(self.db, receiver_ty);
                     let (method_ty, trait_inst) = match candidate {
@@ -1187,6 +1191,8 @@ impl<'db> TyChecker<'db> {
                     ExprProp::new(func_ty, true)
                 }
                 PathRes::TraitConst(_recv_ty, inst, name) => {
+                    self.env
+                        .register_const_ref(expr, ConstRef::TraitConst { inst, name });
                     // Look up the associated const's declared type in the trait and
                     // instantiate it with the trait instance's args (including Self).
                     let trait_ = inst.def(self.db);

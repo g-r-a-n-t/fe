@@ -181,7 +181,14 @@ pub fn lower_module<'db>(
             });
         }
         let default_effects = vec![EffectProviderKind::Storage; func.effect_params(db).count()];
-        let lowered = lower_function(db, func, typed_body.clone(), None, default_effects)?;
+        let lowered = lower_function(
+            db,
+            func,
+            typed_body.clone(),
+            None,
+            default_effects,
+            Vec::new(),
+        )?;
         templates.push(lowered);
     }
 
@@ -208,6 +215,7 @@ pub(crate) fn lower_function<'db>(
     typed_body: TypedBody<'db>,
     receiver_space: Option<AddressSpaceKind>,
     effect_provider_kinds: Vec<EffectProviderKind>,
+    generic_args: Vec<TyId<'db>>,
 ) -> MirLowerResult<MirFunction<'db>> {
     let symbol_name = func
         .name(db)
@@ -230,6 +238,7 @@ pub(crate) fn lower_function<'db>(
         &typed_body,
         receiver_space,
         effect_provider_kinds,
+        generic_args.clone(),
     )?;
     let entry = builder.builder.entry_block();
     builder.move_to_block(entry);
@@ -259,7 +268,7 @@ pub(crate) fn lower_function<'db>(
         func,
         body: mir_body,
         typed_body,
-        generic_args: Vec::new(),
+        generic_args,
         effect_provider_kinds: effect_provider_kinds_for_func,
         contract_function,
         symbol_name,
@@ -282,6 +291,7 @@ pub(super) struct MirBuilder<'db, 'a> {
     /// For methods, the address space variant being lowered.
     pub(super) receiver_space: Option<AddressSpaceKind>,
     pub(super) effect_provider_kinds: Vec<EffectProviderKind>,
+    pub(super) generic_subst_args: Vec<TyId<'db>>,
 }
 
 /// Loop context capturing break/continue targets.
@@ -308,6 +318,7 @@ impl<'db, 'a> MirBuilder<'db, 'a> {
         typed_body: &'a TypedBody<'db>,
         receiver_space: Option<AddressSpaceKind>,
         effect_provider_kinds: Vec<EffectProviderKind>,
+        generic_subst_args: Vec<TyId<'db>>,
     ) -> Result<Self, MirLowerError> {
         let core = CoreLib::new(db, body)?;
 
@@ -324,6 +335,7 @@ impl<'db, 'a> MirBuilder<'db, 'a> {
             binding_locals: FxHashMap::default(),
             receiver_space,
             effect_provider_kinds,
+            generic_subst_args,
         };
 
         builder.seed_signature_locals();
@@ -854,7 +866,31 @@ fn format_hir_expr_context(db: &dyn SpannedHirAnalysisDb, body: Body<'_>, expr: 
     };
 
     let expr_data = match expr.data(db, body) {
-        Partial::Present(expr) => format!("{expr:?}"),
+        Partial::Present(expr_data) => match expr_data {
+            Expr::Path(path) => path
+                .to_opt()
+                .map(|path| format!("Path({})", path.pretty_print(db)))
+                .unwrap_or_else(|| "Path(<absent>)".into()),
+            Expr::Call(callee, args) => {
+                let callee_data = match callee.data(db, body) {
+                    Partial::Present(Expr::Path(path)) => path
+                        .to_opt()
+                        .map(|path| format!("Path({})", path.pretty_print(db)))
+                        .unwrap_or_else(|| "Path(<absent>)".into()),
+                    Partial::Present(other) => format!("{other:?}"),
+                    Partial::Absent => "<absent>".into(),
+                };
+                format!("Call({callee:?} {callee_data}, {args:?})")
+            }
+            Expr::MethodCall(receiver, method, _, args) => {
+                let method_name = method
+                    .to_opt()
+                    .map(|id| id.data(db).to_string())
+                    .unwrap_or_else(|| "<absent>".into());
+                format!("MethodCall({receiver:?}, {method_name}, {args:?})")
+            }
+            other => format!("{other:?}"),
+        },
         Partial::Absent => "<absent>".into(),
     };
 

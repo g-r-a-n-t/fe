@@ -1,8 +1,24 @@
 //! Prepass utilities for MIR lowering: ensures expressions have values and resolves consts.
 
 use super::*;
+use hir::analysis::ty::fold::{TyFoldable, TyFolder};
 use hir::analysis::ty::trait_def::assoc_const_body_for_trait_inst;
 use num_traits::ToPrimitive;
+
+/// Substitute monomorphized generic arguments into types originating from
+/// the HIR body (e.g. associated const receiver types like `<T as Trait>::CONST`).
+struct GenericSubstFolder<'db, 'a> {
+    args: &'a [TyId<'db>],
+}
+
+impl<'db> TyFolder<'db> for GenericSubstFolder<'db, '_> {
+    fn fold_ty(&mut self, db: &'db dyn HirAnalysisDb, ty: TyId<'db>) -> TyId<'db> {
+        match ty.data(db) {
+            TyData::TyParam(param) => self.args.get(param.idx).copied().unwrap_or(ty),
+            _ => ty.super_fold_with(db, self),
+        }
+    }
+}
 
 impl<'db, 'a> MirBuilder<'db, 'a> {
     /// Helper to iterate expressions and conditionally force value lowering.
@@ -124,6 +140,8 @@ impl<'db, 'a> MirBuilder<'db, 'a> {
                             ty.pretty_print(self.db)
                         );
                         ValueOrigin::Unit
+                    } else if let Some(target) = self.code_region_target_from_ty(ty) {
+                        ValueOrigin::FuncItem(target)
                     } else if let Some(local) = self.local_for_binding(binding) {
                         ValueOrigin::Local(local)
                     } else if let Some(target) = self.code_region_target(expr) {
@@ -251,19 +269,17 @@ impl<'db, 'a> MirBuilder<'db, 'a> {
         scope: ScopeId<'db>,
         visited: &mut FxHashSet<Const<'db>>,
     ) -> Option<ValueId> {
-        match resolve_path(
-            self.db,
-            path,
-            scope,
-            PredicateListId::empty_list(self.db),
-            true,
-        )
-        .ok()?
-        {
+        let assumptions = PredicateListId::empty_list(self.db);
+        match resolve_path(self.db, path, scope, assumptions, true).ok()? {
             PathRes::Const(const_def, ty) => self.const_literal_from_def(const_def, ty, visited),
-            PathRes::TraitConst(ty, trait_inst, const_name) => {
-                self.trait_const_literal_from_inst(ty, trait_inst, const_name, visited)
-            }
+            PathRes::TraitConst(ty, trait_inst, const_name) => self.trait_const_literal_from_inst(
+                ty,
+                trait_inst,
+                const_name,
+                scope,
+                assumptions,
+                visited,
+            ),
             _ => None,
         }
     }
@@ -273,8 +289,34 @@ impl<'db, 'a> MirBuilder<'db, 'a> {
         ty: TyId<'db>,
         trait_inst: hir::analysis::ty::trait_def::TraitInstId<'db>,
         const_name: hir::hir_def::IdentId<'db>,
+        scope: ScopeId<'db>,
+        assumptions: PredicateListId<'db>,
         visited: &mut FxHashSet<Const<'db>>,
     ) -> Option<ValueId> {
+        let trait_inst = if self.generic_subst_args.is_empty() {
+            trait_inst
+        } else {
+            let mut folder = GenericSubstFolder {
+                args: &self.generic_subst_args,
+            };
+            trait_inst.fold_with(self.db, &mut folder)
+        };
+        let trait_inst = {
+            let normalized_args: Vec<_> = trait_inst
+                .args(self.db)
+                .iter()
+                .map(|&arg| {
+                    hir::analysis::ty::normalize::normalize_ty(self.db, arg, scope, assumptions)
+                })
+                .collect();
+            hir::analysis::ty::trait_def::TraitInstId::new(
+                self.db,
+                trait_inst.def(self.db),
+                normalized_args,
+                trait_inst.assoc_type_bindings(self.db).clone(),
+            )
+        };
+
         let body = assoc_const_body_for_trait_inst(self.db, trait_inst, const_name)?;
         let expr_id = body.expr(self.db);
         let expr = match expr_id.data(self.db, body) {

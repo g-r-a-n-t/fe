@@ -186,6 +186,19 @@ impl<'db> PathId<'db> {
     }
 
     pub fn pretty_print(self, db: &dyn HirDb) -> String {
+        fn space_adjacent_angles(s: &str) -> String {
+            let mut out = String::with_capacity(s.len());
+            let mut prev: Option<char> = None;
+            for ch in s.chars() {
+                if matches!((prev, ch), (Some('<'), '<') | (Some('>'), '>')) {
+                    out.push(' ');
+                }
+                out.push(ch);
+                prev = Some(ch);
+            }
+            out
+        }
+
         let this = match self.kind(db) {
             PathKind::Ident {
                 ident,
@@ -207,9 +220,9 @@ impl<'db> PathId<'db> {
         };
 
         if let Some(parent) = self.parent(db) {
-            parent.pretty_print(db) + "::" + &this
+            space_adjacent_angles(&(parent.pretty_print(db) + "::" + &this))
         } else {
-            this
+            space_adjacent_angles(&this)
         }
     }
 }

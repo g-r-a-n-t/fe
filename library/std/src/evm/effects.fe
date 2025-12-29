@@ -1,6 +1,7 @@
 use core::effect_ref::{EffectRef, EffectRefMut}
 use core::{size_of}
 use core::abi::{Abi, AbiDecoder, AbiEncoder, AbiSize, Decode, Encode}
+use core::contracts::ContractHost
 use core::message::MsgVariant
 use core::num::{__u32_as_u256}
 
@@ -10,6 +11,8 @@ use ingot::evm::intrinsic::{
 }
 use ingot::abi::Sol
 use ingot::abi::sol::{encoded_size, SolDecoder, SolEncoder}
+use super::calldata::CallData
+use super::contract_field_slot
 use ingot::evm::mem
 use ingot::evm::memory_input::MemoryBytes
 use ingot::evm::ops
@@ -374,3 +377,31 @@ pub fn assert(_ b: bool) {
 }
 
 impl Super for Evm {}
+
+impl ContractHost for Evm {
+    type FieldPtr = StorPtr
+    type Input = CallData
+
+    fn input(self) -> Self::Input {
+        CallData {  }
+    }
+
+    fn field<T>(mut self, field_idx: u256) -> Self::FieldPtr<T> {
+        self.stor_ptr(super::contract_field_slot(field_idx))
+    }
+
+    fn create_contract<F>(mut self, runtime: F) -> ! {
+        let len = self.code_region_len(runtime)
+        let offset = self.code_region_offset(runtime)
+        self.codecopy(0, offset, len)
+        self.return_data(0, len)
+    }
+
+    fn abort(self) -> ! {
+        self.revert(0, 0)
+    }
+
+    fn return_bytes(self, ptr: u256, len: u256) -> ! {
+        self.return_data(ptr, len)
+    }
+}

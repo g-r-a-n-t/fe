@@ -155,10 +155,14 @@ impl<'db> FunctionEmitter<'db> {
                         local_data.ty.pretty_print(self.db),
                     ))
                 }),
-            ValueOrigin::FuncItem(root) => Err(YulError::Unsupported(format!(
-                "function item has no runtime value (symbol={})",
-                root.symbol.as_deref().unwrap_or("<unresolved symbol>")
-            ))),
+            ValueOrigin::FuncItem(_) => {
+                debug_assert!(
+                    layout::is_zero_sized_ty(self.db, value.ty),
+                    "function item values should be zero-sized (ty={})",
+                    value.ty.pretty_print(self.db)
+                );
+                Ok("0".into())
+            }
             ValueOrigin::Synthetic(synth) => self.lower_synthetic_value(synth),
             ValueOrigin::FieldPtr(field_ptr) => self.lower_field_ptr(field_ptr, state),
             ValueOrigin::PlaceRef(place) => self.lower_place_ref(place, state),

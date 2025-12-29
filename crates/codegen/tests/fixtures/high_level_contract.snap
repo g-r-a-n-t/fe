@@ -5,68 +5,101 @@ input_file: tests/fixtures/high_level_contract.fe
 ---
 object "EchoContract" {
   code {
+    function calldata_byteinput_len(self) -> ret {
+      let v0 := calldatasize()
+      ret := v0
+      leave
+    }
     function calldata_byteinput_word_at(self, byte_offset) -> ret {
       let v0 := calldataload(byte_offset)
       ret := v0
       leave
     }
-    function cursor_i__new__CallData__b9ab8dc8a4b2f9e(input) -> ret {
+    function cursor_i__new__Evm__Input__967f9b9da36c938b(input) -> ret {
       let v0 := mload(0x40)
       if iszero(v0) {
         v0 := 0x80
       }
-      mstore(0x40, add(v0, 32))
-      pop(v0)
-      mstore(v0, 0)
+      mstore(0x40, add(v0, 64))
+      mstore(v0, input)
+      mstore(add(v0, 32), 0)
       let v1 := v0
       ret := v1
       leave
     }
-    function cursor_i__read_word_mem__CallData__b9ab8dc8a4b2f9e(self) -> ret {
-      pop(self)
-      let v0 := mload(self)
-      let v1 := calldata_byteinput_word_at(0, v0)
-      let v2 := mload(self)
-      mstore(self, add(v2, 32))
+    function evm_contracthost_create_contract__fn_runtime__7cd036468b9a6201(self, runtime) {
+      let v0 := datasize("EchoContract_deployed")
+      let v1 := dataoffset("EchoContract_deployed")
+      codecopy(0, v1, v0)
+      return(0, v0)
+    }
+    function evm_contracthost_field__Foo__668f96d7165c93b(self, field_idx) -> ret {
+      let v0 := contract_field_slot(field_idx)
+      let v1 := stor_ptr__Evm_Foo__c3089d776807df8e(0, v0)
       ret := v1
       leave
     }
+    function evm_contracthost_input(self) {
+      leave
+    }
     function init() {
-      let v0 := stor_ptr__Evm_Foo__c3089d776807df8e(0, 0)
-      let v1 := soldecoder_i__new__CallData__b9ab8dc8a4b2f9e(0)
-      let v2 := calldatasize()
-      let v3 := lt(v2, add(32, 32))
-      if v3 {
-        revert(0, 0)
-      }
-      let v4 := u256_decode_decode__Sol_SolDecoder_CallData___828c6f2e3bda3cab(v1)
-      let v5 := u256_decode_decode__Sol_SolDecoder_CallData___828c6f2e3bda3cab(v1)
-      let v6 := v0
-      init_contract(v4, v5, v6)
-      let v7 := datasize("EchoContract_deployed")
-      let v8 := dataoffset("EchoContract_deployed")
-      codecopy(0, v8, v7)
-      return(0, v7)
+      let v0 := init_field__Evm_Foo__c3089d776807df8e(0, 0)
+      let v1 := init_decoder__Evm_Sol__2533f5c49b57a682(0)
+      let v2 := u256_decode_decode__Sol_SolDecoder_CallData___828c6f2e3bda3cab(v1)
+      let v3 := u256_decode_decode__Sol_SolDecoder_CallData___828c6f2e3bda3cab(v1)
+      let v4 := v0
+      init_contract(v2, v3, v4)
+      evm_contracthost_create_contract__fn_runtime__7cd036468b9a6201(0, 0)
+      leave
     }
     function init_contract(x, y, state) {
       sstore(state, x)
       sstore(add(state, 1), y)
       leave
     }
-    function soldecoder_i__abidecoder_read_word__CallData__b9ab8dc8a4b2f9e(self) -> ret {
-      let v0 := cursor_i__read_word_mem__CallData__b9ab8dc8a4b2f9e(self)
+    function init_decoder__Evm_Sol__2533f5c49b57a682(self) -> ret {
+      let v0 := evm_contracthost_input(self)
+      let v1 := sol_abi_decoder_new__Evm__Input__967f9b9da36c938b(v0)
+      ret := v1
+      leave
+    }
+    function init_field__Evm_Foo__c3089d776807df8e(self, field_idx) -> ret {
+      let v0 := evm_contracthost_field__Foo__668f96d7165c93b(self, field_idx)
       ret := v0
       leave
     }
-    function soldecoder_i__new__CallData__b9ab8dc8a4b2f9e(input) -> ret {
-      let v0 := cursor_i__new__CallData__b9ab8dc8a4b2f9e(input)
+    function sol_abi_decoder_new__Evm__Input__967f9b9da36c938b(input) -> ret {
+      let v0 := soldecoder_i__new__Evm__Input__967f9b9da36c938b(input)
+      ret := v0
+      leave
+    }
+    function soldecoder_i__abidecoder_read_word__CallData__b9ab8dc8a4b2f9e(self) -> ret {
+      pop(self)
+      let v0 := calldata_byteinput_len(0)
+      let v1 := mload(self)
+      let v2 := add(v1, 32)
+      let v3 := mload(self)
+      let v4 := or(lt(v2, v3), gt(v2, v0))
+      if v4 {
+        panic()
+      }
+      pop(self)
+      let v5 := mload(self)
+      let v6 := calldata_byteinput_word_at(0, v5)
+      mstore(self, v2)
+      ret := v6
+      leave
+    }
+    function soldecoder_i__new__Evm__Input__967f9b9da36c938b(input) -> ret {
+      let v0 := cursor_i__new__Evm__Input__967f9b9da36c938b(input)
       let v1 := mload(0x40)
       if iszero(v1) {
         v1 := 0x80
       }
-      mstore(0x40, add(v1, 64))
+      mstore(0x40, add(v1, 96))
       let v2 := v0
       mstore(v1, mload(v2))
+      mstore(add(v1, 32), mload(add(v2, 32)))
       mstore(add(v1, 32), 0)
       let v3 := v1
       ret := v3
@@ -110,44 +143,55 @@ object "EchoContract" {
         ret := v0
         leave
       }
+      function calldata_byteinput_len(self) -> ret {
+        let v0 := calldatasize()
+        ret := v0
+        leave
+      }
       function calldata_byteinput_word_at(self, byte_offset) -> ret {
         let v0 := calldataload(byte_offset)
         ret := v0
         leave
       }
-      function cursor_i__fork_mem__CallData__b9ab8dc8a4b2f9e(self, pos) -> ret {
-        pop(self)
-        let v0 := mload(0x40)
-        if iszero(v0) {
-          v0 := 0x80
-        }
-        mstore(0x40, add(v0, 32))
-        pop(v0)
-        mstore(v0, pos)
-        let v1 := v0
-        ret := v1
-        leave
-      }
-      function cursor_i__new__CallData__b9ab8dc8a4b2f9e(input) -> ret {
-        let v0 := mload(0x40)
-        if iszero(v0) {
-          v0 := 0x80
-        }
-        mstore(0x40, add(v0, 32))
-        pop(v0)
-        mstore(v0, 0)
-        let v1 := v0
-        ret := v1
-        leave
-      }
-      function cursor_i__read_word_mem__CallData__b9ab8dc8a4b2f9e(self) -> ret {
-        pop(self)
+      function cursor_i__fork_mem__Evm__Input__967f9b9da36c938b(self, pos) -> ret {
         let v0 := mload(self)
-        let v1 := calldata_byteinput_word_at(0, v0)
-        let v2 := mload(self)
-        mstore(self, add(v2, 32))
+        let v1 := mload(0x40)
+        if iszero(v1) {
+          v1 := 0x80
+        }
+        mstore(0x40, add(v1, 64))
+        mstore(v1, v0)
+        mstore(add(v1, 32), pos)
+        let v2 := v1
+        ret := v2
+        leave
+      }
+      function cursor_i__new__Evm__Input__967f9b9da36c938b(input) -> ret {
+        let v0 := mload(0x40)
+        if iszero(v0) {
+          v0 := 0x80
+        }
+        mstore(0x40, add(v0, 64))
+        mstore(v0, input)
+        mstore(add(v0, 32), 0)
+        let v1 := v0
         ret := v1
         leave
+      }
+      function evm_contracthost_abort(self) {
+        revert(0, 0)
+      }
+      function evm_contracthost_field__Foo__668f96d7165c93b(self, field_idx) -> ret {
+        let v0 := contract_field_slot(field_idx)
+        let v1 := stor_ptr__Evm_Foo__c3089d776807df8e(0, v0)
+        ret := v1
+        leave
+      }
+      function evm_contracthost_input(self) {
+        leave
+      }
+      function evm_contracthost_return_bytes(self, ptr, len) {
+        return(ptr, len)
       }
       function recv_EchoMsg_Answer_0_0(args) -> ret {
         ret := 42
@@ -163,75 +207,69 @@ object "EchoContract" {
         ret := v0
         leave
       }
+      function return_value__Evm_Sol_u256__fe091c64bccbbbf1(self, value) {
+        let v0 := sol_abi_encoder_new()
+        let v1 := solencoder_abiencoder_reserve_head(v0, 32)
+        pop(v1)
+        u256_encode_encode__Sol_Sol__Encoder__83de09eb63de9889(value, v0)
+        let v2 := solencoder_abiencoder_finish(v0)
+        let v3 := mload(v2)
+        let v4 := mload(add(v2, 32))
+        evm_contracthost_return_bytes(self, v3, v4)
+      }
       function runtime() {
-        let v0 := stor_ptr__Evm_Foo__c3089d776807df8e(0, 0)
-        let v1 := calldatasize()
-        let v2 := lt(v1, 4)
-        if v2 {
-          revert(0, 0)
-        }
-        let v3 := calldataload(0)
-        let v4 := sol_abi_selector_from_prefix(v3)
-        switch v4
+        let v0 := evm_contracthost_field__Foo__668f96d7165c93b(0, 0)
+        let v1 := runtime_selector__Evm_Sol__2533f5c49b57a682(0)
+        let v2 := runtime_decoder__Evm_Sol__2533f5c49b57a682(0)
+        switch v1
           case 1 {
-            let v5 := soldecoder_i__with_base__CallData__b9ab8dc8a4b2f9e(0, 4)
-            let v6 := calldatasize()
-            let v7 := lt(v6, add(4, 0))
-            if v7 {
-              revert(0, 0)
-            }
-            ___decode_decode__Sol_SolDecoder_CallData___828c6f2e3bda3cab(v5)
-            let v8 := recv_EchoMsg_Answer_0_0(0)
-            let v9 := solencoder_new()
-            let v10 := solencoder_abiencoder_reserve_head(v9, 32)
-            pop(v10)
-            u256_encode_encode__Sol_SolEncoder__dce63ad1a1fe4ae2(v8, v9)
-            let v11 := solencoder_abiencoder_finish(v9)
-            let v12 := mload(v11)
-            let v13 := mload(add(v11, 32))
-            return(v12, v13)
+            ___decode_decode__Sol_SolDecoder_CallData___828c6f2e3bda3cab(v2)
+            let v3 := recv_EchoMsg_Answer_0_0(0)
+            return_value__Evm_Sol_u256__fe091c64bccbbbf1(0, v3)
           }
           case 2 {
-            let v14 := soldecoder_i__with_base__CallData__b9ab8dc8a4b2f9e(0, 4)
-            let v15 := calldatasize()
-            let v16 := lt(v15, add(4, 32))
-            if v16 {
-              revert(0, 0)
-            }
-            let v17 := _t0__decode_decode__Sol_u256_SolDecoder_CallData___51fc2f6931ec5edc(v14)
-            let v18 := recv_EchoMsg_Echo_0_1(v17)
-            let v19 := solencoder_new()
-            let v20 := solencoder_abiencoder_reserve_head(v19, 32)
-            pop(v20)
-            u256_encode_encode__Sol_SolEncoder__dce63ad1a1fe4ae2(v18, v19)
-            let v21 := solencoder_abiencoder_finish(v19)
-            let v22 := mload(v21)
-            let v23 := mload(add(v21, 32))
-            return(v22, v23)
+            let v4 := _t0__decode_decode__Sol_u256_SolDecoder_CallData___51fc2f6931ec5edc(v2)
+            let v5 := recv_EchoMsg_Echo_0_1(v4)
+            return_value__Evm_Sol_u256__fe091c64bccbbbf1(0, v5)
           }
           case 3 {
-            let v24 := soldecoder_i__with_base__CallData__b9ab8dc8a4b2f9e(0, 4)
-            let v25 := calldatasize()
-            let v26 := lt(v25, add(4, 0))
-            if v26 {
-              revert(0, 0)
-            }
-            ___decode_decode__Sol_SolDecoder_CallData___828c6f2e3bda3cab(v24)
-            let v27 := v0
-            let v28 := recv_EchoMsg_GetX_0_2(0, v27)
-            let v29 := v28
-            let v30 := solencoder_new()
-            let v31 := solencoder_abiencoder_reserve_head(v30, 32)
-            pop(v31)
-            u256_encode_encode__Sol_SolEncoder__dce63ad1a1fe4ae2(v29, v30)
-            let v32 := solencoder_abiencoder_finish(v30)
-            let v33 := mload(v32)
-            let v34 := mload(add(v32, 32))
-            return(v33, v34)
+            ___decode_decode__Sol_SolDecoder_CallData___828c6f2e3bda3cab(v2)
+            let v6 := v0
+            let v7 := recv_EchoMsg_GetX_0_2(0, v6)
+            let v8 := v7
+            return_value__Evm_Sol_u256__fe091c64bccbbbf1(0, v8)
           }
           default {
-            revert(0, 0)
+            evm_contracthost_abort(0)
           }
+      }
+      function runtime_decoder__Evm_Sol__2533f5c49b57a682(self) -> ret {
+        let v0 := evm_contracthost_input(self)
+        let v1 := sol_abi_decoder_with_base__Evm__Input__967f9b9da36c938b(v0, 4)
+        ret := v1
+        leave
+      }
+      function runtime_selector__Evm_Sol__2533f5c49b57a682(self) -> ret {
+        let v0 := evm_contracthost_input(self)
+        let v1 := calldata_byteinput_len(v0)
+        let v2 := lt(v1, 4)
+        if v2 {
+          evm_contracthost_abort(self)
+        }
+        let v3 := calldata_byteinput_word_at(v0, 0)
+        let v4 := sol_abi_selector_from_prefix(v3)
+        ret := v4
+        leave
+      }
+      function sol_abi_decoder_with_base__Evm__Input__967f9b9da36c938b(input, base) -> ret {
+        let v0 := soldecoder_i__with_base__Evm__Input__967f9b9da36c938b(input, base)
+        ret := v0
+        leave
+      }
+      function sol_abi_encoder_new() -> ret {
+        let v0 := solencoder_new()
+        ret := v0
+        leave
       }
       function sol_abi_selector_from_prefix(prefix) -> ret {
         let v0 := shr(224, prefix)
@@ -239,20 +277,33 @@ object "EchoContract" {
         leave
       }
       function soldecoder_i__abidecoder_read_word__CallData__b9ab8dc8a4b2f9e(self) -> ret {
-        let v0 := cursor_i__read_word_mem__CallData__b9ab8dc8a4b2f9e(self)
-        ret := v0
+        pop(self)
+        let v0 := calldata_byteinput_len(0)
+        let v1 := mload(self)
+        let v2 := add(v1, 32)
+        let v3 := mload(self)
+        let v4 := or(lt(v2, v3), gt(v2, v0))
+        if v4 {
+          panic()
+        }
+        pop(self)
+        let v5 := mload(self)
+        let v6 := calldata_byteinput_word_at(0, v5)
+        mstore(self, v2)
+        ret := v6
         leave
       }
-      function soldecoder_i__with_base__CallData__b9ab8dc8a4b2f9e(input, base) -> ret {
-        let v0 := cursor_i__new__CallData__b9ab8dc8a4b2f9e(input)
-        let v1 := cursor_i__fork_mem__CallData__b9ab8dc8a4b2f9e(v0, base)
+      function soldecoder_i__with_base__Evm__Input__967f9b9da36c938b(input, base) -> ret {
+        let v0 := cursor_i__new__Evm__Input__967f9b9da36c938b(input)
+        let v1 := cursor_i__fork_mem__Evm__Input__967f9b9da36c938b(v0, base)
         let v2 := mload(0x40)
         if iszero(v2) {
           v2 := 0x80
         }
-        mstore(0x40, add(v2, 64))
+        mstore(0x40, add(v2, 96))
         let v3 := v1
         mstore(v2, mload(v3))
+        mstore(add(v2, 32), mload(add(v3, 32)))
         mstore(add(v2, 32), base)
         let v4 := v2
         ret := v4
@@ -316,7 +367,7 @@ object "EchoContract" {
         ret := v0
         leave
       }
-      function u256_encode_encode__Sol_SolEncoder__dce63ad1a1fe4ae2(self, e) {
+      function u256_encode_encode__Sol_Sol__Encoder__83de09eb63de9889(self, e) {
         solencoder_abiencoder_write_word(e, self)
         leave
       }

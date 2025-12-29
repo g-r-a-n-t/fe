@@ -7,17 +7,21 @@ use core::prelude::*
 
 mod __Counter {
     use super::*
-    use core::size_of
-    use std::evm::effects::Evm
-    use std::evm::effects::RawOps
-    use std::evm::effects::RawStorage
-    use std::evm::effects::StorPtr
-    use std::evm::contract_field_slot
-    use std::evm::calldata::CallData
-    use std::abi::Sol
-    use std::abi::sol::SolDecoder
-    use std::abi::sol::SolEncoder
-    use std::abi::sol::encoded_size
+    use core::contracts::ContractHost
+    use core::contracts::Target
+    use core::abi::Abi
+    use core::abi::AbiEncoder
+    use core::abi::AbiSize
+    use core::abi::ByteInput
+    use core::abi::prefix
+    use core::abi::Encode
+    use std::evm::EvmTarget
+
+    type __Target = EvmTarget
+
+    type __RootEffect = __Target::RootEffect
+
+    type __DefaultAbi = __Target::DefaultAbi
 
     fn recv_CounterMsg_Increment_0_0(args: CounterMsg::Increment::Args) uses (mut count: u64) {
         return {
@@ -38,53 +42,31 @@ mod __Counter {
     }
 
     #[contract_init(Counter)]
-    fn init() uses (mut evm: Evm) {
-        let mut count: StorPtr<u64> = evm.stor_ptr(contract_field_slot(0))
-        let __calldata = CallData {  }
-        let mut __d = SolDecoder<CallData>::new(__calldata)
-        if evm.calldatasize() < encoded_size<u64>() {
-            evm.revert(0, 0)
-        }
+    fn init() uses (mut root: __RootEffect) {
+        let mut count = root.init_field<u64>(0)
+        let mut __d = root.init_decoder<__DefaultAbi>()
         let start: u64 = u64::decode(__d)
-        with (count) { init_contract(start) }
-        let __len = evm.code_region_len(runtime)
-        let __offset = evm.code_region_offset(runtime)
-        evm.codecopy(0, __offset, __len)
-        evm.return_data(0, __len)
+        with (u64 = count) { init_contract(start) }
+        root.create_contract(runtime)
     }
 
     #[contract_runtime(Counter)]
-    fn runtime() uses (mut evm: Evm) {
-        let mut count: StorPtr<u64> = evm.stor_ptr(contract_field_slot(0))
-        let __calldata = CallData {  }
-        if evm.calldatasize() < size_of<Sol::Selector>() {
-            evm.revert(0, 0)
-        }
-        let __selector = Sol::selector_from_prefix(evm.calldataload(0))
+    fn runtime() uses (mut root: __RootEffect) {
+        let mut count = root.field<u64>(0)
+        let __selector = root.runtime_selector<__DefaultAbi>()
+        let mut __d = root.runtime_decoder<__DefaultAbi>()
         match __selector {
             CounterMsg::Increment::SELECTOR => {
-                let mut __d = SolDecoder<CallData>::with_base(__calldata, size_of<Sol::Selector>())
-                if evm.calldatasize() < size_of<Sol::Selector>() + encoded_size<CounterMsg::Increment::Args>() {
-                    evm.revert(0, 0)
-                }
                 let __args: CounterMsg::Increment::Args = CounterMsg::Increment::Args::decode(__d)
-                with (count) { recv_CounterMsg_Increment_0_0(__args) }
-                evm.return_data(0, 0)
+                with (u64 = count) { recv_CounterMsg_Increment_0_0(__args) }
+                root.return_unit()
             },
             CounterMsg::Get::SELECTOR => {
-                let mut __d = SolDecoder<CallData>::with_base(__calldata, size_of<Sol::Selector>())
-                if evm.calldatasize() < size_of<Sol::Selector>() + encoded_size<CounterMsg::Get::Args>() {
-                    evm.revert(0, 0)
-                }
                 let __args: CounterMsg::Get::Args = CounterMsg::Get::Args::decode(__d)
-                let __result = with (count) { recv_CounterMsg_Get_0_1(__args) }
-                let mut __enc = SolEncoder::new()
-                __enc.reserve_head(32)
-                __result.encode(__enc)
-                let __out = __enc.finish()
-                evm.return_data(__out.0, __out.1)
+                let __result = with (u64 = count) { recv_CounterMsg_Get_0_1(__args) }
+                root.return_value<__DefaultAbi, u64>(__result)
             },
-            _ => evm.revert(0, 0),
+            _ => root.abort(),
         }
     }
 }

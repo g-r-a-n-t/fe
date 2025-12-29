@@ -819,6 +819,7 @@ impl<'db> TyCheckEnv<'db> {
         sink: &mut Vec<FuncBodyDiag<'db>>,
     ) {
         let db = self.db;
+        let body = self.body;
         let scope = self.scope();
         let assumptions = self.assumptions();
         let ingot = self.body().top_mod(db).ingot(db);
@@ -838,6 +839,16 @@ impl<'db> TyCheckEnv<'db> {
             let mut subst = AssocTySubst::new(inst);
             ret = ret.fold_with(self.db, &mut subst);
             normalize_ty(db, ret, scope, assumptions)
+        };
+
+        let compute_callable = |prober: &mut Prober<'db, '_>,
+                                pending: &PendingMethod<'db>,
+                                recv_ty: TyId<'db>,
+                                inst: TraitInstId<'db>| {
+            let trait_method = *inst.def(db).method_defs(db).get(&pending.method_name)?;
+            let func_ty =
+                super::instantiate_trait_method(db, trait_method, prober.table, recv_ty, inst);
+            Callable::new(db, func_ty, pending.expr.span(body).into(), Some(inst)).ok()
         };
 
         let is_viable = |prober: &mut Prober<'db, '_>,
@@ -862,10 +873,12 @@ impl<'db> TyCheckEnv<'db> {
         while progressed {
             progressed = false;
             let mut next: Vec<DeferredTask<'db>> = Vec::new();
-            for task in self.deferred.drain(..) {
+            let tasks = std::mem::take(&mut self.deferred);
+            for task in tasks {
                 match task {
                     DeferredTask::Confirm { inst, span } => {
                         let inst = inst.fold_with(self.db, prober);
+                        let inst = inst.normalize(db, scope, assumptions);
                         let canonical_inst = Canonicalized::new(db, inst);
                         match is_goal_satisfiable(db, ingot, canonical_inst.value, assumptions) {
                             GoalSatisfiability::Satisfied(solution) => {
@@ -897,6 +910,12 @@ impl<'db> TyCheckEnv<'db> {
                             let ret_ty =
                                 compute_return_ty(prober, recv_ty, *inst, pending.method_name);
                             prober.table.unify(expr_ty, ret_ty).unwrap();
+                            if self.callables.get(&pending.expr).is_none()
+                                && let Some(callable) =
+                                    compute_callable(prober, &pending, recv_ty, *inst)
+                            {
+                                self.register_callable(pending.expr, callable);
+                            }
                             progressed = true;
                         } else {
                             next.push(DeferredTask::Method(pending));
@@ -908,10 +927,11 @@ impl<'db> TyCheckEnv<'db> {
         }
 
         // Emit diagnostics for remaining tasks
-        for task in self.deferred.drain(..) {
+        for task in std::mem::take(&mut self.deferred) {
             match task {
                 DeferredTask::Confirm { inst, span } => {
                     let inst = inst.fold_with(self.db, prober);
+                    let inst = inst.normalize(db, scope, assumptions);
                     let canonical_inst = Canonicalized::new(db, inst);
                     match is_goal_satisfiable(db, ingot, canonical_inst.value, assumptions) {
                         GoalSatisfiability::NeedsConfirmation(ambiguous) => {

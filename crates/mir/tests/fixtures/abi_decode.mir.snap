@@ -31,16 +31,24 @@ fn cursor_i__new__CallData__b9ab8dc8a4b2f9e(v0: I) -> Cursor<I>:
 
 fn soldecoder_i__abidecoder_read_word__CallData__b9ab8dc8a4b2f9e(v0: SolDecoder<I>) -> u256:
   bb0:
-    v1: u256 = cursor_i__read_word_mem__CallData__b9ab8dc8a4b2f9e(&mem[v0].0)
-    ret v1
+    eval &mem[v0].0
+    v1: u256 = calldata_byteinput_len(())
+    v4: u256 = load mem[&mem[v0].0].1
+    v3: u256 = (v4 + 32)
+    v5: u256 = load mem[&mem[v0].0].1
+    br ((v3 < v5) || (v3 > v1)) bb1 bb2
+  bb1:
+    terminate panic()
+  bb2:
+    eval &mem[v0].0
+    v8: u256 = load mem[&mem[v0].0].1
+    v6: u256 = calldata_byteinput_word_at((), v8)
+    store mem[&mem[v0].0].1 = v3
+    ret v6
 
-fn cursor_i__read_word_mem__CallData__b9ab8dc8a4b2f9e(v0: Cursor<I>) -> u256:
+fn calldata_byteinput_len(v0: CallData) -> u256:
   bb0:
-    eval v0
-    v3: u256 = load mem[v0].1
-    v1: u256 = calldata_byteinput_word_at((), v3)
-    v4: u256 = load mem[v0].1
-    store mem[v0].1 = (v4 + 32)
+    v1: u256 = calldatasize()
     ret v1
 
 fn calldata_byteinput_word_at(v0: CallData, v1: u256) -> u256:

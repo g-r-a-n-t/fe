@@ -59,6 +59,11 @@ pub fn ty_size_bytes(db: &dyn HirAnalysisDb, ty: TyId<'_>) -> Option<usize> {
         return Some(size);
     }
 
+    // Function items are compile-time only and have no runtime representation.
+    if let TyData::TyBase(TyBase::Func(_)) = ty.base_ty(db).data(db) {
+        return Some(0);
+    }
+
     // Handle primitives
     if let TyData::TyBase(TyBase::Prim(prim)) = ty.base_ty(db).data(db) {
         if *prim == PrimTy::Bool {
@@ -216,6 +221,11 @@ pub fn ty_storage_slots<'db>(db: &'db dyn HirAnalysisDb, ty: TyId<'db>) -> Optio
             size += ty_storage_slots(db, field_ty)?;
         }
         return Some(size);
+    }
+
+    // Function items are compile-time only and do not occupy storage.
+    if let TyData::TyBase(TyBase::Func(_)) = ty.base_ty(db).data(db) {
+        return Some(0);
     }
 
     // Handle primitives
@@ -433,6 +443,11 @@ pub fn ty_size_slots(db: &dyn HirAnalysisDb, ty: TyId<'_>) -> usize {
             size += ty_size_slots(db, field_ty);
         }
         return size;
+    }
+
+    // Function items are compile-time only and do not occupy storage.
+    if let TyData::TyBase(TyBase::Func(_)) = ty.base_ty(db).data(db) {
+        return 0;
     }
 
     // Handle primitives - each primitive takes 1 slot

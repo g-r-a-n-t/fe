@@ -830,6 +830,11 @@ impl<'db> TyChecker<'db> {
                         let ret_ty = self.fresh_ty();
                         let typed = ExprProp::new(ret_ty, true);
                         self.env.type_expr(expr, typed.clone());
+                        // Still type-check argument expressions so they have types and can
+                        // participate in later constraint solving.
+                        for arg in args.iter() {
+                            self.check_expr_unknown(arg.expr);
+                        }
                         // Instantiate candidates with fresh inference vars so
                         // later unifications can bind their parameters.
                         let cands: Vec<_> = insts

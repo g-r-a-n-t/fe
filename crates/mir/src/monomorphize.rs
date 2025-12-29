@@ -6,6 +6,7 @@ use std::{
 use hir::analysis::{
     HirAnalysisDb,
     diagnostics::SpannedHirAnalysisDb,
+    diagnostics::format_diags,
     ty::{
         fold::{TyFoldable, TyFolder},
         trait_def::resolve_trait_method_instance,
@@ -50,6 +51,7 @@ struct Monomorphizer<'db> {
     instances: Vec<MirFunction<'db>>,
     instance_map: FxHashMap<InstanceKey<'db>, usize>,
     worklist: VecDeque<usize>,
+    current_symbol: Option<String>,
 }
 
 #[derive(Clone, PartialEq, Eq, Hash)]
@@ -124,6 +126,7 @@ impl<'db> Monomorphizer<'db> {
             instances: Vec::new(),
             instance_map: FxHashMap::default(),
             worklist: VecDeque::new(),
+            current_symbol: None,
         }
     }
 
@@ -150,6 +153,7 @@ impl<'db> Monomorphizer<'db> {
     fn process_worklist(&mut self) {
         let mut iterations: usize = 0;
         while let Some(func_idx) = self.worklist.pop_front() {
+            self.current_symbol = Some(self.instances[func_idx].symbol_name.clone());
             iterations += 1;
             if iterations > 100_000 {
                 panic!("monomorphization worklist exceeded 100k iterations; possible cycle");
@@ -306,7 +310,12 @@ impl<'db> Monomorphizer<'db> {
             self.apply_substitution(&mut instance);
             instance
         } else {
-            let (_diags, typed_body) = check_func_body(self.db, func);
+            let (diags, typed_body) = check_func_body(self.db, func);
+            if !diags.is_empty() {
+                let name = func.pretty_print_signature(self.db);
+                let rendered = format_diags(self.db, diags);
+                panic!("analysis errors while lowering `{name}`:\n{rendered}");
+            }
             let mut folder = ParamSubstFolder { args };
             let typed_body = typed_body.clone().fold_with(self.db, &mut folder);
             let mut instance = lower_function(
@@ -315,9 +324,12 @@ impl<'db> Monomorphizer<'db> {
                 typed_body,
                 receiver_space,
                 effect_kinds.to_vec(),
+                args.to_vec(),
             )
-            .ok()?;
-            instance.generic_args = args.to_vec();
+            .unwrap_or_else(|err| {
+                let name = func.pretty_print_signature(self.db);
+                panic!("failed to instantiate MIR for `{name}`: {err}");
+            });
             instance.receiver_space = receiver_space;
             instance.effect_provider_kinds = effect_kinds.to_vec();
             instance.symbol_name = symbol_name.clone();
@@ -368,10 +380,14 @@ impl<'db> Monomorphizer<'db> {
                 return Some((CallTarget::Template(func), base_args));
             }
 
-            let inst_desc = inst.pretty_print(self.db, false);
+            let inst_desc = inst.pretty_print(self.db, true);
             let name = method_name.data(self.db);
+            let current = self
+                .current_symbol
+                .as_deref()
+                .unwrap_or("<unknown function>");
             panic!(
-                "failed to resolve trait method `{name}` for `{inst_desc}` (no impl and no default)"
+                "failed to resolve trait method `{name}` for `{inst_desc}` while lowering `{current}` (no impl and no default)"
             );
         }
 
@@ -544,13 +560,19 @@ impl<'db> Monomorphizer<'db> {
             return Some(idx);
         }
 
-        let (_diags, typed_body) = check_func_body(self.db, func);
+        let (diags, typed_body) = check_func_body(self.db, func);
+        if !diags.is_empty() {
+            let name = func.pretty_print_signature(self.db);
+            let rendered = format_diags(self.db, diags);
+            panic!("analysis errors while lowering `{name}`:\n{rendered}");
+        }
         let lowered = lower_function(
             self.db,
             func,
             typed_body.clone(),
             receiver_space,
             effect_kinds.to_vec(),
+            Vec::new(),
         )
         .ok()?;
         let idx = self.templates.len();

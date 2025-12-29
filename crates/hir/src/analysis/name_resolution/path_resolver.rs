@@ -874,10 +874,28 @@ where
             // Deduplicate by normalized type, but preserve and return the original
             // (unnormalized) candidate to avoid prematurely collapsing projections
             // like `T::IntoIter::Item` into `T::Item`.
+            let seg_args = lower_generic_arg_list(db, path.generic_args(db), scope, assumptions);
             let mut dedup: IndexMap<TyId<'db>, (TraitInstId<'db>, TyId<'db>)> = IndexMap::new();
             for (inst, ty_candidate) in assoc_tys.iter().copied() {
-                let norm = normalize_ty(db, ty_candidate, scope, assumptions);
-                dedup.entry(norm).or_insert((inst, ty_candidate));
+                let applied = if seg_args.is_empty() {
+                    ty_candidate
+                } else {
+                    TyId::foldl(db, ty_candidate, &seg_args)
+                };
+                if let TyData::Invalid(InvalidCause::TooManyGenericArgs { expected, given }) =
+                    applied.data(db)
+                {
+                    return Err(PathResError::new(
+                        PathResErrorKind::ArgNumMismatch {
+                            expected: *expected,
+                            given: *given,
+                        },
+                        path,
+                    ));
+                }
+
+                let norm = normalize_ty(db, applied, scope, assumptions);
+                dedup.entry(norm).or_insert((inst, applied));
             }
 
             match dedup.len() {

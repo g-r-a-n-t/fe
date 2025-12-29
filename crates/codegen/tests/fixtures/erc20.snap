@@ -74,29 +74,25 @@ object "CoolCoin" {
       ret := v0
       leave
     }
+    function calldata_byteinput_len(self) -> ret {
+      let v0 := calldatasize()
+      ret := v0
+      leave
+    }
     function calldata_byteinput_word_at(self, byte_offset) -> ret {
       let v0 := calldataload(byte_offset)
       ret := v0
       leave
     }
-    function cursor_i__new__CallData__b9ab8dc8a4b2f9e(input) -> ret {
+    function cursor_i__new__Evm__Input__967f9b9da36c938b(input) -> ret {
       let v0 := mload(0x40)
       if iszero(v0) {
         v0 := 0x80
       }
-      mstore(0x40, add(v0, 32))
-      pop(v0)
-      mstore(v0, 0)
+      mstore(0x40, add(v0, 64))
+      mstore(v0, input)
+      mstore(add(v0, 32), 0)
       let v1 := v0
-      ret := v1
-      leave
-    }
-    function cursor_i__read_word_mem__CallData__b9ab8dc8a4b2f9e(self) -> ret {
-      pop(self)
-      let v0 := mload(self)
-      let v1 := calldata_byteinput_word_at(0, v0)
-      let v2 := mload(self)
-      mstore(self, add(v2, 32))
       ret := v1
       leave
     }
@@ -104,24 +100,38 @@ object "CoolCoin" {
       todo()
       leave
     }
+    function evm_contracthost_create_contract__fn_runtime__7cd036468b9a6201(self, runtime) {
+      let v0 := datasize("CoolCoin_deployed")
+      let v1 := dataoffset("CoolCoin_deployed")
+      codecopy(0, v1, v0)
+      return(0, v0)
+    }
+    function evm_contracthost_field__AccessControl__56bc16b6aa1a86f2(self, field_idx) -> ret {
+      let v0 := contract_field_slot(field_idx)
+      let v1 := stor_ptr__Evm_AccessControl__9eae422fa78e0dfe(0, v0)
+      ret := v1
+      leave
+    }
+    function evm_contracthost_field__TokenStore__cf27701b626eb0c2(self, field_idx) -> ret {
+      let v0 := contract_field_slot(field_idx)
+      let v1 := stor_ptr__Evm_TokenStore__f6aa99d6ecaccf30(0, v0)
+      ret := v1
+      leave
+    }
+    function evm_contracthost_input(self) {
+      leave
+    }
     function init() {
-      let v0 := stor_ptr__Evm_TokenStore__f6aa99d6ecaccf30(0, 0)
-      let v1 := stor_ptr__Evm_AccessControl__9eae422fa78e0dfe(0, 3)
-      let v2 := soldecoder_i__new__CallData__b9ab8dc8a4b2f9e(0)
-      let v3 := calldatasize()
-      let v4 := lt(v3, add(32, 32))
-      if v4 {
-        revert(0, 0)
-      }
-      let v5 := u256_decode_decode__Sol_SolDecoder_CallData___828c6f2e3bda3cab(v2)
-      let v6 := address_decode_decode__Sol_SolDecoder_CallData___828c6f2e3bda3cab(v2)
-      let v7 := v0
-      let v8 := v1
-      init_contract(v5, v6, v7, v8, 0, 0)
-      let v9 := datasize("CoolCoin_deployed")
-      let v10 := dataoffset("CoolCoin_deployed")
-      codecopy(0, v10, v9)
-      return(0, v9)
+      let v0 := init_field__Evm_TokenStore__f6aa99d6ecaccf30(0, 0)
+      let v1 := init_field__Evm_AccessControl__9eae422fa78e0dfe(0, 1)
+      let v2 := init_decoder__Evm_Sol__2533f5c49b57a682(0)
+      let v3 := u256_decode_decode__Sol_SolDecoder_CallData___828c6f2e3bda3cab(v2)
+      let v4 := address_decode_decode__Sol_SolDecoder_CallData___828c6f2e3bda3cab(v2)
+      let v5 := v0
+      let v6 := v1
+      init_contract(v3, v4, v5, v6, 0, 0)
+      evm_contracthost_create_contract__fn_runtime__7cd036468b9a6201(0, 0)
+      leave
     }
     function init_contract(initial_supply, owner, store, auth, ctx, log) {
       accesscontrol_grant_stor(auth, 1, owner)
@@ -130,6 +140,22 @@ object "CoolCoin" {
       if v0 {
         mint(owner, initial_supply, store, log)
       }
+      leave
+    }
+    function init_decoder__Evm_Sol__2533f5c49b57a682(self) -> ret {
+      let v0 := evm_contracthost_input(self)
+      let v1 := sol_abi_decoder_new__Evm__Input__967f9b9da36c938b(v0)
+      ret := v1
+      leave
+    }
+    function init_field__Evm_AccessControl__9eae422fa78e0dfe(self, field_idx) -> ret {
+      let v0 := evm_contracthost_field__AccessControl__56bc16b6aa1a86f2(self, field_idx)
+      ret := v0
+      leave
+    }
+    function init_field__Evm_TokenStore__f6aa99d6ecaccf30(self, field_idx) -> ret {
+      let v0 := evm_contracthost_field__TokenStore__cf27701b626eb0c2(self, field_idx)
+      ret := v0
       leave
     }
     function mint(to, amount, store, log) {
@@ -151,20 +177,38 @@ object "CoolCoin" {
       emit__log__Log_TransferEvent__41b584f23318b0be(log, v3)
       leave
     }
-    function soldecoder_i__abidecoder_read_word__CallData__b9ab8dc8a4b2f9e(self) -> ret {
-      let v0 := cursor_i__read_word_mem__CallData__b9ab8dc8a4b2f9e(self)
+    function sol_abi_decoder_new__Evm__Input__967f9b9da36c938b(input) -> ret {
+      let v0 := soldecoder_i__new__Evm__Input__967f9b9da36c938b(input)
       ret := v0
       leave
     }
-    function soldecoder_i__new__CallData__b9ab8dc8a4b2f9e(input) -> ret {
-      let v0 := cursor_i__new__CallData__b9ab8dc8a4b2f9e(input)
+    function soldecoder_i__abidecoder_read_word__CallData__b9ab8dc8a4b2f9e(self) -> ret {
+      pop(self)
+      let v0 := calldata_byteinput_len(0)
+      let v1 := mload(self)
+      let v2 := add(v1, 32)
+      let v3 := mload(self)
+      let v4 := or(lt(v2, v3), gt(v2, v0))
+      if v4 {
+        panic()
+      }
+      pop(self)
+      let v5 := mload(self)
+      let v6 := calldata_byteinput_word_at(0, v5)
+      mstore(self, v2)
+      ret := v6
+      leave
+    }
+    function soldecoder_i__new__Evm__Input__967f9b9da36c938b(input) -> ret {
+      let v0 := cursor_i__new__Evm__Input__967f9b9da36c938b(input)
       let v1 := mload(0x40)
       if iszero(v1) {
         v1 := 0x80
       }
-      mstore(0x40, add(v1, 64))
+      mstore(0x40, add(v1, 96))
       let v2 := v0
       mstore(v1, mload(v2))
+      mstore(add(v1, 32), mload(add(v2, 32)))
       mstore(add(v1, 32), 0)
       let v3 := v1
       ret := v3
@@ -410,7 +454,7 @@ object "CoolCoin" {
         }
         leave
       }
-      function bool_encode_encode__Sol_SolEncoder__dce63ad1a1fe4ae2(self, e) {
+      function bool_encode_encode__Sol_Sol__Encoder__83de09eb63de9889(self, e) {
         let v0 := self
         if v0 {
           solencoder_abiencoder_write_word(e, 1)
@@ -444,42 +488,38 @@ object "CoolCoin" {
         emit__log__Log_TransferEvent__41b584f23318b0be(log, v3)
         leave
       }
+      function calldata_byteinput_len(self) -> ret {
+        let v0 := calldatasize()
+        ret := v0
+        leave
+      }
       function calldata_byteinput_word_at(self, byte_offset) -> ret {
         let v0 := calldataload(byte_offset)
         ret := v0
         leave
       }
-      function cursor_i__fork_mem__CallData__b9ab8dc8a4b2f9e(self, pos) -> ret {
-        pop(self)
-        let v0 := mload(0x40)
-        if iszero(v0) {
-          v0 := 0x80
-        }
-        mstore(0x40, add(v0, 32))
-        pop(v0)
-        mstore(v0, pos)
-        let v1 := v0
-        ret := v1
-        leave
-      }
-      function cursor_i__new__CallData__b9ab8dc8a4b2f9e(input) -> ret {
-        let v0 := mload(0x40)
-        if iszero(v0) {
-          v0 := 0x80
-        }
-        mstore(0x40, add(v0, 32))
-        pop(v0)
-        mstore(v0, 0)
-        let v1 := v0
-        ret := v1
-        leave
-      }
-      function cursor_i__read_word_mem__CallData__b9ab8dc8a4b2f9e(self) -> ret {
-        pop(self)
+      function cursor_i__fork_mem__Evm__Input__967f9b9da36c938b(self, pos) -> ret {
         let v0 := mload(self)
-        let v1 := calldata_byteinput_word_at(0, v0)
-        let v2 := mload(self)
-        mstore(self, add(v2, 32))
+        let v1 := mload(0x40)
+        if iszero(v1) {
+          v1 := 0x80
+        }
+        mstore(0x40, add(v1, 64))
+        mstore(v1, v0)
+        mstore(add(v1, 32), pos)
+        let v2 := v1
+        ret := v2
+        leave
+      }
+      function cursor_i__new__Evm__Input__967f9b9da36c938b(input) -> ret {
+        let v0 := mload(0x40)
+        if iszero(v0) {
+          v0 := 0x80
+        }
+        mstore(0x40, add(v0, 64))
+        mstore(v0, input)
+        mstore(add(v0, 32), 0)
+        let v1 := v0
         ret := v1
         leave
       }
@@ -490,6 +530,27 @@ object "CoolCoin" {
       function emit__log__Log_TransferEvent__41b584f23318b0be(self, event) {
         todo()
         leave
+      }
+      function evm_contracthost_abort(self) {
+        revert(0, 0)
+      }
+      function evm_contracthost_field__AccessControl__56bc16b6aa1a86f2(self, field_idx) -> ret {
+        let v0 := contract_field_slot(field_idx)
+        let v1 := stor_ptr__Evm_AccessControl__9eae422fa78e0dfe(0, v0)
+        ret := v1
+        leave
+      }
+      function evm_contracthost_field__TokenStore__cf27701b626eb0c2(self, field_idx) -> ret {
+        let v0 := contract_field_slot(field_idx)
+        let v1 := stor_ptr__Evm_TokenStore__f6aa99d6ecaccf30(0, v0)
+        ret := v1
+        leave
+      }
+      function evm_contracthost_input(self) {
+        leave
+      }
+      function evm_contracthost_return_bytes(self, ptr, len) {
+        return(ptr, len)
       }
       function mint(to, amount, store, log) {
         let v0 := address_zero()
@@ -636,295 +697,186 @@ object "CoolCoin" {
         ret := 1
         leave
       }
+      function return_value__Evm_Sol_String_32___fce5fd9d073f47ee(self, value) {
+        let v0 := sol_abi_encoder_new()
+        let v1 := solencoder_abiencoder_reserve_head(v0, 32)
+        pop(v1)
+        string_const_n__usize__encode_encode__Sol_32_Sol__Encoder__e3da5f4b741bee12(value, v0)
+        let v2 := solencoder_abiencoder_finish(v0)
+        let v3 := mload(v2)
+        let v4 := mload(add(v2, 32))
+        evm_contracthost_return_bytes(self, v3, v4)
+      }
+      function return_value__Evm_Sol_String_8___90b3a09bdf47bf15(self, value) {
+        let v0 := sol_abi_encoder_new()
+        let v1 := solencoder_abiencoder_reserve_head(v0, 32)
+        pop(v1)
+        string_const_n__usize__encode_encode__Sol_32_Sol__Encoder__e3da5f4b741bee12(value, v0)
+        let v2 := solencoder_abiencoder_finish(v0)
+        let v3 := mload(v2)
+        let v4 := mload(add(v2, 32))
+        evm_contracthost_return_bytes(self, v3, v4)
+      }
+      function return_value__Evm_Sol_bool__261f3a707fad09c8(self, value) {
+        let v0 := sol_abi_encoder_new()
+        let v1 := solencoder_abiencoder_reserve_head(v0, 32)
+        pop(v1)
+        bool_encode_encode__Sol_Sol__Encoder__83de09eb63de9889(value, v0)
+        let v2 := solencoder_abiencoder_finish(v0)
+        let v3 := mload(v2)
+        let v4 := mload(add(v2, 32))
+        evm_contracthost_return_bytes(self, v3, v4)
+      }
+      function return_value__Evm_Sol_u256__fe091c64bccbbbf1(self, value) {
+        let v0 := sol_abi_encoder_new()
+        let v1 := solencoder_abiencoder_reserve_head(v0, 32)
+        pop(v1)
+        u256_encode_encode__Sol_Sol__Encoder__83de09eb63de9889(value, v0)
+        let v2 := solencoder_abiencoder_finish(v0)
+        let v3 := mload(v2)
+        let v4 := mload(add(v2, 32))
+        evm_contracthost_return_bytes(self, v3, v4)
+      }
+      function return_value__Evm_Sol_u8__d483d38efd15a73d(self, value) {
+        let v0 := sol_abi_encoder_new()
+        let v1 := solencoder_abiencoder_reserve_head(v0, 32)
+        pop(v1)
+        u8_encode_encode__Sol_Sol__Encoder__83de09eb63de9889(value, v0)
+        let v2 := solencoder_abiencoder_finish(v0)
+        let v3 := mload(v2)
+        let v4 := mload(add(v2, 32))
+        evm_contracthost_return_bytes(self, v3, v4)
+      }
       function runtime() {
-        let v0 := stor_ptr__Evm_TokenStore__f6aa99d6ecaccf30(0, 0)
-        let v1 := stor_ptr__Evm_AccessControl__9eae422fa78e0dfe(0, 3)
-        let v2 := calldatasize()
-        let v3 := lt(v2, 4)
-        if v3 {
-          revert(0, 0)
-        }
-        let v4 := calldataload(0)
-        let v5 := sol_abi_selector_from_prefix(v4)
-        switch v5
+        let v0 := evm_contracthost_field__TokenStore__cf27701b626eb0c2(0, 0)
+        let v1 := evm_contracthost_field__AccessControl__56bc16b6aa1a86f2(0, 1)
+        let v2 := runtime_selector__Evm_Sol__2533f5c49b57a682(0)
+        let v3 := runtime_decoder__Evm_Sol__2533f5c49b57a682(0)
+        switch v2
           case 2835717307 {
-            let v6 := soldecoder_i__with_base__CallData__b9ab8dc8a4b2f9e(0, 4)
-            let v7 := calldatasize()
-            let v8 := lt(v7, add(4, 64))
-            if v8 {
-              revert(0, 0)
-            }
-            let v9 := _t0__t1__decode_decode__Sol_Address_u256_SolDecoder_CallData___25b1373fd1f61181(v6)
-            let v10 := v0
-            let v11 := recv_Erc20_Transfer_0_0(v9, 0, v10, 0)
-            let v12 := v11
-            let v13 := solencoder_new()
-            let v14 := solencoder_abiencoder_reserve_head(v13, 32)
-            pop(v14)
-            bool_encode_encode__Sol_SolEncoder__dce63ad1a1fe4ae2(v12, v13)
-            let v15 := solencoder_abiencoder_finish(v13)
-            let v16 := mload(v15)
-            let v17 := mload(add(v15, 32))
-            return(v16, v17)
+            let v4 := _t0__t1__decode_decode__Sol_Address_u256_SolDecoder_CallData___25b1373fd1f61181(v3)
+            let v5 := v0
+            let v6 := recv_Erc20_Transfer_0_0(v4, 0, v5, 0)
+            let v7 := v6
+            return_value__Evm_Sol_bool__261f3a707fad09c8(0, v7)
           }
           case 157198259 {
-            let v18 := soldecoder_i__with_base__CallData__b9ab8dc8a4b2f9e(0, 4)
-            let v19 := calldatasize()
-            let v20 := lt(v19, add(4, 64))
-            if v20 {
-              revert(0, 0)
-            }
-            let v21 := _t0__t1__decode_decode__Sol_Address_u256_SolDecoder_CallData___25b1373fd1f61181(v18)
-            let v22 := v0
-            let v23 := recv_Erc20_Approve_0_1(v21, 0, v22, 0)
-            let v24 := v23
-            let v25 := solencoder_new()
-            let v26 := solencoder_abiencoder_reserve_head(v25, 32)
-            pop(v26)
-            bool_encode_encode__Sol_SolEncoder__dce63ad1a1fe4ae2(v24, v25)
-            let v27 := solencoder_abiencoder_finish(v25)
-            let v28 := mload(v27)
-            let v29 := mload(add(v27, 32))
-            return(v28, v29)
+            let v8 := _t0__t1__decode_decode__Sol_Address_u256_SolDecoder_CallData___25b1373fd1f61181(v3)
+            let v9 := v0
+            let v10 := recv_Erc20_Approve_0_1(v8, 0, v9, 0)
+            let v11 := v10
+            return_value__Evm_Sol_bool__261f3a707fad09c8(0, v11)
           }
           case 599290589 {
-            let v30 := soldecoder_i__with_base__CallData__b9ab8dc8a4b2f9e(0, 4)
-            let v31 := calldatasize()
-            let v32 := lt(v31, add(4, 96))
-            if v32 {
-              revert(0, 0)
-            }
-            let v33 := _t0__t1__t2__decode_decode__Sol_Address_Address_u256_SolDecoder_CallData___da321e92055b22cd(v30)
-            let v34 := v0
-            let v35 := recv_Erc20_TransferFrom_0_2(v33, 0, v34, 0)
-            let v36 := v35
-            let v37 := solencoder_new()
-            let v38 := solencoder_abiencoder_reserve_head(v37, 32)
-            pop(v38)
-            bool_encode_encode__Sol_SolEncoder__dce63ad1a1fe4ae2(v36, v37)
-            let v39 := solencoder_abiencoder_finish(v37)
-            let v40 := mload(v39)
-            let v41 := mload(add(v39, 32))
-            return(v40, v41)
+            let v12 := _t0__t1__t2__decode_decode__Sol_Address_Address_u256_SolDecoder_CallData___da321e92055b22cd(v3)
+            let v13 := v0
+            let v14 := recv_Erc20_TransferFrom_0_2(v12, 0, v13, 0)
+            let v15 := v14
+            return_value__Evm_Sol_bool__261f3a707fad09c8(0, v15)
           }
           case 1889567281 {
-            let v42 := soldecoder_i__with_base__CallData__b9ab8dc8a4b2f9e(0, 4)
-            let v43 := calldatasize()
-            let v44 := lt(v43, add(4, 32))
-            if v44 {
-              revert(0, 0)
-            }
-            let v45 := _t0__decode_decode__Sol_Address_SolDecoder_CallData___c3cd70daebc6e8b9(v42)
-            let v46 := v0
-            let v47 := recv_Erc20_BalanceOf_0_3(v45, v46)
-            let v48 := v47
-            let v49 := solencoder_new()
-            let v50 := solencoder_abiencoder_reserve_head(v49, 32)
-            pop(v50)
-            u256_encode_encode__Sol_SolEncoder__dce63ad1a1fe4ae2(v48, v49)
-            let v51 := solencoder_abiencoder_finish(v49)
-            let v52 := mload(v51)
-            let v53 := mload(add(v51, 32))
-            return(v52, v53)
+            let v16 := _t0__decode_decode__Sol_Address_SolDecoder_CallData___c3cd70daebc6e8b9(v3)
+            let v17 := v0
+            let v18 := recv_Erc20_BalanceOf_0_3(v16, v17)
+            let v19 := v18
+            return_value__Evm_Sol_u256__fe091c64bccbbbf1(0, v19)
           }
           case 3714247998 {
-            let v54 := soldecoder_i__with_base__CallData__b9ab8dc8a4b2f9e(0, 4)
-            let v55 := calldatasize()
-            let v56 := lt(v55, add(4, 64))
-            if v56 {
-              revert(0, 0)
-            }
-            let v57 := _t0__t1__decode_decode__Sol_Address_Address_SolDecoder_CallData___7ed19c3f9fd70917(v54)
-            let v58 := v0
-            let v59 := recv_Erc20_Allowance_0_4(v57, v58)
-            let v60 := v59
-            let v61 := solencoder_new()
-            let v62 := solencoder_abiencoder_reserve_head(v61, 32)
-            pop(v62)
-            u256_encode_encode__Sol_SolEncoder__dce63ad1a1fe4ae2(v60, v61)
-            let v63 := solencoder_abiencoder_finish(v61)
-            let v64 := mload(v63)
-            let v65 := mload(add(v63, 32))
-            return(v64, v65)
+            let v20 := _t0__t1__decode_decode__Sol_Address_Address_SolDecoder_CallData___7ed19c3f9fd70917(v3)
+            let v21 := v0
+            let v22 := recv_Erc20_Allowance_0_4(v20, v21)
+            let v23 := v22
+            return_value__Evm_Sol_u256__fe091c64bccbbbf1(0, v23)
           }
           case 404098525 {
-            let v66 := soldecoder_i__with_base__CallData__b9ab8dc8a4b2f9e(0, 4)
-            let v67 := calldatasize()
-            let v68 := lt(v67, add(4, 0))
-            if v68 {
-              revert(0, 0)
-            }
-            ___decode_decode__Sol_SolDecoder_CallData___828c6f2e3bda3cab(v66)
-            let v69 := v0
-            let v70 := recv_Erc20_TotalSupply_0_5(0, v69)
-            let v71 := v70
-            let v72 := solencoder_new()
-            let v73 := solencoder_abiencoder_reserve_head(v72, 32)
-            pop(v73)
-            u256_encode_encode__Sol_SolEncoder__dce63ad1a1fe4ae2(v71, v72)
-            let v74 := solencoder_abiencoder_finish(v72)
-            let v75 := mload(v74)
-            let v76 := mload(add(v74, 32))
-            return(v75, v76)
+            ___decode_decode__Sol_SolDecoder_CallData___828c6f2e3bda3cab(v3)
+            let v24 := v0
+            let v25 := recv_Erc20_TotalSupply_0_5(0, v24)
+            let v26 := v25
+            return_value__Evm_Sol_u256__fe091c64bccbbbf1(0, v26)
           }
           case 117300739 {
-            let v77 := soldecoder_i__with_base__CallData__b9ab8dc8a4b2f9e(0, 4)
-            let v78 := calldatasize()
-            let v79 := lt(v78, add(4, 0))
-            if v79 {
-              revert(0, 0)
-            }
-            ___decode_decode__Sol_SolDecoder_CallData___828c6f2e3bda3cab(v77)
-            let v80 := recv_Erc20_Name_0_6(0)
-            let v81 := solencoder_new()
-            let v82 := solencoder_abiencoder_reserve_head(v81, 32)
-            pop(v82)
-            string_const_n__usize__encode_encode__Sol_32_SolEncoder__85bcb27fa2f25e8f(v80, v81)
-            let v83 := solencoder_abiencoder_finish(v81)
-            let v84 := mload(v83)
-            let v85 := mload(add(v83, 32))
-            return(v84, v85)
+            ___decode_decode__Sol_SolDecoder_CallData___828c6f2e3bda3cab(v3)
+            let v27 := recv_Erc20_Name_0_6(0)
+            return_value__Evm_Sol_String_32___fce5fd9d073f47ee(0, v27)
           }
           case 2514000705 {
-            let v86 := soldecoder_i__with_base__CallData__b9ab8dc8a4b2f9e(0, 4)
-            let v87 := calldatasize()
-            let v88 := lt(v87, add(4, 0))
-            if v88 {
-              revert(0, 0)
-            }
-            ___decode_decode__Sol_SolDecoder_CallData___828c6f2e3bda3cab(v86)
-            let v89 := recv_Erc20_Symbol_0_7(0)
-            let v90 := solencoder_new()
-            let v91 := solencoder_abiencoder_reserve_head(v90, 32)
-            pop(v91)
-            string_const_n__usize__encode_encode__Sol_32_SolEncoder__85bcb27fa2f25e8f(v89, v90)
-            let v92 := solencoder_abiencoder_finish(v90)
-            let v93 := mload(v92)
-            let v94 := mload(add(v92, 32))
-            return(v93, v94)
+            ___decode_decode__Sol_SolDecoder_CallData___828c6f2e3bda3cab(v3)
+            let v28 := recv_Erc20_Symbol_0_7(0)
+            return_value__Evm_Sol_String_8___90b3a09bdf47bf15(0, v28)
           }
           case 826074471 {
-            let v95 := soldecoder_i__with_base__CallData__b9ab8dc8a4b2f9e(0, 4)
-            let v96 := calldatasize()
-            let v97 := lt(v96, add(4, 0))
-            if v97 {
-              revert(0, 0)
-            }
-            ___decode_decode__Sol_SolDecoder_CallData___828c6f2e3bda3cab(v95)
-            let v98 := recv_Erc20_Decimals_0_8(0)
-            let v99 := solencoder_new()
-            let v100 := solencoder_abiencoder_reserve_head(v99, 32)
-            pop(v100)
-            u8_encode_encode__Sol_SolEncoder__dce63ad1a1fe4ae2(v98, v99)
-            let v101 := solencoder_abiencoder_finish(v99)
-            let v102 := mload(v101)
-            let v103 := mload(add(v101, 32))
-            return(v102, v103)
+            ___decode_decode__Sol_SolDecoder_CallData___828c6f2e3bda3cab(v3)
+            let v29 := recv_Erc20_Decimals_0_8(0)
+            return_value__Evm_Sol_u8__d483d38efd15a73d(0, v29)
           }
           case 1086394137 {
-            let v104 := soldecoder_i__with_base__CallData__b9ab8dc8a4b2f9e(0, 4)
-            let v105 := calldatasize()
-            let v106 := lt(v105, add(4, 64))
-            if v106 {
-              revert(0, 0)
-            }
-            let v107 := _t0__t1__decode_decode__Sol_Address_u256_SolDecoder_CallData___25b1373fd1f61181(v104)
-            let v108 := v0
-            let v109 := v1
-            let v110 := recv_Erc20Extended_Mint_1_0(v107, 0, v108, 0, v109)
-            let v111 := v110
-            let v112 := solencoder_new()
-            let v113 := solencoder_abiencoder_reserve_head(v112, 32)
-            pop(v113)
-            bool_encode_encode__Sol_SolEncoder__dce63ad1a1fe4ae2(v111, v112)
-            let v114 := solencoder_abiencoder_finish(v112)
-            let v115 := mload(v114)
-            let v116 := mload(add(v114, 32))
-            return(v115, v116)
+            let v30 := _t0__t1__decode_decode__Sol_Address_u256_SolDecoder_CallData___25b1373fd1f61181(v3)
+            let v31 := v0
+            let v32 := v1
+            let v33 := recv_Erc20Extended_Mint_1_0(v30, 0, v31, 0, v32)
+            let v34 := v33
+            return_value__Evm_Sol_bool__261f3a707fad09c8(0, v34)
           }
           case 1117154408 {
-            let v117 := soldecoder_i__with_base__CallData__b9ab8dc8a4b2f9e(0, 4)
-            let v118 := calldatasize()
-            let v119 := lt(v118, add(4, 32))
-            if v119 {
-              revert(0, 0)
-            }
-            let v120 := _t0__decode_decode__Sol_u256_SolDecoder_CallData___51fc2f6931ec5edc(v117)
-            let v121 := v0
-            let v122 := recv_Erc20Extended_Burn_1_1(v120, 0, v121, 0)
-            let v123 := v122
-            let v124 := solencoder_new()
-            let v125 := solencoder_abiencoder_reserve_head(v124, 32)
-            pop(v125)
-            bool_encode_encode__Sol_SolEncoder__dce63ad1a1fe4ae2(v123, v124)
-            let v126 := solencoder_abiencoder_finish(v124)
-            let v127 := mload(v126)
-            let v128 := mload(add(v126, 32))
-            return(v127, v128)
+            let v35 := _t0__decode_decode__Sol_u256_SolDecoder_CallData___51fc2f6931ec5edc(v3)
+            let v36 := v0
+            let v37 := recv_Erc20Extended_Burn_1_1(v35, 0, v36, 0)
+            let v38 := v37
+            return_value__Evm_Sol_bool__261f3a707fad09c8(0, v38)
           }
           case 2043438992 {
-            let v129 := soldecoder_i__with_base__CallData__b9ab8dc8a4b2f9e(0, 4)
-            let v130 := calldatasize()
-            let v131 := lt(v130, add(4, 64))
-            if v131 {
-              revert(0, 0)
-            }
-            let v132 := _t0__t1__decode_decode__Sol_Address_u256_SolDecoder_CallData___25b1373fd1f61181(v129)
-            let v133 := v0
-            let v134 := recv_Erc20Extended_BurnFrom_1_2(v132, 0, v133, 0)
-            let v135 := v134
-            let v136 := solencoder_new()
-            let v137 := solencoder_abiencoder_reserve_head(v136, 32)
-            pop(v137)
-            bool_encode_encode__Sol_SolEncoder__dce63ad1a1fe4ae2(v135, v136)
-            let v138 := solencoder_abiencoder_finish(v136)
-            let v139 := mload(v138)
-            let v140 := mload(add(v138, 32))
-            return(v139, v140)
+            let v39 := _t0__t1__decode_decode__Sol_Address_u256_SolDecoder_CallData___25b1373fd1f61181(v3)
+            let v40 := v0
+            let v41 := recv_Erc20Extended_BurnFrom_1_2(v39, 0, v40, 0)
+            let v42 := v41
+            return_value__Evm_Sol_bool__261f3a707fad09c8(0, v42)
           }
           case 961581905 {
-            let v141 := soldecoder_i__with_base__CallData__b9ab8dc8a4b2f9e(0, 4)
-            let v142 := calldatasize()
-            let v143 := lt(v142, add(4, 64))
-            if v143 {
-              revert(0, 0)
-            }
-            let v144 := _t0__t1__decode_decode__Sol_Address_u256_SolDecoder_CallData___25b1373fd1f61181(v141)
-            let v145 := v0
-            let v146 := recv_Erc20Extended_IncreaseAllowance_1_3(v144, 0, v145, 0)
-            let v147 := v146
-            let v148 := solencoder_new()
-            let v149 := solencoder_abiencoder_reserve_head(v148, 32)
-            pop(v149)
-            bool_encode_encode__Sol_SolEncoder__dce63ad1a1fe4ae2(v147, v148)
-            let v150 := solencoder_abiencoder_finish(v148)
-            let v151 := mload(v150)
-            let v152 := mload(add(v150, 32))
-            return(v151, v152)
+            let v43 := _t0__t1__decode_decode__Sol_Address_u256_SolDecoder_CallData___25b1373fd1f61181(v3)
+            let v44 := v0
+            let v45 := recv_Erc20Extended_IncreaseAllowance_1_3(v43, 0, v44, 0)
+            let v46 := v45
+            return_value__Evm_Sol_bool__261f3a707fad09c8(0, v46)
           }
           case 2757214935 {
-            let v153 := soldecoder_i__with_base__CallData__b9ab8dc8a4b2f9e(0, 4)
-            let v154 := calldatasize()
-            let v155 := lt(v154, add(4, 64))
-            if v155 {
-              revert(0, 0)
-            }
-            let v156 := _t0__t1__decode_decode__Sol_Address_u256_SolDecoder_CallData___25b1373fd1f61181(v153)
-            let v157 := v0
-            let v158 := recv_Erc20Extended_DecreaseAllowance_1_4(v156, 0, v157, 0)
-            let v159 := v158
-            let v160 := solencoder_new()
-            let v161 := solencoder_abiencoder_reserve_head(v160, 32)
-            pop(v161)
-            bool_encode_encode__Sol_SolEncoder__dce63ad1a1fe4ae2(v159, v160)
-            let v162 := solencoder_abiencoder_finish(v160)
-            let v163 := mload(v162)
-            let v164 := mload(add(v162, 32))
-            return(v163, v164)
+            let v47 := _t0__t1__decode_decode__Sol_Address_u256_SolDecoder_CallData___25b1373fd1f61181(v3)
+            let v48 := v0
+            let v49 := recv_Erc20Extended_DecreaseAllowance_1_4(v47, 0, v48, 0)
+            let v50 := v49
+            return_value__Evm_Sol_bool__261f3a707fad09c8(0, v50)
           }
           default {
-            revert(0, 0)
+            evm_contracthost_abort(0)
           }
+      }
+      function runtime_decoder__Evm_Sol__2533f5c49b57a682(self) -> ret {
+        let v0 := evm_contracthost_input(self)
+        let v1 := sol_abi_decoder_with_base__Evm__Input__967f9b9da36c938b(v0, 4)
+        ret := v1
+        leave
+      }
+      function runtime_selector__Evm_Sol__2533f5c49b57a682(self) -> ret {
+        let v0 := evm_contracthost_input(self)
+        let v1 := calldata_byteinput_len(v0)
+        let v2 := lt(v1, 4)
+        if v2 {
+          evm_contracthost_abort(self)
+        }
+        let v3 := calldata_byteinput_word_at(v0, 0)
+        let v4 := sol_abi_selector_from_prefix(v3)
+        ret := v4
+        leave
+      }
+      function sol_abi_decoder_with_base__Evm__Input__967f9b9da36c938b(input, base) -> ret {
+        let v0 := soldecoder_i__with_base__Evm__Input__967f9b9da36c938b(input, base)
+        ret := v0
+        leave
+      }
+      function sol_abi_encoder_new() -> ret {
+        let v0 := solencoder_new()
+        ret := v0
+        leave
       }
       function sol_abi_selector_from_prefix(prefix) -> ret {
         let v0 := shr(224, prefix)
@@ -932,20 +884,33 @@ object "CoolCoin" {
         leave
       }
       function soldecoder_i__abidecoder_read_word__CallData__b9ab8dc8a4b2f9e(self) -> ret {
-        let v0 := cursor_i__read_word_mem__CallData__b9ab8dc8a4b2f9e(self)
-        ret := v0
+        pop(self)
+        let v0 := calldata_byteinput_len(0)
+        let v1 := mload(self)
+        let v2 := add(v1, 32)
+        let v3 := mload(self)
+        let v4 := or(lt(v2, v3), gt(v2, v0))
+        if v4 {
+          panic()
+        }
+        pop(self)
+        let v5 := mload(self)
+        let v6 := calldata_byteinput_word_at(0, v5)
+        mstore(self, v2)
+        ret := v6
         leave
       }
-      function soldecoder_i__with_base__CallData__b9ab8dc8a4b2f9e(input, base) -> ret {
-        let v0 := cursor_i__new__CallData__b9ab8dc8a4b2f9e(input)
-        let v1 := cursor_i__fork_mem__CallData__b9ab8dc8a4b2f9e(v0, base)
+      function soldecoder_i__with_base__Evm__Input__967f9b9da36c938b(input, base) -> ret {
+        let v0 := cursor_i__new__Evm__Input__967f9b9da36c938b(input)
+        let v1 := cursor_i__fork_mem__Evm__Input__967f9b9da36c938b(v0, base)
         let v2 := mload(0x40)
         if iszero(v2) {
           v2 := 0x80
         }
-        mstore(0x40, add(v2, 64))
+        mstore(0x40, add(v2, 96))
         let v3 := v1
         mstore(v2, mload(v3))
+        mstore(add(v2, 32), mload(add(v3, 32)))
         mstore(add(v2, 32), base)
         let v4 := v2
         ret := v4
@@ -1089,7 +1054,7 @@ object "CoolCoin" {
         ret := v2
         leave
       }
-      function string_const_n__usize__encode_encode__Sol_32_SolEncoder__85bcb27fa2f25e8f(self, e) {
+      function string_const_n__usize__encode_encode__Sol_32_Sol__Encoder__e3da5f4b741bee12(self, e) {
         todo()
         leave
       }
@@ -1121,7 +1086,7 @@ object "CoolCoin" {
         ret := v0
         leave
       }
-      function u256_encode_encode__Sol_SolEncoder__dce63ad1a1fe4ae2(self, e) {
+      function u256_encode_encode__Sol_Sol__Encoder__83de09eb63de9889(self, e) {
         solencoder_abiencoder_write_word(e, self)
         leave
       }
@@ -1138,7 +1103,7 @@ object "CoolCoin" {
         ret := self
         leave
       }
-      function u8_encode_encode__Sol_SolEncoder__dce63ad1a1fe4ae2(self, e) {
+      function u8_encode_encode__Sol_Sol__Encoder__83de09eb63de9889(self, e) {
         let v0 := self
         solencoder_abiencoder_write_word(e, v0)
         leave

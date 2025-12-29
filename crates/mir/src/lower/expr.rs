@@ -347,7 +347,7 @@ impl<'db, 'a> MirBuilder<'db, 'a> {
             return value_id;
         }
 
-        let Some(callable) = self.typed_body.callable_expr(expr) else {
+        let Some(callable) = self.typed_body.callable_expr(expr).cloned() else {
             return value_id;
         };
 

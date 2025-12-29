@@ -113,6 +113,27 @@ pub fn resolve_trait_method_instance<'db>(
     inst: TraitInstId<'db>,
     method: IdentId<'db>,
 ) -> Option<(Func<'db>, Vec<TyId<'db>>)> {
+    // Normalize the trait instance arguments before searching for implementors.
+    //
+    // This is important for cases where the `Self` type is an associated type
+    // projection (e.g. `<Sol as Abi>::Decoder<I>`). Without normalization, the
+    // projection has no declaring ingot, which prevents us from searching the
+    // ingot that contains the actual implementor type (e.g. `SolDecoder<I>`).
+    //
+    // Monomorphization happens with concrete substitutions, so we can safely
+    // normalize using an ingot picked from the instantiated arguments.
+    let norm_scope = inst
+        .self_ty(db)
+        .ingot(db)
+        .or_else(|| inst.args(db).iter().find_map(|arg| arg.ingot(db)))
+        .map(|ingot| ingot.root_mod(db).scope())
+        .unwrap_or_else(|| {
+            // Fall back to the trait definition's ingot.
+            inst.def(db).ingot(db).root_mod(db).scope()
+        });
+    let assumptions = PredicateListId::empty_list(db);
+    let inst = inst.normalize(db, norm_scope, assumptions);
+
     let canonical = Canonical::new(db, inst);
 
     // Search Self's ingot, and the trait's ingot.
@@ -254,18 +275,18 @@ pub fn assoc_const_body_for_trait_inst<'db>(
     inst: TraitInstId<'db>,
     const_name: IdentId<'db>,
 ) -> Option<crate::hir_def::Body<'db>> {
-    let mut matches = Vec::new();
+    let mut match_body: Option<crate::hir_def::Body<'db>> = None;
     let canonical_self_ty = Canonical::new(db, inst.self_ty(db));
 
     for ingot in [inst.self_ty(db).ingot(db), Some(inst.def(db).ingot(db))] {
         let Some(ingot) = ingot else { continue };
         for implementor in impls_for_ty(db, ingot, canonical_self_ty).iter() {
-            let implementor = implementor.skip_binder();
-            if implementor.trait_def(db) != inst.def(db) {
-                continue;
-            }
-
-            if implementor.trait_(db).args(db) != inst.args(db) {
+            // Instantiate and unify against the requested trait instance. This allows
+            // associated const lookups to work for generic impls like
+            // `impl<const N: usize> AbiSize for String<N>`.
+            let mut table = UnificationTable::new(db);
+            let implementor = table.instantiate_with_fresh_vars(*implementor);
+            if table.unify(implementor.trait_(db), inst).is_err() {
                 continue;
             }
 
@@ -282,13 +303,14 @@ pub fn assoc_const_body_for_trait_inst<'db>(
                 continue;
             };
 
-            matches.push(body);
-            if matches.len() > 1 {
-                return None;
+            match match_body {
+                None => match_body = Some(body),
+                Some(existing) if existing == body => {}
+                Some(_) => return None,
             }
         }
     }
-    matches.pop()
+    match_body
 }
 
 /// Represents the trait environment of an ingot, which maintain all trait

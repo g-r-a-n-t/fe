@@ -26,10 +26,23 @@ impl<'db> GenericArgListId<'db> {
     }
 
     pub fn pretty_print(self, db: &dyn HirDb) -> String {
+        fn space_adjacent_angles(s: &str) -> String {
+            let mut out = String::with_capacity(s.len());
+            let mut prev: Option<char> = None;
+            for ch in s.chars() {
+                if matches!((prev, ch), (Some('<'), '<') | (Some('>'), '>')) {
+                    out.push(' ');
+                }
+                out.push(ch);
+                prev = Some(ch);
+            }
+            out
+        }
+
         if !self.is_given(db) {
             "".into()
         } else {
-            format!(
+            space_adjacent_angles(&format!(
                 "<{}>",
                 self.data(db)
                     .iter()
@@ -55,7 +68,7 @@ impl<'db> GenericArgListId<'db> {
                     })
                     .collect::<Vec<_>>()
                     .join(", ")
-            )
+            ))
         }
     }
 }

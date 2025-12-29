@@ -5,37 +5,7 @@ use super::*;
 
 impl<'db, 'a> MirBuilder<'db, 'a> {
     pub(super) fn callable_def_for_call_expr(&self, expr: ExprId) -> Option<CallableDef<'db>> {
-        if let Some(callable) = self.typed_body.callable_expr(expr) {
-            return Some(callable.callable_def);
-        }
-
-        let (callee, _) = match expr.data(self.db, self.body) {
-            Partial::Present(Expr::Call(callee, args)) => (*callee, args),
-            Partial::Present(Expr::MethodCall(..)) => return None,
-            _ => return None,
-        };
-
-        let Partial::Present(Expr::Path(path)) = callee.data(self.db, self.body) else {
-            return None;
-        };
-        let path = path.to_opt()?;
-
-        let func_ty = match resolve_path(
-            self.db,
-            path,
-            self.body.scope(),
-            PredicateListId::empty_list(self.db),
-            true,
-        ) {
-            Ok(PathRes::Func(func_ty)) => func_ty,
-            _ => return None,
-        };
-
-        let (base, _) = func_ty.decompose_ty_app(self.db);
-        let TyData::TyBase(TyBase::Func(callable_def)) = base.data(self.db) else {
-            return None;
-        };
-        Some(*callable_def)
+        Some(self.typed_body.callable_expr(expr)?.callable_def)
     }
 
     /// Attempts to lower a statement-only intrinsic call (`mstore`, `codecopy`, etc.).
@@ -160,6 +130,24 @@ impl<'db, 'a> MirBuilder<'db, 'a> {
         };
 
         let (base, args) = func_ty.decompose_ty_app(self.db);
+        let TyData::TyBase(TyBase::Func(CallableDef::Func(func))) = base.data(self.db) else {
+            return None;
+        };
+        let _ = extract_contract_function(self.db, *func)?;
+        Some(CodeRegionRoot {
+            func: *func,
+            generic_args: args.to_vec(),
+            symbol: None,
+        })
+    }
+
+    /// Resolves the `code_region` target represented by a function-item type.
+    ///
+    /// This is used when contract code regions are passed through locals/params (e.g. `fn f<F>(x: F)`),
+    /// where the value has no runtime representation but the *type* still uniquely identifies the
+    /// referenced contract entrypoint.
+    pub(super) fn code_region_target_from_ty(&self, ty: TyId<'db>) -> Option<CodeRegionRoot<'db>> {
+        let (base, args) = ty.decompose_ty_app(self.db);
         let TyData::TyBase(TyBase::Func(CallableDef::Func(func))) = base.data(self.db) else {
             return None;
         };

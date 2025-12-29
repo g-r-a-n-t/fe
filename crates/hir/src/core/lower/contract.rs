@@ -10,7 +10,7 @@ use crate::{
         FieldDef, FieldDefListId, Func, FuncParam, FuncParamListId, FuncParamName, GenericArg,
         GenericArgListId, GenericParamListId, IdentId, IntegerId, ItemModifier, LitKind, MatchArm,
         NormalAttr, Partial, Pat, PatId, PathId, PathKind, Stmt, StmtId, TrackedItemVariant,
-        TypeGenericArg, TypeId, TypeKind, Use, Visibility, WhereClauseId, WithBinding,
+        TypeAlias, TypeGenericArg, TypeId, TypeKind, Use, Visibility, WhereClauseId, WithBinding,
         use_tree::{UsePathId, UsePathSegment},
     },
     lower::{FileLowerCtxt, body::BodyCtxt, item::lower_uses_clause_opt},
@@ -19,6 +19,10 @@ use crate::{
         DesugaredOrigin, HirOrigin,
     },
 };
+
+const DEFAULT_TARGET_ALIAS: &str = "__Target";
+const DEFAULT_ROOT_EFFECT_ALIAS: &str = "__RootEffect";
+const DEFAULT_DEFAULT_ABI_ALIAS: &str = "__DefaultAbi";
 
 /// Builder for synthesizing HIR expressions during contract lowering.
 ///
@@ -113,6 +117,29 @@ impl<'a, 'ctxt, 'db> HirBuilder<'a, 'ctxt, 'db> {
                 receiver,
                 Partial::Present(self.ident(method)),
                 GenericArgListId::none(self.db()),
+                call_args,
+            ),
+            self.origin(),
+        )
+    }
+
+    /// Creates a method call expression with generic arguments.
+    fn method_call_generic(
+        &mut self,
+        receiver: ExprId,
+        method: &str,
+        generic_args: GenericArgListId<'db>,
+        args: Vec<ExprId>,
+    ) -> ExprId {
+        let call_args = args
+            .into_iter()
+            .map(|expr| CallArg { label: None, expr })
+            .collect();
+        self.body_ctxt.push_expr(
+            Expr::MethodCall(
+                receiver,
+                Partial::Present(self.ident(method)),
+                generic_args,
                 call_args,
             ),
             self.origin(),
@@ -253,18 +280,27 @@ impl<'a, 'ctxt, 'db> HirBuilder<'a, 'ctxt, 'db> {
         )
     }
 
-    /// Creates a `revert(0, 0)` call.
-    fn revert_call(&mut self) -> ExprId {
-        let evm = self.var_expr("evm");
-        let z0 = self.int_lit(0);
-        let z1 = self.int_lit(0);
-        self.method_call(evm, "revert", vec![z0, z1])
+    /// Creates a field access expression by name, e.g. `base.foo`.
+    fn field_named(&mut self, base: ExprId, name: &str) -> ExprId {
+        self.body_ctxt.push_expr(
+            Expr::Field(
+                base,
+                Partial::Present(crate::hir_def::FieldIndex::Ident(self.ident(name))),
+            ),
+            self.origin(),
+        )
     }
 
-    /// Creates `return_data(ptr, len)` call.
-    fn return_data_call(&mut self, ptr: ExprId, len: ExprId) -> ExprId {
-        let evm = self.var_expr("evm");
-        self.method_call(evm, "return_data", vec![ptr, len])
+    /// Creates a `root.abort()` call.
+    fn abort_call(&mut self) -> ExprId {
+        let root = self.var_expr("root");
+        self.method_call(root, "abort", vec![])
+    }
+
+    /// Creates a `root.return_unit()` call.
+    fn return_unit_call(&mut self) -> ExprId {
+        let root = self.var_expr("root");
+        self.method_call(root, "return_unit", vec![])
     }
 
     /// Creates an Ok pattern: `Result::Ok(inner_pat)`.
@@ -290,13 +326,13 @@ impl<'a, 'ctxt, 'db> HirBuilder<'a, 'ctxt, 'db> {
         self.body_ctxt.push_pat(Pat::Tuple(elems), self.origin())
     }
 
-    /// Creates a match expression with Ok/Err arms that reverts on error.
+    /// Creates a match expression with Ok/Err arms that aborts on error.
     fn match_or_revert(&mut self, scrutinee: ExprId, ok_body: ExprId) -> ExprId {
         let ok_wild = self.wildcard_pat();
         let ok_pat = self.ok_pat(ok_wild);
         let err_wild = self.wildcard_pat();
         let err_pat = self.err_pat(err_wild);
-        let revert = self.revert_call();
+        let revert = self.abort_call();
 
         self.body_ctxt.push_expr(
             Expr::Match(
@@ -316,7 +352,7 @@ impl<'a, 'ctxt, 'db> HirBuilder<'a, 'ctxt, 'db> {
         )
     }
 
-    /// Creates a match expression extracting value from Ok or reverting on Err.
+    /// Creates a match expression extracting value from Ok or aborting on Err.
     fn match_ok_value_or_revert(&mut self, scrutinee: ExprId, binding: &str) -> ExprId {
         let binding_pat = self.bind_pat(binding, false);
         let ok_pat = self.ok_pat(binding_pat);
@@ -324,7 +360,7 @@ impl<'a, 'ctxt, 'db> HirBuilder<'a, 'ctxt, 'db> {
 
         let err_wild = self.wildcard_pat();
         let err_pat = self.err_pat(err_wild);
-        let revert = self.revert_call();
+        let revert = self.abort_call();
 
         self.body_ctxt.push_expr(
             Expr::Match(
@@ -465,6 +501,63 @@ impl<'a, 'ctxt, 'db> HirBuilder<'a, 'ctxt, 'db> {
     fn path_id_expr(&mut self, path: PathId<'db>) -> ExprId {
         self.body_ctxt
             .push_expr(Expr::Path(Partial::Present(path)), self.origin())
+    }
+
+    fn generic_args_one_and_infer(
+        &self,
+        first_ty: TypeId<'db>,
+        inferred_args: usize,
+    ) -> GenericArgListId<'db> {
+        let mut args = vec![GenericArg::Type(TypeGenericArg {
+            ty: Partial::Present(first_ty),
+        })];
+        let infer_ty = TypeId::new(
+            self.db(),
+            TypeKind::Path(Partial::Present(PathId::from_str(self.db(), "_"))),
+        );
+        args.extend((0..inferred_args).map(|_| {
+            GenericArg::Type(TypeGenericArg {
+                ty: Partial::Present(infer_ty),
+            })
+        }));
+        GenericArgListId::new(self.db(), args, true)
+    }
+
+    fn generic_args_three(
+        &self,
+        ty0: TypeId<'db>,
+        ty1: TypeId<'db>,
+        ty2: TypeId<'db>,
+    ) -> GenericArgListId<'db> {
+        let args = vec![
+            GenericArg::Type(TypeGenericArg {
+                ty: Partial::Present(ty0),
+            }),
+            GenericArg::Type(TypeGenericArg {
+                ty: Partial::Present(ty1),
+            }),
+            GenericArg::Type(TypeGenericArg {
+                ty: Partial::Present(ty2),
+            }),
+        ];
+        GenericArgListId::new(self.db(), args, true)
+    }
+
+    fn path_with_generic_args(
+        &self,
+        base: &[&str],
+        name: &str,
+        generic_args: GenericArgListId<'db>,
+    ) -> PathId<'db> {
+        let db = self.db();
+        let base_path = PathId::from_segments(db, base);
+        base_path.push(
+            db,
+            PathKind::Ident {
+                ident: Partial::Present(IdentId::new(db, name.to_string())),
+                generic_args,
+            },
+        )
     }
 }
 
@@ -668,7 +761,32 @@ fn lower_contract_entrypoints_and_handlers<'db>(
 }
 
 /// Inserts use statements for common core/std types used in generated contract code.
-fn insert_contract_use_statements(ctxt: &mut FileLowerCtxt<'_>) {
+fn insert_contract_type_alias<'db>(
+    ctxt: &mut FileLowerCtxt<'db>,
+    alias: &str,
+    rhs_ty: TypeId<'db>,
+) {
+    let db = ctxt.db();
+    let name = Partial::Present(IdentId::new(db, alias.to_string()));
+    let id = ctxt.joined_id(TrackedItemVariant::TypeAlias(name));
+    ctxt.enter_item_scope(id, false);
+    let top_mod = ctxt.top_mod();
+    let origin = HirOrigin::synthetic();
+    let alias_item = TypeAlias::new(
+        db,
+        id,
+        name,
+        AttrListId::new(db, vec![]),
+        Visibility::Private,
+        GenericParamListId::new(db, vec![]),
+        Partial::Present(rhs_ty),
+        top_mod,
+        origin,
+    );
+    ctxt.leave_item_scope(alias_item);
+}
+
+fn insert_contract_use_statements<'db>(ctxt: &mut FileLowerCtxt<'db>) {
     let db = ctxt.db();
 
     // Helper to insert a single use statement
@@ -686,20 +804,53 @@ fn insert_contract_use_statements(ctxt: &mut FileLowerCtxt<'_>) {
         ctxt.leave_item_scope(use_);
     };
 
-    // Core types
-    insert_use(&["core", "size_of"]);
+    // Core traits used by generated entrypoints.
+    insert_use(&["core", "contracts", "ContractHost"]);
+    insert_use(&["core", "contracts", "Target"]);
 
-    // Std types
-    insert_use(&["std", "evm", "effects", "Evm"]);
-    insert_use(&["std", "evm", "effects", "RawOps"]);
-    insert_use(&["std", "evm", "effects", "RawStorage"]);
-    insert_use(&["std", "evm", "effects", "StorPtr"]);
-    insert_use(&["std", "evm", "contract_field_slot"]);
-    insert_use(&["std", "evm", "calldata", "CallData"]);
-    insert_use(&["std", "abi", "Sol"]);
-    insert_use(&["std", "abi", "sol", "SolDecoder"]);
-    insert_use(&["std", "abi", "sol", "SolEncoder"]);
-    insert_use(&["std", "abi", "sol", "encoded_size"]);
+    // Core ABI traits used by generated entrypoints.
+    insert_use(&["core", "abi", "Abi"]);
+    insert_use(&["core", "abi", "AbiEncoder"]);
+    insert_use(&["core", "abi", "AbiSize"]);
+    insert_use(&["core", "abi", "ByteInput"]);
+    insert_use(&["core", "abi", "prefix"]);
+    insert_use(&["core", "abi", "Encode"]);
+
+    // Default target (hardcoded for now).
+    insert_use(&["std", "evm", "EvmTarget"]);
+
+    // Type aliases to keep generated code concise:
+    //   type __Target = EvmTarget
+    //   type __RootEffect = __Target::RootEffect
+    //   type __DefaultAbi = __Target::DefaultAbi
+    let evm_target_ty = TypeId::new(
+        db,
+        TypeKind::Path(Partial::Present(PathId::from_str(db, "EvmTarget"))),
+    );
+    insert_contract_type_alias(ctxt, DEFAULT_TARGET_ALIAS, evm_target_ty);
+
+    let target_root_path = PathId::from_str(db, DEFAULT_TARGET_ALIAS).push_str(db, "RootEffect");
+    let target_root_ty = TypeId::new(db, TypeKind::Path(Partial::Present(target_root_path)));
+    insert_contract_type_alias(ctxt, DEFAULT_ROOT_EFFECT_ALIAS, target_root_ty);
+
+    let target_abi_path = PathId::from_str(db, DEFAULT_TARGET_ALIAS).push_str(db, "DefaultAbi");
+    let target_abi_ty = TypeId::new(db, TypeKind::Path(Partial::Present(target_abi_path)));
+    insert_contract_type_alias(ctxt, DEFAULT_DEFAULT_ABI_ALIAS, target_abi_ty);
+}
+
+fn default_target_assoc_path<'db>(db: &'db dyn HirDb, assoc: &str) -> PathId<'db> {
+    match assoc {
+        "RootEffect" => PathId::from_str(db, DEFAULT_ROOT_EFFECT_ALIAS),
+        "DefaultAbi" => PathId::from_str(db, DEFAULT_DEFAULT_ABI_ALIAS),
+        _ => PathId::from_str(db, assoc),
+    }
+}
+
+fn default_target_assoc_ty<'db>(db: &'db dyn HirDb, assoc: &str) -> TypeId<'db> {
+    TypeId::new(
+        db,
+        TypeKind::Path(Partial::Present(default_target_assoc_path(db, assoc))),
+    )
 }
 
 /// Converts a path to an underscore-separated name string.
@@ -786,11 +937,11 @@ fn entrypoint_with_bindings_from_uses<'ctxt, 'db>(
         if field_types.contains_key(&binding) {
             let value = b.var_expr(binding.data(db));
             bindings_out.push(WithBinding {
-                key_path: None,
+                key_path: Some(Partial::Present(raw_key_path)),
                 value,
             });
         } else {
-            let value = b.var_expr("evm");
+            let value = b.var_expr("root");
             bindings_out.push(WithBinding {
                 key_path: Some(Partial::Present(raw_key_path)),
                 value,
@@ -1027,7 +1178,7 @@ fn lower_contract_init_entrypoint_func<'db>(
         let mut b = HirBuilder::new(&mut body_ctxt, desugared.clone());
 
         if let Some(init_ast) = init_ast {
-            // Instantiate contract fields as storage pointers.
+            // Instantiate contract fields as target-specific field pointers.
             for (idx, field) in contract.fields(db).data(db).iter().enumerate() {
                 let (Some(field_name), Some(field_ty)) =
                     (field.name.to_opt(), field.type_ref.to_opt())
@@ -1035,76 +1186,42 @@ fn lower_contract_init_entrypoint_func<'db>(
                     continue;
                 };
 
-                // let mut field = evm.stor_ptr(contract_field_slot(idx))
+                // let mut field = <<T::RootEffect as ContractHost>::init_field<FieldTy>>(root, idx)
+                let root = b.var_expr("root");
                 let slot_idx = b.int_lit(idx);
-                let field_slot = b.path_expr(&["contract_field_slot"]);
-                let slot_expr = b.call(field_slot, vec![slot_idx]);
-
-                let evm = b.var_expr("evm");
-                let ptr_init = b.method_call(evm, "stor_ptr", vec![slot_expr]);
-                let stor_ptr_path = b.path_with_generic(&[], "StorPtr", field_ty);
-                let stor_ptr_ty = TypeId::new(db, TypeKind::Path(Partial::Present(stor_ptr_path)));
+                let field_generic_args = GenericArgListId::new(
+                    db,
+                    vec![GenericArg::Type(TypeGenericArg {
+                        ty: Partial::Present(field_ty),
+                    })],
+                    true,
+                );
+                let ptr_init =
+                    b.method_call_generic(root, "init_field", field_generic_args, vec![slot_idx]);
 
                 let bind_pat = b.body_ctxt.push_pat(
                     Pat::Path(Partial::Present(PathId::from_ident(db, field_name)), true),
                     b.origin(),
                 );
-                stmts.push(b.body_ctxt.push_stmt(
-                    Stmt::Let(bind_pat, Some(stor_ptr_ty), Some(ptr_init)),
-                    b.origin(),
-                ));
+                stmts.push(
+                    b.body_ctxt
+                        .push_stmt(Stmt::Let(bind_pat, None, Some(ptr_init)), b.origin()),
+                );
             }
 
-            // Decode init args from calldata and call user init logic.
-            // let __calldata = CallData {}
-            let call_data_path = b.path(&["CallData"]);
-            let call_data_init = b.record_init(call_data_path, vec![]);
-            b.let_stmt(&mut stmts, "__calldata", false, call_data_init);
-
-            // let mut __d = SolDecoder<CallData>::new(__calldata)
-            let call_data_ident = b.ident("__calldata");
-            let call_data_ty = TypeId::new(
+            // Decode init args and call user init logic.
+            // let mut __d = <<T::RootEffect as ContractHost>::init_decoder<T::DefaultAbi>(root)
+            let root = b.var_expr("root");
+            let abi_ty = default_target_assoc_ty(db, "DefaultAbi");
+            let decoder_generic_args = GenericArgListId::new(
                 db,
-                TypeKind::Path(Partial::Present(PathId::from_str(db, "CallData"))),
+                vec![GenericArg::Type(TypeGenericArg {
+                    ty: Partial::Present(abi_ty),
+                })],
+                true,
             );
-            let sol_decoder_path = b
-                .path_with_generic(&[], "SolDecoder", call_data_ty)
-                .push_str(db, "new");
-            let sol_decoder = b.path_id_expr(sol_decoder_path);
-            let call_data_expr = b.body_ctxt.push_expr(
-                Expr::Path(Partial::Present(PathId::from_ident(db, call_data_ident))),
-                b.origin(),
-            );
-            let d_init = b.call(sol_decoder, vec![call_data_expr]);
+            let d_init = b.method_call_generic(root, "init_decoder", decoder_generic_args, vec![]);
             b.let_stmt(&mut stmts, "__d", true, d_init);
-
-            // if calldatasize() < sum(encoded_size<ParamTy>()) { revert(0, 0) }
-            let required_size = {
-                let mut total: Option<ExprId> = None;
-                if let Some(params_ast) = init_ast.params() {
-                    let params_hir = FuncParamListId::lower_ast(b.body_ctxt.f_ctxt, params_ast);
-                    for param in params_hir.data(db) {
-                        let Some(param_ty) = param.ty.to_opt() else {
-                            continue;
-                        };
-                        let sz = b.encoded_size_of_ty(param_ty);
-                        total = Some(match total {
-                            None => sz,
-                            Some(acc) => b.add(acc, sz),
-                        });
-                    }
-                }
-                total.unwrap_or_else(|| b.int_lit(0))
-            };
-
-            let evm = b.var_expr("evm");
-            let calldata_size = b.method_call(evm, "calldatasize", vec![]);
-            let is_too_short = b.lt(calldata_size, required_size);
-            let revert_expr = b.revert_call();
-            let revert_stmt = b.body_ctxt.push_stmt(Stmt::Expr(revert_expr), b.origin());
-            let then_block = b.block(vec![revert_stmt]);
-            let guard = b.if_(is_too_short, then_block);
-            b.expr_stmt(&mut stmts, guard);
 
             // Decode each param and bind it as a local.
             let mut arg_names: Vec<IdentId<'db>> = Vec::new();
@@ -1159,31 +1276,11 @@ fn lower_contract_init_entrypoint_func<'db>(
             b.expr_stmt(&mut stmts, wrapped);
         }
 
-        // let __len = code_region_len(runtime)
+        // Finalize deployment by returning the runtime code.
         let runtime_expr = b.var_expr(&runtime_fn_name);
-        let evm = b.var_expr("evm");
-        let len_call = b.method_call(evm, "code_region_len", vec![runtime_expr]);
-        b.let_stmt(&mut stmts, "__len", false, len_call);
-
-        // let __offset = code_region_offset(runtime)
-        let runtime_expr2 = b.var_expr(&runtime_fn_name);
-        let evm = b.var_expr("evm");
-        let offset_call = b.method_call(evm, "code_region_offset", vec![runtime_expr2]);
-        b.let_stmt(&mut stmts, "__offset", false, offset_call);
-
-        // codecopy(dest: 0, __offset, __len)
-        let dest0 = b.int_lit(0);
-        let offset_expr = b.var_expr("__offset");
-        let len_expr = b.var_expr("__len");
-        let evm = b.var_expr("evm");
-        let codecopy_call = b.method_call(evm, "codecopy", vec![dest0, offset_expr, len_expr]);
-        b.expr_stmt(&mut stmts, codecopy_call);
-
-        // return_data(0, __len)
-        let len_expr2 = b.var_expr("__len");
-        let dest0b = b.int_lit(0);
-        let ret_call = b.return_data_call(dest0b, len_expr2);
-        b.expr_stmt(&mut stmts, ret_call);
+        let root = b.var_expr("root");
+        let create_call = b.method_call(root, "create_contract", vec![runtime_expr]);
+        b.expr_stmt(&mut stmts, create_call);
     }
 
     body_ctxt.f_ctxt.enter_block_scope();
@@ -1193,12 +1290,12 @@ fn lower_contract_init_entrypoint_func<'db>(
     let body = body_ctxt.build(None, root_expr, BodyKind::FuncBody);
 
     let entrypoint_effects = {
-        let evm_ident = IdentId::new(db, "evm".to_string());
+        let root_ident = IdentId::new(db, "root".to_string());
         EffectParamListId::new(
             db,
             vec![EffectParam {
-                name: Some(evm_ident),
-                key_path: Partial::Present(PathId::from_str(db, "Evm")),
+                name: Some(root_ident),
+                key_path: Partial::Present(default_target_assoc_path(db, "RootEffect")),
                 is_mut: true,
             }],
         )
@@ -1317,7 +1414,7 @@ fn lower_contract_runtime_entrypoint_func<'db>(
     let mut body_ctxt = BodyCtxt::new(ctxt, ctxt.joined_id(TrackedItemVariant::FuncBody));
     let mut stmts = Vec::new();
 
-    // Instantiate contract fields as storage pointers.
+    // Instantiate contract fields as target-specific field pointers.
     {
         let mut b = HirBuilder::new(&mut body_ctxt, desugared.clone());
         for (idx, field) in contract.fields(db).data(db).iter().enumerate() {
@@ -1326,60 +1423,67 @@ fn lower_contract_runtime_entrypoint_func<'db>(
                 continue;
             };
 
-            // let field = evm.stor_ptr(contract_field_slot(idx))
+            // let mut field = <<T::RootEffect as ContractHost>::field<FieldTy>>(root, idx)
+            let root = b.var_expr("root");
             let slot_idx = b.int_lit(idx);
-            let field_slot = b.path_expr(&["contract_field_slot"]);
-            let slot_expr = b.call(field_slot, vec![slot_idx]);
-
-            let evm = b.var_expr("evm");
-            let ptr_init = b.method_call(evm, "stor_ptr", vec![slot_expr]);
-            let stor_ptr_path = b.path_with_generic(&[], "StorPtr", field_ty);
-            let stor_ptr_ty = TypeId::new(db, TypeKind::Path(Partial::Present(stor_ptr_path)));
+            let field_generic_args = GenericArgListId::new(
+                db,
+                vec![GenericArg::Type(TypeGenericArg {
+                    ty: Partial::Present(field_ty),
+                })],
+                true,
+            );
+            let ptr_init = b.method_call_generic(root, "field", field_generic_args, vec![slot_idx]);
 
             let bind_pat = b.body_ctxt.push_pat(
                 Pat::Path(Partial::Present(PathId::from_ident(db, field_name)), true),
                 HirOrigin::desugared(desugared.clone()),
             );
             stmts.push(b.body_ctxt.push_stmt(
-                Stmt::Let(bind_pat, Some(stor_ptr_ty), Some(ptr_init)),
+                Stmt::Let(bind_pat, None, Some(ptr_init)),
                 HirOrigin::desugared(desugared.clone()),
             ));
         }
     }
 
-    // let __calldata = CallData {}
-    // if calldatasize() < size_of<Sol::Selector>() { revert(0, 0) }
-    // let __selector = Sol::selector_from_prefix(calldataload(0))
+    // let __selector = root.runtime_selector<T::DefaultAbi>()
     {
         let mut b = HirBuilder::new(&mut body_ctxt, desugared.clone());
 
-        let call_data_path = b.path(&["CallData"]);
-        let call_data_init = b.record_init(call_data_path, vec![]);
-        b.let_stmt(&mut stmts, "__calldata", false, call_data_init);
-
-        let evm = b.var_expr("evm");
-        let calldata_size = b.method_call(evm, "calldatasize", vec![]);
-        let selector_size = b.sol_selector_size();
-        let is_too_short = b.lt(calldata_size, selector_size);
-        let revert_expr = b.revert_call();
-        let revert_stmt = b.body_ctxt.push_stmt(
-            Stmt::Expr(revert_expr),
-            HirOrigin::desugared(desugared.clone()),
+        let root = b.var_expr("root");
+        let abi_ty = default_target_assoc_ty(db, "DefaultAbi");
+        let selector_generic_args = GenericArgListId::new(
+            db,
+            vec![GenericArg::Type(TypeGenericArg {
+                ty: Partial::Present(abi_ty),
+            })],
+            true,
         );
-        let then_block = b.block(vec![revert_stmt]);
-        let guard = b.if_(is_too_short, then_block);
-        b.expr_stmt(&mut stmts, guard);
 
-        let zero = b.int_lit(0);
-        let evm = b.var_expr("evm");
-        let word0 = b.method_call(evm, "calldataload", vec![zero]);
-        let sol_selector = b.path_expr(&["Sol", "selector_from_prefix"]);
-        let selector_call = b.call(sol_selector, vec![word0]);
+        let selector_call =
+            b.method_call_generic(root, "runtime_selector", selector_generic_args, vec![]);
         b.let_stmt(&mut stmts, "__selector", false, selector_call);
     }
 
+    // Initialize a runtime decoder once and move it into the selected arm.
+    // let mut __d = root.runtime_decoder<T::DefaultAbi>()
+    {
+        let mut b = HirBuilder::new(&mut body_ctxt, desugared.clone());
+
+        let root = b.var_expr("root");
+        let abi_ty = default_target_assoc_ty(db, "DefaultAbi");
+        let decoder_generic_args = GenericArgListId::new(
+            db,
+            vec![GenericArg::Type(TypeGenericArg {
+                ty: Partial::Present(abi_ty),
+            })],
+            true,
+        );
+        let d_init = b.method_call_generic(root, "runtime_decoder", decoder_generic_args, vec![]);
+        b.let_stmt(&mut stmts, "__d", true, d_init);
+    }
+
     // Dispatch for all recv arms.
-    let call_data_ident = IdentId::new(db, "__calldata".to_string());
     let mut dispatch_arms: Vec<(ContractLoweringDesugared, PathId<'db>, ExprId)> = Vec::new();
     for (recv_idx, recv_ast) in contract_ast.recvs().enumerate() {
         let msg_path = recv_ast
@@ -1431,7 +1535,6 @@ fn lower_contract_runtime_entrypoint_func<'db>(
             let arm_body = lower_contract_runtime_dispatch_arm_body(
                 &mut body_ctxt,
                 contract,
-                call_data_ident,
                 handler_name,
                 variant_ty_path,
                 arm_desugared.clone(),
@@ -1459,10 +1562,10 @@ fn lower_contract_runtime_entrypoint_func<'db>(
             });
         }
 
-        // Add wildcard arm that reverts
+        // Add wildcard arm that aborts
         let mut b = HirBuilder::new(&mut body_ctxt, desugared.clone());
         let wildcard_pat = b.wildcard_pat();
-        let revert_body = b.revert_call();
+        let revert_body = b.abort_call();
         match_arms.push(MatchArm {
             pat: wildcard_pat,
             body: revert_body,
@@ -1487,12 +1590,12 @@ fn lower_contract_runtime_entrypoint_func<'db>(
     let body = body_ctxt.build(None, root_expr, BodyKind::FuncBody);
 
     let entrypoint_effects = {
-        let evm_ident = IdentId::new(db, "evm".to_string());
+        let root_ident = IdentId::new(db, "root".to_string());
         EffectParamListId::new(
             db,
             vec![EffectParam {
-                name: Some(evm_ident),
-                key_path: Partial::Present(PathId::from_str(db, "Evm")),
+                name: Some(root_ident),
+                key_path: Partial::Present(default_target_assoc_path(db, "RootEffect")),
                 is_mut: true,
             }],
         )
@@ -1521,7 +1624,6 @@ fn lower_contract_runtime_entrypoint_func<'db>(
 fn lower_contract_runtime_dispatch_arm_body<'ctxt, 'db>(
     body_ctxt: &mut BodyCtxt<'ctxt, 'db>,
     contract: Contract<'db>,
-    call_data_ident: IdentId<'db>,
     handler_name: IdentId<'db>,
     variant_ty_path: PathId<'db>,
     desugared: ContractLoweringDesugared,
@@ -1531,51 +1633,11 @@ fn lower_contract_runtime_dispatch_arm_body<'ctxt, 'db>(
     let db = body_ctxt.f_ctxt.db();
     let mut stmts: Vec<StmtId> = Vec::new();
 
-    // Build common types used for decoding (use imported CallData type)
-    let call_data_ty = TypeId::new(
-        db,
-        TypeKind::Path(Partial::Present(PathId::from_str(db, "CallData"))),
-    );
-
-    {
-        let mut b = HirBuilder::new(body_ctxt, desugared.clone());
-
-        // let mut __d = SolDecoder<CallData>::with_base(__calldata, size_of<Sol::Selector>())
-        let call_data_expr = b.body_ctxt.push_expr(
-            Expr::Path(Partial::Present(PathId::from_ident(db, call_data_ident))),
-            HirOrigin::desugared(desugared.clone()),
-        );
-        let sol_decoder_path = b
-            .path_with_generic(&[], "SolDecoder", call_data_ty)
-            .push_str(db, "with_base");
-        let sol_decoder = b.path_id_expr(sol_decoder_path);
-        let selector_size = b.sol_selector_size();
-        let d_init = b.call(sol_decoder, vec![call_data_expr, selector_size]);
-        b.let_stmt(&mut stmts, "__d", true, d_init);
-    }
-
     let args_ty_path = variant_ty_path.push_str(db, "Args");
     let args_ty = TypeId::new(db, TypeKind::Path(Partial::Present(args_ty_path)));
 
     {
         let mut b = HirBuilder::new(body_ctxt, desugared.clone());
-
-        // if calldatasize() < size_of<Sol::Selector>() + encoded_size<Args>() { revert(0, 0) }
-        let evm = b.var_expr("evm");
-        let calldata_size = b.method_call(evm, "calldatasize", vec![]);
-        let selector_size = b.sol_selector_size();
-        let args_size = b.encoded_size_of_ty(args_ty);
-        let required_size = b.add(selector_size, args_size);
-
-        let is_too_short = b.lt(calldata_size, required_size);
-        let revert_expr = b.revert_call();
-        let revert_stmt = b.body_ctxt.push_stmt(
-            Stmt::Expr(revert_expr),
-            HirOrigin::desugared(desugared.clone()),
-        );
-        let then_block = b.block(vec![revert_stmt]);
-        let guard = b.if_(is_too_short, then_block);
-        b.expr_stmt(&mut stmts, guard);
 
         // let __args: <Variant>::Args = <Variant>::Args::decode(__d)
         let d_expr = b.var_expr("__d");
@@ -1601,9 +1663,7 @@ fn lower_contract_runtime_dispatch_arm_body<'ctxt, 'db>(
     if arm_ast.ret_ty().is_none() {
         let mut b = HirBuilder::new(body_ctxt, desugared.clone());
         b.expr_stmt(&mut stmts, handler_call);
-        let z0 = b.int_lit(0);
-        let z1 = b.int_lit(0);
-        let ret_call = b.return_data_call(z0, z1);
+        let ret_call = b.return_unit_call();
         b.expr_stmt(&mut stmts, ret_call);
 
         body_ctxt.f_ctxt.enter_block_scope();
@@ -1612,42 +1672,39 @@ fn lower_contract_runtime_dispatch_arm_body<'ctxt, 'db>(
         return block;
     }
 
-    // Non-unit return: ABI-encode using SolEncoder
+    // Non-unit return: ABI-encode and return using the default ABI.
     {
+        let Some(ret_ty) = arm_ast
+            .ret_ty()
+            .map(|ty| TypeId::lower_ast(body_ctxt.f_ctxt, ty))
+        else {
+            return body_ctxt.push_missing_expr();
+        };
+
         let mut b = HirBuilder::new(body_ctxt, desugared.clone());
 
         // let __result = handler_call
         b.let_stmt(&mut stmts, "__result", false, handler_call);
 
-        // let mut __enc = SolEncoder::new()
-        let sol_encoder = b.path_expr(&["SolEncoder", "new"]);
-        let enc_init = b.call(sol_encoder, vec![]);
-        b.let_stmt(&mut stmts, "__enc", true, enc_init);
-
-        // __enc.reserve_head(32)
-        let enc_expr = b.var_expr("__enc");
-        let head_32 = b.int_lit(32);
-        let reserve_head = b.method_call(enc_expr, "reserve_head", vec![head_32]);
-        b.expr_stmt(&mut stmts, reserve_head);
-
-        // __result.encode(__enc)
+        // <<T::RootEffect as ContractHost>::return_value<T::DefaultAbi, RetTy>(root, __result)
+        let abi_ty = default_target_assoc_ty(db, "DefaultAbi");
+        let return_generic_args = GenericArgListId::new(
+            db,
+            vec![
+                GenericArg::Type(TypeGenericArg {
+                    ty: Partial::Present(abi_ty),
+                }),
+                GenericArg::Type(TypeGenericArg {
+                    ty: Partial::Present(ret_ty),
+                }),
+            ],
+            true,
+        );
+        let root = b.var_expr("root");
         let result_expr = b.var_expr("__result");
-        let enc_expr2 = b.var_expr("__enc");
-        let encode_call = b.method_call(result_expr, "encode", vec![enc_expr2]);
-        b.expr_stmt(&mut stmts, encode_call);
-
-        // let __out = __enc.finish()
-        let enc_expr3 = b.var_expr("__enc");
-        let finish_call = b.method_call(enc_expr3, "finish", vec![]);
-        b.let_stmt(&mut stmts, "__out", false, finish_call);
-
-        // return_data(__ptr, __out_len)
-        let out_expr = b.var_expr("__out");
-        let ptr_expr = b.field_index(out_expr, 0);
-        let out_expr2 = b.var_expr("__out");
-        let len_expr = b.field_index(out_expr2, 1);
-        let ret_call = b.return_data_call(ptr_expr, len_expr);
-        b.expr_stmt(&mut stmts, ret_call);
+        let return_call =
+            b.method_call_generic(root, "return_value", return_generic_args, vec![result_expr]);
+        b.expr_stmt(&mut stmts, return_call);
     }
 
     body_ctxt.f_ctxt.enter_block_scope();

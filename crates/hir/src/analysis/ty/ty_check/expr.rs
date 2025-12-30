@@ -300,7 +300,7 @@ impl<'db> TyChecker<'db> {
             }
         };
 
-        callable.check_args(self, args, call_span.args(), None);
+        callable.check_args(self, args, call_span.args(), None, false);
 
         self.check_callable_effects(expr, &callable);
 
@@ -311,7 +311,7 @@ impl<'db> TyChecker<'db> {
         ExprProp::new(normalized_ret_ty, true)
     }
 
-    fn check_callable_effects(&mut self, expr: ExprId, callable: &Callable<'db>) {
+    pub(super) fn check_callable_effects(&mut self, expr: ExprId, callable: &Callable<'db>) {
         let CallableDef::Func(func) = callable.callable_def else {
             return;
         };
@@ -938,6 +938,7 @@ impl<'db> TyChecker<'db> {
             args,
             call_span.clone().args(),
             Some((*receiver, receiver_prop)),
+            false,
         );
 
         // Check required effects for the method call

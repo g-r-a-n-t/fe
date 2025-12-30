@@ -112,33 +112,8 @@ impl<'db, 'a> MirBuilder<'db, 'a> {
     /// # Returns
     /// A `CodeRegionRoot` describing the referenced function, or `None` on failure.
     pub(super) fn code_region_target(&self, expr: ExprId) -> Option<CodeRegionRoot<'db>> {
-        let expr_data = &self.body.exprs(self.db)[expr].borrowed().to_opt()?;
-        let Expr::Path(path) = expr_data else {
-            return None;
-        };
-        let path = path.to_opt()?;
-
-        let func_ty = match resolve_path(
-            self.db,
-            path,
-            self.body.scope(),
-            PredicateListId::empty_list(self.db),
-            true,
-        ) {
-            Ok(PathRes::Func(func_ty)) => func_ty,
-            _ => return None,
-        };
-
-        let (base, args) = func_ty.decompose_ty_app(self.db);
-        let TyData::TyBase(TyBase::Func(CallableDef::Func(func))) = base.data(self.db) else {
-            return None;
-        };
-        let _ = extract_contract_function(self.db, *func)?;
-        Some(CodeRegionRoot {
-            func: *func,
-            generic_args: args.to_vec(),
-            symbol: None,
-        })
+        let ty = self.typed_body.expr_ty(self.db, expr);
+        self.code_region_target_from_ty(ty)
     }
 
     /// Resolves the `code_region` target represented by a function-item type.

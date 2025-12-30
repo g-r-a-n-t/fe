@@ -8,10 +8,6 @@ use common::ingot::IngotKind;
 use hir::analysis::{
     HirAnalysisDb,
     diagnostics::SpannedHirAnalysisDb,
-    name_resolution::{
-        PathRes,
-        path_resolver::{ResolvedVariant, resolve_path},
-    },
     ty::{
         adt_def::AdtRef,
         trait_resolution::PredicateListId,
@@ -24,8 +20,8 @@ use hir::analysis::{
 };
 use hir::hir_def::{
     Attr, AttrArg, AttrArgValue, Body, CallableDef, Const, Expr, ExprId, Field, FieldIndex, Func,
-    ItemKind, LitKind, MatchArm, Partial, Pat, PatId, PathId, Stmt, StmtId, TopLevelMod,
-    VariantKind, expr::BinOp, scope_graph::ScopeId,
+    ItemKind, LitKind, MatchArm, Partial, Pat, PatId, Stmt, StmtId, TopLevelMod, VariantKind,
+    expr::BinOp,
 };
 
 use crate::{

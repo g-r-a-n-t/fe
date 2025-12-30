@@ -1,15 +1,13 @@
 use num_bigint::BigUint;
-use rustc_hash::FxHashSet;
 
 use crate::analysis::{
     HirAnalysisDb,
-    name_resolution::{PathRes, resolve_path},
     ty::{
-        trait_def::assoc_const_body_for_trait_inst, trait_resolution::PredicateListId,
+        const_ty::{ConstTyData, ConstTyId, EvaluatedConstTy, const_ty_from_trait_const},
         ty_check::ConstRef,
     },
 };
-use crate::core::hir_def::{Body, Expr, LitKind};
+use crate::core::hir_def::Body;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum ConstValue {
@@ -18,70 +16,34 @@ pub enum ConstValue {
 }
 
 pub fn try_eval_const_body<'db>(db: &'db dyn HirAnalysisDb, body: Body<'db>) -> Option<ConstValue> {
-    let mut visited = FxHashSet::default();
-    let expr = body.expr(db).data(db, body).borrowed().to_opt()?;
-    try_eval_expr(db, body, expr.clone(), &mut visited)
+    let const_ty = ConstTyId::from_body(db, body, None, None);
+    try_eval_const_ty(db, const_ty)
 }
 
 pub fn try_eval_const_ref<'db>(
     db: &'db dyn HirAnalysisDb,
     cref: ConstRef<'db>,
 ) -> Option<ConstValue> {
-    let mut visited = FxHashSet::default();
-    try_eval_const_ref_inner(db, cref, &mut visited)
-}
-
-fn try_eval_const_ref_inner<'db>(
-    db: &'db dyn HirAnalysisDb,
-    cref: ConstRef<'db>,
-    visited: &mut FxHashSet<ConstRef<'db>>,
-) -> Option<ConstValue> {
-    if !visited.insert(cref) {
-        return None;
-    }
-
-    let result = match cref {
+    let const_ty = match cref {
         ConstRef::Const(const_def) => {
             let body = const_def.body(db).to_opt()?;
-            let expr = body.expr(db).data(db, body).borrowed().to_opt()?;
-            try_eval_expr(db, body, expr.clone(), visited)
+            ConstTyId::from_body(db, body, None, Some(const_def))
         }
-        ConstRef::TraitConst { inst, name } => {
-            let body = assoc_const_body_for_trait_inst(db, inst, name).or_else(|| {
-                let trait_ = inst.def(db);
-                trait_.const_(db, name).and_then(|c| c.default_body(db))
-            })?;
-            let expr = body.expr(db).data(db, body).borrowed().to_opt()?;
-            try_eval_expr(db, body, expr.clone(), visited)
-        }
+        ConstRef::TraitConst { inst, name } => const_ty_from_trait_const(db, inst, name)?,
     };
-
-    visited.remove(&cref);
-    result
+    try_eval_const_ty(db, const_ty)
 }
 
-fn try_eval_expr<'db>(
+fn try_eval_const_ty<'db>(
     db: &'db dyn HirAnalysisDb,
-    body: Body<'db>,
-    expr: Expr<'db>,
-    visited: &mut FxHashSet<ConstRef<'db>>,
+    const_ty: ConstTyId<'db>,
 ) -> Option<ConstValue> {
-    match expr {
-        Expr::Lit(LitKind::Int(value)) => Some(ConstValue::Int(value.data(db).clone())),
-        Expr::Lit(LitKind::Bool(flag)) => Some(ConstValue::Bool(flag)),
-        Expr::Path(path) => {
-            let path = path.to_opt()?;
-            let assumptions = PredicateListId::empty_list(db);
-            match resolve_path(db, path, body.scope(), assumptions, true).ok()? {
-                PathRes::Const(const_def, _ty) => {
-                    try_eval_const_ref_inner(db, ConstRef::Const(const_def), visited)
-                }
-                PathRes::TraitConst(_ty, inst, name) => {
-                    try_eval_const_ref_inner(db, ConstRef::TraitConst { inst, name }, visited)
-                }
-                _ => None,
-            }
+    let const_ty = const_ty.evaluate(db, None);
+    match const_ty.data(db) {
+        ConstTyData::Evaluated(EvaluatedConstTy::LitInt(i), _) => {
+            Some(ConstValue::Int(i.data(db).clone()))
         }
+        ConstTyData::Evaluated(EvaluatedConstTy::LitBool(b), _) => Some(ConstValue::Bool(*b)),
         _ => None,
     }
 }

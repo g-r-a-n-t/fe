@@ -7,8 +7,7 @@ use crate::analysis::HirAnalysisDb;
 use crate::analysis::name_resolution::{PathRes, ResolvedVariant, resolve_path};
 use crate::analysis::ty::ty_def::{InvalidCause, TyId};
 use crate::analysis::ty::{
-    const_ty::{ConstTyData, ConstTyId, EvaluatedConstTy},
-    trait_def::assoc_const_body_for_trait_inst,
+    const_ty::{ConstTyData, ConstTyId, EvaluatedConstTy, const_ty_from_trait_const},
     trait_resolution::PredicateListId,
 };
 use crate::core::hir_def::{
@@ -305,25 +304,7 @@ impl<'db> SimplifiedPattern<'db> {
                 }
             }
             PathRes::TraitConst(_recv_ty, trait_inst, const_name) => {
-                // Best-effort evaluation: try to pick a unique impl and use its const body, else
-                // fall back to the trait's default (if any). This is intentionally incomplete:
-                // - Selection may be ambiguous or require confirmation in some contexts
-                // - Const evaluation only supports very simple literal expressions today
-                let body =
-                    assoc_const_body_for_trait_inst(db, trait_inst, const_name).or_else(|| {
-                        trait_inst
-                            .def(db)
-                            .const_(db, const_name)
-                            .and_then(|v| v.default_body(db))
-                    })?;
-
-                let declared_ty = trait_inst
-                    .def(db)
-                    .const_(db, const_name)
-                    .and_then(|v| v.ty_binder(db))
-                    .map(|b| b.instantiate(db, trait_inst.args(db)));
-
-                let const_ty = ConstTyId::from_body(db, body, declared_ty, None);
+                let const_ty = const_ty_from_trait_const(db, trait_inst, const_name)?;
                 let const_ty = const_ty.evaluate(db, Some(expected_ty));
 
                 match const_ty.data(db) {

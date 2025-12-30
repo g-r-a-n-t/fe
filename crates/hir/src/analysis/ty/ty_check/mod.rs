@@ -37,14 +37,17 @@ use salsa::Update;
 use crate::analysis::place::Place;
 
 use super::{
-    diagnostics::{BodyDiag, FuncBodyDiag, TyDiagCollection, TyLowerDiag},
+    canonical::{Canonical, Canonicalized},
+    diagnostics::{BodyDiag, FuncBodyDiag, TraitConstraintDiag, TyDiagCollection, TyLowerDiag},
     trait_def::TraitInstId,
-    trait_resolution::PredicateListId,
+    trait_resolution::{GoalSatisfiability, PredicateListId, is_goal_satisfiable},
     ty_def::{InvalidCause, Kind, TyId, TyVarSort},
     ty_lower::lower_hir_ty,
     unify::{InferenceKey, UnificationError, UnificationTable},
 };
-use crate::analysis::ty::{normalize::normalize_ty, ty_error::collect_ty_lower_errors};
+use crate::analysis::ty::{
+    fold::AssocTySubst, normalize::normalize_ty, ty_error::collect_ty_lower_errors,
+};
 use crate::analysis::{
     HirAnalysisDb,
     name_resolution::{
@@ -245,6 +248,328 @@ impl<'db> TyChecker<'db> {
 
     fn finish(self) -> (Vec<FuncBodyDiag<'db>>, TypedBody<'db>) {
         TyCheckerFinalizer::new(self).finish()
+    }
+
+    fn resolve_deferred(&mut self) {
+        let db = self.db;
+        let body = self.env.body();
+        let scope = self.env.scope();
+        let assumptions = self.env.assumptions();
+        let ingot = body.top_mod(db).ingot(db);
+
+        let is_viable = |this: &mut Self,
+                         pending: &env::PendingMethod<'db>,
+                         expr_ty: TyId<'db>,
+                         receiver: ExprId,
+                         generic_args: crate::hir_def::GenericArgListId<'db>,
+                         call_args: &[crate::hir_def::CallArg<'db>],
+                         inst: TraitInstId<'db>| {
+            let snap = this.table.snapshot();
+
+            let result = (|| {
+                let recv_ty = {
+                    let mut prober = env::Prober::new(&mut this.table);
+                    pending.recv_ty.fold_with(db, &mut prober)
+                };
+
+                let inst_self = this.table.instantiate_to_term(inst.self_ty(db));
+                this.table.unify(inst_self, recv_ty).ok()?;
+
+                let trait_method = *inst.def(db).method_defs(db).get(&pending.method_name)?;
+                let func_ty =
+                    instantiate_trait_method(db, trait_method, &mut this.table, recv_ty, inst);
+                let callable =
+                    Callable::new(db, func_ty, receiver.span(body).into(), Some(inst)).ok()?;
+
+                let expected_arity = callable.callable_def.arg_tys(db).len();
+                let given_arity = call_args.len() + 1;
+                if expected_arity != given_arity {
+                    return None;
+                }
+
+                if generic_args.is_given(db) {
+                    let given_args = crate::analysis::ty::ty_lower::lower_generic_arg_list(
+                        db,
+                        generic_args,
+                        scope,
+                        assumptions,
+                    );
+                    let offset = callable.callable_def.offset_to_explicit_params_position(db);
+                    let current_args = &callable.generic_args()[offset..];
+                    if current_args.len() != given_args.len() {
+                        return None;
+                    }
+                    for (&given, &current) in given_args.iter().zip(current_args.iter()) {
+                        this.table.unify(given, current).ok()?;
+                    }
+                }
+
+                let receiver_prop = this.env.typed_expr(receiver)?;
+                let mut all_arg_tys = Vec::with_capacity(call_args.len() + 1);
+                all_arg_tys.push(receiver_prop.ty);
+                for arg in call_args.iter() {
+                    let prop = this.env.typed_expr(arg.expr)?;
+                    all_arg_tys.push(prop.ty);
+                }
+
+                for (&given, expected) in all_arg_tys
+                    .iter()
+                    .zip(callable.callable_def.arg_tys(db).iter())
+                {
+                    let mut expected = expected.instantiate(db, callable.generic_args());
+                    if let Some(inst) = callable.trait_inst() {
+                        let mut subst = AssocTySubst::new(inst);
+                        expected = expected.fold_with(db, &mut subst);
+                    }
+                    let expected = normalize_ty(
+                        db,
+                        expected.fold_with(db, &mut this.table),
+                        scope,
+                        assumptions,
+                    );
+                    let given =
+                        normalize_ty(db, given.fold_with(db, &mut this.table), scope, assumptions);
+                    this.table.unify(given, expected).ok()?;
+                }
+
+                let ret_ty = normalize_ty(
+                    db,
+                    callable.ret_ty(db).fold_with(db, &mut this.table),
+                    scope,
+                    assumptions,
+                );
+                this.table.unify(expr_ty, ret_ty).ok()?;
+
+                Some(())
+            })()
+            .is_some();
+
+            this.table.rollback_to(snap);
+            result
+        };
+
+        // Fixed-point pass over deferred tasks.
+        let mut progressed = true;
+        while progressed {
+            progressed = false;
+            let tasks = self.env.take_deferred_tasks();
+            for task in tasks {
+                match task {
+                    env::DeferredTask::Confirm { inst, span } => {
+                        let inst = {
+                            let mut prober = env::Prober::new(&mut self.table);
+                            inst.fold_with(db, &mut prober)
+                        };
+                        let inst = inst.normalize(db, scope, assumptions);
+                        let canonical_inst = Canonicalized::new(db, inst);
+                        match is_goal_satisfiable(db, ingot, canonical_inst.value, assumptions) {
+                            GoalSatisfiability::Satisfied(solution) => {
+                                let solution =
+                                    canonical_inst.extract_solution(&mut self.table, *solution);
+                                self.table.unify(inst, solution).unwrap();
+                                let new_can =
+                                    Canonical::new(db, inst.fold_with(db, &mut self.table));
+                                if new_can != canonical_inst.value {
+                                    progressed = true;
+                                }
+                            }
+                            _ => self.env.register_confirmation(inst, span),
+                        }
+                    }
+                    env::DeferredTask::Method(pending) => {
+                        let (receiver, generic_args, call_args) = match pending.expr.data(db, body)
+                        {
+                            Partial::Present(Expr::MethodCall(receiver, _, generic_args, args)) => {
+                                (*receiver, *generic_args, args.as_slice())
+                            }
+                            _ => continue,
+                        };
+
+                        let Some(expr_prop) = self.env.typed_expr(pending.expr) else {
+                            continue;
+                        };
+                        let expr_ty = {
+                            let mut prober = env::Prober::new(&mut self.table);
+                            expr_prop.ty.fold_with(db, &mut prober)
+                        };
+                        if expr_ty.has_invalid(db) {
+                            self.env.register_pending_method(pending);
+                            continue;
+                        }
+
+                        let viable: Vec<_> = pending
+                            .candidates
+                            .iter()
+                            .copied()
+                            .filter(|&inst| {
+                                is_viable(
+                                    self,
+                                    &pending,
+                                    expr_ty,
+                                    receiver,
+                                    generic_args,
+                                    call_args,
+                                    inst,
+                                )
+                            })
+                            .collect();
+
+                        if let [inst] = viable.as_slice() {
+                            if self.env.callable_expr(pending.expr).is_none() {
+                                let call_span = pending.expr.span(body).into_method_call_expr();
+
+                                let receiver_prop = self
+                                    .env
+                                    .typed_expr(receiver)
+                                    .unwrap_or_else(|| ExprProp::invalid(db));
+                                let recv_ty = receiver_prop.ty;
+
+                                let trait_method = *inst
+                                    .def(db)
+                                    .method_defs(db)
+                                    .get(&pending.method_name)
+                                    .unwrap();
+                                let func_ty = instantiate_trait_method(
+                                    db,
+                                    trait_method,
+                                    &mut self.table,
+                                    recv_ty,
+                                    *inst,
+                                );
+
+                                let mut callable = match Callable::new(
+                                    db,
+                                    func_ty,
+                                    receiver.span(body).into(),
+                                    Some(*inst),
+                                ) {
+                                    Ok(callable) => callable,
+                                    Err(diag) => {
+                                        self.push_diag(diag);
+                                        progressed = true;
+                                        continue;
+                                    }
+                                };
+
+                                if !callable.unify_generic_args(
+                                    self,
+                                    generic_args,
+                                    call_span.clone().generic_args(),
+                                ) {
+                                    progressed = true;
+                                    continue;
+                                }
+
+                                callable.check_args(
+                                    self,
+                                    call_args,
+                                    call_span.clone().args(),
+                                    Some((receiver, receiver_prop)),
+                                    true,
+                                );
+
+                                self.check_callable_effects(pending.expr, &callable);
+                                callable.check_constraints(self, call_span.method_name().into());
+
+                                let ret_ty = self.normalize_ty(callable.ret_ty(db));
+                                self.table.unify(expr_prop.ty, ret_ty).unwrap();
+
+                                self.env.register_callable(pending.expr, callable);
+                            }
+
+                            progressed = true;
+                        } else {
+                            self.env.register_pending_method(pending);
+                        }
+                    }
+                }
+            }
+        }
+
+        // Emit diagnostics for remaining tasks.
+        for task in self.env.take_deferred_tasks() {
+            match task {
+                env::DeferredTask::Confirm { inst, span } => {
+                    let inst = {
+                        let mut prober = env::Prober::new(&mut self.table);
+                        inst.fold_with(db, &mut prober)
+                    };
+                    let inst = inst.normalize(db, scope, assumptions);
+                    let canonical_inst = Canonicalized::new(db, inst);
+                    match is_goal_satisfiable(db, ingot, canonical_inst.value, assumptions) {
+                        GoalSatisfiability::NeedsConfirmation(ambiguous) => {
+                            let cands = ambiguous
+                                .iter()
+                                .map(|s| canonical_inst.extract_solution(&mut self.table, *s))
+                                .collect::<thin_vec::ThinVec<_>>();
+                            if !inst.self_ty(db).has_var(db) {
+                                self.push_diag(BodyDiag::AmbiguousTraitInst {
+                                    primary: span.clone(),
+                                    cands,
+                                });
+                            }
+                        }
+                        GoalSatisfiability::UnSat(subgoal) => {
+                            if !inst.self_ty(db).has_var(db) {
+                                let unsat = subgoal
+                                    .map(|s| canonical_inst.extract_solution(&mut self.table, s));
+                                self.push_diag(TyDiagCollection::from(
+                                    TraitConstraintDiag::TraitBoundNotSat {
+                                        span: span.clone(),
+                                        primary_goal: inst,
+                                        unsat_subgoal: unsat,
+                                    },
+                                ));
+                            }
+                        }
+                        _ => {}
+                    }
+                }
+                env::DeferredTask::Method(pending) => {
+                    let Some(expr_prop) = self.env.typed_expr(pending.expr) else {
+                        continue;
+                    };
+                    let expr_ty = {
+                        let mut prober = env::Prober::new(&mut self.table);
+                        expr_prop.ty.fold_with(db, &mut prober)
+                    };
+                    if expr_ty.has_invalid(db) {
+                        continue;
+                    }
+
+                    let (receiver, generic_args, call_args) = match pending.expr.data(db, body) {
+                        Partial::Present(Expr::MethodCall(receiver, _, generic_args, args)) => {
+                            (*receiver, *generic_args, args.as_slice())
+                        }
+                        _ => continue,
+                    };
+
+                    let viable: thin_vec::ThinVec<_> = pending
+                        .candidates
+                        .iter()
+                        .copied()
+                        .filter(|&inst| {
+                            is_viable(
+                                self,
+                                &pending,
+                                expr_ty,
+                                receiver,
+                                generic_args,
+                                call_args,
+                                inst,
+                            )
+                        })
+                        .collect();
+                    if viable.len() > 1 {
+                        self.push_diag(BodyDiag::AmbiguousTrait {
+                            primary: pending.span.clone(),
+                            method_name: pending.method_name,
+                            traits: viable,
+                        });
+                    }
+                }
+            }
+        }
     }
 
     fn new_internal(db: &'db dyn HirAnalysisDb, env: TyCheckEnv<'db>, expected: TyId<'db>) -> Self {
@@ -956,7 +1281,8 @@ impl<'db> Visitor<'db> for TyCheckerFinalizer<'db> {
 impl<'db> TyCheckerFinalizer<'db> {
     fn new(mut checker: TyChecker<'db>) -> Self {
         let assumptions = checker.env.assumptions();
-        let body = checker.env.finish(&mut checker.table, &mut checker.diags);
+        checker.resolve_deferred();
+        let body = checker.env.finish(&mut checker.table);
 
         Self {
             db: checker.db,

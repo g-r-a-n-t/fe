@@ -24,33 +24,6 @@ struct MatchLoweringCtx<'db> {
 }
 
 impl<'db, 'a> MirBuilder<'db, 'a> {
-    /// Resolves an enum variant path within a scope.
-    ///
-    /// # Parameters
-    /// - `path`: Path to resolve.
-    /// - `scope`: Scope to use for resolution.
-    ///
-    /// # Returns
-    /// Resolved variant metadata or `None` on failure.
-    pub(super) fn resolve_enum_variant(
-        &self,
-        path: PathId<'db>,
-        scope: ScopeId<'db>,
-    ) -> Option<ResolvedVariant<'db>> {
-        let res = resolve_path(
-            self.db,
-            path,
-            scope,
-            PredicateListId::empty_list(self.db),
-            false,
-        )
-        .ok()?;
-        match res {
-            PathRes::EnumVariant(variant) => Some(variant),
-            _ => None,
-        }
-    }
-
     /// Returns `true` if the pattern is a wildcard (`_`).
     ///
     /// # Parameters

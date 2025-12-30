@@ -10,11 +10,15 @@ pub trait ContractHost {
     /// ABI input source (e.g. EVM calldata).
     type Input: ByteInput
 
-    fn input(self) -> Self::Input
+    /// ABI input source for contract initialization (e.g. constructor args).
+    type InitInput: ByteInput
 
-    fn field<T>(mut self, field_idx: u256) -> Self::FieldPtr<T>
-    fn init_field<T>(mut self, field_idx: u256) -> Self::FieldPtr<T> {
-        self.field(field_idx)
+    fn input(self) -> Self::Input
+    fn init_input<F>(mut self, runtime: F) -> Self::InitInput
+
+    fn field<T>(mut self, slot: u256) -> Self::FieldPtr<T>
+    fn init_field<T>(mut self, slot: u256) -> Self::FieldPtr<T> {
+        self.field(slot)
     }
 
     fn create_contract<F>(mut self, runtime: F) -> !
@@ -23,10 +27,6 @@ pub trait ContractHost {
     fn return_bytes(self, ptr: u256, len: u256) -> !
     fn return_unit(self) -> ! {
         self.return_bytes(0, 0)
-    }
-
-    fn init_decoder<A: Abi>(mut self) -> A::Decoder<Self::Input> {
-        A::decoder_new(self.input())
     }
 
     fn runtime_selector<A: Abi>(self) -> A::Selector {
@@ -56,54 +56,4 @@ pub trait ContractHost {
 pub trait Target {
     type RootEffect: ContractHost
     type DefaultAbi: Abi
-}
-
-pub fn init_field<T, H: ContractHost>(mut host: H, field_idx: u256) -> H::FieldPtr<T> {
-    host.init_field(field_idx)
-}
-
-pub fn field<T, H: ContractHost>(mut host: H, field_idx: u256) -> H::FieldPtr<T> {
-    host.field(field_idx)
-}
-
-pub fn init_decoder<A: Abi, H: ContractHost>(mut host: H) -> A::Decoder<H::Input> {
-    A::decoder_new(host.input())
-}
-
-pub fn runtime_selector<A: Abi, H: ContractHost>(host: H) -> A::Selector {
-    let input = host.input()
-    if input.len() < A::SELECTOR_SIZE {
-        host.abort()
-    }
-    A::selector_from_prefix(input.word_at(0))
-}
-
-pub fn runtime_decoder<A: Abi, H: ContractHost>(mut host: H) -> A::Decoder<H::Input> {
-    A::decoder_with_base(host.input(), A::SELECTOR_SIZE)
-}
-
-pub fn create_contract<H: ContractHost, F>(mut host: H, runtime: F) -> ! {
-    host.create_contract(runtime)
-}
-
-pub fn abort<H: ContractHost>(host: H) -> ! {
-    host.abort()
-}
-
-pub fn return_bytes<H: ContractHost>(host: H, ptr: u256, len: u256) -> ! {
-    host.return_bytes(ptr, len)
-}
-
-pub fn return_unit<H: ContractHost>(host: H) -> ! {
-    host.return_bytes(0, 0)
-}
-
-pub fn return_value<A: Abi, H: ContractHost, T>(mut host: H, value: T) -> !
-    where T: Encode<A> + AbiSize
-{
-    let mut enc = A::encoder_new()
-    enc.reserve_head(T::ENCODED_SIZE)
-    value.encode(enc)
-    let out: (u256, u256) = enc.finish()
-    host.return_bytes(out.0, out.1)
 }

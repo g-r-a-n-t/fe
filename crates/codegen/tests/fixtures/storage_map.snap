@@ -26,11 +26,12 @@ function storagemap_k__v__set_stor__u256_u256__cc308d1bea3fb6e4(self, key, value
   leave
 }
 function storagemap_k__v__storage_slot_stor__u256_u256__cc308d1bea3fb6e4(self, key) -> ret {
-  let v0 := u256_storagekey_write_key(0, key)
-  let v1 := self
-  mstore(v0, v1)
-  let v2 := keccak256(0, add(v0, 32))
-  ret := v2
+  let v0 := mload(64)
+  let v1 := u256_storagekey_write_key(v0, key)
+  let v2 := self
+  mstore(add(v0, v1), v2)
+  let v3 := keccak256(v0, add(v1, 32))
+  ret := v3
   leave
 }
 function u256_wordrepr_from_word(word) -> ret {

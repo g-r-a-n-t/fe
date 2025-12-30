@@ -16,7 +16,13 @@ object "Erc20Contract" {
       leave
     }
     function do_init(erc20, ctx, ops) {
-      let v0 := caller()
+      let v0 := mload(0x40)
+      if iszero(v0) {
+        v0 := 0x80
+      }
+      mstore(0x40, add(v0, 32))
+      let v1 := caller()
+      mstore(v0, v1)
       erc20_set_owner_once_stor(erc20, v0, ops)
       leave
     }
@@ -87,7 +93,13 @@ object "Erc20Contract" {
         leave
       }
       function approve(spender, amount, erc20, ctx) -> ret {
-        let v0 := caller()
+        let v0 := mload(0x40)
+        if iszero(v0) {
+          v0 := 0x80
+        }
+        mstore(0x40, add(v0, 32))
+        let v1 := caller()
+        mstore(v0, v1)
         erc20_approve_stor(erc20, v0, spender, amount)
         ret := 1
         leave
@@ -130,35 +142,47 @@ object "Erc20Contract" {
         leave
       }
       function erc20_mint_stor(self, to, amount, ctx, ops) {
-        let v0 := caller()
-        let v1 := iszero(eq(v0, add(self, 3)))
-        if v1 {
-          revert(0, 0)
+        let v0 := mload(0x40)
+        if iszero(v0) {
+          v0 := 0x80
         }
-        let v2 := erc20_balance_of_stor(self, to)
-        storagemap_k__v__set_stor__Address_u256__cdd966cb4c9acb9d(self, to, add(v2, amount))
-        let v3 := sload(add(self, 2))
-        sstore(add(self, 2), add(v3, amount))
-        leave
-      }
-      function erc20_transfer_from_stor(self, owner, to, amount, ctx, ops) {
-        let v0 := caller()
-        let v1 := erc20_allowance_stor(self, owner, v0)
-        let v2 := lt(v1, amount)
+        mstore(0x40, add(v0, 32))
+        let v1 := caller()
+        mstore(v0, v1)
+        let v2 := iszero(eq(v0, add(self, 3)))
         if v2 {
           revert(0, 0)
         }
-        erc20_transfer_stor(self, owner, to, amount, ops)
-        let v3 := mload(0x40)
-        if iszero(v3) {
-          v3 := 0x80
+        let v3 := erc20_balance_of_stor(self, to)
+        storagemap_k__v__set_stor__Address_u256__cdd966cb4c9acb9d(self, to, add(v3, amount))
+        let v4 := sload(add(self, 2))
+        sstore(add(self, 2), add(v4, amount))
+        leave
+      }
+      function erc20_transfer_from_stor(self, owner, to, amount, ctx, ops) {
+        let v0 := mload(0x40)
+        if iszero(v0) {
+          v0 := 0x80
         }
-        mstore(0x40, add(v3, 64))
-        let v4 := owner
-        mstore(v3, mload(v4))
-        let v5 := v0
-        mstore(add(v3, 32), mload(v5))
-        storagemap_k__v__set_stor___Address__Address__u256__380d6b10c386a4ee(add(self, 1), v3, sub(v1, amount))
+        mstore(0x40, add(v0, 32))
+        let v1 := caller()
+        mstore(v0, v1)
+        let v2 := erc20_allowance_stor(self, owner, v0)
+        let v3 := lt(v2, amount)
+        if v3 {
+          revert(0, 0)
+        }
+        erc20_transfer_stor(self, owner, to, amount, ops)
+        let v4 := mload(0x40)
+        if iszero(v4) {
+          v4 := 0x80
+        }
+        mstore(0x40, add(v4, 64))
+        let v5 := owner
+        mstore(v4, mload(v5))
+        let v6 := v0
+        mstore(add(v4, 32), mload(v6))
+        storagemap_k__v__set_stor___Address__Address__u256__380d6b10c386a4ee(add(self, 1), v4, sub(v2, amount))
         leave
       }
       function erc20_transfer_stor(self, from, to, amount, ops) {
@@ -319,23 +343,31 @@ object "Erc20Contract" {
         leave
       }
       function storagemap_k__v__storage_slot_stor__Address_u256__cdd966cb4c9acb9d(self, key) -> ret {
-        let v0 := address_storagekey_write_key(0, key)
-        let v1 := self
-        mstore(v0, v1)
-        let v2 := keccak256(0, add(v0, 32))
-        ret := v2
+        let v0 := mload(64)
+        let v1 := address_storagekey_write_key(v0, key)
+        let v2 := self
+        mstore(add(v0, v1), v2)
+        let v3 := keccak256(v0, add(v1, 32))
+        ret := v3
         leave
       }
       function storagemap_k__v__storage_slot_stor___Address__Address__u256__380d6b10c386a4ee(self, key) -> ret {
-        let v0 := _a__b__storagekey_write_key__Address_Address__397b9a625a435b6f(0, key)
-        let v1 := self
-        mstore(v0, v1)
-        let v2 := keccak256(0, add(v0, 32))
-        ret := v2
+        let v0 := mload(64)
+        let v1 := _a__b__storagekey_write_key__Address_Address__397b9a625a435b6f(v0, key)
+        let v2 := self
+        mstore(add(v0, v1), v2)
+        let v3 := keccak256(v0, add(v1, 32))
+        ret := v3
         leave
       }
       function transfer(to, amount, erc20, ctx, ops) -> ret {
-        let v0 := caller()
+        let v0 := mload(0x40)
+        if iszero(v0) {
+          v0 := 0x80
+        }
+        mstore(0x40, add(v0, 32))
+        let v1 := caller()
+        mstore(v0, v1)
         erc20_transfer_stor(erc20, v0, to, amount, ops)
         ret := 1
         leave

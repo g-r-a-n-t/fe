@@ -253,13 +253,13 @@ impl<'db, 'a> MirBuilder<'db, 'a> {
                     dest: Some(dest),
                     rvalue: crate::ir::Rvalue::Value(value_id),
                 });
-                self.builder.body.values[value_id.index()].origin = ValueOrigin::Local(dest);
             }
             return value_id;
         }
-        let Some(callable_def) = self.callable_def_for_call_expr(expr) else {
+        let Some(callable) = self.typed_body.callable_expr(expr).cloned() else {
             return value_id;
         };
+        let callable_def = callable.callable_def;
 
         let Some((args, arg_exprs)) = self.collect_call_args(expr) else {
             return value_id;
@@ -297,10 +297,12 @@ impl<'db, 'a> MirBuilder<'db, 'a> {
             return value_id;
         }
 
-        if callable_def.ingot(self.db).kind(self.db) == IngotKind::Std
-            && callable_def
-                .name(self.db)
-                .is_some_and(|name| name.data(self.db) == "contract_field_slot")
+        if matches!(
+            callable_def.ingot(self.db).kind(self.db),
+            IngotKind::Core | IngotKind::Std
+        ) && callable_def
+            .name(self.db)
+            .is_some_and(|name| name.data(self.db) == "contract_field_slot")
             && let Some(contract_fn) = extract_contract_function(self.db, self.func)
             && let Some(arg_expr) = arg_exprs.first().copied()
             && let Some(field_idx) = self.u256_lit_from_expr(arg_expr)
@@ -316,7 +318,6 @@ impl<'db, 'a> MirBuilder<'db, 'a> {
                     dest: Some(dest),
                     rvalue: crate::ir::Rvalue::Value(value_id),
                 });
-                self.builder.body.values[value_id.index()].origin = ValueOrigin::Local(dest);
             }
             return value_id;
         }
@@ -327,6 +328,74 @@ impl<'db, 'a> MirBuilder<'db, 'a> {
                 intrinsic_args.remove(0);
             }
             if op.returns_value() {
+                // Intrinsics are word-producing operations, but some std/core APIs wrap them
+                // in single-field structs (e.g. `Address { inner: caller() }`).
+                //
+                // When such a wrapper is lowered as an intrinsic (by name), materialize the
+                // returned word into the destination aggregate so downstream code sees the
+                // expected by-ref representation.
+                if self.is_by_ref_ty(ty) {
+                    let field_tys = ty.field_types(self.db);
+                    let size_bytes = layout::ty_size_bytes(self.db, ty).unwrap_or(0);
+                    if field_tys.len() != 1 || size_bytes != layout::WORD_SIZE_BYTES {
+                        panic!(
+                            "intrinsic `{:?}` used with unsupported by-ref type `{}`",
+                            op,
+                            ty.pretty_print(self.db)
+                        );
+                    }
+
+                    let field_ty = field_tys[0];
+                    if self.is_by_ref_ty(field_ty) {
+                        panic!(
+                            "intrinsic `{:?}` used with nested by-ref field type `{}`",
+                            op,
+                            field_ty.pretty_print(self.db)
+                        );
+                    }
+
+                    let dest =
+                        dest_override.unwrap_or_else(|| self.alloc_temp_local(ty, false, "intr"));
+                    self.builder.body.locals[dest.index()].address_space = AddressSpaceKind::Memory;
+                    self.push_inst_here(MirInst::Assign {
+                        stmt,
+                        dest: Some(dest),
+                        rvalue: crate::ir::Rvalue::Alloc {
+                            address_space: AddressSpaceKind::Memory,
+                        },
+                    });
+
+                    // Compute the intrinsic word into a temp local.
+                    let word_local = self.alloc_temp_local(field_ty, false, "intrw");
+                    self.push_inst_here(MirInst::Assign {
+                        stmt,
+                        dest: Some(word_local),
+                        rvalue: crate::ir::Rvalue::Intrinsic {
+                            op,
+                            args: intrinsic_args,
+                        },
+                    });
+                    let word_value = self.builder.body.alloc_value(ValueData {
+                        ty: field_ty,
+                        origin: ValueOrigin::Local(word_local),
+                        repr: ValueRepr::Word,
+                    });
+
+                    // Store the word into the single field at offset 0.
+                    self.builder.body.values[value_id.index()].origin = ValueOrigin::Local(dest);
+                    self.builder.body.values[value_id.index()].repr =
+                        ValueRepr::Ref(AddressSpaceKind::Memory);
+                    let place = Place::new(
+                        value_id,
+                        MirProjectionPath::from_projection(Projection::Field(0)),
+                    );
+                    self.push_inst_here(MirInst::Store {
+                        place,
+                        value: word_value,
+                    });
+                    return value_id;
+                }
+
                 let dest =
                     dest_override.unwrap_or_else(|| self.alloc_temp_local(ty, false, "intr"));
                 self.builder.body.locals[dest.index()].address_space = result_space;
@@ -346,10 +415,6 @@ impl<'db, 'a> MirBuilder<'db, 'a> {
             self.builder.body.values[value_id.index()].origin = ValueOrigin::Unit;
             return value_id;
         }
-
-        let Some(callable) = self.typed_body.callable_expr(expr).cloned() else {
-            return value_id;
-        };
 
         let mut receiver_space = None;
         if self.is_method_call(expr) && !args.is_empty() {
@@ -1185,6 +1250,39 @@ impl<'db, 'a> MirBuilder<'db, 'a> {
                         let space = self.value_address_space(value_id);
                         self.set_pat_address_space(pat, space);
                     }
+                }
+                if let Some(place) = self.place_for_expr(*target) {
+                    let lhs_ty = self.typed_body.expr_ty(self.db, *target);
+                    let loaded_local = self.alloc_temp_local(lhs_ty, false, "load");
+                    self.builder.body.locals[loaded_local.index()].address_space =
+                        self.expr_address_space(*target);
+                    self.push_inst_here(MirInst::Assign {
+                        stmt: None,
+                        dest: Some(loaded_local),
+                        rvalue: crate::ir::Rvalue::Load {
+                            place: place.clone(),
+                        },
+                    });
+
+                    let lhs_value = self.builder.body.alloc_value(ValueData {
+                        ty: lhs_ty,
+                        origin: ValueOrigin::Local(loaded_local),
+                        repr: ValueRepr::Word,
+                    });
+                    let updated = self.builder.body.alloc_value(ValueData {
+                        ty: lhs_ty,
+                        origin: ValueOrigin::Binary {
+                            op: BinOp::Arith(*op),
+                            lhs: lhs_value,
+                            rhs: value_id,
+                        },
+                        repr: ValueRepr::Word,
+                    });
+                    self.push_inst_here(MirInst::Store {
+                        place,
+                        value: updated,
+                    });
+                    return;
                 }
                 let Some(local) = self
                     .typed_body

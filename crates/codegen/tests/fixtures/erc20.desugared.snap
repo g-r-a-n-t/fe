@@ -1,5 +1,6 @@
 ---
 source: crates/codegen/tests/yul.rs
+assertion_line: 34
 expression: desugared
 ---
 use core::prelude::*
@@ -162,9 +163,9 @@ mod __CoolCoin {
 
     #[contract_init(CoolCoin)]
     fn init() uses (mut root: __RootEffect) {
-        let mut store = root.init_field<TokenStore>(0)
-        let mut auth = root.init_field<AccessControl>(1)
-        let mut __d = root.init_decoder<__DefaultAbi>()
+        let mut store = root.init_field<TokenStore>(core::contract_field_slot(0))
+        let mut auth = root.init_field<AccessControl>(core::contract_field_slot(1))
+        let mut __d = __DefaultAbi::decoder_new(root.init_input(runtime))
         let initial_supply: u256 = u256::decode(__d)
         let owner: Address = Address::decode(__d)
         with (TokenStore = store, AccessControl = auth, Ctx = root, Log = root) { init_contract(initial_supply, owner) }
@@ -173,8 +174,8 @@ mod __CoolCoin {
 
     #[contract_runtime(CoolCoin)]
     fn runtime() uses (mut root: __RootEffect) {
-        let mut store = root.field<TokenStore>(0)
-        let mut auth = root.field<AccessControl>(1)
+        let mut store = root.field<TokenStore>(core::contract_field_slot(0))
+        let mut auth = root.field<AccessControl>(core::contract_field_slot(1))
         let __selector = root.runtime_selector<__DefaultAbi>()
         let mut __d = root.runtime_decoder<__DefaultAbi>()
         match __selector {

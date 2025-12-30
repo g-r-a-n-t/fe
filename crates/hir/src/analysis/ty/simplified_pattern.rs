@@ -5,13 +5,13 @@
 
 use crate::analysis::HirAnalysisDb;
 use crate::analysis::name_resolution::{PathRes, ResolvedVariant, resolve_path};
+use crate::analysis::ty::const_eval::{ConstValue, try_eval_const_ref};
+use crate::analysis::ty::trait_resolution::PredicateListId;
+use crate::analysis::ty::ty_check::ConstRef;
 use crate::analysis::ty::ty_def::{InvalidCause, TyId};
-use crate::analysis::ty::{
-    const_ty::{ConstTyData, ConstTyId, EvaluatedConstTy, const_ty_from_trait_const},
-    trait_resolution::PredicateListId,
-};
 use crate::core::hir_def::{
-    Body as HirBody, LitKind, Partial, Pat as HirPat, PathId, VariantKind, scope_graph::ScopeId,
+    Body as HirBody, IntegerId, LitKind, Partial, Pat as HirPat, PathId, VariantKind,
+    scope_graph::ScopeId,
 };
 use crate::core::hir_def::{EnumVariant, FieldParent, IdentId, PatId};
 use rustc_hash::FxHashMap;
@@ -288,33 +288,18 @@ impl<'db> SimplifiedPattern<'db> {
         let resolved = resolve_path(db, *path_id, scope, assumptions, true).ok()?;
 
         match resolved {
-            PathRes::Const(const_def, const_ty) => {
-                let body = const_def.body(db).to_opt()?;
-                let const_ty = ConstTyId::from_body(db, body, Some(const_ty), Some(const_def));
-                let const_ty = const_ty.evaluate(db, Some(expected_ty));
-
-                match const_ty.data(db) {
-                    ConstTyData::Evaluated(EvaluatedConstTy::LitInt(i), _) => {
-                        Some(LitKind::Int(*i))
-                    }
-                    ConstTyData::Evaluated(EvaluatedConstTy::LitBool(b), _) => {
-                        Some(LitKind::Bool(*b))
-                    }
-                    _ => None,
+            PathRes::Const(const_def, _) => {
+                let cref = ConstRef::Const(const_def);
+                match try_eval_const_ref(db, cref, expected_ty)? {
+                    ConstValue::Int(int) => Some(LitKind::Int(IntegerId::new(db, int))),
+                    ConstValue::Bool(flag) => Some(LitKind::Bool(flag)),
                 }
             }
-            PathRes::TraitConst(_recv_ty, trait_inst, const_name) => {
-                let const_ty = const_ty_from_trait_const(db, trait_inst, const_name)?;
-                let const_ty = const_ty.evaluate(db, Some(expected_ty));
-
-                match const_ty.data(db) {
-                    ConstTyData::Evaluated(EvaluatedConstTy::LitInt(i), _) => {
-                        Some(LitKind::Int(*i))
-                    }
-                    ConstTyData::Evaluated(EvaluatedConstTy::LitBool(b), _) => {
-                        Some(LitKind::Bool(*b))
-                    }
-                    _ => None,
+            PathRes::TraitConst(_recv_ty, inst, name) => {
+                let cref = ConstRef::TraitConst { inst, name };
+                match try_eval_const_ref(db, cref, expected_ty)? {
+                    ConstValue::Int(int) => Some(LitKind::Int(IntegerId::new(db, int))),
+                    ConstValue::Bool(flag) => Some(LitKind::Bool(flag)),
                 }
             }
             _ => None,

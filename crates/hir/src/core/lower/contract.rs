@@ -33,7 +33,6 @@ struct HirBuilder<'a, 'ctxt, 'db> {
     origin: DesugaredOrigin,
 }
 
-#[allow(dead_code)]
 impl<'a, 'ctxt, 'db> HirBuilder<'a, 'ctxt, 'db> {
     fn new(body_ctxt: &'a mut BodyCtxt<'ctxt, 'db>, origin: impl Into<DesugaredOrigin>) -> Self {
         Self {
@@ -88,19 +87,6 @@ impl<'a, 'ctxt, 'db> HirBuilder<'a, 'ctxt, 'db> {
         let call_args = args
             .into_iter()
             .map(|expr| CallArg { label: None, expr })
-            .collect();
-        self.body_ctxt
-            .push_expr(Expr::Call(callee, call_args), self.origin())
-    }
-
-    /// Creates a function call expression with labeled arguments.
-    fn call_labeled(&mut self, callee: ExprId, args: Vec<(Option<&str>, ExprId)>) -> ExprId {
-        let call_args = args
-            .into_iter()
-            .map(|(label, expr)| CallArg {
-                label: label.map(|l| self.ident(l)),
-                expr,
-            })
             .collect();
         self.body_ctxt
             .push_expr(Expr::Call(callee, call_args), self.origin())
@@ -177,120 +163,6 @@ impl<'a, 'ctxt, 'db> HirBuilder<'a, 'ctxt, 'db> {
         stmts.push(self.body_ctxt.push_stmt(Stmt::Expr(expr), self.origin()));
     }
 
-    /// Creates a return statement.
-    fn return_stmt(&mut self, stmts: &mut Vec<StmtId>, expr: Option<ExprId>) {
-        stmts.push(self.body_ctxt.push_stmt(Stmt::Return(expr), self.origin()));
-    }
-
-    /// Creates a block expression from statements.
-    fn block(&mut self, stmts: Vec<StmtId>) -> ExprId {
-        self.body_ctxt.f_ctxt.enter_block_scope();
-        let block = self.body_ctxt.push_expr(Expr::Block(stmts), self.origin());
-        self.body_ctxt.f_ctxt.leave_block_scope(block);
-        block
-    }
-
-    /// Creates a tuple expression.
-    fn tuple(&mut self, elems: Vec<ExprId>) -> ExprId {
-        self.body_ctxt.push_expr(Expr::Tuple(elems), self.origin())
-    }
-
-    /// Creates a record initialization expression.
-    fn record_init(
-        &mut self,
-        path: PathId<'db>,
-        fields: Vec<crate::hir_def::Field<'db>>,
-    ) -> ExprId {
-        self.body_ctxt.push_expr(
-            Expr::RecordInit(Partial::Present(path), fields),
-            self.origin(),
-        )
-    }
-
-    /// Creates an if-else expression.
-    fn if_else(&mut self, cond: ExprId, then_expr: ExprId, else_expr: ExprId) -> ExprId {
-        self.body_ctxt
-            .push_expr(Expr::If(cond, then_expr, Some(else_expr)), self.origin())
-    }
-
-    /// Creates an if expression with no else branch.
-    fn if_(&mut self, cond: ExprId, then_expr: ExprId) -> ExprId {
-        self.body_ctxt
-            .push_expr(Expr::If(cond, then_expr, None), self.origin())
-    }
-
-    /// Creates an equality comparison expression.
-    fn eq(&mut self, lhs: ExprId, rhs: ExprId) -> ExprId {
-        self.body_ctxt.push_expr(
-            Expr::Bin(
-                lhs,
-                rhs,
-                crate::hir_def::BinOp::Comp(crate::hir_def::CompBinOp::Eq),
-            ),
-            self.origin(),
-        )
-    }
-
-    /// Creates a less-than comparison expression.
-    fn lt(&mut self, lhs: ExprId, rhs: ExprId) -> ExprId {
-        self.body_ctxt.push_expr(
-            Expr::Bin(
-                lhs,
-                rhs,
-                crate::hir_def::BinOp::Comp(crate::hir_def::CompBinOp::Lt),
-            ),
-            self.origin(),
-        )
-    }
-
-    /// Creates an addition expression.
-    fn add(&mut self, lhs: ExprId, rhs: ExprId) -> ExprId {
-        self.body_ctxt.push_expr(
-            Expr::Bin(
-                lhs,
-                rhs,
-                crate::hir_def::BinOp::Arith(crate::hir_def::ArithBinOp::Add),
-            ),
-            self.origin(),
-        )
-    }
-
-    /// Creates a field access expression by name.
-    fn field_access(&mut self, base: ExprId, field: &str) -> ExprId {
-        self.body_ctxt.push_expr(
-            Expr::Field(
-                base,
-                Partial::Present(crate::hir_def::FieldIndex::Ident(self.ident(field))),
-            ),
-            self.origin(),
-        )
-    }
-
-    /// Creates a field access expression by index.
-    fn field_index(&mut self, base: ExprId, idx: usize) -> ExprId {
-        self.body_ctxt.push_expr(
-            Expr::Field(
-                base,
-                Partial::Present(crate::hir_def::FieldIndex::Index(IntegerId::from_usize(
-                    self.db(),
-                    idx,
-                ))),
-            ),
-            self.origin(),
-        )
-    }
-
-    /// Creates a field access expression by name, e.g. `base.foo`.
-    fn field_named(&mut self, base: ExprId, name: &str) -> ExprId {
-        self.body_ctxt.push_expr(
-            Expr::Field(
-                base,
-                Partial::Present(crate::hir_def::FieldIndex::Ident(self.ident(name))),
-            ),
-            self.origin(),
-        )
-    }
-
     /// Creates a `root.abort()` call.
     fn abort_call(&mut self) -> ExprId {
         let root = self.var_expr("root");
@@ -303,83 +175,6 @@ impl<'a, 'ctxt, 'db> HirBuilder<'a, 'ctxt, 'db> {
         self.method_call(root, "return_unit", vec![])
     }
 
-    /// Creates an Ok pattern: `Result::Ok(inner_pat)`.
-    fn ok_pat(&mut self, inner: PatId) -> PatId {
-        let ok_path = self.path(&["Result", "Ok"]);
-        self.body_ctxt.push_pat(
-            Pat::PathTuple(Partial::Present(ok_path), vec![inner]),
-            self.origin(),
-        )
-    }
-
-    /// Creates an Err pattern: `Result::Err(inner_pat)`.
-    fn err_pat(&mut self, inner: PatId) -> PatId {
-        let err_path = self.path(&["Result", "Err"]);
-        self.body_ctxt.push_pat(
-            Pat::PathTuple(Partial::Present(err_path), vec![inner]),
-            self.origin(),
-        )
-    }
-
-    /// Creates a tuple pattern.
-    fn tuple_pat(&mut self, elems: Vec<PatId>) -> PatId {
-        self.body_ctxt.push_pat(Pat::Tuple(elems), self.origin())
-    }
-
-    /// Creates a match expression with Ok/Err arms that aborts on error.
-    fn match_or_revert(&mut self, scrutinee: ExprId, ok_body: ExprId) -> ExprId {
-        let ok_wild = self.wildcard_pat();
-        let ok_pat = self.ok_pat(ok_wild);
-        let err_wild = self.wildcard_pat();
-        let err_pat = self.err_pat(err_wild);
-        let revert = self.abort_call();
-
-        self.body_ctxt.push_expr(
-            Expr::Match(
-                scrutinee,
-                Partial::Present(vec![
-                    MatchArm {
-                        pat: ok_pat,
-                        body: ok_body,
-                    },
-                    MatchArm {
-                        pat: err_pat,
-                        body: revert,
-                    },
-                ]),
-            ),
-            self.origin(),
-        )
-    }
-
-    /// Creates a match expression extracting value from Ok or aborting on Err.
-    fn match_ok_value_or_revert(&mut self, scrutinee: ExprId, binding: &str) -> ExprId {
-        let binding_pat = self.bind_pat(binding, false);
-        let ok_pat = self.ok_pat(binding_pat);
-        let ok_body = self.var_expr(binding);
-
-        let err_wild = self.wildcard_pat();
-        let err_pat = self.err_pat(err_wild);
-        let revert = self.abort_call();
-
-        self.body_ctxt.push_expr(
-            Expr::Match(
-                scrutinee,
-                Partial::Present(vec![
-                    MatchArm {
-                        pat: ok_pat,
-                        body: ok_body,
-                    },
-                    MatchArm {
-                        pat: err_pat,
-                        body: revert,
-                    },
-                ]),
-            ),
-            self.origin(),
-        )
-    }
-
     /// Creates a with-expression wrapping a call with effect bindings.
     fn with_expr(&mut self, bindings: Vec<WithBinding<'db>>, inner: ExprId) -> ExprId {
         if bindings.is_empty() {
@@ -387,71 +182,6 @@ impl<'a, 'ctxt, 'db> HirBuilder<'a, 'ctxt, 'db> {
         }
         self.body_ctxt
             .push_expr(Expr::With(bindings, inner), self.origin())
-    }
-
-    /// Creates a path expression with generic type arguments appended.
-    /// E.g., `path_with_generic(&["core", "effect_ref"], "StorPtr", ty)` creates
-    /// `core::effect_ref::StorPtr<ty>`.
-    /// If base is empty, creates just `StorPtr<ty>`.
-    fn path_with_generic(&self, base: &[&str], name: &str, ty: TypeId<'db>) -> PathId<'db> {
-        let db = self.db();
-        let generic_args = GenericArgListId::new(
-            db,
-            vec![GenericArg::Type(TypeGenericArg {
-                ty: Partial::Present(ty),
-            })],
-            true,
-        );
-        if base.is_empty() {
-            PathId::new(
-                db,
-                PathKind::Ident {
-                    ident: Partial::Present(IdentId::new(db, name.to_string())),
-                    generic_args,
-                },
-                None,
-            )
-        } else {
-            let base_path = PathId::from_segments(db, base);
-            base_path.push(
-                db,
-                PathKind::Ident {
-                    ident: Partial::Present(IdentId::new(db, name.to_string())),
-                    generic_args,
-                },
-            )
-        }
-    }
-
-    /// Creates a type from a path.
-    fn path_ty(&self, segments: &[&str]) -> TypeId<'db> {
-        TypeId::new(
-            self.db(),
-            TypeKind::Path(Partial::Present(self.path(segments))),
-        )
-    }
-
-    /// Creates `size_of<Sol::Selector>()` expression.
-    fn sol_selector_size(&mut self) -> ExprId {
-        let sol_selector_ty = self.path_ty(&["Sol", "Selector"]);
-        let size_of_path = self.path_with_generic(&[], "size_of", sol_selector_ty);
-        let size_of_fn = self.path_id_expr(size_of_path);
-        self.call(size_of_fn, vec![])
-    }
-
-    /// Creates `size_of<T>()` expression for a given type.
-    fn size_of_ty(&mut self, ty: TypeId<'db>) -> ExprId {
-        let size_of_path = self.path_with_generic(&[], "size_of", ty);
-        let size_of_fn = self.path_id_expr(size_of_path);
-        self.call(size_of_fn, vec![])
-    }
-
-    /// Creates `encoded_size<T>()` expression for a given type.
-    /// Returns the Solidity ABI-encoded size of the type.
-    fn encoded_size_of_ty(&mut self, ty: TypeId<'db>) -> ExprId {
-        let encoded_size_path = self.path_with_generic(&[], "encoded_size", ty);
-        let encoded_size_fn = self.path_id_expr(encoded_size_path);
-        self.call(encoded_size_fn, vec![])
     }
 
     /// Creates a let statement with an explicit type annotation.
@@ -470,94 +200,10 @@ impl<'a, 'ctxt, 'db> HirBuilder<'a, 'ctxt, 'db> {
         );
     }
 
-    /// Creates a match expression with custom Ok/Err handling.
-    fn match_result(
-        &mut self,
-        scrutinee: ExprId,
-        ok_pat: PatId,
-        ok_body: ExprId,
-        err_pat: PatId,
-        err_body: ExprId,
-    ) -> ExprId {
-        self.body_ctxt.push_expr(
-            Expr::Match(
-                scrutinee,
-                Partial::Present(vec![
-                    MatchArm {
-                        pat: ok_pat,
-                        body: ok_body,
-                    },
-                    MatchArm {
-                        pat: err_pat,
-                        body: err_body,
-                    },
-                ]),
-            ),
-            self.origin(),
-        )
-    }
-
     /// Creates a path expression from a PathId.
     fn path_id_expr(&mut self, path: PathId<'db>) -> ExprId {
         self.body_ctxt
             .push_expr(Expr::Path(Partial::Present(path)), self.origin())
-    }
-
-    fn generic_args_one_and_infer(
-        &self,
-        first_ty: TypeId<'db>,
-        inferred_args: usize,
-    ) -> GenericArgListId<'db> {
-        let mut args = vec![GenericArg::Type(TypeGenericArg {
-            ty: Partial::Present(first_ty),
-        })];
-        let infer_ty = TypeId::new(
-            self.db(),
-            TypeKind::Path(Partial::Present(PathId::from_str(self.db(), "_"))),
-        );
-        args.extend((0..inferred_args).map(|_| {
-            GenericArg::Type(TypeGenericArg {
-                ty: Partial::Present(infer_ty),
-            })
-        }));
-        GenericArgListId::new(self.db(), args, true)
-    }
-
-    fn generic_args_three(
-        &self,
-        ty0: TypeId<'db>,
-        ty1: TypeId<'db>,
-        ty2: TypeId<'db>,
-    ) -> GenericArgListId<'db> {
-        let args = vec![
-            GenericArg::Type(TypeGenericArg {
-                ty: Partial::Present(ty0),
-            }),
-            GenericArg::Type(TypeGenericArg {
-                ty: Partial::Present(ty1),
-            }),
-            GenericArg::Type(TypeGenericArg {
-                ty: Partial::Present(ty2),
-            }),
-        ];
-        GenericArgListId::new(self.db(), args, true)
-    }
-
-    fn path_with_generic_args(
-        &self,
-        base: &[&str],
-        name: &str,
-        generic_args: GenericArgListId<'db>,
-    ) -> PathId<'db> {
-        let db = self.db();
-        let base_path = PathId::from_segments(db, base);
-        base_path.push(
-            db,
-            PathKind::Ident {
-                ident: Partial::Present(IdentId::new(db, name.to_string())),
-                generic_args,
-            },
-        )
     }
 }
 
@@ -1186,9 +832,11 @@ fn lower_contract_init_entrypoint_func<'db>(
                     continue;
                 };
 
-                // let mut field = <<T::RootEffect as ContractHost>::init_field<FieldTy>>(root, idx)
+                // let mut field = <<T::RootEffect as ContractHost>::init_field<FieldTy>>(root, contract_field_slot(idx))
                 let root = b.var_expr("root");
-                let slot_idx = b.int_lit(idx);
+                let field_idx = b.int_lit(idx);
+                let contract_field_slot = b.path_expr(&["core", "contract_field_slot"]);
+                let slot = b.call(contract_field_slot, vec![field_idx]);
                 let field_generic_args = GenericArgListId::new(
                     db,
                     vec![GenericArg::Type(TypeGenericArg {
@@ -1197,7 +845,7 @@ fn lower_contract_init_entrypoint_func<'db>(
                     true,
                 );
                 let ptr_init =
-                    b.method_call_generic(root, "init_field", field_generic_args, vec![slot_idx]);
+                    b.method_call_generic(root, "init_field", field_generic_args, vec![slot]);
 
                 let bind_pat = b.body_ctxt.push_pat(
                     Pat::Path(Partial::Present(PathId::from_ident(db, field_name)), true),
@@ -1210,17 +858,13 @@ fn lower_contract_init_entrypoint_func<'db>(
             }
 
             // Decode init args and call user init logic.
-            // let mut __d = <<T::RootEffect as ContractHost>::init_decoder<T::DefaultAbi>(root)
+            // This uses the target's `ContractHost::init_input` implementation (e.g. EVM reads
+            // constructor args appended to the init bytecode).
             let root = b.var_expr("root");
-            let abi_ty = default_target_assoc_ty(db, "DefaultAbi");
-            let decoder_generic_args = GenericArgListId::new(
-                db,
-                vec![GenericArg::Type(TypeGenericArg {
-                    ty: Partial::Present(abi_ty),
-                })],
-                true,
-            );
-            let d_init = b.method_call_generic(root, "init_decoder", decoder_generic_args, vec![]);
+            let runtime_expr = b.var_expr(&runtime_fn_name);
+            let init_input = b.method_call(root, "init_input", vec![runtime_expr]);
+            let decoder_new = b.path_expr(&[DEFAULT_DEFAULT_ABI_ALIAS, "decoder_new"]);
+            let d_init = b.call(decoder_new, vec![init_input]);
             b.let_stmt(&mut stmts, "__d", true, d_init);
 
             // Decode each param and bind it as a local.
@@ -1423,9 +1067,11 @@ fn lower_contract_runtime_entrypoint_func<'db>(
                 continue;
             };
 
-            // let mut field = <<T::RootEffect as ContractHost>::field<FieldTy>>(root, idx)
+            // let mut field = <<T::RootEffect as ContractHost>::field<FieldTy>>(root, contract_field_slot(idx))
             let root = b.var_expr("root");
-            let slot_idx = b.int_lit(idx);
+            let field_idx = b.int_lit(idx);
+            let contract_field_slot = b.path_expr(&["core", "contract_field_slot"]);
+            let slot = b.call(contract_field_slot, vec![field_idx]);
             let field_generic_args = GenericArgListId::new(
                 db,
                 vec![GenericArg::Type(TypeGenericArg {
@@ -1433,7 +1079,7 @@ fn lower_contract_runtime_entrypoint_func<'db>(
                 })],
                 true,
             );
-            let ptr_init = b.method_call_generic(root, "field", field_generic_args, vec![slot_idx]);
+            let ptr_init = b.method_call_generic(root, "field", field_generic_args, vec![slot]);
 
             let bind_pat = b.body_ctxt.push_pat(
                 Pat::Path(Partial::Present(PathId::from_ident(db, field_name)), true),

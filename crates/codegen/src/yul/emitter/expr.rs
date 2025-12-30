@@ -181,6 +181,17 @@ impl<'db> FunctionEmitter<'db> {
         call: &CallOrigin<'_>,
         state: &BlockState,
     ) -> Result<String, YulError> {
+        if call
+            .callable
+            .callable_def
+            .name(self.db)
+            .is_some_and(|name| name.data(self.db) == "contract_field_slot")
+        {
+            return Err(YulError::Unsupported(
+                "`contract_field_slot` must be constant-folded before codegen".into(),
+            ));
+        }
+
         let callee = if let Some(name) = &call.resolved_name {
             name.clone()
         } else {

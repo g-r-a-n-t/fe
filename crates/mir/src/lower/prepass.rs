@@ -220,7 +220,7 @@ impl<'db, 'a> MirBuilder<'db, 'a> {
         }
 
         let ty = self.typed_body.expr_ty(self.db, expr);
-        let value = match try_eval_const_ref(self.db, cref)? {
+        let value = match try_eval_const_ref(self.db, cref, ty)? {
             ConstValue::Int(int) => SyntheticValue::Int(int),
             ConstValue::Bool(flag) => SyntheticValue::Bool(flag),
         };

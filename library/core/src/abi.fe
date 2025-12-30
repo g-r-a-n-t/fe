@@ -420,13 +420,13 @@ impl<A: Abi> Encode<A> for u256 {
 
 impl<A: Abi, const N: usize> Decode<A> for String<N> {
     fn decode<D: AbiDecoder<A>>(mut _ d: D) -> Self {
-        ingot::todo() // xxx
+        super::todo() // TODO: string decoding
     }
 }
 
 impl<A: Abi, const N: usize> Encode<A> for String<N> {
     fn encode<E: AbiEncoder<A>>(self, mut _ e: E) {
-        ingot::todo() // xxx
+        e.write_word(super::addr_of(self))
     }
 }
 

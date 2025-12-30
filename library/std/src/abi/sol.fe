@@ -1,7 +1,7 @@
 use core::abi::{Abi, AbiDecoder, AbiEncoder, ByteInput, Cursor}
 use core::num::{__u256_as_u32, __u256_as_u8, __u32_as_u256, __u8_as_u256}
 use ingot::evm::mem
-use ingot::evm::ops::{mstore, mstore8}
+use ingot::evm::ops::{mstore, mstore8, revert}
 
 pub struct Sol {}
 
@@ -78,7 +78,7 @@ impl<I> AbiDecoder<Sol> for SolDecoder<I>
         let len = self.cur.input.len()
         let new_pos = self.cur.pos + 1
         if new_pos < self.cur.pos || new_pos > len {
-            core::panic()
+            revert(0, 0)
         }
         let b = self.cur.input.byte_at(self.cur.pos)
         self.cur.pos = new_pos
@@ -89,7 +89,7 @@ impl<I> AbiDecoder<Sol> for SolDecoder<I>
         let len = self.cur.input.len()
         let new_pos = self.cur.pos + 32
         if new_pos < self.cur.pos || new_pos > len {
-            core::panic()
+            revert(0, 0)
         }
         let w = self.cur.input.word_at(self.cur.pos)
         self.cur.pos = new_pos
@@ -100,7 +100,7 @@ impl<I> AbiDecoder<Sol> for SolDecoder<I>
         let len = self.cur.input.len()
         let end = at + 32
         if end < at || end > len {
-            core::panic()
+            revert(0, 0)
         }
         self.cur.input.word_at(at)
     }

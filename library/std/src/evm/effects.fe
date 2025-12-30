@@ -163,7 +163,6 @@ pub trait Log {
     fn log4(mut self, offset: u256, len: u256, topic0: u256, topic1: u256, topic2: u256, topic3: u256)
 
     fn emit<T>(mut self, _ event: T) {
-        core::todo()
     }
 }
 
@@ -250,6 +249,11 @@ impl Log for Evm {
     fn log2(mut self, offset: u256, len: u256, topic0: u256, topic1: u256) { ops::log2(offset: offset, len: len, topic0: topic0, topic1: topic1) }
     fn log3(mut self, offset: u256, len: u256, topic0: u256, topic1: u256, topic2: u256) { ops::log3(offset: offset, len: len, topic0: topic0, topic1: topic1, topic2: topic2) }
     fn log4(mut self, offset: u256, len: u256, topic0: u256, topic1: u256, topic2: u256, topic3: u256) { ops::log4(offset: offset, len: len, topic0: topic0, topic1: topic1, topic2: topic2, topic3: topic3) }
+
+    // TODO struct logging
+    fn emit<T>(mut self, _ event: T) {
+        ops::log0(offset: core::addr_of(event), len: size_of<T>())
+    }
 }
 
 impl Create for Evm {
@@ -381,13 +385,28 @@ impl Super for Evm {}
 impl ContractHost for Evm {
     type FieldPtr = StorPtr
     type Input = CallData
+    type InitInput = MemoryBytes
 
     fn input(self) -> Self::Input {
-        CallData {  }
+        CallData { base: 0 }
     }
 
-    fn field<T>(mut self, field_idx: u256) -> Self::FieldPtr<T> {
-        self.stor_ptr(super::contract_field_slot(field_idx))
+    fn init_input<F>(mut self, runtime: F) -> Self::InitInput {
+        let offset = self.code_region_offset(runtime)
+        let len = self.code_region_len(runtime)
+        let args_offset = offset + len
+        let code_size = self.codesize()
+        if code_size < args_offset {
+            self.abort()
+        }
+        let args_len = code_size - args_offset
+        let args_ptr = mem::alloc(args_len)
+        self.codecopy(args_ptr, args_offset, args_len)
+        MemoryBytes { base: args_ptr, len: args_len }
+    }
+
+    fn field<T>(mut self, slot: u256) -> Self::FieldPtr<T> {
+        self.stor_ptr(slot)
     }
 
     fn create_contract<F>(mut self, runtime: F) -> ! {

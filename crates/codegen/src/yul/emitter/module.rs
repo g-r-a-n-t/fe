@@ -26,18 +26,8 @@ pub fn emit_module_yul(
     let module = lower_module(db, top_mod).map_err(EmitModuleError::MirLower)?;
 
     let call_graph = build_call_graph(&module.functions);
-    let contracts = collect_contracts(&module.functions);
+    let mut contracts = collect_contracts(&module.functions);
     let symbol_to_contract = contract_symbol_map(&contracts);
-    let returns_value_by_symbol: FxHashMap<String, bool> = module
-        .functions
-        .iter()
-        .map(|func| {
-            (
-                func.symbol_name.clone(),
-                !layout::is_zero_sized_ty(db, func.func.return_ty(db)),
-            )
-        })
-        .collect();
 
     let mut code_regions = FxHashMap::default();
     for (name, entry) in &contracts {
@@ -71,11 +61,16 @@ pub fn emit_module_yul(
     // Index function docs by symbol for region assembly.
     let mut docs_by_symbol = FxHashMap::default();
     for (idx, func) in module.functions.iter().enumerate() {
-        docs_by_symbol.insert(func.symbol_name.clone(), function_docs[idx].clone());
+        docs_by_symbol.insert(
+            func.symbol_name.clone(),
+            FunctionDocInfo {
+                docs: function_docs[idx].clone(),
+                returns_value: !layout::is_zero_sized_ty(db, func.func.return_ty(db)),
+            },
+        );
     }
 
     // Build contract dependency graph from code_region references inside contract entrypoints.
-    let mut contract_edges: FxHashMap<String, FxHashSet<String>> = FxHashMap::default();
     let mut referenced_contracts = FxHashSet::default();
     for func in &module.functions {
         let Some(contract_fn) = &func.contract_function else {
@@ -99,10 +94,9 @@ pub fn emit_module_yul(
                     && let Some(child_name) = symbol_to_contract.get(symbol)
                     && *child_name != contract_fn.contract_name
                 {
-                    contract_edges
-                        .entry(contract_fn.contract_name.clone())
-                        .or_default()
-                        .insert(child_name.clone());
+                    if let Some(entry) = contracts.get_mut(&contract_fn.contract_name) {
+                        entry.children.insert(child_name.clone());
+                    }
                     referenced_contracts.insert(child_name.clone());
                 }
             }
@@ -121,10 +115,8 @@ pub fn emit_module_yul(
         if let Some(contract_doc) = emit_contract_docs(
             &name,
             &contracts,
-            &contract_edges,
             &call_graph,
             &docs_by_symbol,
-            &returns_value_by_symbol,
             &mut visited_contracts,
         ) {
             docs.push(contract_doc);
@@ -145,8 +137,8 @@ pub fn emit_module_yul(
         let reachable = reachable_functions(&call_graph, &root);
         let mut region_docs = Vec::new();
         for symbol in &reachable {
-            if let Some(func_docs) = docs_by_symbol.get(symbol) {
-                region_docs.extend(func_docs.clone());
+            if let Some(info) = docs_by_symbol.get(symbol) {
+                region_docs.extend(info.docs.clone());
             }
         }
         docs.push(YulDoc::block(
@@ -275,18 +267,24 @@ fn sanitize_symbol(component: &str) -> String {
 }
 
 #[derive(Default)]
-struct ContractEntry {
+struct ContractInfo {
     init_symbol: Option<String>,
     runtime_symbol: Option<String>,
+    children: FxHashSet<String>,
 }
 
-fn collect_contracts(functions: &[MirFunction<'_>]) -> FxHashMap<String, ContractEntry> {
+struct FunctionDocInfo {
+    docs: Vec<YulDoc>,
+    returns_value: bool,
+}
+
+fn collect_contracts(functions: &[MirFunction<'_>]) -> FxHashMap<String, ContractInfo> {
     let mut contracts = FxHashMap::default();
     for func in functions {
         let Some(contract_fn) = &func.contract_function else {
             continue;
         };
-        let entry: &mut ContractEntry = contracts
+        let entry: &mut ContractInfo = contracts
             .entry(contract_fn.contract_name.clone())
             .or_default();
         match contract_fn.kind {
@@ -297,7 +295,7 @@ fn collect_contracts(functions: &[MirFunction<'_>]) -> FxHashMap<String, Contrac
     contracts
 }
 
-fn contract_symbol_map(contracts: &FxHashMap<String, ContractEntry>) -> FxHashMap<String, String> {
+fn contract_symbol_map(contracts: &FxHashMap<String, ContractInfo>) -> FxHashMap<String, String> {
     let mut map = FxHashMap::default();
     for (name, entry) in contracts {
         if let Some(sym) = &entry.init_symbol {
@@ -312,11 +310,9 @@ fn contract_symbol_map(contracts: &FxHashMap<String, ContractEntry>) -> FxHashMa
 
 fn emit_contract_docs(
     name: &str,
-    contracts: &FxHashMap<String, ContractEntry>,
-    edges: &FxHashMap<String, FxHashSet<String>>,
+    contracts: &FxHashMap<String, ContractInfo>,
     call_graph: &FxHashMap<String, Vec<String>>,
-    docs_by_symbol: &FxHashMap<String, Vec<YulDoc>>,
-    returns_value_by_symbol: &FxHashMap<String, bool>,
+    docs_by_symbol: &FxHashMap<String, FunctionDocInfo>,
     visited: &mut FxHashSet<String>,
 ) -> Option<YulDoc> {
     if !visited.insert(name.to_string()) {
@@ -336,10 +332,9 @@ fn emit_contract_docs(
     if let Some(symbol) = &entry.runtime_symbol {
         let mut runtime_docs = Vec::new();
         runtime_docs.extend(reachable_docs(symbol, call_graph, docs_by_symbol));
-        let returns_value = returns_value_by_symbol
+        let returns_value = docs_by_symbol
             .get(symbol)
-            .copied()
-            .unwrap_or(false);
+            .is_some_and(|info| info.returns_value);
         if returns_value {
             runtime_docs.push(YulDoc::line(format!("let ret := {symbol}()")));
             runtime_docs.push(YulDoc::line("mstore(0, ret)"));
@@ -355,19 +350,13 @@ fn emit_contract_docs(
         ));
     }
 
-    if let Some(children) = edges.get(name) {
-        let mut names: Vec<_> = children.iter().cloned().collect();
+    if !entry.children.is_empty() {
+        let mut names: Vec<_> = entry.children.iter().cloned().collect();
         names.sort();
         for child in names {
-            if let Some(doc) = emit_contract_docs(
-                &child,
-                contracts,
-                edges,
-                call_graph,
-                docs_by_symbol,
-                returns_value_by_symbol,
-                visited,
-            ) {
+            if let Some(doc) =
+                emit_contract_docs(&child, contracts, call_graph, docs_by_symbol, visited)
+            {
                 components.push(doc);
             }
         }
@@ -379,15 +368,15 @@ fn emit_contract_docs(
 fn reachable_docs(
     root: &str,
     call_graph: &FxHashMap<String, Vec<String>>,
-    docs_by_symbol: &FxHashMap<String, Vec<YulDoc>>,
+    docs_by_symbol: &FxHashMap<String, FunctionDocInfo>,
 ) -> Vec<YulDoc> {
     let mut docs = Vec::new();
     let reachable = reachable_functions(call_graph, root);
     let mut symbols: Vec<_> = reachable.into_iter().collect();
     symbols.sort();
     for symbol in symbols {
-        if let Some(func_docs) = docs_by_symbol.get(&symbol) {
-            docs.extend(func_docs.clone());
+        if let Some(info) = docs_by_symbol.get(&symbol) {
+            docs.extend(info.docs.clone());
         }
     }
     docs

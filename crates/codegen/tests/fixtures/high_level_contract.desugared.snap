@@ -1,5 +1,6 @@
 ---
 source: crates/codegen/tests/yul.rs
+assertion_line: 34
 expression: desugared
 ---
 use core::prelude::*
@@ -108,8 +109,8 @@ mod __EchoContract {
 
     #[contract_init(EchoContract)]
     fn init() uses (mut root: __RootEffect) {
-        let mut state = root.init_field<Foo>(0)
-        let mut __d = root.init_decoder<__DefaultAbi>()
+        let mut state = root.init_field<Foo>(core::contract_field_slot(0))
+        let mut __d = __DefaultAbi::decoder_new(root.init_input(runtime))
         let x: u256 = u256::decode(__d)
         let y: u256 = u256::decode(__d)
         with (Foo = state) { init_contract(x, y) }
@@ -118,7 +119,7 @@ mod __EchoContract {
 
     #[contract_runtime(EchoContract)]
     fn runtime() uses (mut root: __RootEffect) {
-        let mut state = root.field<Foo>(0)
+        let mut state = root.field<Foo>(core::contract_field_slot(0))
         let __selector = root.runtime_selector<__DefaultAbi>()
         let mut __d = root.runtime_decoder<__DefaultAbi>()
         match __selector {

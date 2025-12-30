@@ -1,5 +1,6 @@
 ---
 source: crates/hir/tests/desugar.rs
+assertion_line: 32
 expression: output
 input_file: test_files/desugar/contract_and_effects.fe
 ---
@@ -43,8 +44,8 @@ mod __Counter {
 
     #[contract_init(Counter)]
     fn init() uses (mut root: __RootEffect) {
-        let mut count = root.init_field<u64>(0)
-        let mut __d = root.init_decoder<__DefaultAbi>()
+        let mut count = root.init_field<u64>(core::contract_field_slot(0))
+        let mut __d = __DefaultAbi::decoder_new(root.init_input(runtime))
         let start: u64 = u64::decode(__d)
         with (u64 = count) { init_contract(start) }
         root.create_contract(runtime)
@@ -52,7 +53,7 @@ mod __Counter {
 
     #[contract_runtime(Counter)]
     fn runtime() uses (mut root: __RootEffect) {
-        let mut count = root.field<u64>(0)
+        let mut count = root.field<u64>(core::contract_field_slot(0))
         let __selector = root.runtime_selector<__DefaultAbi>()
         let mut __d = root.runtime_decoder<__DefaultAbi>()
         match __selector {

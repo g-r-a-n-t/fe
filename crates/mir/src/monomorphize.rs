@@ -9,12 +9,14 @@ use hir::analysis::{
     diagnostics::format_diags,
     ty::{
         fold::{TyFoldable, TyFolder},
+        normalize::normalize_ty,
         trait_def::resolve_trait_method_instance,
+        trait_resolution::PredicateListId,
         ty_check::check_func_body,
         ty_def::{TyData, TyId},
     },
 };
-use hir::hir_def::{CallableDef, Func, PathKind, item::ItemKind, scope_graph::ScopeId};
+use hir::hir_def::{CallableDef, Func, HirIngot, PathKind, item::ItemKind, scope_graph::ScopeId};
 use rustc_hash::FxHashMap;
 
 use crate::{
@@ -293,13 +295,21 @@ impl<'db> Monomorphizer<'db> {
         receiver_space: Option<AddressSpaceKind>,
         effect_kinds: &[EffectProviderKind],
     ) -> Option<(usize, String)> {
-        let key = InstanceKey::new(func, args, receiver_space, effect_kinds);
+        let norm_scope = normalization_scope_for_args(self.db, func, args);
+        let assumptions = PredicateListId::empty_list(self.db);
+        let normalized_args: Vec<_> = args
+            .iter()
+            .copied()
+            .map(|ty| normalize_ty(self.db, ty, norm_scope, assumptions))
+            .collect();
+
+        let key = InstanceKey::new(func, &normalized_args, receiver_space, effect_kinds);
         if let Some(&idx) = self.instance_map.get(&key) {
             let symbol = self.instances[idx].symbol_name.clone();
             return Some((idx, symbol));
         }
 
-        let symbol_name = self.mangled_name(func, args, receiver_space, effect_kinds);
+        let symbol_name = self.mangled_name(func, &normalized_args, receiver_space, effect_kinds);
 
         let instance = if args.is_empty() {
             let template_idx = self.ensure_template(func, receiver_space, effect_kinds)?;
@@ -316,15 +326,24 @@ impl<'db> Monomorphizer<'db> {
                 let rendered = format_diags(self.db, diags);
                 panic!("analysis errors while lowering `{name}`:\n{rendered}");
             }
-            let mut folder = ParamSubstFolder { args };
+            let mut folder = ParamSubstFolder {
+                args: &normalized_args,
+            };
             let typed_body = typed_body.clone().fold_with(self.db, &mut folder);
+
+            // After substitution, normalize any remaining associated types.
+            let mut normalizer = NormalizeFolder {
+                scope: norm_scope,
+                assumptions,
+            };
+            let typed_body = typed_body.fold_with(self.db, &mut normalizer);
             let mut instance = lower_function(
                 self.db,
                 func,
                 typed_body,
                 receiver_space,
                 effect_kinds.to_vec(),
-                args.to_vec(),
+                normalized_args.clone(),
             )
             .unwrap_or_else(|err| {
                 let name = func.pretty_print_signature(self.db);
@@ -598,6 +617,28 @@ impl<'db> TyFolder<'db> for ParamSubstFolder<'db, '_> {
             _ => ty.super_fold_with(db, self),
         }
     }
+}
+
+struct NormalizeFolder<'db> {
+    scope: ScopeId<'db>,
+    assumptions: PredicateListId<'db>,
+}
+
+impl<'db> TyFolder<'db> for NormalizeFolder<'db> {
+    fn fold_ty(&mut self, db: &'db dyn HirAnalysisDb, ty: TyId<'db>) -> TyId<'db> {
+        normalize_ty(db, ty, self.scope, self.assumptions)
+    }
+}
+
+fn normalization_scope_for_args<'db>(
+    db: &'db dyn HirAnalysisDb,
+    func: Func<'db>,
+    args: &[TyId<'db>],
+) -> ScopeId<'db> {
+    args.iter()
+        .find_map(|ty| ty.ingot(db))
+        .map(|ingot| ingot.root_mod(db).scope())
+        .unwrap_or_else(|| func.scope())
 }
 
 /// Replace any non-alphanumeric characters with `_` so the mangled symbol is a

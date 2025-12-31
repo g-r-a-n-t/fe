@@ -24,33 +24,6 @@ struct MatchLoweringCtx<'db> {
 }
 
 impl<'db, 'a> MirBuilder<'db, 'a> {
-    /// Resolves an enum variant path within a scope.
-    ///
-    /// # Parameters
-    /// - `path`: Path to resolve.
-    /// - `scope`: Scope to use for resolution.
-    ///
-    /// # Returns
-    /// Resolved variant metadata or `None` on failure.
-    pub(super) fn resolve_enum_variant(
-        &self,
-        path: PathId<'db>,
-        scope: ScopeId<'db>,
-    ) -> Option<ResolvedVariant<'db>> {
-        let res = resolve_path(
-            self.db,
-            path,
-            scope,
-            PredicateListId::empty_list(self.db),
-            false,
-        )
-        .ok()?;
-        match res {
-            PathRes::EnumVariant(variant) => Some(variant),
-            _ => None,
-        }
-    }
-
     /// Returns `true` if the pattern is a wildcard (`_`).
     ///
     /// # Parameters
@@ -395,9 +368,11 @@ impl<'db, 'a> MirBuilder<'db, 'a> {
             ty: TyId<'db>,
             local: LocalId,
         ) -> ValueId {
+            let space = builder.builder.body.local(local).address_space;
             builder.builder.body.alloc_value(ValueData {
                 ty,
                 origin: ValueOrigin::Local(local),
+                repr: builder.value_repr_for_ty(ty, space),
             })
         }
 
@@ -431,11 +406,9 @@ impl<'db, 'a> MirBuilder<'db, 'a> {
             if !is_enum_type(self.db, scrutinee_ty) {
                 return scrutinee_value;
             }
-            let addr_space = self.value_address_space(scrutinee_value);
             let place = Place::new(
                 scrutinee_value,
                 MirProjectionPath::from_projection(MirProjection::Discriminant),
-                addr_space,
             );
             return emit_load_to_temp(self, self.u256_ty(), place);
         }
@@ -443,27 +416,20 @@ impl<'db, 'a> MirBuilder<'db, 'a> {
         // Compute the result type of the projection
         let result_ty = self.compute_projection_result_type(scrutinee_ty, path);
         let addr_space = self.value_address_space(scrutinee_value);
-        let is_aggregate = result_ty.field_count(self.db) > 0
-            || result_ty.is_array(self.db)
-            || result_ty
-                .adt_ref(self.db)
-                .is_some_and(|adt| matches!(adt, AdtRef::Enum(_)));
 
         // Build Place with the full projection path
         let place = Place::new(
             scrutinee_value,
             self.mir_projection_from_decision_path(path),
-            addr_space,
         );
 
-        // Use PlaceRef for aggregates (returns pointer), explicit load for scalars.
-        let current_value = if is_aggregate {
-            let value_id = self.builder.body.alloc_value(ValueData {
+        // Use PlaceRef for by-ref values (pointer), explicit load for word-like values.
+        let current_value = if self.is_by_ref_ty(result_ty) {
+            self.builder.body.alloc_value(ValueData {
                 ty: result_ty,
                 origin: ValueOrigin::PlaceRef(place),
-            });
-            self.value_address_space.insert(value_id, addr_space);
-            value_id
+                repr: ValueRepr::Ref(addr_space),
+            })
         } else {
             emit_load_to_temp(self, result_ty, place)
         };
@@ -472,7 +438,7 @@ impl<'db, 'a> MirBuilder<'db, 'a> {
         if is_enum_type(self.db, result_ty) {
             let mut discr_path = self.mir_projection_from_decision_path(path);
             discr_path.push(MirProjection::Discriminant);
-            let place = Place::new(scrutinee_value, discr_path, addr_space);
+            let place = Place::new(scrutinee_value, discr_path);
             return emit_load_to_temp(self, self.u256_ty(), place);
         }
 
@@ -508,9 +474,11 @@ impl<'db, 'a> MirBuilder<'db, 'a> {
             ty: TyId<'db>,
             local: LocalId,
         ) -> ValueId {
+            let space = builder.builder.body.local(local).address_space;
             builder.builder.body.alloc_value(ValueData {
                 ty,
                 origin: ValueOrigin::Local(local),
+                repr: builder.value_repr_for_ty(ty, space),
             })
         }
 
@@ -521,11 +489,7 @@ impl<'db, 'a> MirBuilder<'db, 'a> {
 
         // Compute the final type by walking the projection path
         let final_ty = self.compute_projection_result_type(scrutinee_ty, path);
-        let is_aggregate = final_ty.field_count(self.db) > 0
-            || final_ty.is_array(self.db)
-            || final_ty
-                .adt_ref(self.db)
-                .is_some_and(|adt| matches!(adt, AdtRef::Enum(_)));
+        let is_by_ref = self.is_by_ref_ty(final_ty);
 
         // Track address space for the result
         let addr_space = self.value_address_space(scrutinee_value);
@@ -534,18 +498,17 @@ impl<'db, 'a> MirBuilder<'db, 'a> {
         let place = Place::new(
             scrutinee_value,
             self.mir_projection_from_decision_path(path),
-            addr_space,
         );
 
         let place_ref_id = self.builder.body.alloc_value(ValueData {
             ty: final_ty,
             origin: ValueOrigin::PlaceRef(place.clone()),
+            repr: ValueRepr::Ref(addr_space),
         });
-        self.value_address_space.insert(place_ref_id, addr_space);
 
-        // Use PlaceRef for aggregates (pointer only), explicit load for scalars.
-        // When aggregate, re-use the place ref as the "value".
-        let value_id = if is_aggregate {
+        // Use PlaceRef for by-ref values (pointer only), explicit load for word-like values.
+        // When by-ref, re-use the place ref as the "value".
+        let value_id = if is_by_ref {
             place_ref_id
         } else {
             let dest = self.alloc_temp_local(final_ty, false, "load");

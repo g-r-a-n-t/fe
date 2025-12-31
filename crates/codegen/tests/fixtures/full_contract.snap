@@ -9,14 +9,14 @@ object "ShapeDispatcher" {
       let v0 := datasize("ShapeDispatcher_deployed")
       let v1 := dataoffset("ShapeDispatcher_deployed")
       codecopy(0, v1, v0)
-      leave
+      return(0, v0)
     }
     init()
   }
 
   object "ShapeDispatcher_deployed" {
     code {
-      function abi_encode(value) {
+      function abi_encode(value, ops) {
         let v0 := 0
         mstore(v0, value)
         return(v0, 32)
@@ -41,7 +41,7 @@ object "ShapeDispatcher" {
           let v8 := mload(add(v6, 32))
           mstore(add(v6, 32), add(v8, 2))
           let v9 := point_area_mem(v6)
-          abi_encode(v9)
+          abi_encode(v9, 0)
         }
         let v10 := eq(v1, 2066295049)
         if v10 {
@@ -56,7 +56,7 @@ object "ShapeDispatcher" {
           let v14 := mload(v13)
           mstore(v13, add(v14, 3))
           let v15 := square_area_mem(v13)
-          abi_encode(v15)
+          abi_encode(v15, 0)
         }
         return(0, 0)
       }

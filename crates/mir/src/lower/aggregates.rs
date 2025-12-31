@@ -1,7 +1,10 @@
 //! Aggregate lowering helpers for MIR: allocations, initializer emission, and type helpers.
 
 use super::*;
-use hir::projection::{IndexSource, Projection};
+use hir::{
+    analysis::ty::const_eval::{ConstValue, try_eval_const_body},
+    projection::{IndexSource, Projection},
+};
 use num_bigint::BigUint;
 
 impl<'db, 'a> MirBuilder<'db, 'a> {
@@ -37,8 +40,7 @@ impl<'db, 'a> MirBuilder<'db, 'a> {
             },
         });
         self.builder.body.values[value_id.index()].origin = ValueOrigin::Local(dest);
-        self.value_address_space
-            .insert(value_id, AddressSpaceKind::Memory);
+        self.builder.body.values[value_id.index()].repr = ValueRepr::Ref(AddressSpaceKind::Memory);
         value_id
     }
 
@@ -50,8 +52,7 @@ impl<'db, 'a> MirBuilder<'db, 'a> {
         if inits.is_empty() {
             return;
         }
-        let addr_space = self.value_address_space(base_value);
-        let place = Place::new(base_value, MirProjectionPath::new(), addr_space);
+        let place = Place::new(base_value, MirProjectionPath::new());
         self.push_inst_here(MirInst::InitAggregate { place, inits });
     }
 
@@ -82,21 +83,24 @@ impl<'db, 'a> MirBuilder<'db, 'a> {
 
         let record_ty = self.typed_body.expr_ty(self.db, expr);
         let record_base = record_ty.base_ty(self.db);
-        let effect_ptr_bases = [
-            self.core
-                .helper_ty(CoreHelperTy::EffectMemPtr)
-                .base_ty(self.db),
-            self.core
-                .helper_ty(CoreHelperTy::EffectStorPtr)
-                .base_ty(self.db),
-            self.core
-                .helper_ty(CoreHelperTy::EffectCalldataPtr)
-                .base_ty(self.db),
-        ];
+        let mut effect_ptr_bases = Vec::new();
+        if let Some(ty) = self.core.helper_ty(CoreHelperTy::EffectMemPtr) {
+            effect_ptr_bases.push(ty.base_ty(self.db));
+        }
+        if let Some(ty) = self.core.helper_ty(CoreHelperTy::EffectStorPtr) {
+            effect_ptr_bases.push(ty.base_ty(self.db));
+        }
+        if let Some(ty) = self.core.helper_ty(CoreHelperTy::EffectCalldataPtr) {
+            effect_ptr_bases.push(ty.base_ty(self.db));
+        }
+
         if effect_ptr_bases.contains(&record_base) && lowered_fields.len() == 1 {
-            let value = lowered_fields[0].1;
-            self.builder.body.expr_values.insert(expr, value);
-            return value;
+            let field_value = lowered_fields[0].1;
+            self.builder.body.values[fallback.index()].origin =
+                ValueOrigin::TransparentCast { value: field_value };
+            self.builder.body.values[fallback.index()].repr =
+                self.value_repr_for_expr(expr, record_ty);
+            return fallback;
         }
 
         let value_id = self.emit_alloc(expr, record_ty);
@@ -206,9 +210,10 @@ impl<'db, 'a> MirBuilder<'db, 'a> {
         let Some(len_body) = len.to_opt() else {
             return fallback;
         };
-        let Some(count) = self.const_usize_from_body(len_body) else {
-            return fallback;
+        let Some(ConstValue::Int(count)) = try_eval_const_body(self.db, len_body) else {
+            unreachable!("array len must be an int")
         };
+        let count = count.to_u32().expect("array with more than 2^32 elements") as usize;
 
         let elem_value = self.lower_expr(elem);
         if self.current_block().is_none() {
@@ -312,6 +317,7 @@ impl<'db, 'a> MirBuilder<'db, 'a> {
         self.builder.body.alloc_value(ValueData {
             ty,
             origin: ValueOrigin::Synthetic(SyntheticValue::Int(value)),
+            repr: ValueRepr::Word,
         })
     }
 }

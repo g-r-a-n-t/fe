@@ -1,5 +1,6 @@
 ---
 source: crates/hir/tests/desugar.rs
+assertion_line: 32
 expression: output
 input_file: test_files/desugar/contract_and_effects.fe
 ---
@@ -7,21 +8,21 @@ use core::prelude::*
 
 mod __Counter {
     use super::*
-    use core::effect_ref::StorPtr
-    use core::intrinsic::contract_field_slot
-    use core::calldataload
-    use core::calldatasize
-    use core::codecopy
-    use core::code_region_len
-    use core::code_region_offset
-    use core::return_data
-    use core::revert
-    use core::size_of
-    use core::encoded_size
-    use std::evm::calldata::CallData
-    use std::abi::Sol
-    use std::abi::sol::SolDecoder
-    use std::abi::sol::SolEncoder
+    use core::contracts::ContractHost
+    use core::contracts::Target
+    use core::abi::Abi
+    use core::abi::AbiEncoder
+    use core::abi::AbiSize
+    use core::abi::ByteInput
+    use core::abi::prefix
+    use core::abi::Encode
+    use std::evm::EvmTarget
+
+    type __Target = EvmTarget
+
+    type __RootEffect = __Target::RootEffect
+
+    type __DefaultAbi = __Target::DefaultAbi
 
     fn recv_CounterMsg_Increment_0_0(args: CounterMsg::Increment::Args) uses (mut count: u64) {
         return {
@@ -42,53 +43,31 @@ mod __Counter {
     }
 
     #[contract_init(Counter)]
-    fn init() {
-        let mut count = StorPtr<u64>::at_offset(contract_field_slot(0))
-        let __calldata = CallData {  }
-        let mut __d = SolDecoder<CallData>::new(__calldata)
-        if calldatasize() < encoded_size<u64>() {
-            revert(0, 0)
-        }
+    fn init() uses (mut root: __RootEffect) {
+        let mut count = root.init_field<u64>(core::contract_field_slot(0))
+        let mut __d = __DefaultAbi::decoder_new(root.init_input(runtime))
         let start: u64 = u64::decode(__d)
-        with (count) { init_contract(start) }
-        let __len = code_region_len(runtime)
-        let __offset = code_region_offset(runtime)
-        codecopy(dest: 0, __offset, __len)
-        return_data(0, __len)
+        with (u64 = count) { init_contract(start) }
+        root.create_contract(runtime)
     }
 
     #[contract_runtime(Counter)]
-    fn runtime() {
-        let mut count = StorPtr<u64>::at_offset(contract_field_slot(0))
-        let __calldata = CallData {  }
-        if calldatasize() < size_of<Sol::Selector>() {
-            revert(0, 0)
-        }
-        let __selector = Sol::selector_from_prefix(calldataload(0))
+    fn runtime() uses (mut root: __RootEffect) {
+        let mut count = root.field<u64>(core::contract_field_slot(0))
+        let __selector = root.runtime_selector<__DefaultAbi>()
+        let mut __d = root.runtime_decoder<__DefaultAbi>()
         match __selector {
             CounterMsg::Increment::SELECTOR => {
-                let mut __d = SolDecoder<CallData>::with_base(__calldata, size_of<Sol::Selector>())
-                if calldatasize() < size_of<Sol::Selector>() + encoded_size<CounterMsg::Increment::Args>() {
-                    revert(0, 0)
-                }
                 let __args: CounterMsg::Increment::Args = CounterMsg::Increment::Args::decode(__d)
-                with (count) { recv_CounterMsg_Increment_0_0(__args) }
-                return_data(0, 0)
+                with (u64 = count) { recv_CounterMsg_Increment_0_0(__args) }
+                root.return_unit()
             },
             CounterMsg::Get::SELECTOR => {
-                let mut __d = SolDecoder<CallData>::with_base(__calldata, size_of<Sol::Selector>())
-                if calldatasize() < size_of<Sol::Selector>() + encoded_size<CounterMsg::Get::Args>() {
-                    revert(0, 0)
-                }
                 let __args: CounterMsg::Get::Args = CounterMsg::Get::Args::decode(__d)
-                let __result = with (count) { recv_CounterMsg_Get_0_1(__args) }
-                let mut __enc = SolEncoder::new()
-                __enc.reserve_head(32)
-                __result.encode(__enc)
-                let __out = __enc.finish()
-                return_data(__out.0, __out.1)
+                let __result = with (u64 = count) { recv_CounterMsg_Get_0_1(__args) }
+                root.return_value<__DefaultAbi, u64>(__result)
             },
-            _ => revert(0, 0),
+            _ => root.abort(),
         }
     }
 }

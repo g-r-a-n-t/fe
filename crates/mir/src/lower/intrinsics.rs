@@ -5,37 +5,7 @@ use super::*;
 
 impl<'db, 'a> MirBuilder<'db, 'a> {
     pub(super) fn callable_def_for_call_expr(&self, expr: ExprId) -> Option<CallableDef<'db>> {
-        if let Some(callable) = self.typed_body.callable_expr(expr) {
-            return Some(callable.callable_def);
-        }
-
-        let (callee, _) = match expr.data(self.db, self.body) {
-            Partial::Present(Expr::Call(callee, args)) => (*callee, args),
-            Partial::Present(Expr::MethodCall(..)) => return None,
-            _ => return None,
-        };
-
-        let Partial::Present(Expr::Path(path)) = callee.data(self.db, self.body) else {
-            return None;
-        };
-        let path = path.to_opt()?;
-
-        let func_ty = match resolve_path(
-            self.db,
-            path,
-            self.body.scope(),
-            PredicateListId::empty_list(self.db),
-            true,
-        ) {
-            Ok(PathRes::Func(func_ty)) => func_ty,
-            _ => return None,
-        };
-
-        let (base, _) = func_ty.decompose_ty_app(self.db);
-        let TyData::TyBase(TyBase::Func(callable_def)) = base.data(self.db) else {
-            return None;
-        };
-        Some(*callable_def)
+        Some(self.typed_body.callable_expr(expr)?.callable_def)
     }
 
     /// Attempts to lower a statement-only intrinsic call (`mstore`, `codecopy`, etc.).
@@ -86,7 +56,14 @@ impl<'db, 'a> MirBuilder<'db, 'a> {
             return None;
         }
 
-        let (args, _) = self.collect_call_args(expr)?;
+        let (mut args, _) = self.collect_call_args(expr)?;
+        let is_method_call = matches!(
+            expr.data(self.db, self.body),
+            Partial::Present(Expr::MethodCall(..))
+        );
+        if is_method_call && !args.is_empty() {
+            args.remove(0);
+        }
         Some((op, args))
     }
 
@@ -98,8 +75,9 @@ impl<'db, 'a> MirBuilder<'db, 'a> {
     /// # Returns
     /// Matching `IntrinsicOp` if the callable is a core intrinsic.
     pub(super) fn intrinsic_kind(&self, func_def: CallableDef<'db>) -> Option<IntrinsicOp> {
-        if func_def.ingot(self.db).kind(self.db) != IngotKind::Core {
-            return None;
+        match func_def.ingot(self.db).kind(self.db) {
+            IngotKind::Core | IngotKind::Std => {}
+            _ => return None,
         }
         let name = func_def.name(self.db)?;
         match name.data(self.db).as_str() {
@@ -120,10 +98,8 @@ impl<'db, 'a> MirBuilder<'db, 'a> {
             "codesize" => Some(IntrinsicOp::Codesize),
             "code_region_offset" => Some(IntrinsicOp::CodeRegionOffset),
             "code_region_len" => Some(IntrinsicOp::CodeRegionLen),
-            "keccak" => Some(IntrinsicOp::Keccak),
+            "keccak" | "keccak256" => Some(IntrinsicOp::Keccak),
             "caller" => Some(IntrinsicOp::Caller),
-            "stor_at" => Some(IntrinsicOp::StorAt),
-            "at_offset" => Some(IntrinsicOp::StorAt),
             _ => None,
         }
     }
@@ -136,24 +112,17 @@ impl<'db, 'a> MirBuilder<'db, 'a> {
     /// # Returns
     /// A `CodeRegionRoot` describing the referenced function, or `None` on failure.
     pub(super) fn code_region_target(&self, expr: ExprId) -> Option<CodeRegionRoot<'db>> {
-        let expr_data = &self.body.exprs(self.db)[expr].borrowed().to_opt()?;
-        let Expr::Path(path) = expr_data else {
-            return None;
-        };
-        let path = path.to_opt()?;
+        let ty = self.typed_body.expr_ty(self.db, expr);
+        self.code_region_target_from_ty(ty)
+    }
 
-        let func_ty = match resolve_path(
-            self.db,
-            path,
-            self.body.scope(),
-            PredicateListId::empty_list(self.db),
-            true,
-        ) {
-            Ok(PathRes::Func(func_ty)) => func_ty,
-            _ => return None,
-        };
-
-        let (base, args) = func_ty.decompose_ty_app(self.db);
+    /// Resolves the `code_region` target represented by a function-item type.
+    ///
+    /// This is used when contract code regions are passed through locals/params (e.g. `fn f<F>(x: F)`),
+    /// where the value has no runtime representation but the *type* still uniquely identifies the
+    /// referenced contract entrypoint.
+    pub(super) fn code_region_target_from_ty(&self, ty: TyId<'db>) -> Option<CodeRegionRoot<'db>> {
+        let (base, args) = ty.decompose_ty_app(self.db);
         let TyData::TyBase(TyBase::Func(CallableDef::Func(func))) = base.data(self.db) else {
             return None;
         };

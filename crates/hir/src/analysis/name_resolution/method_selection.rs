@@ -143,7 +143,7 @@ impl<'db> CandidateAssembler<'db> {
         // candidates.
         let receiver_is_ty_param = matches!(
             self.receiver_ty.value.base_ty(self.db).data(self.db),
-            TyData::TyParam(_)
+            TyData::TyParam(_) | TyData::AssocTy(_) | TyData::QualifiedTy(_)
         );
 
         if !receiver_is_ty_param {
@@ -307,7 +307,7 @@ impl<'db> MethodSelector<'db> {
         // whose signatures don't mention those args (e.g. `AbiDecoder<A>::read_word`).
         let receiver_is_ty_param = matches!(
             self.receiver.value.base_ty(self.db).data(self.db),
-            TyData::TyParam(_)
+            TyData::TyParam(_) | TyData::AssocTy(_) | TyData::QualifiedTy(_)
         );
 
         let canonical_cand = Canonicalized::new(self.db, inst);

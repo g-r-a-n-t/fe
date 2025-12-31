@@ -115,12 +115,42 @@ impl<'db> TyId<'db> {
         matches!(self.data(db), TyData::Never)
     }
 
-    /// Returns `IngotDescription` that declares the type.
+    /// Returns an ingot associated with this type.
     pub fn ingot(self, db: &'db dyn HirAnalysisDb) -> Option<Ingot<'db>> {
+        fn ingot_from_non_projection<'db>(
+            db: &'db dyn HirAnalysisDb,
+            mut ty: TyId<'db>,
+        ) -> Option<Ingot<'db>> {
+            loop {
+                match ty.data(db) {
+                    TyData::TyBase(TyBase::Adt(adt)) => return adt.ingot(db).into(),
+                    TyData::TyBase(TyBase::Func(def)) => return def.ingot(db).into(),
+                    TyData::TyApp(lhs, _) => {
+                        ty = *lhs;
+                    }
+                    _ => return None,
+                }
+            }
+        }
+
         match self.data(db) {
             TyData::TyBase(TyBase::Adt(adt)) => adt.ingot(db).into(),
             TyData::TyBase(TyBase::Func(def)) => def.ingot(db).into(),
             TyData::TyApp(lhs, _) => lhs.ingot(db),
+            // Projection types don't have a single defining ingot, but we still want an ingot
+            // that can be used to search for relevant trait impls. Using an ingot that is
+            // referenced by the underlying trait arguments generally yields the best results.
+            TyData::AssocTy(assoc_ty) => assoc_ty
+                .trait_
+                .args(db)
+                .iter()
+                .copied()
+                .find_map(|arg| ingot_from_non_projection(db, arg)),
+            TyData::QualifiedTy(trait_inst) => trait_inst
+                .args(db)
+                .iter()
+                .copied()
+                .find_map(|arg| ingot_from_non_projection(db, arg)),
             _ => None,
         }
     }
@@ -1275,7 +1305,12 @@ impl HasKind for TyData<'_> {
         match self {
             TyData::TyVar(ty_var) => ty_var.kind(db),
             TyData::TyParam(ty_param) => ty_param.kind.clone(),
-            TyData::AssocTy(_) => Kind::Star,
+            TyData::AssocTy(assoc) => assoc
+                .trait_
+                .def(db)
+                .assoc_ty(db, assoc.name)
+                .and_then(|decl| super::ty_lower::lower_kind_in_bounds(&decl.bounds))
+                .unwrap_or(Kind::Star),
             TyData::QualifiedTy(_) => Kind::Star,
             TyData::TyBase(base) => base.kind(db),
             TyData::TyApp(abs, _) => match abs.kind(db) {

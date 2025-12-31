@@ -1,8 +1,4 @@
 use driver::DriverDataBase;
-use hir::analysis::{
-    name_resolution::{PathRes, resolve_path},
-    ty::trait_resolution::PredicateListId,
-};
 use mir::{BasicBlockId, MirFunction, Terminator, layout};
 use rustc_hash::FxHashMap;
 
@@ -48,19 +44,11 @@ impl<'db> FunctionEmitter<'db> {
         self.ipdom.get(block.index()).copied().flatten()
     }
 
-    /// Produces the final Yul docs for the current MIR function, including any prologue
-    /// needed to seed effect bindings (e.g. storage base pointer for contract entrypoints).
-    ///
-    /// Returns the document tree containing a single Yul `function` block or a
-    /// [`YulError`] when lowering fails.
+    /// Produces the final Yul docs for the current MIR function.
     pub(super) fn emit_doc(mut self) -> Result<Vec<YulDoc>, YulError> {
         let func_name = self.mir_func.symbol_name.as_str();
-        let (param_names, mut state, mut prologue) = self.init_function_state()?;
-        let mut body_docs = self.emit_block(self.mir_func.body.entry, &mut state)?;
-        if !prologue.is_empty() {
-            prologue.append(&mut body_docs);
-            body_docs = prologue;
-        }
+        let (param_names, mut state) = self.init_entry_state();
+        let body_docs = self.emit_block(self.mir_func.body.entry, &mut state)?;
         let function_doc = YulDoc::block(
             format!(
                 "{} ",
@@ -71,13 +59,12 @@ impl<'db> FunctionEmitter<'db> {
         Ok(vec![function_doc])
     }
 
-    /// Initializes the `BlockState` with parameter bindings, returning Yul parameter names,
-    /// the populated block state, and any prologue statements needed to seed effect bindings
-    /// (contract entrypoints get a synthesized storage pointer; other functions take effects
-    /// as explicit parameters).
-    pub(super) fn init_function_state(
-        &self,
-    ) -> Result<(Vec<String>, BlockState, Vec<YulDoc>), YulError> {
+    /// Initializes the `BlockState` with parameter bindings.
+    ///
+    /// Returns:
+    /// - the Yul function parameter names (in signature order)
+    /// - the initial block state mapping MIR locals to those names
+    fn init_entry_state(&self) -> (Vec<String>, BlockState) {
         let mut state = BlockState::new();
         let mut params_out = Vec::new();
         for &local in &self.mir_func.body.param_locals {
@@ -85,33 +72,14 @@ impl<'db> FunctionEmitter<'db> {
             params_out.push(name.clone());
             state.insert_local(local, name);
         }
-        let mut prologue = Vec::new();
-        let is_contract_entry = self.mir_func.contract_function.is_some();
-        if is_contract_entry {
-            let effect_params: Vec<_> = self.mir_func.func.effect_params(self.db).collect();
-            for (effect, &local) in effect_params
-                .iter()
-                .zip(self.mir_func.body.effect_param_locals.iter())
-            {
-                let binding = self.mir_func.body.local(local).name.clone();
-                let temp = state.alloc_local();
-                state.insert_local(local, temp.clone());
-                let slots = self.effect_storage_slots(*effect, &binding)?;
-                if slots != 0 {
-                    return Err(YulError::Unsupported(format!(
-                        "contract entrypoint effect `{binding}` must be zero-sized (instantiate storage pointers manually)"
-                    )));
-                }
-                prologue.push(YulDoc::line(format!("let {temp} := 0")));
-            }
-        } else {
+        if self.mir_func.contract_function.is_none() {
             for &local in &self.mir_func.body.effect_param_locals {
                 let binding = self.mir_func.body.local(local).name.clone();
                 params_out.push(binding.clone());
                 state.insert_local(local, binding);
             }
         }
-        Ok((params_out, state, prologue))
+        (params_out, state)
     }
 
     /// Returns true if the Fe function has a return type.
@@ -129,48 +97,6 @@ impl<'db> FunctionEmitter<'db> {
         } else {
             format!("function {func_name}({params_str}){ret_suffix}")
         }
-    }
-
-    /// Returns the Yul expression used as the storage base pointer for contract entrypoints.
-    /// Computes the storage slot size of an effect type (for contract entrypoints).
-    ///
-    /// Returns an error if the effect type cannot be resolved or its size cannot be computed.
-    fn effect_storage_slots(
-        &self,
-        effect: hir::core::semantic::EffectParamView<'db>,
-        binding_name: &str,
-    ) -> Result<usize, YulError> {
-        let key_path = effect.key_path(self.db).ok_or_else(|| {
-            YulError::Unsupported(format!(
-                "cannot determine storage size for effect `{binding_name}`: missing type path"
-            ))
-        })?;
-        let scope = effect.owner.scope();
-        let path_res = resolve_path(
-            self.db,
-            key_path,
-            scope,
-            PredicateListId::empty_list(self.db),
-            false,
-        )
-        .map_err(|_| {
-            YulError::Unsupported(format!(
-                "cannot determine storage size for effect `{binding_name}`: failed to resolve type"
-            ))
-        })?;
-        let ty = match path_res {
-            PathRes::Ty(ty) | PathRes::TyAlias(_, ty) => ty,
-            _ => {
-                return Err(YulError::Unsupported(format!(
-                    "cannot determine storage size for effect `{binding_name}`: path does not resolve to a type"
-                )));
-            }
-        };
-        layout::ty_storage_slots(self.db, ty).ok_or_else(|| {
-            YulError::Unsupported(format!(
-                "cannot determine storage size for effect `{binding_name}`: unsupported type"
-            ))
-        })
     }
 }
 

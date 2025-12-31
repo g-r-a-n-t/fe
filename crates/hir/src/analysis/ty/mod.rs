@@ -22,6 +22,7 @@ use crate::semantic::diagnostics::Diagnosable;
 pub mod adt_def;
 pub mod binder;
 pub mod canonical;
+pub mod const_eval;
 pub mod const_ty;
 pub mod corelib;
 

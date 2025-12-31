@@ -6,14 +6,17 @@ use std::{
 use hir::analysis::{
     HirAnalysisDb,
     diagnostics::SpannedHirAnalysisDb,
+    diagnostics::format_diags,
     ty::{
         fold::{TyFoldable, TyFolder},
+        normalize::normalize_ty,
         trait_def::resolve_trait_method_instance,
+        trait_resolution::PredicateListId,
         ty_check::check_func_body,
         ty_def::{TyData, TyId},
     },
 };
-use hir::hir_def::{CallableDef, Func, PathKind, item::ItemKind, scope_graph::ScopeId};
+use hir::hir_def::{CallableDef, Func, HirIngot, PathKind, item::ItemKind, scope_graph::ScopeId};
 use rustc_hash::FxHashMap;
 
 use crate::{
@@ -50,6 +53,7 @@ struct Monomorphizer<'db> {
     instances: Vec<MirFunction<'db>>,
     instance_map: FxHashMap<InstanceKey<'db>, usize>,
     worklist: VecDeque<usize>,
+    current_symbol: Option<String>,
 }
 
 #[derive(Clone, PartialEq, Eq, Hash)]
@@ -124,6 +128,7 @@ impl<'db> Monomorphizer<'db> {
             instances: Vec::new(),
             instance_map: FxHashMap::default(),
             worklist: VecDeque::new(),
+            current_symbol: None,
         }
     }
 
@@ -150,6 +155,7 @@ impl<'db> Monomorphizer<'db> {
     fn process_worklist(&mut self) {
         let mut iterations: usize = 0;
         while let Some(func_idx) = self.worklist.pop_front() {
+            self.current_symbol = Some(self.instances[func_idx].symbol_name.clone());
             iterations += 1;
             if iterations > 100_000 {
                 panic!("monomorphization worklist exceeded 100k iterations; possible cycle");
@@ -289,13 +295,21 @@ impl<'db> Monomorphizer<'db> {
         receiver_space: Option<AddressSpaceKind>,
         effect_kinds: &[EffectProviderKind],
     ) -> Option<(usize, String)> {
-        let key = InstanceKey::new(func, args, receiver_space, effect_kinds);
+        let norm_scope = normalization_scope_for_args(self.db, func, args);
+        let assumptions = PredicateListId::empty_list(self.db);
+        let normalized_args: Vec<_> = args
+            .iter()
+            .copied()
+            .map(|ty| normalize_ty(self.db, ty, norm_scope, assumptions))
+            .collect();
+
+        let key = InstanceKey::new(func, &normalized_args, receiver_space, effect_kinds);
         if let Some(&idx) = self.instance_map.get(&key) {
             let symbol = self.instances[idx].symbol_name.clone();
             return Some((idx, symbol));
         }
 
-        let symbol_name = self.mangled_name(func, args, receiver_space, effect_kinds);
+        let symbol_name = self.mangled_name(func, &normalized_args, receiver_space, effect_kinds);
 
         let instance = if args.is_empty() {
             let template_idx = self.ensure_template(func, receiver_space, effect_kinds)?;
@@ -306,18 +320,35 @@ impl<'db> Monomorphizer<'db> {
             self.apply_substitution(&mut instance);
             instance
         } else {
-            let (_diags, typed_body) = check_func_body(self.db, func);
-            let mut folder = ParamSubstFolder { args };
+            let (diags, typed_body) = check_func_body(self.db, func);
+            if !diags.is_empty() {
+                let name = func.pretty_print_signature(self.db);
+                let rendered = format_diags(self.db, diags);
+                panic!("analysis errors while lowering `{name}`:\n{rendered}");
+            }
+            let mut folder = ParamSubstFolder {
+                args: &normalized_args,
+            };
             let typed_body = typed_body.clone().fold_with(self.db, &mut folder);
+
+            // After substitution, normalize any remaining associated types.
+            let mut normalizer = NormalizeFolder {
+                scope: norm_scope,
+                assumptions,
+            };
+            let typed_body = typed_body.fold_with(self.db, &mut normalizer);
             let mut instance = lower_function(
                 self.db,
                 func,
                 typed_body,
                 receiver_space,
                 effect_kinds.to_vec(),
+                normalized_args.clone(),
             )
-            .ok()?;
-            instance.generic_args = args.to_vec();
+            .unwrap_or_else(|err| {
+                let name = func.pretty_print_signature(self.db);
+                panic!("failed to instantiate MIR for `{name}`: {err}");
+            });
             instance.receiver_space = receiver_space;
             instance.effect_provider_kinds = effect_kinds.to_vec();
             instance.symbol_name = symbol_name.clone();
@@ -368,10 +399,14 @@ impl<'db> Monomorphizer<'db> {
                 return Some((CallTarget::Template(func), base_args));
             }
 
-            let inst_desc = inst.pretty_print(self.db, false);
+            let inst_desc = inst.pretty_print(self.db, true);
             let name = method_name.data(self.db);
+            let current = self
+                .current_symbol
+                .as_deref()
+                .unwrap_or("<unknown function>");
             panic!(
-                "failed to resolve trait method `{name}` for `{inst_desc}` (no impl and no default)"
+                "failed to resolve trait method `{name}` for `{inst_desc}` while lowering `{current}` (no impl and no default)"
             );
         }
 
@@ -544,13 +579,19 @@ impl<'db> Monomorphizer<'db> {
             return Some(idx);
         }
 
-        let (_diags, typed_body) = check_func_body(self.db, func);
+        let (diags, typed_body) = check_func_body(self.db, func);
+        if !diags.is_empty() {
+            let name = func.pretty_print_signature(self.db);
+            let rendered = format_diags(self.db, diags);
+            panic!("analysis errors while lowering `{name}`:\n{rendered}");
+        }
         let lowered = lower_function(
             self.db,
             func,
             typed_body.clone(),
             receiver_space,
             effect_kinds.to_vec(),
+            Vec::new(),
         )
         .ok()?;
         let idx = self.templates.len();
@@ -576,6 +617,28 @@ impl<'db> TyFolder<'db> for ParamSubstFolder<'db, '_> {
             _ => ty.super_fold_with(db, self),
         }
     }
+}
+
+struct NormalizeFolder<'db> {
+    scope: ScopeId<'db>,
+    assumptions: PredicateListId<'db>,
+}
+
+impl<'db> TyFolder<'db> for NormalizeFolder<'db> {
+    fn fold_ty(&mut self, db: &'db dyn HirAnalysisDb, ty: TyId<'db>) -> TyId<'db> {
+        normalize_ty(db, ty, self.scope, self.assumptions)
+    }
+}
+
+fn normalization_scope_for_args<'db>(
+    db: &'db dyn HirAnalysisDb,
+    func: Func<'db>,
+    args: &[TyId<'db>],
+) -> ScopeId<'db> {
+    args.iter()
+        .find_map(|ty| ty.ingot(db))
+        .map(|ingot| ingot.root_mod(db).scope())
+        .unwrap_or_else(|| func.scope())
 }
 
 /// Replace any non-alphanumeric characters with `_` so the mangled symbol is a

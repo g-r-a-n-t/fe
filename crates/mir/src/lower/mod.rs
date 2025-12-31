@@ -8,10 +8,6 @@ use common::ingot::IngotKind;
 use hir::analysis::{
     HirAnalysisDb,
     diagnostics::SpannedHirAnalysisDb,
-    name_resolution::{
-        PathRes,
-        path_resolver::{ResolvedVariant, resolve_path},
-    },
     ty::{
         adt_def::AdtRef,
         trait_resolution::PredicateListId,
@@ -24,8 +20,8 @@ use hir::analysis::{
 };
 use hir::hir_def::{
     Attr, AttrArg, AttrArgValue, Body, CallableDef, Const, Expr, ExprId, Field, FieldIndex, Func,
-    ItemKind, LitKind, MatchArm, Partial, Pat, PatId, PathId, Stmt, StmtId, TopLevelMod,
-    VariantKind, expr::BinOp, scope_graph::ScopeId,
+    ItemKind, LitKind, MatchArm, Partial, Pat, PatId, Stmt, StmtId, TopLevelMod, VariantKind,
+    expr::BinOp,
 };
 
 use crate::{
@@ -35,6 +31,7 @@ use crate::{
         ContractFunctionKind, EffectProviderKind, IntrinsicOp, LocalData, LocalId, LoopInfo,
         MirBody, MirFunction, MirInst, MirModule, MirProjection, MirProjectionPath, Place,
         SwitchTarget, SwitchValue, SyntheticValue, Terminator, ValueData, ValueId, ValueOrigin,
+        ValueRepr,
     },
     monomorphize::monomorphize_functions,
 };
@@ -71,6 +68,10 @@ pub enum MirLowerError {
         func_name: String,
         expr: String,
     },
+    Unsupported {
+        func_name: String,
+        message: String,
+    },
 }
 
 impl fmt::Display for MirLowerError {
@@ -94,6 +95,9 @@ impl fmt::Display for MirLowerError {
                     f,
                     "unlowered HIR expression survived MIR lowering in `{func_name}`: {expr}"
                 )
+            }
+            MirLowerError::Unsupported { func_name, message } => {
+                write!(f, "unsupported while lowering `{func_name}`: {message}")
             }
         }
     }
@@ -173,7 +177,14 @@ pub fn lower_module<'db>(
             });
         }
         let default_effects = vec![EffectProviderKind::Storage; func.effect_params(db).count()];
-        let lowered = lower_function(db, func, typed_body.clone(), None, default_effects)?;
+        let lowered = lower_function(
+            db,
+            func,
+            typed_body.clone(),
+            None,
+            default_effects,
+            Vec::new(),
+        )?;
         templates.push(lowered);
     }
 
@@ -200,12 +211,14 @@ pub(crate) fn lower_function<'db>(
     typed_body: TypedBody<'db>,
     receiver_space: Option<AddressSpaceKind>,
     effect_provider_kinds: Vec<EffectProviderKind>,
+    generic_args: Vec<TyId<'db>>,
 ) -> MirLowerResult<MirFunction<'db>> {
     let symbol_name = func
         .name(db)
         .to_opt()
         .map(|ident| ident.data(db).to_string())
         .unwrap_or_else(|| "<anonymous>".into());
+    let contract_function = extract_contract_function(db, func);
 
     let Some(body) = func.body(db) else {
         return Err(MirLowerError::MissingBody {
@@ -250,9 +263,9 @@ pub(crate) fn lower_function<'db>(
         func,
         body: mir_body,
         typed_body,
-        generic_args: Vec::new(),
+        generic_args,
         effect_provider_kinds: effect_provider_kinds_for_func,
-        contract_function: extract_contract_function(db, func),
+        contract_function,
         symbol_name,
         receiver_space,
     })
@@ -269,7 +282,6 @@ pub(super) struct MirBuilder<'db, 'a> {
     pub(super) loop_stack: Vec<LoopScope>,
     pub(super) const_cache: FxHashMap<Const<'db>, ValueId>,
     pub(super) pat_address_space: FxHashMap<PatId, AddressSpaceKind>,
-    pub(super) value_address_space: FxHashMap<ValueId, AddressSpaceKind>,
     pub(super) binding_locals: FxHashMap<LocalBinding<'db>, LocalId>,
     /// For methods, the address space variant being lowered.
     pub(super) receiver_space: Option<AddressSpaceKind>,
@@ -313,7 +325,6 @@ impl<'db, 'a> MirBuilder<'db, 'a> {
             loop_stack: Vec::new(),
             const_cache: FxHashMap::default(),
             pat_address_space: FxHashMap::default(),
-            value_address_space: FxHashMap::default(),
             binding_locals: FxHashMap::default(),
             receiver_space,
             effect_provider_kinds,
@@ -496,6 +507,53 @@ impl<'db, 'a> MirBuilder<'db, 'a> {
 
     pub(super) fn u256_ty(&self) -> TyId<'db> {
         TyId::new(self.db, TyData::TyBase(TyBase::Prim(PrimTy::U256)))
+    }
+
+    /// Returns `true` when the given type is represented by-reference in MIR.
+    ///
+    /// Fe MIR represents user aggregates (structs/tuples/arrays/enums) as pointers into an address
+    /// space. Effect pointer provider newtypes (`MemPtr`/`StorPtr`/`CalldataPtr`) are *not*
+    /// represented by-reference: they are single-word values at runtime.
+    pub(super) fn is_by_ref_ty(&self, ty: TyId<'db>) -> bool {
+        if self.effect_provider_kind_for_provider_ty(ty).is_some() {
+            return false;
+        }
+        if ty.field_count(self.db) > 0 || ty.is_array(self.db) {
+            return true;
+        }
+        ty.adt_ref(self.db)
+            .is_some_and(|adt| matches!(adt, AdtRef::Enum(_)))
+    }
+
+    pub(super) fn value_repr_for_expr(&self, expr: ExprId, ty: TyId<'db>) -> ValueRepr {
+        if let Some(kind) = self.effect_provider_kind_for_provider_ty(ty) {
+            let space = match kind {
+                EffectProviderKind::Memory => AddressSpaceKind::Memory,
+                EffectProviderKind::Storage => AddressSpaceKind::Storage,
+                EffectProviderKind::Calldata => AddressSpaceKind::Memory,
+            };
+            return ValueRepr::Ptr(space);
+        }
+        if self.is_by_ref_ty(ty) {
+            ValueRepr::Ref(self.expr_address_space(expr))
+        } else {
+            ValueRepr::Word
+        }
+    }
+
+    pub(super) fn value_repr_for_ty(&self, ty: TyId<'db>, space: AddressSpaceKind) -> ValueRepr {
+        if let Some(kind) = self.effect_provider_kind_for_provider_ty(ty) {
+            return match kind {
+                EffectProviderKind::Memory => ValueRepr::Ptr(AddressSpaceKind::Memory),
+                EffectProviderKind::Storage => ValueRepr::Ptr(AddressSpaceKind::Storage),
+                EffectProviderKind::Calldata => ValueRepr::Ptr(AddressSpaceKind::Memory),
+            };
+        }
+        if self.is_by_ref_ty(ty) {
+            ValueRepr::Ref(space)
+        } else {
+            ValueRepr::Word
+        }
     }
 
     fn seed_signature_locals(&mut self) {
@@ -687,6 +745,7 @@ impl<'db, 'a> MirBuilder<'db, 'a> {
         let value_id = self.builder.body.alloc_value(ValueData {
             ty: self.u256_ty(),
             origin: ValueOrigin::Local(local),
+            repr: ValueRepr::Word,
         });
         Some(value_id)
     }
@@ -727,52 +786,40 @@ impl<'db, 'a> MirBuilder<'db, 'a> {
         provider_ty: TyId<'db>,
     ) -> Option<EffectProviderKind> {
         let base_ty = provider_ty.base_ty(self.db);
-        let mem_base = self
+        if let Some(mem_base) = self
             .core
             .helper_ty(CoreHelperTy::EffectMemPtr)
-            .base_ty(self.db);
-        if base_ty == mem_base {
+            .map(|ty| ty.base_ty(self.db))
+            && base_ty == mem_base
+        {
             return Some(EffectProviderKind::Memory);
         }
-        let stor_base = self
+
+        if let Some(stor_base) = self
             .core
             .helper_ty(CoreHelperTy::EffectStorPtr)
-            .base_ty(self.db);
-        if base_ty == stor_base {
+            .map(|ty| ty.base_ty(self.db))
+            && base_ty == stor_base
+        {
             return Some(EffectProviderKind::Storage);
         }
-        let calldata_base = self
+        if let Some(calldata_base) = self
             .core
             .helper_ty(CoreHelperTy::EffectCalldataPtr)
-            .base_ty(self.db);
-        if base_ty == calldata_base {
+            .map(|ty| ty.base_ty(self.db))
+            && base_ty == calldata_base
+        {
             return Some(EffectProviderKind::Calldata);
         }
         None
     }
 
-    /// Records the address space for a newly allocated value derived from an expression.
+    /// Determines the address space associated with a MIR value.
     ///
-    /// # Parameters
-    /// - `expr`: Source expression.
-    /// - `value`: Newly allocated value id.
-    pub(super) fn record_value_address_space(&mut self, expr: ExprId, value: ValueId) {
-        let space = self.expr_address_space(expr);
-        self.value_address_space.entry(value).or_insert(space);
-    }
-
-    /// Returns the address space for a value, defaulting to memory.
-    ///
-    /// # Parameters
-    /// - `value`: Value id to query.
-    ///
-    /// # Returns
-    /// The recorded address space kind.
+    /// This is used when lowering projections and effect arguments that need to know whether a
+    /// pointer-like value is addressing memory or storage.
     pub(super) fn value_address_space(&self, value: ValueId) -> AddressSpaceKind {
-        self.value_address_space
-            .get(&value)
-            .copied()
-            .unwrap_or(AddressSpaceKind::Memory)
+        self.builder.body.value_address_space(value)
     }
 
     /// Associates a pattern with an address space.
@@ -811,7 +858,31 @@ fn format_hir_expr_context(db: &dyn SpannedHirAnalysisDb, body: Body<'_>, expr: 
     };
 
     let expr_data = match expr.data(db, body) {
-        Partial::Present(expr) => format!("{expr:?}"),
+        Partial::Present(expr_data) => match expr_data {
+            Expr::Path(path) => path
+                .to_opt()
+                .map(|path| format!("Path({})", path.pretty_print(db)))
+                .unwrap_or_else(|| "Path(<absent>)".into()),
+            Expr::Call(callee, args) => {
+                let callee_data = match callee.data(db, body) {
+                    Partial::Present(Expr::Path(path)) => path
+                        .to_opt()
+                        .map(|path| format!("Path({})", path.pretty_print(db)))
+                        .unwrap_or_else(|| "Path(<absent>)".into()),
+                    Partial::Present(other) => format!("{other:?}"),
+                    Partial::Absent => "<absent>".into(),
+                };
+                format!("Call({callee:?} {callee_data}, {args:?})")
+            }
+            Expr::MethodCall(receiver, method, _, args) => {
+                let method_name = method
+                    .to_opt()
+                    .map(|id| id.data(db).to_string())
+                    .unwrap_or_else(|| "<absent>".into());
+                format!("MethodCall({receiver:?}, {method_name}, {args:?})")
+            }
+            other => format!("{other:?}"),
+        },
         Partial::Absent => "<absent>".into(),
     };
 

@@ -12,7 +12,7 @@ use rustc_hash::FxHashMap;
 use crate::{
     CallOrigin, MirFunction, MirInst, MirProjection, Rvalue, SwitchValue, TerminatingCall,
     Terminator, ValueId, ValueOrigin,
-    ir::{Place, SyntheticValue},
+    ir::{Place, SyntheticValue, ValueRepr},
 };
 
 /// Hashes a MIR function (including its callees) so structurally equivalent bodies
@@ -103,6 +103,14 @@ impl<'db, 'a> FunctionHasher<'db, 'a> {
     /// Hash the origin of a MIR value, ignoring type information (handled elsewhere).
     fn hash_value(&mut self, value: &crate::ValueData<'db>) {
         self.write_u8(0x10);
+        // Hash the runtime representation category (word vs reference + address space).
+        match value.repr {
+            ValueRepr::Word => self.write_u8(0),
+            ValueRepr::Ref(crate::ir::AddressSpaceKind::Memory) => self.write_u8(1),
+            ValueRepr::Ref(crate::ir::AddressSpaceKind::Storage) => self.write_u8(2),
+            ValueRepr::Ptr(crate::ir::AddressSpaceKind::Memory) => self.write_u8(3),
+            ValueRepr::Ptr(crate::ir::AddressSpaceKind::Storage) => self.write_u8(4),
+        }
         self.hash_value_origin(&value.origin);
     }
 
@@ -208,6 +216,11 @@ impl<'db, 'a> FunctionHasher<'db, 'a> {
                 self.write_u8(0x0F);
                 self.hash_place(place);
             }
+            ValueOrigin::TransparentCast { value } => {
+                self.write_u8(0x10);
+                let slot = self.placeholder_value(*value);
+                self.write_u32(slot);
+            }
         }
     }
 
@@ -253,11 +266,6 @@ impl<'db, 'a> FunctionHasher<'db, 'a> {
     fn hash_place(&mut self, place: &Place<'db>) {
         let slot = self.placeholder_value(place.base);
         self.write_u32(slot);
-        // Hash address space (0 for memory, 1 for storage)
-        self.write_u8(match place.address_space {
-            crate::ir::AddressSpaceKind::Memory => 0,
-            crate::ir::AddressSpaceKind::Storage => 1,
-        });
         self.write_usize(place.projection.len());
         for proj in place.projection.iter() {
             self.hash_projection(proj);

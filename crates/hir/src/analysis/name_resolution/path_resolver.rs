@@ -7,7 +7,7 @@ use crate::{
     },
     span::{DynLazySpan, path::LazyPathSpan},
 };
-use common::indexmap::IndexMap;
+use common::indexmap::{IndexMap, IndexSet};
 use either::Either;
 use smallvec::{SmallVec, smallvec};
 use thin_vec::ThinVec;
@@ -874,10 +874,28 @@ where
             // Deduplicate by normalized type, but preserve and return the original
             // (unnormalized) candidate to avoid prematurely collapsing projections
             // like `T::IntoIter::Item` into `T::Item`.
+            let seg_args = lower_generic_arg_list(db, path.generic_args(db), scope, assumptions);
             let mut dedup: IndexMap<TyId<'db>, (TraitInstId<'db>, TyId<'db>)> = IndexMap::new();
             for (inst, ty_candidate) in assoc_tys.iter().copied() {
-                let norm = normalize_ty(db, ty_candidate, scope, assumptions);
-                dedup.entry(norm).or_insert((inst, ty_candidate));
+                let applied = if seg_args.is_empty() {
+                    ty_candidate
+                } else {
+                    TyId::foldl(db, ty_candidate, &seg_args)
+                };
+                if let TyData::Invalid(InvalidCause::TooManyGenericArgs { expected, given }) =
+                    applied.data(db)
+                {
+                    return Err(PathResError::new(
+                        PathResErrorKind::ArgNumMismatch {
+                            expected: *expected,
+                            given: *given,
+                        },
+                        path,
+                    ));
+                }
+
+                let norm = normalize_ty(db, applied, scope, assumptions);
+                dedup.entry(norm).or_insert((inst, applied));
             }
 
             match dedup.len() {
@@ -965,7 +983,61 @@ fn select_assoc_const_candidate<'db>(
     scope: ScopeId<'db>,
     assumptions: PredicateListId<'db>,
 ) -> AssocConstSelection<'db> {
-    // Find trait impls for the receiver type that define the associated const
+    // Qualified type: `<A as T>::C` must resolve against the explicit trait instance.
+    if let TyData::QualifiedTy(trait_inst) = receiver_ty.data(db) {
+        return if trait_inst.def(db).const_(db, name).is_some() {
+            AssocConstSelection::Found(*trait_inst)
+        } else {
+            AssocConstSelection::NotFound
+        };
+    }
+
+    // When the receiver is a type parameter (or otherwise projection-like),
+    // we don't know its concrete type yet, so probing impls would pull in many
+    // unrelated candidates and frequently lead to spurious ambiguity.
+    //
+    // In that case, rely on in-scope bounds (`assumptions`) to provide candidates.
+    let receiver_is_ty_param = matches!(
+        receiver_ty.base_ty(db).data(db),
+        TyData::TyParam(_) | TyData::AssocTy(_) | TyData::QualifiedTy(_)
+    );
+    if receiver_is_ty_param {
+        let mut matches: IndexSet<TraitInstId<'db>> = IndexSet::default();
+
+        let mut table = UnificationTable::new(db);
+        let receiver = Canonical::new(db, receiver_ty);
+        let extracted_receiver_ty = receiver.extract_identity(&mut table);
+
+        for &pred in assumptions.list(db) {
+            let snapshot = table.snapshot();
+            let self_ty = table.instantiate_to_term(pred.self_ty(db));
+
+            if table.unify(extracted_receiver_ty, self_ty).is_ok() {
+                if pred.def(db).const_(db, name).is_some() {
+                    matches.insert(pred);
+                }
+
+                // Include super-trait consts so `T::CONST` works through a `T: SubTrait` bound
+                // even when `assumptions` hasn't been transitively expanded.
+                for super_trait in pred.def(db).super_traits(db) {
+                    let super_inst = super_trait.instantiate(db, pred.args(db));
+                    if super_inst.def(db).const_(db, name).is_some() {
+                        matches.insert(super_inst);
+                    }
+                }
+            }
+
+            table.rollback_to(snapshot);
+        }
+
+        return match matches.len() {
+            0 => AssocConstSelection::NotFound,
+            1 => AssocConstSelection::Found(*matches.iter().next().unwrap()),
+            _ => AssocConstSelection::Ambiguous(matches.into_iter().collect()),
+        };
+    }
+
+    // Find trait impls for the receiver type that define the associated const.
     let ingot = scope.ingot(db);
     let candidates = impls_for_ty_with_constraints(
         db,

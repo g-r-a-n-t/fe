@@ -1,10 +1,7 @@
 use common::ingot::IngotKind;
-use hir::analysis::{
-    HirAnalysisDb,
-    name_resolution::{PathRes, path_resolver::resolve_path},
-    ty::{trait_resolution::PredicateListId, ty_def::TyId},
-};
-use hir::hir_def::{Body, IdentId, PathId};
+use hir::analysis::ty::corelib;
+use hir::analysis::{HirAnalysisDb, ty::ty_def::TyId};
+use hir::hir_def::Body;
 use rustc_hash::FxHashMap;
 
 /// Core helper type resolution for MIR lowering.
@@ -21,8 +18,6 @@ pub enum CoreLibError {
 #[allow(clippy::enum_variant_names)]
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum CoreHelperTy {
-    MemPtr,
-    StorPtr,
     EffectMemPtr,
     EffectStorPtr,
     EffectCalldataPtr,
@@ -34,8 +29,6 @@ impl CoreHelperTy {
     /// Takes no parameters and returns a slice containing every [`CoreHelperTy`] variant.
     pub const fn all() -> &'static [CoreHelperTy] {
         &[
-            CoreHelperTy::MemPtr,
-            CoreHelperTy::StorPtr,
             CoreHelperTy::EffectMemPtr,
             CoreHelperTy::EffectStorPtr,
             CoreHelperTy::EffectCalldataPtr,
@@ -49,11 +42,9 @@ impl CoreHelperTy {
     /// Returns the path string used when resolving the helper type.
     pub const fn path_str(self) -> &'static str {
         match self {
-            CoreHelperTy::MemPtr => "core::ptr::MemPtr",
-            CoreHelperTy::StorPtr => "core::ptr::StorPtr",
-            CoreHelperTy::EffectMemPtr => "core::effect_ref::MemPtr",
-            CoreHelperTy::EffectStorPtr => "core::effect_ref::StorPtr",
-            CoreHelperTy::EffectCalldataPtr => "core::effect_ref::CalldataPtr",
+            CoreHelperTy::EffectMemPtr => "std::evm::effects::MemPtr",
+            CoreHelperTy::EffectStorPtr => "std::evm::effects::StorPtr",
+            CoreHelperTy::EffectCalldataPtr => "std::evm::effects::CalldataPtr",
         }
     }
 }
@@ -73,11 +64,16 @@ impl<'db> CoreLib<'db> {
     /// Returns a fully-populated [`CoreLib`] when all helpers resolve, or a
     /// [`CoreLibError`] indicating which helper is missing.
     pub fn new(db: &'db dyn HirAnalysisDb, body: Body<'db>) -> Result<Self, CoreLibError> {
-        let resolve_ty = |segments| Self::resolve_core_type(db, body, segments);
-
+        let allow_missing = matches!(body.top_mod(db).ingot(db).kind(db), IngotKind::Core);
         let mut tys = FxHashMap::default();
         for helper_ty in CoreHelperTy::all() {
-            tys.insert(*helper_ty, resolve_ty(helper_ty.path_str())?);
+            match Self::resolve_core_type(db, body, helper_ty.path_str()) {
+                Ok(ty) => {
+                    tys.insert(*helper_ty, ty);
+                }
+                Err(_err) if allow_missing => {}
+                Err(err) => return Err(err),
+            }
         }
 
         Ok(Self { tys })
@@ -89,11 +85,8 @@ impl<'db> CoreLib<'db> {
     /// * `key` - Which helper type to retrieve (e.g. `MemPtr`).
     ///
     /// Returns the resolved [`TyId`] for the requested helper type.
-    pub fn helper_ty(&self, key: CoreHelperTy) -> TyId<'db> {
-        *self
-            .tys
-            .get(&key)
-            .expect("core helper type should be resolved at construction")
+    pub fn helper_ty(&self, key: CoreHelperTy) -> Option<TyId<'db>> {
+        self.tys.get(&key).copied()
     }
 
     /// Resolve a core type given a fully-qualified path string.
@@ -108,57 +101,7 @@ impl<'db> CoreLib<'db> {
         body: Body<'db>,
         path: &str,
     ) -> Result<TyId<'db>, CoreLibError> {
-        let segments: Vec<&str> = path.split("::").collect();
-        match Self::resolve_core_path(db, body, &segments) {
-            Some(PathRes::Ty(ty)) => Ok(ty),
-            _ => Err(CoreLibError::MissingType(path.to_string())),
-        }
-    }
-
-    /// Resolve a fully-qualified core path from the current body scope.
-    ///
-    /// * `db` - Analysis database used for name/type queries.
-    /// * `body` - The body whose scope anchors path resolution.
-    /// * `segments` - Path segments split on `"::"`.
-    ///
-    /// Returns the resolved [`PathRes`] if successful.
-    fn resolve_core_path(
-        db: &'db dyn HirAnalysisDb,
-        body: Body<'db>,
-        segments: &[&str],
-    ) -> Option<PathRes<'db>> {
-        let in_core_ingot = matches!(body.top_mod(db).ingot(db).kind(db), IngotKind::Core);
-
-        let mut iter = segments.iter();
-        let first = *iter.next()?;
-        let mut path = PathId::from_ident(db, Self::make_ident(db, first, in_core_ingot));
-        for segment in iter {
-            path = path.push_ident(db, Self::make_ident(db, segment, in_core_ingot));
-        }
-        resolve_path(
-            db,
-            path,
-            body.scope(),
-            PredicateListId::empty_list(db),
-            true,
-        )
-        .ok()
-    }
-
-    /// Intern a path segment as an identifier, using `ingot` when lowering core itself.
-    ///
-    /// * `db` - Analysis database used for identifier interning.
-    /// * `segment` - Path component text.
-    /// * `in_core_ingot` - Whether the current body belongs to the core ingot.
-    ///
-    /// Returns an interned [`IdentId`] for the segment.
-    fn make_ident(db: &'db dyn HirAnalysisDb, segment: &str, in_core_ingot: bool) -> IdentId<'db> {
-        if segment == "core" && in_core_ingot {
-            IdentId::make_ingot(db)
-        } else if segment == "core" {
-            IdentId::make_core(db)
-        } else {
-            IdentId::new(db, segment.to_string())
-        }
+        corelib::resolve_lib_type_path(db, body, path)
+            .ok_or_else(|| CoreLibError::MissingType(path.to_string()))
     }
 }

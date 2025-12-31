@@ -155,13 +155,18 @@ impl<'db> FunctionEmitter<'db> {
                         local_data.ty.pretty_print(self.db),
                     ))
                 }),
-            ValueOrigin::FuncItem(root) => Err(YulError::Unsupported(format!(
-                "function item has no runtime value (symbol={})",
-                root.symbol.as_deref().unwrap_or("<unresolved symbol>")
-            ))),
+            ValueOrigin::FuncItem(_) => {
+                debug_assert!(
+                    layout::is_zero_sized_ty(self.db, value.ty),
+                    "function item values should be zero-sized (ty={})",
+                    value.ty.pretty_print(self.db)
+                );
+                Ok("0".into())
+            }
             ValueOrigin::Synthetic(synth) => self.lower_synthetic_value(synth),
             ValueOrigin::FieldPtr(field_ptr) => self.lower_field_ptr(field_ptr, state),
             ValueOrigin::PlaceRef(place) => self.lower_place_ref(place, state),
+            ValueOrigin::TransparentCast { value } => self.lower_value(*value, state),
         }
     }
 
@@ -176,6 +181,17 @@ impl<'db> FunctionEmitter<'db> {
         call: &CallOrigin<'_>,
         state: &BlockState,
     ) -> Result<String, YulError> {
+        if call
+            .callable
+            .callable_def
+            .name(self.db)
+            .is_some_and(|name| name.data(self.db) == "contract_field_slot")
+        {
+            return Err(YulError::Unsupported(
+                "`contract_field_slot` must be constant-folded before codegen".into(),
+            ));
+        }
+
         let callee = if let Some(name) = &call.resolved_name {
             name.clone()
         } else {
@@ -256,20 +272,19 @@ impl<'db> FunctionEmitter<'db> {
             return Ok("0".into());
         }
         let addr = self.lower_place_address(place, state)?;
-        let raw_load = match place.address_space {
+        let raw_load = match self.mir_func.body.place_address_space(place) {
             mir::ir::AddressSpaceKind::Memory => format!("mload({addr})"),
             mir::ir::AddressSpaceKind::Storage => format!("sload({addr})"),
         };
 
-        // Apply type-specific conversion (LoadableScalar::from_word equivalent)
+        // Apply type-specific conversion (std::evm::word::WordRepr::from_word equivalent)
         Ok(self.apply_from_word_conversion(&raw_load, loaded_ty))
     }
 
-    /// Applies the LoadableScalar::from_word conversion for a given type.
+    /// Applies the `WordRepr::from_word` conversion for a given type.
     ///
-    /// This mirrors the Fe core library's from_word implementations defined in:
-    /// - `library/core/src/ptr.fe` (LoadableScalar trait)
-    /// - `library/core/src/enum_repr.fe` (enum discriminant handling)
+    /// This mirrors the stdlib word-conversion semantics defined in:
+    /// - `library/std/src/evm/word.fe` (`WordRepr` trait)
     ///
     /// Conversion rules:
     /// - bool: word != 0
@@ -277,8 +292,8 @@ impl<'db> FunctionEmitter<'db> {
     /// - u256: identity
     /// - i8/i16/i32/i64/i128/i256: sign extension
     ///
-    /// NOTE: This is a single source of truth for codegen. If the core library
-    /// semantics change, this function must be updated to match.
+    /// NOTE: This is a single source of truth for codegen. If the stdlib word
+    /// conversion semantics change, this function must be updated to match.
     fn apply_from_word_conversion(&self, raw_load: &str, ty: TyId<'db>) -> String {
         let base_ty = ty.base_ty(self.db);
         if let TyData::TyBase(TyBase::Prim(prim)) = base_ty.data(self.db) {
@@ -329,7 +344,7 @@ impl<'db> FunctionEmitter<'db> {
         }
     }
 
-    /// Applies the StorableScalar::to_word conversion for a given type.
+    /// Applies the `WordRepr::to_word` conversion for a given type.
     pub(super) fn apply_to_word_conversion(&self, raw_value: &str, ty: TyId<'db>) -> String {
         let base_ty = ty.base_ty(self.db);
         if let TyData::TyBase(TyBase::Prim(prim)) = base_ty.data(self.db) {
@@ -390,7 +405,10 @@ impl<'db> FunctionEmitter<'db> {
         let base_value = self.mir_func.body.value(place.base);
         let mut current_ty = base_value.ty;
         let mut total_offset: usize = 0;
-        let is_storage = matches!(place.address_space, mir::ir::AddressSpaceKind::Storage);
+        let is_storage = matches!(
+            self.mir_func.body.place_address_space(place),
+            mir::ir::AddressSpaceKind::Storage
+        );
 
         for proj in place.projection.iter() {
             match proj {

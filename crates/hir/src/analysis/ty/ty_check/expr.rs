@@ -8,7 +8,7 @@ use crate::core::hir_def::{
 use crate::span::DynLazySpan;
 
 use super::{
-    RecordLike, Typeable,
+    ConstRef, RecordLike, Typeable,
     env::{EffectOrigin, ExprProp, LocalBinding, ProvidedEffect, TyCheckEnv},
     path::ResolvedPathInBody,
 };
@@ -300,7 +300,7 @@ impl<'db> TyChecker<'db> {
             }
         };
 
-        callable.check_args(self, args, call_span.args(), None);
+        callable.check_args(self, args, call_span.args(), None, false);
 
         self.check_callable_effects(expr, &callable);
 
@@ -311,7 +311,7 @@ impl<'db> TyChecker<'db> {
         ExprProp::new(normalized_ret_ty, true)
     }
 
-    fn check_callable_effects(&mut self, expr: ExprId, callable: &Callable<'db>) {
+    pub(super) fn check_callable_effects(&mut self, expr: ExprId, callable: &Callable<'db>) {
         let CallableDef::Func(func) = callable.callable_def else {
             return;
         };
@@ -830,6 +830,11 @@ impl<'db> TyChecker<'db> {
                         let ret_ty = self.fresh_ty();
                         let typed = ExprProp::new(ret_ty, true);
                         self.env.type_expr(expr, typed.clone());
+                        // Still type-check argument expressions so they have types and can
+                        // participate in later constraint solving.
+                        for arg in args.iter() {
+                            self.check_expr_unknown(arg.expr);
+                        }
                         // Instantiate candidates with fresh inference vars so
                         // later unifications can bind their parameters.
                         let cands: Vec<_> = insts
@@ -933,6 +938,7 @@ impl<'db> TyChecker<'db> {
             args,
             call_span.clone().args(),
             Some((*receiver, receiver_prop)),
+            false,
         );
 
         // Check required effects for the method call
@@ -1056,7 +1062,11 @@ impl<'db> TyChecker<'db> {
 
                     ExprProp::new(self.table.instantiate_to_term(ty), true)
                 }
-                PathRes::Const(_, ty) => ExprProp::new(ty, true),
+                PathRes::Const(const_def, ty) => {
+                    self.env
+                        .register_const_ref(expr, ConstRef::Const(const_def));
+                    ExprProp::new(ty, true)
+                }
                 PathRes::Method(receiver_ty, candidate) => {
                     let canonical_r_ty = Canonicalized::new(self.db, receiver_ty);
                     let (method_ty, trait_inst) = match candidate {
@@ -1182,6 +1192,8 @@ impl<'db> TyChecker<'db> {
                     ExprProp::new(func_ty, true)
                 }
                 PathRes::TraitConst(_recv_ty, inst, name) => {
+                    self.env
+                        .register_const_ref(expr, ConstRef::TraitConst { inst, name });
                     // Look up the associated const's declared type in the trait and
                     // instantiate it with the trait instance's args (including Self).
                     let trait_ = inst.def(self.db);

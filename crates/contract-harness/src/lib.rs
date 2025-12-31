@@ -145,7 +145,7 @@ fn transact(
         .to(address)
         .value(options.value)
         .data(EvmBytes::copy_from_slice(calldata))
-        .nonce(options.nonce.unwrap_or(nonce))
+        .nonce(nonce)
         .build()
         .map_err(|err| HarnessError::Execution(format!("{err:?}")))?;
 
@@ -270,24 +270,38 @@ impl RuntimeInstance {
         }
     }
 
+    fn effective_nonce(&mut self, options: ExecutionOptions) -> u64 {
+        if let Some(nonce) = options.nonce {
+            let entry = self.next_nonce_by_caller.entry(options.caller).or_insert(0);
+            *entry = (*entry).max(nonce + 1);
+            return nonce;
+        }
+
+        let entry = self.next_nonce_by_caller.entry(options.caller).or_insert(0);
+        let current = *entry;
+        *entry += 1;
+        current
+    }
+
     /// Executes the runtime with arbitrary calldata.
     pub fn call_raw(
         &mut self,
         calldata: &[u8],
         options: ExecutionOptions,
     ) -> Result<CallResult, HarnessError> {
-        if let Some(nonce) = options.nonce {
-            let entry = self.next_nonce_by_caller.entry(options.caller).or_insert(0);
-            *entry = (*entry).max(nonce + 1);
-        }
-
-        let nonce = options.nonce.unwrap_or_else(|| {
-            let entry = self.next_nonce_by_caller.entry(options.caller).or_insert(0);
-            let current = *entry;
-            *entry += 1;
-            current
-        });
+        let nonce = self.effective_nonce(options);
         transact(&mut self.evm, self.address, calldata, options, nonce)
+    }
+
+    /// Executes the runtime at an arbitrary address using the same underlying EVM state.
+    pub fn call_raw_at(
+        &mut self,
+        address: Address,
+        calldata: &[u8],
+        options: ExecutionOptions,
+    ) -> Result<CallResult, HarnessError> {
+        let nonce = self.effective_nonce(options);
+        transact(&mut self.evm, address, calldata, options, nonce)
     }
 
     /// Executes a strongly-typed function call using ABI encoding.
@@ -1135,6 +1149,68 @@ object "Counter" {
             bytes_to_u256(&total_supply_res.return_data).unwrap(),
             U256::from(1_005u64),
             "totalSupply should decrease after burn"
+        );
+    }
+
+    #[test]
+    fn runtime_constructs_contract() {
+        if !solc_available() {
+            eprintln!("skipping runtime_constructs_contract because solc is missing");
+            return;
+        }
+        let fixture_dir = concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/../codegen/tests/fixtures/runtime_constructs"
+        );
+        let ingot_url = Url::from_directory_path(fixture_dir).expect("fixture dir is valid");
+
+        let mut db = DriverDataBase::default();
+        let had_init_diagnostics = driver::init_ingot(&mut db, &ingot_url);
+        assert!(
+            !had_init_diagnostics,
+            "ingot resolution should succeed for `{ingot_url}`"
+        );
+
+        let ingot = db
+            .workspace()
+            .containing_ingot(&db, ingot_url.clone())
+            .expect("ingot should be registered in workspace");
+        let diags = db.run_on_ingot(ingot);
+        if !diags.is_empty() {
+            panic!("compiler diagnostics:\n{}", diags.format_diags(&db));
+        }
+
+        let root_file = ingot.root_file(&db).expect("ingot should have root file");
+        let top_mod = db.top_mod(root_file);
+        let yul = emit_module_yul(&db, top_mod).expect("yul emission should succeed");
+        let contract = compile_single_contract("Parent", &yul, false, true)
+            .expect("solc compilation should succeed");
+
+        let mut instance =
+            RuntimeInstance::deploy(&contract.bytecode).expect("parent deployment should succeed");
+        let parent_res = instance
+            .call_raw(&[], ExecutionOptions::default())
+            .expect("parent runtime should succeed");
+        assert_eq!(
+            parent_res.return_data.len(),
+            32,
+            "parent should return a u256 word containing the deployed child address"
+        );
+
+        let child_address = Address::from_slice(&parent_res.return_data[12..]);
+        assert_ne!(
+            child_address,
+            Address::ZERO,
+            "parent should return a nonzero child address"
+        );
+
+        let child_res = instance
+            .call_raw_at(child_address, &[], ExecutionOptions::default())
+            .expect("child runtime should succeed");
+        assert_eq!(
+            bytes_to_u256(&child_res.return_data).unwrap(),
+            U256::from(0xbeefu64),
+            "child runtime should return expected value"
         );
     }
 }

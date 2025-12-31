@@ -1,3 +1,4 @@
+pub mod analysis;
 mod core_lib;
 mod dedup;
 pub mod fmt;

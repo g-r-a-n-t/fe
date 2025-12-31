@@ -7,14 +7,21 @@ function if_else(cond) -> ret {
   let v0 := 0
   switch cond
     case 1 {
-      v0 := 1
+      let v1 := helper(1)
+      v0 := v1
     }
     case 0 {
-      v0 := 2
+      let v2 := helper(2)
+      v0 := v2
     }
     default {
-      v0 := 2
+      let v3 := helper(2)
+      v0 := v3
     }
   ret := v0
+  leave
+}
+function helper(x) -> ret {
+  ret := add(x, 1)
   leave
 }

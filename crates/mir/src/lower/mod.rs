@@ -233,6 +233,7 @@ pub(crate) fn lower_function<'db>(
         func,
         body,
         &typed_body,
+        &generic_args,
         receiver_space,
         effect_provider_kinds,
     )?;
@@ -286,6 +287,7 @@ pub(super) struct MirBuilder<'db, 'a> {
     pub(super) func: Func<'db>,
     pub(super) body: Body<'db>,
     pub(super) typed_body: &'a TypedBody<'db>,
+    pub(super) generic_args: &'a [TyId<'db>],
     pub(super) builder: BodyBuilder<'db>,
     pub(super) core: CoreLib<'db>,
     pub(super) loop_stack: Vec<LoopScope>,
@@ -319,6 +321,7 @@ impl<'db, 'a> MirBuilder<'db, 'a> {
         func: Func<'db>,
         body: Body<'db>,
         typed_body: &'a TypedBody<'db>,
+        generic_args: &'a [TyId<'db>],
         receiver_space: Option<AddressSpaceKind>,
         effect_provider_kinds: Vec<EffectProviderKind>,
     ) -> Result<Self, MirLowerError> {
@@ -329,6 +332,7 @@ impl<'db, 'a> MirBuilder<'db, 'a> {
             func,
             body,
             typed_body,
+            generic_args,
             builder: BodyBuilder::new(),
             core,
             loop_stack: Vec::new(),

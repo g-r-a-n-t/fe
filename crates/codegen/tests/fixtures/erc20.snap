@@ -5,6 +5,19 @@ input_file: tests/fixtures/erc20.fe
 ---
 object "CoolCoin" {
   code {
+    function __coolcoin_init() {
+      let v0 := init_field__Evm_TokenStore__f6aa99d6ecaccf30(0, 0)
+      let v1 := init_field__Evm_AccessControl__9eae422fa78e0dfe(0, 1)
+      let v2 := evm_contracthost_init_input__fn_runtime__7cd036468b9a6201(0, 0)
+      let v3 := sol_abi_decoder_new__MemoryBytes__b48f82585f3ed728(v2)
+      let v4 := u256_decode_decode__Sol_SolDecoder_MemoryBytes___c66d50dfccf37f39(v3)
+      let v5 := address_decode_decode__Sol_SolDecoder_MemoryBytes___c66d50dfccf37f39(v3)
+      let v6 := v0
+      let v7 := v1
+      init_contract(v4, v5, v6, v7, 0, 0)
+      evm_contracthost_create_contract__fn_runtime__7cd036468b9a6201(0, 0)
+      leave
+    }
     function _a__b__storagekey_write_key__u256_Address__1ae3ad2a1b729a8b(ptr, self) -> ret {
       let v0 := mload(self)
       let v1 := mload(add(self, 32))
@@ -128,19 +141,6 @@ object "CoolCoin" {
       ret := v7
       leave
     }
-    function init() {
-      let v0 := init_field__Evm_TokenStore__f6aa99d6ecaccf30(0, 0)
-      let v1 := init_field__Evm_AccessControl__9eae422fa78e0dfe(0, 1)
-      let v2 := evm_contracthost_init_input__fn_runtime__7cd036468b9a6201(0, 0)
-      let v3 := sol_abi_decoder_new__MemoryBytes__b48f82585f3ed728(v2)
-      let v4 := u256_decode_decode__Sol_SolDecoder_MemoryBytes___c66d50dfccf37f39(v3)
-      let v5 := address_decode_decode__Sol_SolDecoder_MemoryBytes___c66d50dfccf37f39(v3)
-      let v6 := v0
-      let v7 := v1
-      init_contract(v4, v5, v6, v7, 0, 0)
-      evm_contracthost_create_contract__fn_runtime__7cd036468b9a6201(0, 0)
-      leave
-    }
     function init_contract(initial_supply, owner, store, auth, ctx, log) {
       accesscontrol_grant(auth, 1, owner)
       accesscontrol_grant(auth, 2, owner)
@@ -151,12 +151,12 @@ object "CoolCoin" {
       leave
     }
     function init_field__Evm_AccessControl__9eae422fa78e0dfe(self, slot) -> ret {
-      let v0 := evm_contracthost_field__AccessControl__56bc16b6aa1a86f2(self, slot)
+      let v0 := evm_contracthost_field__AccessControl__56bc16b6aa1a86f2(0, slot)
       ret := v0
       leave
     }
     function init_field__Evm_TokenStore__f6aa99d6ecaccf30(self, slot) -> ret {
-      let v0 := evm_contracthost_field__TokenStore__cf27701b626eb0c2(self, slot)
+      let v0 := evm_contracthost_field__TokenStore__cf27701b626eb0c2(0, slot)
       ret := v0
       leave
     }
@@ -302,7 +302,7 @@ object "CoolCoin" {
       ret := self
       leave
     }
-    init()
+    __coolcoin_init()
   }
 
   object "CoolCoin_deployed" {
@@ -328,24 +328,12 @@ object "CoolCoin" {
       }
       function _t0__decode_decode__Sol_Address_SolDecoder_CallData___c3cd70daebc6e8b9(d) -> ret {
         let v0 := address_decode_decode__Sol_SolDecoder_CallData___828c6f2e3bda3cab(d)
-        let v1 := mload(0x40)
-        if iszero(v1) {
-          v1 := 0x80
-        }
-        mstore(0x40, add(v1, 32))
-        mstore(v1, v0)
-        ret := v1
+        ret := v0
         leave
       }
       function _t0__decode_decode__Sol_u256_SolDecoder_CallData___51fc2f6931ec5edc(d) -> ret {
         let v0 := u256_decode_decode__Sol_SolDecoder_CallData___828c6f2e3bda3cab(d)
-        let v1 := mload(0x40)
-        if iszero(v1) {
-          v1 := 0x80
-        }
-        mstore(0x40, add(v1, 32))
-        mstore(v1, v0)
-        ret := v1
+        ret := v0
         leave
       }
       function _t0__t1__decode_decode__Sol_Address_Address_SolDecoder_CallData___7ed19c3f9fd70917(d) -> ret {
@@ -586,7 +574,7 @@ object "CoolCoin" {
         leave
       }
       function recv_Erc20Extended_Burn_1_1(args, ctx, store, log) -> ret {
-        let v0 := mload(args)
+        let v0 := args
         let v1 := caller()
         burn(v1, v0, store, log)
         ret := 1
@@ -659,7 +647,7 @@ object "CoolCoin" {
         leave
       }
       function recv_Erc20_BalanceOf_0_3(args, store) -> ret {
-        let v0 := mload(args)
+        let v0 := args
         pop(store)
         let v1 := storagemap_k__v__const_salt__u256__get__Address_u256_0__b8b2f68065fe2328(0, v0)
         ret := v1
@@ -708,7 +696,7 @@ object "CoolCoin" {
         let v2 := solencoder_abiencoder_finish(v0)
         let v3 := mload(v2)
         let v4 := mload(add(v2, 32))
-        evm_contracthost_return_bytes(self, v3, v4)
+        evm_contracthost_return_bytes(0, v3, v4)
       }
       function return_value__Evm_Sol_String_8___90b3a09bdf47bf15(self, value) {
         let v0 := sol_abi_encoder_new()
@@ -718,7 +706,7 @@ object "CoolCoin" {
         let v2 := solencoder_abiencoder_finish(v0)
         let v3 := mload(v2)
         let v4 := mload(add(v2, 32))
-        evm_contracthost_return_bytes(self, v3, v4)
+        evm_contracthost_return_bytes(0, v3, v4)
       }
       function return_value__Evm_Sol_bool__261f3a707fad09c8(self, value) {
         let v0 := sol_abi_encoder_new()
@@ -728,7 +716,7 @@ object "CoolCoin" {
         let v2 := solencoder_abiencoder_finish(v0)
         let v3 := mload(v2)
         let v4 := mload(add(v2, 32))
-        evm_contracthost_return_bytes(self, v3, v4)
+        evm_contracthost_return_bytes(0, v3, v4)
       }
       function return_value__Evm_Sol_u256__fe091c64bccbbbf1(self, value) {
         let v0 := sol_abi_encoder_new()
@@ -738,7 +726,7 @@ object "CoolCoin" {
         let v2 := solencoder_abiencoder_finish(v0)
         let v3 := mload(v2)
         let v4 := mload(add(v2, 32))
-        evm_contracthost_return_bytes(self, v3, v4)
+        evm_contracthost_return_bytes(0, v3, v4)
       }
       function return_value__Evm_Sol_u8__d483d38efd15a73d(self, value) {
         let v0 := sol_abi_encoder_new()
@@ -748,7 +736,7 @@ object "CoolCoin" {
         let v2 := solencoder_abiencoder_finish(v0)
         let v3 := mload(v2)
         let v4 := mload(add(v2, 32))
-        evm_contracthost_return_bytes(self, v3, v4)
+        evm_contracthost_return_bytes(0, v3, v4)
       }
       function runtime() {
         let v0 := evm_contracthost_field__TokenStore__cf27701b626eb0c2(0, 0)
@@ -854,17 +842,17 @@ object "CoolCoin" {
           }
       }
       function runtime_decoder__Evm_Sol__2533f5c49b57a682(self) -> ret {
-        let v0 := evm_contracthost_input(self)
+        let v0 := evm_contracthost_input(0)
         let v1 := sol_abi_decoder_with_base__CallData__b9ab8dc8a4b2f9e(v0, 4)
         ret := v1
         leave
       }
       function runtime_selector__Evm_Sol__2533f5c49b57a682(self) -> ret {
-        let v0 := evm_contracthost_input(self)
+        let v0 := evm_contracthost_input(0)
         let v1 := calldata_byteinput_len(v0)
         let v2 := lt(v1, 4)
         if v2 {
-          evm_contracthost_abort(self)
+          evm_contracthost_abort(0)
         }
         let v3 := calldata_byteinput_word_at(v0, 0)
         let v4 := sol_abi_selector_from_prefix(v3)

@@ -87,7 +87,7 @@ fn selector_match(v0: u256) -> u256:
   bb5:
     switch v1 [151146943 => bb1, 2066295049 => bb3] else bb4
 
-fn mem_ptr__mem__RawMem_Foo__19292a5189c12f79(v0: Self, v1: u256) -> MemPtr<T>:
+fn mem_ptr__mem__RawMem_Foo__19292a5189c12f79(v0: mem: RawMem, v1: u256) -> MemPtr<T>:
   bb0:
     ret v1
 
@@ -99,27 +99,27 @@ fn bump__eff_mem(v0: u256) -> ():
     store mem[v0].1 = (v2 + 2)
     ret
 
-fn stor_ptr__sto__RawStorage_Foo__b1b82e9d4c608c02(v0: Self, v1: u256) -> StorPtr<T>:
+fn stor_ptr__sto__RawStorage_Foo__b1b82e9d4c608c02(v0: sto: RawStorage, v1: u256) -> StorPtr<T>:
   bb0:
     ret v1
 
-fn stor_ptr__sto__RawStorage_StorageMap_u256__u256__0___18c22babebaedb88(v0: Self, v1: u256) -> StorPtr<T>:
+fn stor_ptr__sto__RawStorage_StorageMap_u256__u256__0___18c22babebaedb88(v0: sto: RawStorage, v1: u256) -> StorPtr<T>:
   bb0:
     ret v1
 
-fn storagemap_k__v__const_salt__u256__get__u256_u256_0__6a346ad3c930d971(v0: StorageMap<K, V, const SALT: u256>, v1: K) -> V:
+fn storagemap_k__v__const_salt__u256__get__u256_u256_0__6a346ad3c930d971(v0: StorageMap<u256, u256, 0>, v1: u256) -> V:
   bb0:
     v2: u256 = storagemap_get_word_with_salt__u256__3271ca15373d4483(v1, 0)
     v3: u256 = u256_wordrepr_from_word(v2)
     ret v3
 
-fn storagemap_k__v__const_salt__u256__set__u256_u256_0__6a346ad3c930d971(v0: StorageMap<K, V, const SALT: u256>, v1: K, v2: V) -> ():
+fn storagemap_k__v__const_salt__u256__set__u256_u256_0__6a346ad3c930d971(v0: StorageMap<u256, u256, 0>, v1: u256, v2: u256) -> ():
   bb0:
     v3: u256 = u256_wordrepr_to_word(v2)
     eval storagemap_set_word_with_salt__u256__3271ca15373d4483(v1, 0, v3)
     ret
 
-fn storagemap_get_word_with_salt__u256__3271ca15373d4483(v0: K, v1: u256) -> u256:
+fn storagemap_get_word_with_salt__u256__3271ca15373d4483(v0: u256, v1: u256) -> u256:
   bb0:
     v2: u256 = storagemap_storage_slot_with_salt__u256__3271ca15373d4483(v0, v1)
     v3: u256 = sload(v2)
@@ -133,13 +133,13 @@ fn u256_wordrepr_to_word(v0: u256) -> u256:
   bb0:
     ret v0
 
-fn storagemap_set_word_with_salt__u256__3271ca15373d4483(v0: K, v1: u256, v2: u256) -> ():
+fn storagemap_set_word_with_salt__u256__3271ca15373d4483(v0: u256, v1: u256, v2: u256) -> ():
   bb0:
     v3: u256 = storagemap_storage_slot_with_salt__u256__3271ca15373d4483(v0, v1)
     eval sstore(v3, v2)
     ret
 
-fn storagemap_storage_slot_with_salt__u256__3271ca15373d4483(v0: K, v1: u256) -> u256:
+fn storagemap_storage_slot_with_salt__u256__3271ca15373d4483(v0: u256, v1: u256) -> u256:
   bb0:
     v2: u256 = mload(64)
     v3: u256 = u256_storagekey_write_key(v2, v0)

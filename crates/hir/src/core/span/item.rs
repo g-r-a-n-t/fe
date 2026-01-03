@@ -93,25 +93,13 @@ impl<'db> LazyFuncSpan<'db> {
     }
 
     pub fn effects(mut self) -> LazyUsesClauseSpan<'db> {
-        use parser::ast::prelude::*;
-
         fn f(origin: ResolvedOrigin, _: LazyArg) -> ResolvedOrigin {
-            origin
-                .map(|node| {
-                    ast::Func::cast(node)
-                        .map(|f| f.sig())
-                        .and_then(|sig| sig.uses_clause())
-                        .map(|n| n.syntax().clone().into())
-                })
-                .map_desugared(|root, desugared| match desugared {
-                    DesugaredOrigin::ContractInit(init) => init
-                        .init
-                        .to_node(&root)
-                        .uses_clause()
-                        .map(|n| ResolvedOriginKind::Node(n.syntax().clone()))
-                        .unwrap_or_else(|| ResolvedOriginKind::None),
-                    other => ResolvedOriginKind::Desugared(root, other),
-                })
+            origin.map(|node| {
+                ast::Func::cast(node)
+                    .map(|f| f.sig())
+                    .and_then(|sig| sig.uses_clause())
+                    .map(|n| n.syntax().clone().into())
+            })
         }
 
         self.0.push(LazyTransitionFn {
@@ -126,25 +114,13 @@ impl<'db> LazyFuncSpan<'db> {
     }
 
     pub fn params(mut self) -> LazyFuncParamListSpan<'db> {
-        use parser::ast::prelude::*;
-
         fn f(origin: ResolvedOrigin, _: LazyArg) -> ResolvedOrigin {
-            origin
-                .map(|node| {
-                    ast::Func::cast(node)
-                        .map(|f| f.sig())
-                        .and_then(|sig| sig.params())
-                        .map(|n| n.syntax().clone().into())
-                })
-                .map_desugared(|root, desugared| match desugared {
-                    DesugaredOrigin::ContractInit(init) => init
-                        .init
-                        .to_node(&root)
-                        .params()
-                        .map(|n| ResolvedOriginKind::Node(n.syntax().clone()))
-                        .unwrap_or_else(|| ResolvedOriginKind::None),
-                    other => ResolvedOriginKind::Desugared(root, other),
-                })
+            origin.map(|node| {
+                ast::Func::cast(node)
+                    .map(|f| f.sig())
+                    .and_then(|sig| sig.params())
+                    .map(|n| n.syntax().clone().into())
+            })
         }
 
         self.0.push(LazyTransitionFn {

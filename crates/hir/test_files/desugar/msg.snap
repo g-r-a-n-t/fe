@@ -1,0 +1,59 @@
+---
+source: crates/hir/tests/desugar.rs
+expression: output
+input_file: test_files/desugar/msg.fe
+---
+use core::prelude::*
+
+mod CounterMsg {
+    use core::prelude::*
+    use super::*
+
+    pub struct Increment {}
+
+    impl core::message::MsgVariant<std::abi::Sol> for Increment {
+        type Args = ()
+        type Return = ()
+        const SELECTOR: u32 = 1
+    }
+
+    impl Increment {
+        pub fn decode(mut _ d: std::abi::sol::SolDecoder<std::evm::calldata::CallData>) -> Self {
+            return Self {  }
+        }
+    
+    }
+
+    pub struct Get {}
+
+    impl core::message::MsgVariant<std::abi::Sol> for Get {
+        type Args = ()
+        type Return = (u64, u64)
+        const SELECTOR: u32 = 2
+    }
+
+    impl Get {
+        pub fn decode(mut _ d: std::abi::sol::SolDecoder<std::evm::calldata::CallData>) -> Self {
+            return Self {  }
+        }
+    
+    }
+
+    pub struct Set {
+        pub val: u64,
+    }
+
+    impl core::message::MsgVariant<std::abi::Sol> for Set {
+        type Args = (u64)
+        type Return = u64
+        const SELECTOR: u32 = 3
+    }
+
+    impl Set {
+        pub fn decode(mut _ d: std::abi::sol::SolDecoder<std::evm::calldata::CallData>) -> Self {
+            let val = u64::decode(d)
+            return Self { val: val }
+        }
+    
+    }
+}

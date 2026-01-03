@@ -3,7 +3,7 @@ use common::{
     file::File,
 };
 use parser::{
-    FeLang, SyntaxNode, SyntaxToken, TextRange, ast::prelude::*, syntax_node::NodeOrToken,
+    FeLang, SyntaxNode, SyntaxToken, TextRange, ast, ast::prelude::*, syntax_node::NodeOrToken,
 };
 use salsa::Update;
 use thin_vec::ThinVec;
@@ -454,7 +454,6 @@ impl DesugaredOrigin {
                 focus,
             }) => {
                 use super::MsgDesugaredFocus;
-                use parser::ast::{self, prelude::*};
 
                 let msg_node = msg.to_node(&root);
 
@@ -513,39 +512,6 @@ impl DesugaredOrigin {
                             msg_node.syntax().text_range()
                         }
                     }
-                }
-            }
-            Self::ContractInit(super::ContractInitDesugared { init, focus }) => {
-                use super::ContractInitDesugaredFocus;
-                use parser::ast::prelude::*;
-
-                let init_node = init.to_node(&root);
-                match focus {
-                    ContractInitDesugaredFocus::Block => init_node.syntax().text_range(),
-                }
-            }
-            Self::ContractLowering(super::ContractLoweringDesugared {
-                contract,
-                recv_idx,
-                arm_idx,
-                focus,
-            }) => {
-                use super::ContractLoweringDesugaredFocus;
-                use parser::ast::prelude::*;
-
-                let contract_node = contract.to_node(&root);
-                match focus {
-                    ContractLoweringDesugaredFocus::Contract => contract_node.syntax().text_range(),
-                    ContractLoweringDesugaredFocus::InitBlock => contract_node
-                        .init_block()
-                        .map(|init| init.syntax().text_range())
-                        .unwrap_or_else(|| contract_node.syntax().text_range()),
-                    ContractLoweringDesugaredFocus::RecvArm => recv_idx
-                        .and_then(|recv_idx| contract_node.recvs().nth(recv_idx))
-                        .and_then(|recv| recv.arms())
-                        .and_then(|arms| arm_idx.and_then(|arm_idx| arms.into_iter().nth(arm_idx)))
-                        .map(|arm| arm.syntax().text_range())
-                        .unwrap_or_else(|| contract_node.syntax().text_range()),
                 }
             }
         };

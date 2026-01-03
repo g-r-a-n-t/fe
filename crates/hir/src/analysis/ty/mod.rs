@@ -4,7 +4,6 @@ use crate::core::hir_def::{
     IdentId, ItemKind, TopLevelMod, Trait, TypeAlias,
     scope_graph::{ScopeGraph, ScopeId},
 };
-use crate::span::{DesugaredOrigin, HirOrigin};
 use adt_def::{AdtDef, AdtRef};
 use diagnostics::{DefConflictError, TraitLowerDiag, TyLowerDiag};
 use rustc_hash::{FxHashMap, FxHashSet};
@@ -25,6 +24,7 @@ pub mod canonical;
 pub mod const_eval;
 pub mod const_ty;
 pub mod corelib;
+pub mod effects;
 
 pub mod decision_tree;
 pub mod diagnostics;
@@ -153,17 +153,10 @@ impl ModuleAnalysisPass for BodyAnalysisPass {
         db: &'db dyn HirAnalysisDb,
         top_mod: TopLevelMod<'db>,
     ) -> Vec<Box<dyn DiagnosticVoucher + 'db>> {
-        // Only check non-contract functions. Contract desugared functions
-        // are checked in ContractAnalysisPass.
+        // Check function bodies; contract-specific analysis is handled separately.
         top_mod
             .all_funcs(db)
             .iter()
-            .filter(|func| {
-                !matches!(
-                    func.origin(db),
-                    HirOrigin::Desugared(DesugaredOrigin::ContractLowering(_))
-                )
-            })
             .flat_map(|func| &ty_check::check_func_body(db, *func).0)
             .map(|diag| diag.to_voucher())
             .collect()
@@ -175,7 +168,6 @@ impl ModuleAnalysisPass for BodyAnalysisPass {
 /// - Contract field type validation
 /// - Contract effects validation
 /// - Recv blocks validation
-/// - Desugared function type-checking (only if no prior errors)
 pub struct ContractAnalysisPass {}
 
 impl ModuleAnalysisPass for ContractAnalysisPass {
@@ -184,18 +176,6 @@ impl ModuleAnalysisPass for ContractAnalysisPass {
         db: &'db dyn HirAnalysisDb,
         top_mod: TopLevelMod<'db>,
     ) -> Vec<Box<dyn DiagnosticVoucher + 'db>> {
-        let contract_desugared_funcs: Vec<_> = top_mod
-            .all_funcs(db)
-            .iter()
-            .filter(|func| {
-                matches!(
-                    func.origin(db),
-                    HirOrigin::Desugared(DesugaredOrigin::ContractLowering(_))
-                )
-            })
-            .copied()
-            .collect();
-
         let mut diags: Vec<Box<dyn DiagnosticVoucher + 'db>> = vec![];
 
         for &contract in top_mod.all_contracts(db) {
@@ -228,6 +208,15 @@ impl ModuleAnalysisPass for ContractAnalysisPass {
                     .map(|diag| diag.to_voucher()),
             );
 
+            if contract.init(db).is_some() {
+                diags.extend(
+                    ty_check::check_contract_init_body(db, contract)
+                        .0
+                        .iter()
+                        .map(|diag| diag.to_voucher()),
+                );
+            }
+
             let recvs = contract.recvs(db);
             for (recv_idx, recv) in recvs.data(db).iter().enumerate() {
                 diags.extend(
@@ -249,21 +238,6 @@ impl ModuleAnalysisPass for ContractAnalysisPass {
                         .map(|diag| diag.to_voucher()),
                     );
                 }
-            }
-        }
-
-        // 4. Only type-check desugared functions if there are no contract errors.
-        // This prevents cascading errors from malformed contract types.
-        if diags.is_empty() {
-            let desugared_diags: Vec<Box<dyn DiagnosticVoucher + 'db>> = contract_desugared_funcs
-                .iter()
-                .flat_map(|func| &ty_check::check_func_body(db, *func).0)
-                .map(|diag| diag.to_voucher())
-                .collect();
-
-            if !desugared_diags.is_empty() {
-                tracing::error!("Desugared contract functions have diagnostics");
-                diags.extend(desugared_diags);
             }
         }
 
@@ -341,19 +315,10 @@ impl ModuleAnalysisPass for FuncAnalysisPass {
         db: &'db dyn HirAnalysisDb,
         top_mod: TopLevelMod<'db>,
     ) -> Vec<Box<dyn DiagnosticVoucher + 'db>> {
-        // Skip contract-desugared functions. Their parameter types may contain
-        // synthetic paths (e.g., `Msg::Variant::Args`) that can produce misleading
-        // diagnostics if the msg type doesn't exist. Contract-specific diagnostics
-        // are handled in ContractAnalysisPass.
+        // Function diagnostics are handled here; contract-specific diagnostics are separate.
         top_mod
             .all_funcs(db)
             .iter()
-            .filter(|func| {
-                !matches!(
-                    func.origin(db),
-                    HirOrigin::Desugared(DesugaredOrigin::ContractLowering(_))
-                )
-            })
             .flat_map(|func| func.diags(db))
             .map(|diag| diag.to_voucher())
             .collect()

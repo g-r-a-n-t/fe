@@ -1761,6 +1761,7 @@ dependencies = [
  "similar",
  "smol_str",
  "tracing",
+ "tracing-subscriber 0.3.20",
  "url",
  "walkdir",
 ]
@@ -1965,6 +1966,7 @@ version = "0.26.0"
 dependencies = [
  "camino",
  "dir-test",
+ "fe-common",
  "fe-test-utils",
  "git2",
  "glob",

@@ -12,7 +12,8 @@ object "test_test_effect" {
   object "runtime" {
     code {
       function test_effect(x) {
-        x := add(x, 1)
+        let v0 := sload(x)
+        sstore(x, add(v0, 1))
         leave
       }
       test_effect(0)

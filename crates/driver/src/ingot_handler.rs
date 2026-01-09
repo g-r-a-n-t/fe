@@ -128,31 +128,30 @@ impl<'a> IngotHandler<'a> {
                 return Some((result, (dependency.alias, dependency.arguments)));
             }
 
-            if let Some(version) = dependency.arguments.version.clone() {
-                if let Some(url) = self
-                    .db
-                    .dependency_graph()
-                    .ingot_by_name_version(self.db, &name, &version)
-                {
-                    return Some((
-                        IngotDescriptor::Local(url),
-                        (dependency.alias, dependency.arguments),
-                    ));
-                }
-                self.report_error(IngotInitDiagnostics::IngotByNameResolutionFailed {
-                    ingot_url: ingot_url.clone(),
-                    dependency: dependency.alias,
-                    name,
-                    version,
-                });
-                return None;
-            }
-
             if matches!(dependency.location, DependencyLocation::WorkspaceCurrent) {
-                self.report_error(IngotInitDiagnostics::WorkspaceNameLookupUnavailable {
-                    ingot_url: ingot_url.clone(),
-                    dependency: dependency.alias,
-                });
+                if let Some(version) = dependency.arguments.version.clone() {
+                    if let Some(url) = self
+                        .db
+                        .dependency_graph()
+                        .ingot_by_name_version(self.db, &name, &version)
+                    {
+                        return Some((
+                            IngotDescriptor::Local(url),
+                            (dependency.alias, dependency.arguments),
+                        ));
+                    }
+                    self.report_error(IngotInitDiagnostics::IngotByNameResolutionFailed {
+                        ingot_url: ingot_url.clone(),
+                        dependency: dependency.alias,
+                        name,
+                        version,
+                    });
+                } else {
+                    self.report_error(IngotInitDiagnostics::WorkspaceNameLookupUnavailable {
+                        ingot_url: ingot_url.clone(),
+                        dependency: dependency.alias,
+                    });
+                }
                 return None;
             }
         }

@@ -5,8 +5,8 @@ use crate::ingot::Version;
 
 use super::{ConfigDiagnostic, dependency, is_valid_name, parse_string_array_field};
 
-#[derive(Debug, Default, Clone, PartialEq)]
-pub struct WorkspaceConfig {
+#[derive(Debug, Clone, Default, PartialEq)]
+pub struct WorkspaceSettings {
     pub name: Option<SmolStr>,
     pub version: Option<Version>,
     pub members: Vec<WorkspaceMemberSpec>,
@@ -20,7 +20,7 @@ pub struct WorkspaceConfig {
     pub dependencies: Vec<dependency::DependencyEntry>,
 }
 
-impl Eq for WorkspaceConfig {}
+impl Eq for WorkspaceSettings {}
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct WorkspaceScript {
@@ -53,12 +53,12 @@ pub enum WorkspaceMemberSelection {
 }
 
 #[derive(Debug, Clone, PartialEq)]
-pub struct WorkspaceManifest {
-    pub workspace: WorkspaceConfig,
+pub struct WorkspaceConfig {
+    pub workspace: WorkspaceSettings,
     pub diagnostics: Vec<ConfigDiagnostic>,
 }
 
-impl WorkspaceConfig {
+impl WorkspaceSettings {
     pub fn members_for_selection(
         &self,
         selection: WorkspaceMemberSelection,
@@ -97,12 +97,12 @@ impl WorkspaceConfig {
 pub(crate) fn parse_workspace(
     parsed: &Value,
     diagnostics: &mut Vec<ConfigDiagnostic>,
-) -> WorkspaceConfig {
+) -> WorkspaceSettings {
     let Some(table) = parsed.as_table() else {
-        return WorkspaceConfig::default();
+        return WorkspaceSettings::default();
     };
 
-    let mut workspace = WorkspaceConfig::default();
+    let mut workspace = WorkspaceSettings::default();
 
     parse_identity(table, &mut workspace, diagnostics);
     parse_members(table, &mut workspace, diagnostics);
@@ -118,7 +118,7 @@ pub(crate) fn parse_workspace(
 
 fn parse_identity(
     table: &toml::value::Table,
-    workspace: &mut WorkspaceConfig,
+    workspace: &mut WorkspaceSettings,
     diagnostics: &mut Vec<ConfigDiagnostic>,
 ) {
     if let Some(name) = table.get("name") {
@@ -149,13 +149,13 @@ fn parse_identity(
     }
 }
 
-pub(crate) fn parse_workspace_manifest(parsed: &Value) -> Result<WorkspaceManifest, String> {
+pub(crate) fn parse_workspace_config(parsed: &Value) -> Result<WorkspaceConfig, String> {
     let mut diagnostics = Vec::new();
     let mut workspace = parse_workspace(parsed, &mut diagnostics);
 
     workspace.dependencies = dependency::parse_root_dependencies(parsed, &mut diagnostics);
 
-    Ok(WorkspaceManifest {
+    Ok(WorkspaceConfig {
         workspace,
         diagnostics,
     })
@@ -163,7 +163,7 @@ pub(crate) fn parse_workspace_manifest(parsed: &Value) -> Result<WorkspaceManife
 
 fn parse_members(
     table: &toml::value::Table,
-    workspace: &mut WorkspaceConfig,
+    workspace: &mut WorkspaceSettings,
     diagnostics: &mut Vec<ConfigDiagnostic>,
 ) {
     let Some(value) = table.get("members") else {
@@ -197,7 +197,7 @@ fn parse_members(
 
 fn parse_default_members(
     table: &toml::value::Table,
-    workspace: &mut WorkspaceConfig,
+    workspace: &mut WorkspaceSettings,
     diagnostics: &mut Vec<ConfigDiagnostic>,
 ) {
     let Some(value) = table.get("default-members") else {
@@ -210,7 +210,7 @@ fn parse_default_members(
 
 fn parse_exclude(
     table: &toml::value::Table,
-    workspace: &mut WorkspaceConfig,
+    workspace: &mut WorkspaceSettings,
     diagnostics: &mut Vec<ConfigDiagnostic>,
 ) {
     let Some(value) = table.get("exclude") else {
@@ -279,7 +279,7 @@ fn parse_member_array_field(
 
 fn parse_metadata(
     table: &toml::value::Table,
-    workspace: &mut WorkspaceConfig,
+    workspace: &mut WorkspaceSettings,
     diagnostics: &mut Vec<ConfigDiagnostic>,
 ) {
     if let Some(value) = table.get("metadata") {
@@ -296,7 +296,7 @@ fn parse_metadata(
 
 fn parse_profiles(
     table: &toml::value::Table,
-    workspace: &mut WorkspaceConfig,
+    workspace: &mut WorkspaceSettings,
     diagnostics: &mut Vec<ConfigDiagnostic>,
 ) {
     if let Some(value) = table.get("profiles") {
@@ -313,7 +313,7 @@ fn parse_profiles(
 
 fn parse_scripts(
     table: &toml::value::Table,
-    workspace: &mut WorkspaceConfig,
+    workspace: &mut WorkspaceSettings,
     diagnostics: &mut Vec<ConfigDiagnostic>,
 ) {
     if let Some(value) = table.get("scripts") {
@@ -425,11 +425,11 @@ other = "keep"
 [dependencies]
 util = { path = "ingots/util" }
 "#;
-        let manifest = crate::config::Manifest::parse(toml).expect("manifest parses");
-        let crate::config::Manifest::Workspace(workspace_manifest) = manifest else {
-            panic!("expected workspace manifest");
+        let config_file = crate::config::Config::parse(toml).expect("config parses");
+        let crate::config::Config::Workspace(workspace_config) = config_file else {
+            panic!("expected workspace config");
         };
-        let workspace = workspace_manifest.workspace;
+        let workspace = workspace_config.workspace;
         assert_eq!(workspace.name.as_deref(), Some("workspace-root"));
         assert_eq!(
             workspace

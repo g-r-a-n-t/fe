@@ -23,7 +23,6 @@ impl IngotConfig {
         let mut diagnostics = Vec::new();
         let metadata = parse_ingot(parsed, &mut diagnostics);
         let dependency_entries = dependency::parse_root_dependencies(parsed, &mut diagnostics);
-
         Self {
             metadata,
             dependency_entries,

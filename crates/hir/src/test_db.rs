@@ -39,7 +39,7 @@ use common::{
     diagnostics::{LabelStyle, Severity, Span},
     file::File,
     indexmap::IndexMap,
-    stdlib::{HasBuiltinCore, HasBuiltinStd},
+    stdlib::{HasBuiltinCore, HasBuiltinEmbed, HasBuiltinStd},
 };
 use derive_more::TryIntoError;
 use rustc_hash::FxHashMap;
@@ -179,6 +179,7 @@ impl HirAnalysisTestDb {
         let index = self.workspace();
         self.initialize_builtin_core();
         self.initialize_builtin_std();
+        self.initialize_builtin_embed();
         index.touch(
             self,
             <Url as UrlExt>::from_file_path_lossy(&file_name),

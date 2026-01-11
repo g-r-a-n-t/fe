@@ -85,7 +85,7 @@ pub(crate) fn scope_graph_impl<'db>(
     let ast = top_mod_ast(db, top_mod);
     let mut ctxt = FileLowerCtxt::enter_top_mod(db, top_mod);
 
-    ctxt.insert_synthetic_prelude_use();
+    ctxt.insert_synthetic_embed_use();
 
     if let Some(items) = ast.items() {
         lower_module_items(&mut ctxt, items);
@@ -124,20 +124,29 @@ impl<'db> FileLowerCtxt<'db> {
         self.builder.top_mod
     }
 
-    pub(super) fn insert_synthetic_prelude_use(&mut self) {
+    pub(super) fn insert_synthetic_embed_use(&mut self) {
         let db = self.db();
         let top_mod = self.top_mod();
         let ingot = top_mod.ingot(db);
-        if ingot.kind(db) == IngotKind::Core {
+        if matches!(
+            ingot.kind(db),
+            IngotKind::Core | IngotKind::Std | IngotKind::Embed
+        ) {
             return;
         }
 
-        let core = IdentId::new(db, "core".to_string());
-        let prelude = IdentId::new(db, "prelude".to_string());
+        let embed = IdentId::new(db, "embed".to_string());
+        self.insert_synthetic_use(vec![embed]);
+    }
+
+    /// Inserts `use super::*` to re-export parent module items into current scope.
+    pub(super) fn insert_synthetic_super_use(&mut self) {
+        let db = self.db();
+
+        let super_ident = IdentId::new(db, "super".to_string());
 
         let segs = vec![
-            Partial::Present(UsePathSegment::Ident(core)),
-            Partial::Present(UsePathSegment::Ident(prelude)),
+            Partial::Present(UsePathSegment::Ident(super_ident)),
             Partial::Present(UsePathSegment::Glob),
         ];
         let path = Partial::Present(UsePathId::new(db, segs));
@@ -161,16 +170,13 @@ impl<'db> FileLowerCtxt<'db> {
         self.leave_item_scope(use_);
     }
 
-    /// Inserts `use super::*` to re-export parent module items into current scope.
-    pub(super) fn insert_synthetic_super_use(&mut self) {
+    fn insert_synthetic_use(&mut self, segments: Vec<IdentId<'db>>) {
         let db = self.db();
-
-        let super_ident = IdentId::new(db, "super".to_string());
-
-        let segs = vec![
-            Partial::Present(UsePathSegment::Ident(super_ident)),
-            Partial::Present(UsePathSegment::Glob),
-        ];
+        let segs: Vec<Partial<UsePathSegment<'db>>> = segments
+            .into_iter()
+            .map(|ident| Partial::Present(UsePathSegment::Ident(ident)))
+            .chain(std::iter::once(Partial::Present(UsePathSegment::Glob)))
+            .collect();
         let path = Partial::Present(UsePathId::new(db, segs));
 
         let id = self.joined_id(TrackedItemVariant::Use(path));

@@ -47,7 +47,9 @@ macro_rules! impl_db_default {
     ($db_type:ty) => {
         impl Default for $db_type
         where
-            $db_type: $crate::stdlib::HasBuiltinCore + $crate::stdlib::HasBuiltinStd,
+            $db_type: $crate::stdlib::HasBuiltinCore
+                + $crate::stdlib::HasBuiltinStd
+                + $crate::stdlib::HasBuiltinEmbed,
         {
             fn default() -> Self {
                 let mut db = Self {
@@ -61,6 +63,7 @@ macro_rules! impl_db_default {
                 db.graph = Some(graph);
                 $crate::stdlib::HasBuiltinCore::initialize_builtin_core(&mut db);
                 $crate::stdlib::HasBuiltinStd::initialize_builtin_std(&mut db);
+                $crate::stdlib::HasBuiltinEmbed::initialize_builtin_embed(&mut db);
                 db
             }
         }

@@ -2,24 +2,27 @@ use std::collections::HashSet;
 
 use camino::Utf8PathBuf;
 use codegen::emit_module_yul;
-use common::{InputDb, config::Manifest};
+use common::{InputDb, config::Config, ingot::IngotKind};
 use driver::DriverDataBase;
-use hir::hir_def::{HirIngot, TopLevelMod};
+use hir::{
+    analysis::embed_requirements::check_embed_operator_annotations,
+    hir_def::{HirIngot, TopLevelMod},
+};
 use mir::lower_module;
 use url::Url;
 
-pub fn check(path: &Utf8PathBuf, dump_mir: bool, emit_yul_min: bool) {
+pub fn check(path: &Utf8PathBuf, dump_mir: bool, emit_yul_min: bool, embed: bool) {
     let mut db = DriverDataBase::default();
 
     // Determine if we're dealing with a single file or an ingot directory
     let has_errors = if path.is_file() && path.extension() == Some("fe") {
         check_single_file(&mut db, path, dump_mir, emit_yul_min)
     } else if path.is_dir() {
-        match manifest_at_path(path) {
-            Ok(Some(Manifest::Workspace(_))) => {
-                check_workspace(&mut db, path, dump_mir, emit_yul_min)
+        match config_at_path(path) {
+            Ok(Some(Config::Workspace(_))) => {
+                check_workspace(&mut db, path, dump_mir, emit_yul_min, embed)
             }
-            Ok(_) => check_ingot(&mut db, path, dump_mir, emit_yul_min),
+            Ok(_) => check_ingot(&mut db, path, dump_mir, emit_yul_min, embed),
             Err(err) => {
                 eprintln!("❌ Error: {err}");
                 true
@@ -91,6 +94,7 @@ fn check_ingot(
     dir_path: &Utf8PathBuf,
     dump_mir: bool,
     emit_yul_min: bool,
+    embed: bool,
 ) -> bool {
     let canonical_path = match dir_path.canonicalize_utf8() {
         Ok(path) => path,
@@ -140,7 +144,7 @@ fn check_ingot(
     }
 
     let mut seen = HashSet::new();
-    check_ingot_and_dependencies(db, &ingot_url, dump_mir, emit_yul_min, &mut seen)
+    check_ingot_and_dependencies(db, &ingot_url, dump_mir, emit_yul_min, embed, &mut seen)
 }
 
 fn check_workspace(
@@ -148,6 +152,7 @@ fn check_workspace(
     dir_path: &Utf8PathBuf,
     dump_mir: bool,
     emit_yul_min: bool,
+    embed: bool,
 ) -> bool {
     let canonical_path = match dir_path.canonicalize_utf8() {
         Ok(path) => path,
@@ -171,10 +176,10 @@ fn check_workspace(
         return true;
     }
 
-    let manifest = match manifest_at_path(dir_path) {
-        Ok(Some(Manifest::Workspace(workspace_manifest))) => workspace_manifest,
-        Ok(Some(Manifest::Ingot(_))) => {
-            eprintln!("❌ Error: Expected a workspace manifest at {dir_path}");
+    let config_file = match config_at_path(dir_path) {
+        Ok(Some(Config::Workspace(workspace_config))) => workspace_config,
+        Ok(Some(Config::Ingot(_))) => {
+            eprintln!("❌ Error: Expected a workspace config at {dir_path}");
             return true;
         }
         Ok(None) => {
@@ -187,7 +192,7 @@ fn check_workspace(
         }
     };
 
-    let member_urls = match driver::workspace_member_urls(&manifest.workspace, &workspace_url) {
+    let members = match driver::workspace_members(&config_file.workspace, &workspace_url) {
         Ok(members) => members,
         Err(err) => {
             eprintln!("❌ Error resolving workspace members: {err}");
@@ -195,16 +200,17 @@ fn check_workspace(
         }
     };
 
-    if member_urls.is_empty() {
+    if members.is_empty() {
         eprintln!("⚠️  No workspace members found");
         return false;
     }
 
     let mut seen = HashSet::new();
     let mut has_errors = false;
-    for member_url in member_urls {
+    for member in members {
+        let member_url = member.url;
         let member_has_errors =
-            check_ingot_and_dependencies(db, &member_url, dump_mir, emit_yul_min, &mut seen);
+            check_ingot_and_dependencies(db, &member_url, dump_mir, emit_yul_min, embed, &mut seen);
         has_errors |= member_has_errors;
     }
 
@@ -216,6 +222,7 @@ fn check_ingot_and_dependencies(
     ingot_url: &Url,
     dump_mir: bool,
     emit_yul_min: bool,
+    embed: bool,
     seen: &mut HashSet<Url>,
 ) -> bool {
     if !seen.insert(ingot_url.clone()) {
@@ -250,6 +257,18 @@ fn check_ingot_and_dependencies(
         }
     }
 
+    if embed && ingot.kind(db) == IngotKind::Embed {
+        let root_mod = ingot.root_mod(db);
+        let operator_errors = check_embed_operator_annotations(db, root_mod);
+        if !operator_errors.is_empty() {
+            eprintln!("❌ Errors in embed operator annotations");
+            for err in operator_errors {
+                eprintln!("  - {err}");
+            }
+            has_errors = true;
+        }
+    }
+
     let mut dependency_errors = Vec::new();
     for dependency_url in db.dependency_graph().dependency_urls(db, ingot_url) {
         if !seen.insert(dependency_url.clone()) {
@@ -281,16 +300,16 @@ fn check_ingot_and_dependencies(
     has_errors
 }
 
-fn manifest_at_path(path: &Utf8PathBuf) -> Result<Option<Manifest>, String> {
-    let manifest_path = path.join("fe.toml");
-    if !manifest_path.is_file() {
+fn config_at_path(path: &Utf8PathBuf) -> Result<Option<Config>, String> {
+    let config_path = path.join("fe.toml");
+    if !config_path.is_file() {
         return Ok(None);
     }
-    let content = std::fs::read_to_string(manifest_path.as_std_path())
-        .map_err(|err| format!("Failed to read {}: {err}", manifest_path))?;
-    let manifest = Manifest::parse(&content)
-        .map_err(|err| format!("Failed to parse {}: {err}", manifest_path))?;
-    Ok(Some(manifest))
+    let content = std::fs::read_to_string(config_path.as_std_path())
+        .map_err(|err| format!("Failed to read {}: {err}", config_path))?;
+    let config_file =
+        Config::parse(&content).map_err(|err| format!("Failed to parse {}: {err}", config_path))?;
+    Ok(Some(config_file))
 }
 
 fn print_dependency_info(db: &DriverDataBase, dependency_url: &Url) {

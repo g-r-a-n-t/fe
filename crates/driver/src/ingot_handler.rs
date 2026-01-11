@@ -1,9 +1,9 @@
-use std::{collections::HashMap, fs};
+use std::collections::{HashMap, HashSet};
 
 use camino::{Utf8Path, Utf8PathBuf};
 use common::{
     InputDb,
-    config::{ConfigDiagnostic, Manifest},
+    config::{Config, ConfigDiagnostic},
     dependencies::{DependencyAlias, DependencyArguments, DependencyLocation, RemoteFiles},
 };
 use resolver::{
@@ -36,13 +36,13 @@ fn workspace_version_for_member(
     let workspace_url = db
         .dependency_graph()
         .workspace_root_for_member(db, ingot_url)?;
-    let mut path = workspace_url.to_file_path().ok()?;
-    path.push("fe.toml");
-    let content = fs::read_to_string(path).ok()?;
-    let manifest = Manifest::parse(&content).ok()?;
-    match manifest {
-        Manifest::Workspace(workspace_manifest) => workspace_manifest.workspace.version,
-        Manifest::Ingot(_) => None,
+    let mut config_url = workspace_url.clone();
+    config_url.set_path(&format!("{}fe.toml", workspace_url.path()));
+    let file = db.workspace().get(db, &config_url)?;
+    let config_file = Config::parse(file.text(db)).ok()?;
+    match config_file {
+        Config::Workspace(workspace_config) => workspace_config.workspace.version,
+        Config::Ingot(_) => None,
     }
 }
 
@@ -532,25 +532,36 @@ impl<'a>
         _descriptor: &IngotDescriptor,
         graph: DiGraph<IngotDescriptor, (DependencyAlias, DependencyArguments)>,
     ) -> Self::Item {
+        let mut registered_nodes = HashSet::new();
         for node_idx in graph.node_indices() {
-            if let Some(url) = self.ingot_urls.get(&graph[node_idx]) {
+            if let Some(url) = self.ingot_urls.get(&graph[node_idx])
+                && registered_nodes.insert(url.clone())
+            {
                 self.db.dependency_graph().ensure_node(self.db, url);
             }
         }
 
+        let mut registered_edges = HashSet::new();
         for edge in graph.edge_references() {
             if let (Some(from_url), Some(to_url)) = (
                 self.ingot_urls.get(&graph[edge.source()]),
                 self.ingot_urls.get(&graph[edge.target()]),
             ) {
                 let (alias, arguments) = edge.weight();
-                self.db.dependency_graph().add_dependency(
-                    self.db,
-                    from_url,
-                    to_url,
+                if registered_edges.insert((
+                    from_url.clone(),
+                    to_url.clone(),
                     alias.clone(),
                     arguments.clone(),
-                );
+                )) {
+                    self.db.dependency_graph().add_dependency(
+                        self.db,
+                        from_url,
+                        to_url,
+                        alias.clone(),
+                        arguments.clone(),
+                    );
+                }
             }
         }
     }

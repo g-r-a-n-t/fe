@@ -16,31 +16,33 @@ mod workspace;
 pub use dependency::{DependencyEntry, DependencyEntryLocation, parse_dependencies_table};
 pub use ingot::{IngotConfig, IngotMetadata};
 pub use workspace::{
-    WorkspaceConfig, WorkspaceManifest, WorkspaceMemberSelection, WorkspaceResolution,
+    WorkspaceConfig, WorkspaceMemberSelection, WorkspaceResolution, WorkspaceSettings,
 };
 
 #[derive(Debug, Clone, PartialEq)]
-pub enum Manifest {
+pub enum Config {
     Ingot(IngotConfig),
-    Workspace(Box<WorkspaceManifest>),
+    Workspace(Box<WorkspaceConfig>),
 }
 
-impl Manifest {
+impl Config {
     pub fn parse(content: &str) -> Result<Self, String> {
         let parsed: Value = content
             .parse()
             .map_err(|e: toml::de::Error| e.to_string())?;
 
         let has_ingot_table = parsed.get("ingot").is_some();
+        let has_workspace_table = parsed.get("workspace").is_some();
 
-        if has_ingot_table {
-            return Ok(Manifest::Ingot(ingot::IngotConfig::parse_from_value(
-                &parsed,
-            )));
+        if has_ingot_table && has_workspace_table {
+            return Err("config cannot contain both [ingot] and [workspace] sections".to_string());
         }
 
-        workspace::parse_workspace_manifest(&parsed)
-            .map(|manifest| Manifest::Workspace(Box::new(manifest)))
+        if has_ingot_table {
+            return Ok(Config::Ingot(ingot::IngotConfig::parse_from_value(&parsed)));
+        }
+
+        workspace::parse_workspace_config(&parsed).map(|config| Config::Workspace(Box::new(config)))
     }
 }
 
@@ -268,9 +270,9 @@ version = "1.0.0"
 [dependencies]
 remote = { source = "https://example.com/fe.git", rev = "abcd1234", path = "contracts" }
 "#;
-        let manifest = Manifest::parse(toml).expect("manifest parses");
-        let Manifest::Ingot(config) = manifest else {
-            panic!("expected ingot manifest");
+        let config_file = Config::parse(toml).expect("config parses");
+        let Config::Ingot(config) = config_file else {
+            panic!("expected ingot config");
         };
         assert!(
             config.diagnostics.is_empty(),
@@ -304,9 +306,9 @@ version = "1.0.0"
 missing_rev = { source = "https://example.com/repo.git" }
 invalid_source = { source = "not a url", rev = "1234" }
 "#;
-        let manifest = Manifest::parse(toml).expect("manifest parses");
-        let Manifest::Ingot(config) = manifest else {
-            panic!("expected ingot manifest");
+        let config_file = Config::parse(toml).expect("config parses");
+        let Config::Ingot(config) = config_file else {
+            panic!("expected ingot config");
         };
         assert!(
             config
@@ -332,9 +334,9 @@ version = "1.0.0"
 [dependencies]
 util = { name = "utils" }
 "#;
-        let manifest = Manifest::parse(toml).expect("manifest parses");
-        let Manifest::Ingot(config) = manifest else {
-            panic!("expected ingot manifest");
+        let config_file = Config::parse(toml).expect("config parses");
+        let Config::Ingot(config) = config_file else {
+            panic!("expected ingot config");
         };
         assert_eq!(
             config

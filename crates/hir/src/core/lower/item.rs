@@ -106,7 +106,7 @@ impl<'db> Mod<'db> {
         let id = ctxt.joined_id(TrackedItemVariant::Mod(name));
         ctxt.enter_item_scope(id, true);
 
-        ctxt.insert_synthetic_prelude_use();
+        ctxt.insert_synthetic_embed_use();
 
         let attributes = AttrListId::lower_ast_opt(ctxt, ast.attr_list());
         let vis = ItemModifier::lower_ast(ast.modifier()).to_visibility();

@@ -1,0 +1,7 @@
+[ingot]
+name = "embed"
+version = "0.1.0"
+
+[dependencies]
+core = { path = "../core" }
+std = { path = "../std" }

@@ -1,7 +1,7 @@
 use std::fs;
 
 use camino::Utf8PathBuf;
-use common::config::{Manifest, WorkspaceManifest};
+use common::config::{Config, WorkspaceConfig};
 use driver::{DependencyTree, DriverDataBase, init_ingot, workspace_members};
 use url::Url;
 
@@ -22,9 +22,9 @@ pub fn print_tree(path: &Utf8PathBuf) {
         }
     };
 
-    if let Ok(Some(Manifest::Workspace(workspace_manifest))) = manifest_at_path(path) {
+    if let Ok(Some(Config::Workspace(workspace_config))) = config_at_path(path) {
         let _ = init_ingot(&mut db, &target_url);
-        if let Err(err) = print_workspace_trees(&db, &workspace_manifest, &target_url) {
+        if let Err(err) = print_workspace_trees(&db, &workspace_config, &target_url) {
             eprintln!("❌ {err}");
         }
         return;
@@ -49,16 +49,16 @@ fn ingot_url(path: &Utf8PathBuf) -> Result<Url, String> {
         .map_err(|_| format!("Error: invalid directory path: {path}"))
 }
 
-fn manifest_at_path(path: &Utf8PathBuf) -> Result<Option<Manifest>, String> {
-    let manifest_path = path.join("fe.toml");
-    if !manifest_path.is_file() {
+fn config_at_path(path: &Utf8PathBuf) -> Result<Option<Config>, String> {
+    let config_path = path.join("fe.toml");
+    if !config_path.is_file() {
         return Ok(None);
     }
-    let content = fs::read_to_string(manifest_path.as_std_path())
-        .map_err(|err| format!("Failed to read {}: {err}", manifest_path))?;
-    let manifest = Manifest::parse(&content)
-        .map_err(|err| format!("Failed to parse {}: {err}", manifest_path))?;
-    Ok(Some(manifest))
+    let content = fs::read_to_string(config_path.as_std_path())
+        .map_err(|err| format!("Failed to read {}: {err}", config_path))?;
+    let config_file =
+        Config::parse(&content).map_err(|err| format!("Failed to parse {}: {err}", config_path))?;
+    Ok(Some(config_file))
 }
 
 fn name_candidate(path: &Utf8PathBuf) -> Option<String> {
@@ -78,7 +78,7 @@ fn name_candidate(path: &Utf8PathBuf) -> Option<String> {
 
 fn find_workspace_root(path: &Utf8PathBuf) -> Option<Utf8PathBuf> {
     for ancestor in path.ancestors() {
-        if let Ok(Some(Manifest::Workspace(_))) = manifest_at_path(&ancestor.to_path_buf()) {
+        if let Ok(Some(Config::Workspace(_))) = config_at_path(&ancestor.to_path_buf()) {
             return Some(ancestor.to_path_buf());
         }
     }
@@ -91,17 +91,17 @@ fn print_workspace_member_tree_by_name(db: &mut DriverDataBase, name: &str) -> R
     let cwd = Utf8PathBuf::from_path_buf(cwd)
         .map_err(|_| "Current directory is not valid UTF-8".to_string())?;
     let workspace_root = find_workspace_root(&cwd)
-        .ok_or_else(|| "No workspace manifest found in current directory hierarchy".to_string())?;
+        .ok_or_else(|| "No workspace config found in current directory hierarchy".to_string())?;
     let workspace_url = ingot_url(&workspace_root)?;
-    let manifest = manifest_at_path(&workspace_root)?
-        .and_then(|manifest| match manifest {
-            Manifest::Workspace(workspace_manifest) => Some(workspace_manifest),
-            Manifest::Ingot(_) => None,
+    let config_file = config_at_path(&workspace_root)?
+        .and_then(|config_file| match config_file {
+            Config::Workspace(workspace_config) => Some(workspace_config),
+            Config::Ingot(_) => None,
         })
-        .ok_or_else(|| "Workspace manifest not found".to_string())?;
+        .ok_or_else(|| "Workspace config not found".to_string())?;
 
     let _ = init_ingot(db, &workspace_url);
-    let members = workspace_members(&manifest.workspace, &workspace_url)?;
+    let members = workspace_members(&config_file.workspace, &workspace_url)?;
     let mut matches = members
         .into_iter()
         .filter(|member| member.name.as_deref() == Some(name))
@@ -124,10 +124,10 @@ fn print_workspace_member_tree_by_name(db: &mut DriverDataBase, name: &str) -> R
 
 fn print_workspace_trees(
     db: &DriverDataBase,
-    workspace_manifest: &WorkspaceManifest,
+    workspace_config: &WorkspaceConfig,
     workspace_url: &Url,
 ) -> Result<(), String> {
-    let members = workspace_members(&workspace_manifest.workspace, workspace_url)?;
+    let members = workspace_members(&workspace_config.workspace, workspace_url)?;
     if members.is_empty() {
         println!("No workspace members found");
         return Ok(());

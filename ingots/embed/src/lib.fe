@@ -1,0 +1,65 @@
+/// Embed ingot: language prelude and operator bindings.
+
+pub use core::prelude::*
+pub use std::*
+
+#[operator(neg = "-")]
+pub use core::ops::Neg
+#[operator(not = "!")]
+pub use core::ops::Not
+#[operator(bit_not = "~")]
+pub use core::ops::BitNot
+
+#[operator(add = "+")]
+pub use core::ops::Add
+#[operator(sub = "-")]
+pub use core::ops::Sub
+#[operator(mul = "*")]
+pub use core::ops::Mul
+#[operator(div = "/")]
+pub use core::ops::Div
+#[operator(rem = "%")]
+pub use core::ops::Rem
+#[operator(pow = "**")]
+pub use core::ops::Pow
+#[operator(shl = "<<")]
+pub use core::ops::Shl
+#[operator(shr = ">>")]
+pub use core::ops::Shr
+#[operator(bitand = "&")]
+pub use core::ops::BitAnd
+#[operator(bitor = "|")]
+pub use core::ops::BitOr
+#[operator(bitxor = "^")]
+pub use core::ops::BitXor
+
+#[operator(eq = "==", ne = "!=")]
+pub use core::ops::Eq
+#[operator(lt = "<", le = "<=", gt = ">", ge = ">=")]
+pub use core::ops::Ord
+
+#[operator(index = "[]")]
+pub use core::ops::Index
+
+#[operator(add_assign = "+=")]
+pub use core::ops::AddAssign
+#[operator(sub_assign = "-=")]
+pub use core::ops::SubAssign
+#[operator(mul_assign = "*=")]
+pub use core::ops::MulAssign
+#[operator(div_assign = "/=")]
+pub use core::ops::DivAssign
+#[operator(rem_assign = "%=")]
+pub use core::ops::RemAssign
+#[operator(pow_assign = "**=")]
+pub use core::ops::PowAssign
+#[operator(shl_assign = "<<=")]
+pub use core::ops::ShlAssign
+#[operator(shr_assign = ">>=")]
+pub use core::ops::ShrAssign
+#[operator(bitand_assign = "&=")]
+pub use core::ops::BitAndAssign
+#[operator(bitor_assign = "|=")]
+pub use core::ops::BitOrAssign
+#[operator(bitxor_assign = "^=")]
+pub use core::ops::BitXorAssign

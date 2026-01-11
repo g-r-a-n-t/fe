@@ -10,7 +10,7 @@ use crate::{
 };
 use common::{
     indexmap::{IndexMap, IndexSet},
-    ingot::Ingot,
+    ingot::{Ingot, IngotKind},
 };
 use rustc_hash::FxHashMap;
 use salsa::Update;
@@ -336,6 +336,7 @@ impl<'db> TraitEnv<'db> {
         for impl_map in ingot
             .resolved_external_ingots(db)
             .iter()
+            .filter(|(_, external)| external.kind(db) != IngotKind::Embed)
             .map(|(_, external)| collect_trait_impls(db, *external))
             .chain(std::iter::once(collect_trait_impls(db, ingot)))
         {

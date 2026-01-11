@@ -1,0 +1,10 @@
+---
+source: crates/fe/tests/cli_output.rs
+assertion_line: 159
+expression: output
+---
+=== STDERR ===
+❌ Missing required library definitions:
+  - missing required core trait `core::ops::UnaryPlus`
+
+=== EXIT CODE: 1 ===

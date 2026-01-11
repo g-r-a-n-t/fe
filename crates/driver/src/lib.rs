@@ -15,14 +15,16 @@ use camino::Utf8PathBuf;
 use common::{
     InputDb,
     cache::remote_git_cache_dir,
-    config::{Manifest, WorkspaceMemberSelection},
+    config::{Config, WorkspaceMemberSelection},
     ingot::Version,
+    stdlib::{HasBuiltinCore, HasBuiltinStd},
 };
 pub use db::DriverDataBase;
 use glob::glob;
 use ingot_handler::IngotHandler;
 use smol_str::SmolStr;
 
+use hir::analysis::core_requirements;
 use hir::hir_def::TopLevelMod;
 use resolver::{
     files::FilesResolutionDiagnostic,
@@ -69,8 +71,38 @@ pub fn init_ingot(db: &mut DriverDataBase, ingot_url: &Url) -> bool {
     init_ingot_graph(db, ingot_url)
 }
 
+pub fn check_library_requirements(db: &DriverDataBase) -> Vec<String> {
+    let mut missing = Vec::new();
+
+    let core = db.builtin_core();
+    if let Ok(core_file) = core.root_file(db) {
+        let top_mod = db.top_mod(core_file);
+        missing.extend(
+            core_requirements::check_core_requirements(db, top_mod.scope(), core.kind(db))
+                .into_iter()
+                .map(|req| req.to_string()),
+        );
+    } else {
+        missing.push("missing required core ingot".to_string());
+    }
+
+    let std_ingot = db.builtin_std();
+    if let Ok(std_file) = std_ingot.root_file(db) {
+        let top_mod = db.top_mod(std_file);
+        missing.extend(
+            core_requirements::check_std_type_requirements(db, top_mod.scope(), std_ingot.kind(db))
+                .into_iter()
+                .map(|req| req.to_string()),
+        );
+    } else {
+        missing.push("missing required std ingot".to_string());
+    }
+
+    missing
+}
+
 fn init_ingot_graph(db: &mut DriverDataBase, ingot_url: &Url) -> bool {
-    tracing::info!(target: "resolver", "Starting workspace ingot resolution for: {}", ingot_url);
+    tracing::info!(target: "resolver", "Starting ingot resolution for: {}", ingot_url);
     let mut handler = IngotHandler::new(db).with_stdout(true);
     let mut ingot_graph_resolver =
         GraphResolverImpl::new(ingot_resolver(remote_checkout_root(ingot_url)));
@@ -139,19 +171,23 @@ fn init_ingot_graph(db: &mut DriverDataBase, ingot_url: &Url) -> bool {
 }
 
 fn should_use_workspace(ingot_url: &Url) -> bool {
-    manifest_config(ingot_url).is_some_and(|manifest| matches!(manifest, Manifest::Workspace(_)))
+    config_at_url(ingot_url).is_some_and(|config| matches!(config, Config::Workspace(_)))
 }
 
-fn manifest_config(ingot_url: &Url) -> Option<Manifest> {
+fn config_at_url(ingot_url: &Url) -> Option<Config> {
     let mut path = ingot_url.to_file_path().ok()?;
     path.push("fe.toml");
     fs::read_to_string(path)
         .ok()
-        .and_then(|content| Manifest::parse(&content).ok())
+        .and_then(|content| Config::parse(&content).ok())
 }
 
 pub fn init_workspace(db: &mut DriverDataBase, workspace_url: &Url) -> bool {
-    tracing::info!(target: "resolver", "Starting workspace resolution for: {}", workspace_url);
+    tracing::info!(
+        target: "resolver",
+        "Starting ingot resolution with workspace config for: {}",
+        workspace_url
+    );
     let mut handler = WorkspaceHandler::new().with_stdout(true);
     let mut had_diagnostics = handler.had_diagnostics();
 
@@ -175,20 +211,20 @@ pub fn init_workspace(db: &mut DriverDataBase, workspace_url: &Url) -> bool {
             return true;
         }
     };
-    let manifest_path = workspace_path.join("fe.toml");
-    let manifest_content = match fs::read_to_string(manifest_path.as_std_path()) {
+    let config_path = workspace_path.join("fe.toml");
+    let config_content = match fs::read_to_string(config_path.as_std_path()) {
         Ok(content) => content,
         Err(err) => {
             handler.report_error(IngotInitDiagnostics::WorkspaceMembersError {
                 workspace_url: workspace_url.clone(),
-                error: format!("Failed to read {}: {err}", manifest_path),
+                error: format!("Failed to read {}: {err}", config_path),
             });
             return true;
         }
     };
 
-    let manifest = match Manifest::parse(&manifest_content) {
-        Ok(manifest) => manifest,
+    let config_file = match Config::parse(&config_content) {
+        Ok(config_file) => config_file,
         Err(error) => {
             handler.report_error(IngotInitDiagnostics::WorkspaceConfigParseError {
                 workspace_url: workspace_url.clone(),
@@ -198,23 +234,23 @@ pub fn init_workspace(db: &mut DriverDataBase, workspace_url: &Url) -> bool {
         }
     };
 
-    let Manifest::Workspace(workspace_manifest) = manifest else {
+    let Config::Workspace(workspace_config) = config_file else {
         handler.report_error(IngotInitDiagnostics::WorkspaceMembersError {
             workspace_url: workspace_url.clone(),
-            error: "manifest is not a workspace".to_string(),
+            error: "config is not a workspace".to_string(),
         });
         return true;
     };
 
-    if !workspace_manifest.diagnostics.is_empty() {
+    if !workspace_config.diagnostics.is_empty() {
         handler.report_warn(IngotInitDiagnostics::WorkspaceDiagnostics {
             workspace_url: workspace_url.clone(),
-            diagnostics: workspace_manifest.diagnostics.clone(),
+            diagnostics: workspace_config.diagnostics.clone(),
         });
         had_diagnostics = true;
     }
 
-    let workspace = workspace_manifest.workspace.clone();
+    let workspace = workspace_config.workspace.clone();
 
     let member_selection = if workspace.default_members.is_some() {
         WorkspaceMemberSelection::DefaultOnly
@@ -352,7 +388,7 @@ impl WorkspaceHandler {
 }
 
 pub(crate) fn expand_workspace_members(
-    workspace: &common::config::WorkspaceConfig,
+    workspace: &common::config::WorkspaceSettings,
     base_url: &Url,
     selection: WorkspaceMemberSelection,
 ) -> Result<Vec<ExpandedWorkspaceMember>, String> {
@@ -455,7 +491,7 @@ pub(crate) fn expand_workspace_members(
 }
 
 pub fn workspace_member_urls(
-    workspace: &common::config::WorkspaceConfig,
+    workspace: &common::config::WorkspaceSettings,
     workspace_url: &Url,
 ) -> Result<Vec<Url>, String> {
     let members = workspace_members(workspace, workspace_url)?;
@@ -467,7 +503,7 @@ pub fn workspace_member_urls(
 }
 
 pub fn workspace_members(
-    workspace: &common::config::WorkspaceConfig,
+    workspace: &common::config::WorkspaceSettings,
     workspace_url: &Url,
 ) -> Result<Vec<WorkspaceMember>, String> {
     let selection = if workspace.default_members.is_some() {

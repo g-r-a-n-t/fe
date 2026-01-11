@@ -9,7 +9,7 @@ use camino::Utf8PathBuf;
 use check::check;
 use clap::{Parser, Subcommand};
 use colored::Colorize;
-use common::config::{Manifest, WorkspaceMemberSelection};
+use common::config::{Config, WorkspaceMemberSelection};
 use fmt as fe_fmt;
 use glob::Pattern;
 use similar::{ChangeTag, TextDiff};
@@ -33,6 +33,8 @@ pub enum Command {
         path: Utf8PathBuf,
         #[arg(short, long)]
         core: Option<Utf8PathBuf>,
+        #[arg(long)]
+        embed: bool,
         #[arg(long)]
         dump_mir: bool,
         #[arg(long)]
@@ -74,11 +76,12 @@ pub fn run(opts: &Options) {
         Command::Check {
             path,
             core: _,
+            embed,
             dump_mir,
             emit_yul_min,
         } => {
             //: TODO readd custom core
-            check(path, *dump_mir, *emit_yul_min);
+            check(path, *dump_mir, *emit_yul_min, *embed);
         }
         #[cfg(not(target_arch = "wasm32"))]
         Command::Tree { path } => {
@@ -269,11 +272,11 @@ fn init_workspace_layout(base: &Utf8PathBuf) -> Result<(), String> {
         .map_err(|err| format!("Failed to create ingots directory {}: {err}", ingots_dir))?;
 
     let workspace_name = infer_workspace_name(base);
-    let workspace_manifest = base.join("fe.toml");
+    let workspace_config = base.join("fe.toml");
     write_if_absent(
-        &workspace_manifest,
+        &workspace_config,
         format!(
-            r#"# Workspace manifest
+            r#"# Workspace config
 name = "{}"
 version = "{}"
 
@@ -315,11 +318,11 @@ fn init_ingot_layout(base: &Utf8PathBuf, explicit_name: Option<String>) -> Resul
         .map_err(|err| format!("Failed to create src directory {src_dir}: {err}"))?;
 
     let name = explicit_name.unwrap_or_else(|| infer_ingot_name(base));
-    let manifest = base.join("fe.toml");
+    let config_path = base.join("fe.toml");
     write_if_absent(
-        &manifest,
+        &config_path,
         format!(
-            "# Ingot manifest\n[ingot]\nname = \"{}\"\nversion = \"{}\"\n\n# Optional dependencies\n# [dependencies]\n# utils = {{ path = \"../utils\" }}\n",
+            "# Ingot config\n[ingot]\nname = \"{}\"\nversion = \"{}\"\n\n# Optional dependencies\n# [dependencies]\n# utils = {{ path = \"../utils\" }}\n",
             name, DEFAULT_INGOT_VERSION
         ),
     )?;
@@ -379,11 +382,11 @@ fn absolute_target(path: Option<&Utf8PathBuf>) -> Result<Utf8PathBuf, String> {
 
 fn find_workspace_root(target: &Utf8PathBuf) -> Option<Utf8PathBuf> {
     for ancestor in target.ancestors() {
-        let manifest = ancestor.join("fe.toml");
-        if manifest.is_file()
-            && let Ok(content) = fs::read_to_string(manifest.as_std_path())
-            && let Ok(manifest) = Manifest::parse(&content)
-            && matches!(manifest, Manifest::Workspace(_))
+        let config_path = ancestor.join("fe.toml");
+        if config_path.is_file()
+            && let Ok(content) = fs::read_to_string(config_path.as_std_path())
+            && let Ok(config_file) = Config::parse(&content)
+            && matches!(config_file, Config::Workspace(_))
         {
             return Some(ancestor.to_path_buf());
         }
@@ -395,15 +398,15 @@ fn update_workspace_members(
     workspace_root: &Utf8PathBuf,
     member_dir: &Utf8PathBuf,
 ) -> Result<(), String> {
-    let manifest_path = workspace_root.join("fe.toml");
-    let manifest_str = fs::read_to_string(manifest_path.as_std_path())
-        .map_err(|err| format!("Failed to read {}: {err}", manifest_path))?;
-    let manifest = Manifest::parse(&manifest_str)
-        .map_err(|err| format!("Failed to parse {}: {err}", manifest_path))?;
-    let workspace = match manifest {
-        Manifest::Workspace(workspace_manifest) => workspace_manifest.workspace,
-        Manifest::Ingot(_) => {
-            return Err(format!("{} is not a workspace manifest", manifest_path));
+    let config_path = workspace_root.join("fe.toml");
+    let config_str = fs::read_to_string(config_path.as_std_path())
+        .map_err(|err| format!("Failed to read {}: {err}", config_path))?;
+    let config_file = Config::parse(&config_str)
+        .map_err(|err| format!("Failed to parse {}: {err}", config_path))?;
+    let workspace = match config_file {
+        Config::Workspace(workspace_config) => workspace_config.workspace,
+        Config::Ingot(_) => {
+            return Err(format!("{} is not a workspace config", config_path));
         }
     };
 
@@ -427,12 +430,12 @@ fn update_workspace_members(
         return Ok(());
     }
 
-    let mut value: Value = manifest_str
+    let mut value: Value = config_str
         .parse()
-        .map_err(|err| format!("Failed to parse {}: {err}", manifest_path))?;
+        .map_err(|err| format!("Failed to parse {}: {err}", config_path))?;
     let root_table = value
         .as_table_mut()
-        .ok_or_else(|| format!("{} is not a workspace manifest", manifest_path))?;
+        .ok_or_else(|| format!("{} is not a workspace config", config_path))?;
     let members = workspace_members_array(root_table)?;
 
     if !members
@@ -443,14 +446,14 @@ fn update_workspace_members(
     }
 
     let updated = toml::to_string_pretty(&value)
-        .map_err(|err| format!("Failed to serialize {}: {err}", manifest_path))?;
-    fs::write(manifest_path.as_std_path(), updated)
-        .map_err(|err| format!("Failed to write {}: {err}", manifest_path))?;
+        .map_err(|err| format!("Failed to serialize {}: {err}", config_path))?;
+    fs::write(config_path.as_std_path(), updated)
+        .map_err(|err| format!("Failed to write {}: {err}", config_path))?;
     Ok(())
 }
 
 fn workspace_member_patterns(
-    workspace: &common::config::WorkspaceConfig,
+    workspace: &common::config::WorkspaceSettings,
 ) -> Vec<smol_str::SmolStr> {
     workspace
         .members_for_selection(WorkspaceMemberSelection::All)

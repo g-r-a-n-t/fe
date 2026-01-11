@@ -1,6 +1,8 @@
 use crate::{HirDb, span::DynLazySpan};
 pub mod analysis_pass;
+pub mod core_requirements;
 pub mod diagnostics;
+pub mod embed_requirements;
 pub mod place;
 
 #[salsa::db]

@@ -4,7 +4,7 @@ assertion_line: 32
 expression: output
 input_file: test_files/desugar/contract_and_effects.fe
 ---
-use core::prelude::*
+use embed::*
 
 mod __Counter {
     use super::*
@@ -73,7 +73,7 @@ mod __Counter {
 }
 
 mod CounterMsg {
-    use core::prelude::*
+    use embed::*
     use super::*
 
     pub struct Increment {}

@@ -7,7 +7,7 @@ use crate::{
     },
     hir_def::Func,
 };
-use common::{indexmap::IndexMap, ingot::Ingot};
+use common::{indexmap::IndexMap, ingot::Ingot, ingot::IngotKind};
 use rustc_hash::FxHashMap;
 use salsa::Update;
 
@@ -44,6 +44,7 @@ pub(crate) fn collect_trait_impls<'db>(
     let const_impls = ingot
         .resolved_external_ingots(db)
         .iter()
+        .filter(|(_, external)| external.kind(db) != IngotKind::Embed)
         .map(|(_, external)| collect_trait_impls(db, *external))
         .collect();
 

@@ -2,7 +2,7 @@ use std::fs;
 
 use camino::Utf8PathBuf;
 use common::{
-    config::{Manifest, WorkspaceManifest},
+    config::{Config, WorkspaceConfig},
     dependencies::WorkspaceMemberRecord,
     ingot::Version,
 };
@@ -79,9 +79,9 @@ fn ensure_local_workspace_registry(
         return Ok(());
     }
 
-    let manifest = load_workspace_manifest_from_url(workspace_root)?;
+    let config_file = load_workspace_config_from_url(workspace_root)?;
     let members = expand_workspace_members(
-        &manifest.workspace,
+        &config_file.workspace,
         workspace_root,
         common::config::WorkspaceMemberSelection::All,
     )
@@ -125,7 +125,7 @@ fn ensure_remote_workspace_registry(
     let checkout = git
         .ensure_checkout_resource(description)
         .map_err(|err| WorkspaceLookupError::Message(err.to_string()))?;
-    let manifest = load_workspace_manifest_from_path(&checkout.checkout_path)?;
+    let config_file = load_workspace_config_from_path(&checkout.checkout_path)?;
     let workspace_root =
         Url::from_directory_path(checkout.checkout_path.as_std_path()).map_err(|_| {
             WorkspaceLookupError::Message(
@@ -141,7 +141,7 @@ fn ensure_remote_workspace_registry(
         return Ok(checkout.checkout_path);
     }
 
-    let specs = manifest
+    let specs = config_file
         .workspace
         .members_for_selection(common::config::WorkspaceMemberSelection::All);
     for spec in specs {
@@ -278,44 +278,44 @@ fn member_version_matches(
         })?)
         .map_err(|_| WorkspaceLookupError::Message("member path is not UTF-8".to_string()))?
     };
-    let manifest_path = member_path.join("fe.toml");
-    let content = fs::read_to_string(manifest_path.as_std_path()).map_err(|err| {
-        WorkspaceLookupError::Message(format!("Failed to read {}: {err}", manifest_path))
+    let config_path = member_path.join("fe.toml");
+    let content = fs::read_to_string(config_path.as_std_path()).map_err(|err| {
+        WorkspaceLookupError::Message(format!("Failed to read {}: {err}", config_path))
     })?;
-    let manifest = Manifest::parse(&content).map_err(|err| {
-        WorkspaceLookupError::Message(format!("Failed to parse {manifest_path}: {err}"))
+    let config_file = Config::parse(&content).map_err(|err| {
+        WorkspaceLookupError::Message(format!("Failed to parse {config_path}: {err}"))
     })?;
-    let Manifest::Ingot(ingot) = manifest else {
+    let Config::Ingot(ingot) = config_file else {
         return Err(WorkspaceLookupError::Message(format!(
-            "Expected ingot manifest at {manifest_path}"
+            "Expected ingot config at {config_path}"
         )));
     };
     Ok(ingot.metadata.version.as_ref() == Some(expected))
 }
 
-fn load_workspace_manifest_from_url(
+fn load_workspace_config_from_url(
     workspace_root: &Url,
-) -> Result<WorkspaceManifest, WorkspaceLookupError> {
+) -> Result<WorkspaceConfig, WorkspaceLookupError> {
     let path = workspace_root.to_file_path().map_err(|_| {
         WorkspaceLookupError::Message("workspace URL is not a file URL".to_string())
     })?;
     let path = Utf8PathBuf::from_path_buf(path)
         .map_err(|_| WorkspaceLookupError::Message("workspace path is not UTF-8".to_string()))?;
-    load_workspace_manifest_from_path(&path)
+    load_workspace_config_from_path(&path)
 }
 
-fn load_workspace_manifest_from_path(
+fn load_workspace_config_from_path(
     path: &Utf8PathBuf,
-) -> Result<WorkspaceManifest, WorkspaceLookupError> {
-    let manifest_path = path.join("fe.toml");
-    let content = fs::read_to_string(manifest_path.as_std_path()).map_err(|err| {
-        WorkspaceLookupError::Message(format!("Failed to read {}: {err}", manifest_path))
+) -> Result<WorkspaceConfig, WorkspaceLookupError> {
+    let config_path = path.join("fe.toml");
+    let content = fs::read_to_string(config_path.as_std_path()).map_err(|err| {
+        WorkspaceLookupError::Message(format!("Failed to read {}: {err}", config_path))
     })?;
-    let manifest = Manifest::parse(&content).map_err(|err| {
-        WorkspaceLookupError::Message(format!("Failed to parse {manifest_path}: {err}"))
+    let config_file = Config::parse(&content).map_err(|err| {
+        WorkspaceLookupError::Message(format!("Failed to parse {config_path}: {err}"))
     })?;
-    match manifest {
-        Manifest::Workspace(workspace) => Ok(*workspace),
-        Manifest::Ingot(_) => Err(WorkspaceLookupError::NotWorkspace),
+    match config_file {
+        Config::Workspace(workspace) => Ok(*workspace),
+        Config::Ingot(_) => Err(WorkspaceLookupError::NotWorkspace),
     }
 }

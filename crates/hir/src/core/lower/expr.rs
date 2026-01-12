@@ -257,6 +257,7 @@ impl ArithBinOp {
             ast::ArithBinOp::BitAnd(_) => Self::BitAnd,
             ast::ArithBinOp::BitOr(_) => Self::BitOr,
             ast::ArithBinOp::BitXor(_) => Self::BitXor,
+            ast::ArithBinOp::Range(_) => Self::Range,
         }
     }
 }

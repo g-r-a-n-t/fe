@@ -116,6 +116,8 @@ pub enum ArithBinOp {
     BitOr,
     /// `^`
     BitXor,
+    /// `..`
+    Range,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]

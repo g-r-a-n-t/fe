@@ -127,16 +127,13 @@ object "GuardContract" {
         let v3 := $runtime_decoder__Evm_Sol__2533f5c49b57a682(0)
         switch v2
           case 1 {
-            $___decode_decode__Sol_SolDecoder_CallData___828c6f2e3bda3cab(v3)
+            $flip_decode_decode__SolDecoder_CallData___c1e4510fd444b966(v3)
             let v4 := $__GuardContract_recv_0_0(0, v1, v0)
             $return_value__Evm_Sol_bool__261f3a707fad09c8(0, v4)
           }
           default {
             $evm_contracthost_abort(0)
           }
-      }
-      function $___decode_decode__Sol_SolDecoder_CallData___828c6f2e3bda3cab($d) {
-        leave
       }
       function $alloc($size) -> ret {
         let v0 := mload(64)
@@ -207,6 +204,9 @@ object "GuardContract" {
       }
       function $evm_contracthost_return_bytes($self, $ptr, $len) {
         return($ptr, $len)
+      }
+      function $flip_decode_decode__SolDecoder_CallData___c1e4510fd444b966($d) {
+        leave
       }
       function $return_value__Evm_Sol_bool__261f3a707fad09c8($self, $value) {
         let v0 := $sol_abi_encoder_new()

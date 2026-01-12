@@ -10,7 +10,7 @@ use hir::{
         ty_def::{TyBase, TyData},
     },
     hir_def::{
-        CallableDef, Contract, IdentId, Partial, PathId, TopLevelMod,
+        CallableDef, Contract, IdentId, PathId, TopLevelMod,
         expr::{ArithBinOp, BinOp, CompBinOp},
     },
 };
@@ -904,8 +904,8 @@ fn lower_recv_arm_handler<'db>(
     for binding in arg_bindings {
         let tuple_index = binding.tuple_index as usize;
         let elem_value =
-            project_tuple_elem_value(&mut builder, args_value, args_ty, tuple_index, binding.ty);
-        bind_pat_value(&mut builder, binding.pat, elem_value);
+            builder.project_tuple_elem_value(args_value, args_ty, tuple_index, binding.ty);
+        builder.bind_pat_value(binding.pat, elem_value);
         if builder.current_block().is_none() {
             break;
         }
@@ -995,130 +995,6 @@ fn seed_effect_param_locals<'db>(
         };
 
         builder.seed_synthetic_effect_param_local(name, binding, addr_space);
-    }
-}
-
-fn project_tuple_elem_value<'db>(
-    builder: &mut MirBuilder<'db, '_>,
-    tuple_value: ValueId,
-    tuple_ty: TyId<'db>,
-    field_idx: usize,
-    field_ty: TyId<'db>,
-) -> ValueId {
-    // Transparent newtype access: field 0 is a representation-preserving cast.
-    if field_idx == 0 && repr::transparent_newtype_field_ty(builder.db, tuple_ty).is_some() {
-        let base_repr = builder.builder.body.value(tuple_value).repr;
-        if !base_repr.is_ref() {
-            let space = base_repr
-                .address_space()
-                .unwrap_or(AddressSpaceKind::Memory);
-            return builder.alloc_value(
-                field_ty,
-                ValueOrigin::TransparentCast { value: tuple_value },
-                builder.value_repr_for_ty(field_ty, space),
-            );
-        }
-    }
-
-    let base_space = builder.value_address_space(tuple_value);
-    let place = crate::ir::Place::new(
-        tuple_value,
-        crate::ir::MirProjectionPath::from_projection(hir::projection::Projection::Field(
-            field_idx,
-        )),
-    );
-    if builder.is_by_ref_ty(field_ty) {
-        return builder.alloc_value(
-            field_ty,
-            ValueOrigin::PlaceRef(place),
-            ValueRepr::Ref(base_space),
-        );
-    }
-    let dest = builder.alloc_temp_local(field_ty, false, "arg");
-    builder.builder.body.locals[dest.index()].address_space = AddressSpaceKind::Memory;
-    builder.assign(None, Some(dest), Rvalue::Load { place });
-    builder.alloc_value(field_ty, ValueOrigin::Local(dest), ValueRepr::Word)
-}
-
-fn bind_pat_value<'db>(
-    builder: &mut MirBuilder<'db, '_>,
-    pat: hir::hir_def::PatId,
-    value: ValueId,
-) {
-    let Some(block) = builder.current_block() else {
-        return;
-    };
-    let Partial::Present(pat_data) = pat.data(builder.db, builder.body) else {
-        return;
-    };
-
-    match pat_data {
-        hir::hir_def::Pat::WildCard | hir::hir_def::Pat::Rest => {}
-        hir::hir_def::Pat::Path(_, is_mut) => {
-            let binding = builder
-                .typed_body
-                .pat_binding(pat)
-                .unwrap_or(LocalBinding::Local {
-                    pat,
-                    is_mut: *is_mut,
-                });
-            let Some(local) = builder.local_for_binding(binding) else {
-                return;
-            };
-            builder.move_to_block(block);
-            builder.assign(None, Some(local), Rvalue::Value(value));
-            let pat_ty = builder.typed_body.pat_ty(builder.db, pat);
-            if builder
-                .value_repr_for_ty(pat_ty, AddressSpaceKind::Memory)
-                .address_space()
-                .is_some()
-            {
-                let space = builder.value_address_space(value);
-                builder.set_pat_address_space(pat, space);
-            }
-        }
-        hir::hir_def::Pat::Tuple(pats) | hir::hir_def::Pat::PathTuple(_, pats) => {
-            let base_ty = builder.typed_body.pat_ty(builder.db, pat);
-            for (idx, field_pat) in pats.iter().enumerate() {
-                let Partial::Present(field_pat_data) = field_pat.data(builder.db, builder.body)
-                else {
-                    continue;
-                };
-                if matches!(
-                    field_pat_data,
-                    hir::hir_def::Pat::WildCard | hir::hir_def::Pat::Rest
-                ) {
-                    continue;
-                }
-                let field_ty = builder.typed_body.pat_ty(builder.db, *field_pat);
-                let field_value = project_tuple_elem_value(builder, value, base_ty, idx, field_ty);
-                bind_pat_value(builder, *field_pat, field_value);
-                if builder.current_block().is_none() {
-                    break;
-                }
-            }
-        }
-        hir::hir_def::Pat::Record(_, fields) => {
-            let base_ty = builder.typed_body.pat_ty(builder.db, pat);
-            for field in fields {
-                let Some(label) = field.label(builder.db, builder.body) else {
-                    continue;
-                };
-                let Some(info) =
-                    builder.field_access_info(base_ty, hir::hir_def::FieldIndex::Ident(label))
-                else {
-                    continue;
-                };
-                let field_ty = builder.typed_body.pat_ty(builder.db, field.pat);
-                let field_value =
-                    project_tuple_elem_value(builder, value, base_ty, info.field_idx, field_ty);
-                bind_pat_value(builder, field.pat, field_value);
-                if builder.current_block().is_none() {
-                    break;
-                }
-            }
-        }
-        _ => {}
     }
 }
 

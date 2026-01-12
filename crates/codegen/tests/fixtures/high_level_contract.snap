@@ -160,31 +160,23 @@ object "EchoContract" {
         let v2 := $runtime_decoder__Evm_Sol__2533f5c49b57a682(0)
         switch v1
           case 1 {
-            $___decode_decode__Sol_SolDecoder_CallData___828c6f2e3bda3cab(v2)
+            $answer_decode_decode__SolDecoder_CallData___c1e4510fd444b966(v2)
             let v3 := $__EchoContract_recv_0_0(0)
             $return_value__Evm_Sol_u256__fe091c64bccbbbf1(0, v3)
           }
           case 2 {
-            let v4 := $_t0__decode_decode__Sol_u256_SolDecoder_CallData___51fc2f6931ec5edc(v2)
+            let v4 := $echo_decode_decode__SolDecoder_CallData___c1e4510fd444b966(v2)
             let v5 := $__EchoContract_recv_0_1(v4)
             $return_value__Evm_Sol_u256__fe091c64bccbbbf1(0, v5)
           }
           case 3 {
-            $___decode_decode__Sol_SolDecoder_CallData___828c6f2e3bda3cab(v2)
+            $getx_decode_decode__SolDecoder_CallData___c1e4510fd444b966(v2)
             let v6 := $__EchoContract_recv_0_2(0, v0)
             $return_value__Evm_Sol_u256__fe091c64bccbbbf1(0, v6)
           }
           default {
             $evm_contracthost_abort(0)
           }
-      }
-      function $___decode_decode__Sol_SolDecoder_CallData___828c6f2e3bda3cab($d) {
-        leave
-      }
-      function $_t0__decode_decode__Sol_u256_SolDecoder_CallData___51fc2f6931ec5edc($d) -> ret {
-        let v0 := $u256_decode_decode__Sol_SolDecoder_CallData___828c6f2e3bda3cab($d)
-        ret := v0
-        leave
       }
       function $alloc($size) -> ret {
         let v0 := mload(64)
@@ -194,6 +186,9 @@ object "EchoContract" {
         }
         mstore(64, add(v0, $size))
         ret := v0
+        leave
+      }
+      function $answer_decode_decode__SolDecoder_CallData___c1e4510fd444b966($d) {
         leave
       }
       function $calldata_byteinput_len($self) -> ret {
@@ -231,6 +226,11 @@ object "EchoContract" {
         ret := v1
         leave
       }
+      function $echo_decode_decode__SolDecoder_CallData___c1e4510fd444b966($d) -> ret {
+        let v0 := $u256_decode_decode__Sol_SolDecoder_CallData___828c6f2e3bda3cab($d)
+        ret := v0
+        leave
+      }
       function $evm_contracthost_abort($self) {
         revert(0, 0)
       }
@@ -245,6 +245,9 @@ object "EchoContract" {
       }
       function $evm_contracthost_return_bytes($self, $ptr, $len) {
         return($ptr, $len)
+      }
+      function $getx_decode_decode__SolDecoder_CallData___c1e4510fd444b966($d) {
+        leave
       }
       function $return_value__Evm_Sol_u256__fe091c64bccbbbf1($self, $value) {
         let v0 := $sol_abi_encoder_new()

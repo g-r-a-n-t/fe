@@ -682,29 +682,22 @@ impl<'db> RecvArmView<'db> {
 
         let msg_variant_trait =
             resolve_core_trait(db, contract.scope(), &["message", "MsgVariant"]);
-        let args_ident = IdentId::new(db, "Args".to_string());
         let return_ident = IdentId::new(db, "Return".to_string());
 
-        let (args_ty, variant_ret_ty) = if !variant_ty.has_invalid(db) && !abi.has_invalid(db) {
+        let variant_ret_ty = if !variant_ty.has_invalid(db) && !abi.has_invalid(db) {
             let inst = TraitInstId::new(
                 db,
                 msg_variant_trait,
                 vec![variant_ty, abi],
                 IndexMap::new(),
             );
-            let args_proj = TyId::assoc_ty(db, inst, args_ident);
             let return_proj = TyId::assoc_ty(db, inst, return_ident);
-            (
-                normalize_ty(db, args_proj, contract.scope(), assumptions),
-                normalize_ty(db, return_proj, contract.scope(), assumptions),
-            )
+            normalize_ty(db, return_proj, contract.scope(), assumptions)
         } else {
-            (
-                TyId::invalid(db, InvalidCause::Other),
-                TyId::invalid(db, InvalidCause::Other),
-            )
+            TyId::invalid(db, InvalidCause::Other)
         };
 
+        let args_ty = variant_ty;
         let ret_ty = (variant_ret_ty != TyId::unit(db)).then_some(variant_ret_ty);
 
         RecvArmAbiInfo {

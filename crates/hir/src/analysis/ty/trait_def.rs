@@ -683,6 +683,10 @@ impl<'db> TraitInstId<'db> {
         self.key(db)
     }
 
+    pub fn new_simple(db: &'db dyn HirAnalysisDb, def: Trait<'db>, args: Vec<TyId<'db>>) -> Self {
+        Self::new(db, def, args, IndexMap::new())
+    }
+
     pub fn with_fresh_vars(
         db: &'db dyn HirAnalysisDb,
         def: Trait<'db>,

@@ -679,6 +679,121 @@ impl<'db, 'a> MirBuilder<'db, 'a> {
         }
     }
 
+    fn project_tuple_elem_value(
+        &mut self,
+        tuple_value: ValueId,
+        tuple_ty: TyId<'db>,
+        field_idx: usize,
+        field_ty: TyId<'db>,
+    ) -> ValueId {
+        // Transparent newtype access: field 0 is a representation-preserving cast.
+        if field_idx == 0 && crate::repr::transparent_newtype_field_ty(self.db, tuple_ty).is_some()
+        {
+            let base_repr = self.builder.body.value(tuple_value).repr;
+            if !base_repr.is_ref() {
+                let space = base_repr
+                    .address_space()
+                    .unwrap_or(AddressSpaceKind::Memory);
+                return self.alloc_value(
+                    field_ty,
+                    ValueOrigin::TransparentCast { value: tuple_value },
+                    self.value_repr_for_ty(field_ty, space),
+                );
+            }
+        }
+
+        let base_space = self.value_address_space(tuple_value);
+        let place = Place::new(
+            tuple_value,
+            MirProjectionPath::from_projection(hir::projection::Projection::Field(field_idx)),
+        );
+        if self.is_by_ref_ty(field_ty) {
+            return self.alloc_value(
+                field_ty,
+                ValueOrigin::PlaceRef(place),
+                ValueRepr::Ref(base_space),
+            );
+        }
+        let dest = self.alloc_temp_local(field_ty, false, "arg");
+        self.builder.body.locals[dest.index()].address_space = AddressSpaceKind::Memory;
+        self.assign(None, Some(dest), Rvalue::Load { place });
+        self.alloc_value(field_ty, ValueOrigin::Local(dest), ValueRepr::Word)
+    }
+
+    fn bind_pat_value(&mut self, pat: PatId, value: ValueId) {
+        let Some(block) = self.current_block() else {
+            return;
+        };
+        let Partial::Present(pat_data) = pat.data(self.db, self.body) else {
+            return;
+        };
+
+        match pat_data {
+            Pat::WildCard | Pat::Rest => {}
+            Pat::Path(_, is_mut) => {
+                let binding = self
+                    .typed_body
+                    .pat_binding(pat)
+                    .unwrap_or(LocalBinding::Local {
+                        pat,
+                        is_mut: *is_mut,
+                    });
+                let Some(local) = self.local_for_binding(binding) else {
+                    return;
+                };
+                self.move_to_block(block);
+                self.assign(None, Some(local), Rvalue::Value(value));
+                let pat_ty = self.typed_body.pat_ty(self.db, pat);
+                if self
+                    .value_repr_for_ty(pat_ty, AddressSpaceKind::Memory)
+                    .address_space()
+                    .is_some()
+                {
+                    let space = self.value_address_space(value);
+                    self.set_pat_address_space(pat, space);
+                }
+            }
+            Pat::Tuple(pats) | Pat::PathTuple(_, pats) => {
+                let base_ty = self.typed_body.pat_ty(self.db, pat);
+                for (idx, field_pat) in pats.iter().enumerate() {
+                    let Partial::Present(field_pat_data) = field_pat.data(self.db, self.body)
+                    else {
+                        continue;
+                    };
+                    if matches!(field_pat_data, Pat::WildCard | Pat::Rest) {
+                        continue;
+                    }
+                    let field_ty = self.typed_body.pat_ty(self.db, *field_pat);
+                    let field_value = self.project_tuple_elem_value(value, base_ty, idx, field_ty);
+                    self.bind_pat_value(*field_pat, field_value);
+                    if self.current_block().is_none() {
+                        break;
+                    }
+                }
+            }
+            Pat::Record(_, fields) => {
+                let base_ty = self.typed_body.pat_ty(self.db, pat);
+                for field in fields {
+                    let Some(label) = field.label(self.db, self.body) else {
+                        continue;
+                    };
+                    let Some(info) = self.field_access_info(base_ty, FieldIndex::Ident(label))
+                    else {
+                        continue;
+                    };
+                    let field_ty = self.typed_body.pat_ty(self.db, field.pat);
+                    let field_value =
+                        self.project_tuple_elem_value(value, base_ty, info.field_idx, field_ty);
+                    self.bind_pat_value(field.pat, field_value);
+                    if self.current_block().is_none() {
+                        break;
+                    }
+                }
+            }
+            _ => {}
+        }
+    }
+
     fn seed_signature_locals(&mut self) {
         let Some(func) = self.hir_func else {
             return;

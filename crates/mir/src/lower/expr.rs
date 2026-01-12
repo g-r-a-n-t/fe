@@ -1319,46 +1319,13 @@ impl<'db, 'a> MirBuilder<'db, 'a> {
                             }
                         }
                     }
-                    Pat::Tuple(pats) => {
+                    Pat::Tuple(_) | Pat::PathTuple(_, _) | Pat::Record(_, _) => {
                         let Some(expr) = value else {
                             return;
                         };
-                        let tuple_value = self.lower_expr(*expr);
-                        let base_space = self.value_address_space(tuple_value);
-                        for (field_idx, field_pat) in pats.iter().enumerate() {
-                            let Partial::Present(field_pat_data) =
-                                field_pat.data(self.db, self.body)
-                            else {
-                                continue;
-                            };
-                            if matches!(field_pat_data, Pat::WildCard | Pat::Rest) {
-                                continue;
-                            }
-                            let binding = self.typed_body.pat_binding(*field_pat).unwrap_or(
-                                LocalBinding::Local {
-                                    pat: *field_pat,
-                                    is_mut: matches!(field_pat_data, Pat::Path(_, true)),
-                                },
-                            );
-                            let Some(local) = self.local_for_binding(binding) else {
-                                continue;
-                            };
-                            let field_ty = self.typed_body.pat_ty(self.db, *field_pat);
-                            let is_by_ref = self.is_by_ref_ty(field_ty);
-                            let place = Place::new(
-                                tuple_value,
-                                MirProjectionPath::from_projection(Projection::Field(field_idx)),
-                            );
-                            if is_by_ref {
-                                let field_value = self.alloc_value(
-                                    field_ty,
-                                    ValueOrigin::PlaceRef(place),
-                                    ValueRepr::Ref(base_space),
-                                );
-                                self.assign(Some(stmt_id), Some(local), Rvalue::Value(field_value));
-                            } else {
-                                self.assign(Some(stmt_id), Some(local), Rvalue::Load { place });
-                            }
+                        let value_id = self.lower_expr(*expr);
+                        if self.current_block().is_some() {
+                            self.bind_pat_value(*pat, value_id);
                         }
                     }
                     _ => {

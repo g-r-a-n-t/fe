@@ -171,6 +171,30 @@ impl<'db> PathId<'db> {
         )
     }
 
+    pub fn push_str_args(
+        self,
+        db: &'db dyn HirDb,
+        s: &str,
+        generic_args: GenericArgListId<'db>,
+    ) -> Self {
+        self.push_ident_args(db, IdentId::new(db, s.to_string()), generic_args)
+    }
+
+    pub fn push_ident_args(
+        self,
+        db: &'db dyn HirDb,
+        ident: IdentId<'db>,
+        generic_args: GenericArgListId<'db>,
+    ) -> Self {
+        self.push(
+            db,
+            PathKind::Ident {
+                ident: Partial::Present(ident),
+                generic_args,
+            },
+        )
+    }
+
     pub fn ident(self, db: &'db dyn HirDb) -> Partial<IdentId<'db>> {
         match self.kind(db) {
             PathKind::Ident { ident, .. } => ident,

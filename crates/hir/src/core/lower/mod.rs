@@ -29,6 +29,7 @@ mod attr;
 mod body;
 mod contract;
 mod expr;
+mod hir_builder;
 mod item;
 mod msg;
 mod params;

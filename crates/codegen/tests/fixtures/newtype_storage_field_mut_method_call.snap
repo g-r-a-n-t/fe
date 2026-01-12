@@ -136,16 +136,13 @@ object "NewtypeStorageFieldMutMethodCall" {
         let v3 := $runtime_decoder__Evm_Sol__2533f5c49b57a682(0)
         switch v2
           case 1 {
-            $___decode_decode__Sol_SolDecoder_CallData___828c6f2e3bda3cab(v3)
+            $bump_decode_decode__SolDecoder_CallData___c1e4510fd444b966(v3)
             let v4 := $__NewtypeStorageFieldMutMethodCall_recv_0_0(0, v1)
             $return_value__Evm_Sol_u256__fe091c64bccbbbf1(0, v4)
           }
           default {
             $evm_contracthost_abort(0)
           }
-      }
-      function $___decode_decode__Sol_SolDecoder_CallData___828c6f2e3bda3cab($d) {
-        leave
       }
       function $alloc($size) -> ret {
         let v0 := mload(64)
@@ -155,6 +152,9 @@ object "NewtypeStorageFieldMutMethodCall" {
         }
         mstore(64, add(v0, $size))
         ret := v0
+        leave
+      }
+      function $bump_decode_decode__SolDecoder_CallData___c1e4510fd444b966($d) {
         leave
       }
       function $calldata_byteinput_len($self) -> ret {

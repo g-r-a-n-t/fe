@@ -65,12 +65,12 @@ object "Factory" {
         let v1 := $runtime_decoder__Evm_Sol__2533f5c49b57a682(0)
         switch v0
           case 1 {
-            let v2 := $_t0__t1__decode_decode__Sol_u256_u256_SolDecoder_CallData___ebb124e1ac998b61(v1)
+            let v2 := $deploy_decode_decode__SolDecoder_CallData___c1e4510fd444b966(v1)
             let v3 := $__Factory_recv_0_0(v2, 0)
             $return_value__Evm_Sol_Address__a87e34cebc0d4cc4(0, v3)
           }
           case 2 {
-            let v4 := $_t0__t1__t2__decode_decode__Sol_u256_u256_u256_SolDecoder_CallData___56886a7fb37b995f(v1)
+            let v4 := $deploy2_decode_decode__SolDecoder_CallData___c1e4510fd444b966(v1)
             let v5 := $__Factory_recv_0_1(v4, 0)
             $return_value__Evm_Sol_Address__a87e34cebc0d4cc4(0, v5)
           }
@@ -78,39 +78,13 @@ object "Factory" {
             $evm_contracthost_abort(0)
           }
       }
-      function $_t0__t1__decode_decode__Sol_u256_u256_SolDecoder_CallData___ebb124e1ac998b61($d) -> ret {
-        let v0 := $u256_decode_decode__Sol_SolDecoder_CallData___828c6f2e3bda3cab($d)
-        let v1 := $u256_decode_decode__Sol_SolDecoder_CallData___828c6f2e3bda3cab($d)
-        let v2 := mload(0x40)
-        if iszero(v2) {
-          v2 := 0x80
-        }
-        mstore(0x40, add(v2, 64))
-        mstore(v2, v0)
-        mstore(add(v2, 32), v1)
-        ret := v2
-        leave
-      }
       function $_t0__t1__encode_encode__Sol_u256_u256_SolEncoder__549b20784d368532($self, $e) {
         let v0 := mload($self)
-        let v1 := mload(add($self, 32))
-        $u256_encode_encode__Sol_SolEncoder__dce63ad1a1fe4ae2(v0, $e)
+        let v1 := v0
+        let v2 := mload(add($self, 32))
+        let v3 := v2
         $u256_encode_encode__Sol_SolEncoder__dce63ad1a1fe4ae2(v1, $e)
-        leave
-      }
-      function $_t0__t1__t2__decode_decode__Sol_u256_u256_u256_SolDecoder_CallData___56886a7fb37b995f($d) -> ret {
-        let v0 := $u256_decode_decode__Sol_SolDecoder_CallData___828c6f2e3bda3cab($d)
-        let v1 := $u256_decode_decode__Sol_SolDecoder_CallData___828c6f2e3bda3cab($d)
-        let v2 := $u256_decode_decode__Sol_SolDecoder_CallData___828c6f2e3bda3cab($d)
-        let v3 := mload(0x40)
-        if iszero(v3) {
-          v3 := 0x80
-        }
-        mstore(0x40, add(v3, 96))
-        mstore(v3, v0)
-        mstore(add(v3, 32), v1)
-        mstore(add(v3, 64), v2)
-        ret := v3
+        $u256_encode_encode__Sol_SolEncoder__dce63ad1a1fe4ae2(v3, $e)
         leave
       }
       function $address_encode_encode__Sol_SolEncoder__dce63ad1a1fe4ae2($self, $e) {
@@ -228,6 +202,34 @@ object "Factory" {
         mstore(add(v0, 32), 0)
         let v1 := v0
         ret := v1
+        leave
+      }
+      function $deploy2_decode_decode__SolDecoder_CallData___c1e4510fd444b966($d) -> ret {
+        let v0 := $u256_decode_decode__Sol_SolDecoder_CallData___828c6f2e3bda3cab($d)
+        let v1 := $u256_decode_decode__Sol_SolDecoder_CallData___828c6f2e3bda3cab($d)
+        let v2 := $u256_decode_decode__Sol_SolDecoder_CallData___828c6f2e3bda3cab($d)
+        let v3 := mload(0x40)
+        if iszero(v3) {
+          v3 := 0x80
+        }
+        mstore(0x40, add(v3, 96))
+        mstore(v3, v0)
+        mstore(add(v3, 32), v1)
+        mstore(add(v3, 64), v2)
+        ret := v3
+        leave
+      }
+      function $deploy_decode_decode__SolDecoder_CallData___c1e4510fd444b966($d) -> ret {
+        let v0 := $u256_decode_decode__Sol_SolDecoder_CallData___828c6f2e3bda3cab($d)
+        let v1 := $u256_decode_decode__Sol_SolDecoder_CallData___828c6f2e3bda3cab($d)
+        let v2 := mload(0x40)
+        if iszero(v2) {
+          v2 := 0x80
+        }
+        mstore(0x40, add(v2, 64))
+        mstore(v2, v0)
+        mstore(add(v2, 32), v1)
+        ret := v2
         leave
       }
       function $evm_contracthost_abort($self) {

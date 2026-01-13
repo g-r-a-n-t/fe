@@ -40,10 +40,10 @@ fn maybe_inc(v0: Opt) -> u64:
 
 fn test_effects_and_aggregates(v0: u256, v1: u256) -> ():
   bb0:
-    v2: MemPtr<Foo> = mem_ptr__mem__RawMem_Foo__19292a5189c12f79(v1, 256)
+    v2: MemPtr<Foo> = mem_ptr__mem__RawMem_Foo_h6dbce71a6ea992b8__460feebf9de4b9d3(v1, 256)
     bind v2
     eval bump__eff_mem(v2)
-    v3: StorPtr<Foo> = stor_ptr__sto__RawStorage_Foo__b1b82e9d4c608c02(v0, 0)
+    v3: StorPtr<Foo> = stor_ptr__sto__RawStorage_Foo_h6dbce71a6ea992b8__732ca754070bddfb(v0, 0)
     bind v3
     eval bump(v3)
     v5: Foo = alloc mem
@@ -59,12 +59,12 @@ fn test_effects_and_aggregates(v0: u256, v1: u256) -> ():
 
 fn get_balance(v0: u256, v1: u256) -> u256:
   bb0:
-    v2: u256 = storagemap_k__v__const_salt__u256__get__u256_u256_0__6a346ad3c930d971(v1, v0)
+    v2: u256 = storagemap_k__v__const_salt__u256__h5955888dd44c2a19_get__u256_u256_0__6a346ad3c930d971(v1, v0)
     ret v2
 
 fn set_balance(v0: u256, v1: u256, v2: u256) -> ():
   bb0:
-    eval storagemap_k__v__const_salt__u256__set__u256_u256_0__6a346ad3c930d971(v2, v0, v1)
+    eval storagemap_k__v__const_salt__u256__h5955888dd44c2a19_set__u256_u256_0__6a346ad3c930d971(v2, v0, v1)
     ret
 
 fn selector_match(v0: u256) -> u256:
@@ -87,7 +87,7 @@ fn selector_match(v0: u256) -> u256:
   bb5:
     switch v1 [151146943 => bb1, 2066295049 => bb3] else bb4
 
-fn mem_ptr__mem__RawMem_Foo__19292a5189c12f79(v0: mem: RawMem, v1: u256) -> MemPtr<T>:
+fn mem_ptr__mem__RawMem_Foo_h6dbce71a6ea992b8__460feebf9de4b9d3(v0: mem: RawMem, v1: u256) -> MemPtr<T>:
   bb0:
     ret v1
 
@@ -99,7 +99,7 @@ fn bump__eff_mem(v0: u256) -> ():
     store mem[v0].1 = (v2 + 2)
     ret
 
-fn stor_ptr__sto__RawStorage_Foo__b1b82e9d4c608c02(v0: sto: RawStorage, v1: u256) -> StorPtr<T>:
+fn stor_ptr__sto__RawStorage_Foo_h6dbce71a6ea992b8__732ca754070bddfb(v0: sto: RawStorage, v1: u256) -> StorPtr<T>:
   bb0:
     ret v1
 
@@ -107,15 +107,15 @@ fn stor_ptr__sto__RawStorage_StorageMap_u256__u256__0___18c22babebaedb88(v0: sto
   bb0:
     ret v1
 
-fn storagemap_k__v__const_salt__u256__get__u256_u256_0__6a346ad3c930d971(v0: StorageMap<u256, u256, 0>, v1: u256) -> V:
+fn storagemap_k__v__const_salt__u256__h5955888dd44c2a19_get__u256_u256_0__6a346ad3c930d971(v0: StorageMap<u256, u256, 0>, v1: u256) -> V:
   bb0:
     v2: u256 = storagemap_get_word_with_salt__u256__3271ca15373d4483(v1, 0)
-    v3: u256 = u256_wordrepr_from_word(v2)
+    v3: u256 = u256_h3271ca15373d4483_wordrepr_h7483d41ac8178d88_from_word(v2)
     ret v3
 
-fn storagemap_k__v__const_salt__u256__set__u256_u256_0__6a346ad3c930d971(v0: StorageMap<u256, u256, 0>, v1: u256, v2: u256) -> ():
+fn storagemap_k__v__const_salt__u256__h5955888dd44c2a19_set__u256_u256_0__6a346ad3c930d971(v0: StorageMap<u256, u256, 0>, v1: u256, v2: u256) -> ():
   bb0:
-    v3: u256 = u256_wordrepr_to_word(v2)
+    v3: u256 = u256_h3271ca15373d4483_wordrepr_h7483d41ac8178d88_to_word(v2)
     eval storagemap_set_word_with_salt__u256__3271ca15373d4483(v1, 0, v3)
     ret
 
@@ -125,11 +125,11 @@ fn storagemap_get_word_with_salt__u256__3271ca15373d4483(v0: u256, v1: u256) -> 
     v3: u256 = sload(v2)
     ret v3
 
-fn u256_wordrepr_from_word(v0: u256) -> u256:
+fn u256_h3271ca15373d4483_wordrepr_h7483d41ac8178d88_from_word(v0: u256) -> u256:
   bb0:
     ret v0
 
-fn u256_wordrepr_to_word(v0: u256) -> u256:
+fn u256_h3271ca15373d4483_wordrepr_h7483d41ac8178d88_to_word(v0: u256) -> u256:
   bb0:
     ret v0
 
@@ -142,12 +142,12 @@ fn storagemap_set_word_with_salt__u256__3271ca15373d4483(v0: u256, v1: u256, v2:
 fn storagemap_storage_slot_with_salt__u256__3271ca15373d4483(v0: u256, v1: u256) -> u256:
   bb0:
     v2: u256 = mload(64)
-    v3: u256 = u256_storagekey_write_key(v2, v0)
+    v3: u256 = u256_h3271ca15373d4483_storagekey_hf9e3d38a13ff4409_write_key(v2, v0)
     eval mstore((v2 + v3), v1)
     v4: u256 = keccak256(v2, (v3 + 32))
     ret v4
 
-fn u256_storagekey_write_key(v0: u256, v1: u256) -> u256:
+fn u256_h3271ca15373d4483_storagekey_hf9e3d38a13ff4409_write_key(v0: u256, v1: u256) -> u256:
   bb0:
     eval mstore(v0, v1)
     ret 32

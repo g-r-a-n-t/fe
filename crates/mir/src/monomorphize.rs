@@ -17,7 +17,9 @@ use hir::analysis::{
     },
 };
 use hir::core::semantic::constraints_for;
-use hir::hir_def::{CallableDef, Func, PathKind, item::ItemKind, scope_graph::ScopeId};
+use hir::hir_def::{
+    CallableDef, Func, HirIngot, PathId, PathKind, item::ItemKind, scope_graph::ScopeId,
+};
 use rustc_hash::{FxHashMap, FxHashSet};
 
 use crate::{
@@ -600,6 +602,86 @@ impl<'db> Monomorphizer<'db> {
         format!("{base}__{suffix}__{hash:08x}")
     }
 
+    fn module_path_segments(&self, mut scope: ScopeId<'db>) -> Vec<String> {
+        let ingot = scope.ingot(self.db);
+        let root_mod = ingot.root_mod(self.db);
+
+        let mut parts = Vec::new();
+        while let Some(parent) = scope.parent_module(self.db) {
+            match parent {
+                ScopeId::Item(ItemKind::Mod(mod_)) => {
+                    if let Some(name) = mod_.name(self.db).to_opt() {
+                        parts.push(name.data(self.db).to_string());
+                    }
+                }
+                ScopeId::Item(ItemKind::TopMod(top_mod)) => {
+                    if top_mod != root_mod {
+                        parts.push(top_mod.name(self.db).data(self.db).to_string());
+                    }
+                }
+                _ => {}
+            }
+            scope = parent;
+        }
+
+        parts.reverse();
+        parts
+    }
+
+    fn qualified_path_hash(&self, parts: &[String]) -> u64 {
+        stable_hash(parts)
+    }
+
+    fn ty_identity_hash(&self, ty: TyId<'db>) -> u64 {
+        match ty.data(self.db) {
+            TyData::TyBase(TyBase::Adt(adt)) => {
+                let name = adt
+                    .adt_ref(self.db)
+                    .name(self.db)
+                    .map(|id| id.data(self.db).to_string())
+                    .unwrap_or_else(|| "<unknown>".to_string());
+                let mut parts = self.module_path_segments(adt.scope(self.db));
+                parts.push(name);
+                self.qualified_path_hash(&parts)
+            }
+            TyData::TyBase(TyBase::Contract(contract)) => {
+                let name = contract
+                    .name(self.db)
+                    .to_opt()
+                    .map(|id| id.data(self.db).to_string())
+                    .unwrap_or_else(|| "<unknown>".to_string());
+                let mut parts = self.module_path_segments(contract.scope());
+                parts.push(name);
+                self.qualified_path_hash(&parts)
+            }
+            _ => stable_hash(&ty.pretty_print(self.db).to_string()),
+        }
+    }
+
+    fn trait_ref_identity_hash(&self, trait_ref: hir::hir_def::TraitRefId<'db>) -> Option<u64> {
+        let path = trait_ref.path(self.db).to_opt()?;
+        let parts = self.path_ident_segments(path);
+        Some(self.qualified_path_hash(&parts))
+    }
+
+    fn path_ident_segments(&self, path: PathId<'db>) -> Vec<String> {
+        let mut parts = Vec::new();
+        let mut current = Some(path);
+        while let Some(path) = current {
+            match path.kind(self.db) {
+                PathKind::Ident { ident, .. } => {
+                    if let Some(ident) = ident.to_opt() {
+                        parts.push(ident.data(self.db).to_string());
+                    }
+                }
+                PathKind::QualifiedType { .. } => {}
+            }
+            current = path.parent(self.db);
+        }
+        parts.reverse();
+        parts
+    }
+
     fn type_mangle_component(&self, ty: TyId<'db>) -> String {
         match ty.data(self.db) {
             TyData::TyBase(TyBase::Func(callable)) => match callable {
@@ -609,15 +691,31 @@ impl<'db> Monomorphizer<'db> {
                         .to_opt()
                         .map(|ident| ident.data(self.db).to_string())
                         .unwrap_or_else(|| "<unknown>".to_string());
-                    if self.ambiguous_bases.contains(&name) {
-                        let qualifier = self.function_qualifier(*func);
-                        format!("fn {qualifier}::{name}")
-                    } else {
-                        format!("fn {name}")
-                    }
+                    let mut parts = self.module_path_segments(func.scope());
+                    parts.push(name.clone());
+                    let hash = self.qualified_path_hash(&parts);
+                    format!("fn {name}_h{hash:08x}")
                 }
                 CallableDef::VariantCtor(_) => ty.pretty_print(self.db).to_string(),
             },
+            TyData::TyBase(TyBase::Adt(adt)) => {
+                let name = adt
+                    .adt_ref(self.db)
+                    .name(self.db)
+                    .map(|id| id.data(self.db).to_string())
+                    .unwrap_or_else(|| "<unknown>".to_string());
+                let hash = self.ty_identity_hash(ty);
+                format!("{name}_h{hash:08x}")
+            }
+            TyData::TyBase(TyBase::Contract(contract)) => {
+                let name = contract
+                    .name(self.db)
+                    .to_opt()
+                    .map(|id| id.data(self.db).to_string())
+                    .unwrap_or_else(|| "<unknown>".to_string());
+                let hash = self.ty_identity_hash(ty);
+                format!("{name}_h{hash:08x}")
+            }
             _ => ty.pretty_print(self.db).to_string(),
         }
     }
@@ -662,29 +760,14 @@ impl<'db> Monomorphizer<'db> {
     }
 
     fn function_qualifier(&self, func: Func<'db>) -> String {
-        let mut parts = Vec::new();
-        let mut scope = func.scope();
-        while let Some(parent) = scope.parent_module(self.db) {
-            match parent {
-                ScopeId::Item(ItemKind::TopMod(_)) => break,
-                ScopeId::Item(ItemKind::Mod(mod_)) => {
-                    if let Some(name) = mod_.name(self.db).to_opt() {
-                        parts.push(name.data(self.db).to_string());
-                    }
-                    scope = parent;
-                }
-                _ => scope = parent,
-            }
+        let parts = self.module_path_segments(func.scope());
+        if parts.is_empty() {
+            return "root".to_string();
         }
 
-        parts.reverse();
-        let qualifier = parts.join("_");
-        let qualifier = sanitize_symbol_component(&qualifier).to_lowercase();
-        if qualifier.is_empty() {
-            "root".to_string()
-        } else {
-            qualifier
-        }
+        let human = sanitize_symbol_component(&parts.join("_")).to_lowercase();
+        let hash = self.qualified_path_hash(&parts);
+        format!("{human}_h{hash:08x}")
     }
 
     /// Returns a sanitized prefix for associated functions/methods based on their owner.
@@ -698,14 +781,19 @@ impl<'db> Monomorphizer<'db> {
             if ty.has_invalid(self.db) {
                 return None;
             }
-            Some(sanitize_symbol_component(ty.pretty_print(self.db)).to_lowercase())
+            let ty_name = sanitize_symbol_component(ty.pretty_print(self.db)).to_lowercase();
+            let hash = self.ty_identity_hash(ty);
+            Some(format!("{ty_name}_h{hash:08x}"))
         } else if let ItemKind::ImplTrait(impl_trait) = item {
             let ty = impl_trait.ty(self.db);
             if ty.has_invalid(self.db) {
                 return None;
             }
-            let self_part = sanitize_symbol_component(ty.pretty_print(self.db)).to_lowercase();
-            let trait_part = impl_trait
+            let self_name = sanitize_symbol_component(ty.pretty_print(self.db)).to_lowercase();
+            let self_hash = self.ty_identity_hash(ty);
+            let self_part = format!("{self_name}_h{self_hash:08x}");
+
+            let trait_name = impl_trait
                 .hir_trait_ref(self.db)
                 .to_opt()
                 .and_then(|trait_ref| trait_ref.path(self.db).to_opt())
@@ -714,13 +802,17 @@ impl<'db> Monomorphizer<'db> {
                     PathKind::Ident { ident, .. } => ident.to_opt(),
                     PathKind::QualifiedType { .. } => None,
                 })
-                .map(|ident| sanitize_symbol_component(ident.data(self.db)).to_lowercase());
-            let prefix = if let Some(trait_part) = trait_part {
-                format!("{self_part}_{trait_part}")
-            } else {
-                self_part
-            };
-            Some(prefix)
+                .map(|ident| sanitize_symbol_component(ident.data(self.db)).to_lowercase())
+                .unwrap_or_else(|| "trait".to_string());
+
+            let trait_hash = impl_trait
+                .hir_trait_ref(self.db)
+                .to_opt()
+                .and_then(|trait_ref| self.trait_ref_identity_hash(trait_ref))
+                .unwrap_or(0);
+            let trait_part = format!("{trait_name}_h{trait_hash:08x}");
+
+            Some(format!("{self_part}_{trait_part}"))
         } else {
             None
         }
@@ -778,4 +870,10 @@ fn sanitize_symbol_component(component: &str) -> String {
         .chars()
         .map(|ch| if ch.is_ascii_alphanumeric() { ch } else { '_' })
         .collect()
+}
+
+fn stable_hash<T: Hash + ?Sized>(value: &T) -> u64 {
+    let mut hasher = std::collections::hash_map::DefaultHasher::new();
+    value.hash(&mut hasher);
+    hasher.finish()
 }

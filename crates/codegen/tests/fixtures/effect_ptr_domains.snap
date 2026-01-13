@@ -12,10 +12,10 @@ function $bump($foo) {
   leave
 }
 function $test_effect_ptr_domains($st, $mem) {
-  let v0 := $mem_ptr__mem__RawMem_Foo__19292a5189c12f79($mem, 256)
+  let v0 := $mem_ptr__mem__RawMem_Foo_h6dbce71a6ea992b8__460feebf9de4b9d3($mem, 256)
   let v1 := v0
   $bump__eff_mem(v1)
-  let v2 := $stor_ptr__st__RawStorage_Foo__d44156c896232646($st, 0)
+  let v2 := $stor_ptr__st__RawStorage_Foo_h6dbce71a6ea992b8__d503044246cca8f9($st, 0)
   let v3 := v2
   $bump(v3)
   let v4 := mload(0x40)
@@ -30,7 +30,7 @@ function $test_effect_ptr_domains($st, $mem) {
   $bump__eff_mem(v5)
   leave
 }
-function $mem_ptr__mem__RawMem_Foo__19292a5189c12f79($self, $addr) -> ret {
+function $mem_ptr__mem__RawMem_Foo_h6dbce71a6ea992b8__460feebf9de4b9d3($self, $addr) -> ret {
   ret := $addr
   leave
 }
@@ -41,7 +41,7 @@ function $bump__eff_mem($foo) {
   mstore(add($foo, 32), add(v1, 2))
   leave
 }
-function $stor_ptr__st__RawStorage_Foo__d44156c896232646($self, $slot) -> ret {
+function $stor_ptr__st__RawStorage_Foo_h6dbce71a6ea992b8__d503044246cca8f9($self, $slot) -> ret {
   ret := $slot
   leave
 }

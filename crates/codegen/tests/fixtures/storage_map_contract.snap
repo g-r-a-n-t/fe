@@ -22,18 +22,18 @@ object "BalanceMap" {
         return(v0, 32)
       }
       function $get_allowance__eff_mem($addr, $allowances) -> ret {
-        let v0 := $storagemap_k__v__const_salt__u256__get__u256_u256_1__3c02c0f2b86be0bb($allowances, $addr)
+        let v0 := $storagemap_k__v__const_salt__u256__h5955888dd44c2a19_get__u256_u256_1__3c02c0f2b86be0bb($allowances, $addr)
         ret := v0
         leave
       }
       function $get_balance__eff_mem($addr, $balances) -> ret {
-        let v0 := $storagemap_k__v__const_salt__u256__get__u256_u256_0__6a346ad3c930d971($balances, $addr)
+        let v0 := $storagemap_k__v__const_salt__u256__h5955888dd44c2a19_get__u256_u256_0__6a346ad3c930d971($balances, $addr)
         ret := v0
         leave
       }
       function $runtime() {
-        $storagemap_k__v__const_salt__u256__new__u256_u256_0__6a346ad3c930d971()
-        $storagemap_k__v__const_salt__u256__new__u256_u256_1__3c02c0f2b86be0bb()
+        $storagemap_k__v__const_salt__u256__h5955888dd44c2a19_new__u256_u256_0__6a346ad3c930d971()
+        $storagemap_k__v__const_salt__u256__h5955888dd44c2a19_new__u256_u256_1__3c02c0f2b86be0bb()
         let v0 := calldataload(0)
         let v1 := shr(224, v0)
         switch v1
@@ -74,11 +74,11 @@ object "BalanceMap" {
           }
       }
       function $set_allowance__eff_mem($addr, $value, $allowances) {
-        $storagemap_k__v__const_salt__u256__set__u256_u256_1__3c02c0f2b86be0bb($allowances, $addr, $value)
+        $storagemap_k__v__const_salt__u256__h5955888dd44c2a19_set__u256_u256_1__3c02c0f2b86be0bb($allowances, $addr, $value)
         leave
       }
       function $set_balance__eff_mem($addr, $value, $balances) {
-        $storagemap_k__v__const_salt__u256__set__u256_u256_0__6a346ad3c930d971($balances, $addr, $value)
+        $storagemap_k__v__const_salt__u256__h5955888dd44c2a19_set__u256_u256_0__6a346ad3c930d971($balances, $addr, $value)
         leave
       }
       function $storagemap_get_word_with_salt__u256__3271ca15373d4483($key, $salt) -> ret {
@@ -87,31 +87,31 @@ object "BalanceMap" {
         ret := v1
         leave
       }
-      function $storagemap_k__v__const_salt__u256__get__u256_u256_0__6a346ad3c930d971($self, $key) -> ret {
+      function $storagemap_k__v__const_salt__u256__h5955888dd44c2a19_get__u256_u256_0__6a346ad3c930d971($self, $key) -> ret {
         let v0 := $storagemap_get_word_with_salt__u256__3271ca15373d4483($key, 0)
-        let v1 := $u256_wordrepr_from_word(v0)
+        let v1 := $u256_h3271ca15373d4483_wordrepr_h7483d41ac8178d88_from_word(v0)
         ret := v1
         leave
       }
-      function $storagemap_k__v__const_salt__u256__get__u256_u256_1__3c02c0f2b86be0bb($self, $key) -> ret {
+      function $storagemap_k__v__const_salt__u256__h5955888dd44c2a19_get__u256_u256_1__3c02c0f2b86be0bb($self, $key) -> ret {
         let v0 := $storagemap_get_word_with_salt__u256__3271ca15373d4483($key, 1)
-        let v1 := $u256_wordrepr_from_word(v0)
+        let v1 := $u256_h3271ca15373d4483_wordrepr_h7483d41ac8178d88_from_word(v0)
         ret := v1
         leave
       }
-      function $storagemap_k__v__const_salt__u256__new__u256_u256_0__6a346ad3c930d971() {
+      function $storagemap_k__v__const_salt__u256__h5955888dd44c2a19_new__u256_u256_0__6a346ad3c930d971() {
         leave
       }
-      function $storagemap_k__v__const_salt__u256__new__u256_u256_1__3c02c0f2b86be0bb() {
+      function $storagemap_k__v__const_salt__u256__h5955888dd44c2a19_new__u256_u256_1__3c02c0f2b86be0bb() {
         leave
       }
-      function $storagemap_k__v__const_salt__u256__set__u256_u256_0__6a346ad3c930d971($self, $key, $value) {
-        let v0 := $u256_wordrepr_to_word($value)
+      function $storagemap_k__v__const_salt__u256__h5955888dd44c2a19_set__u256_u256_0__6a346ad3c930d971($self, $key, $value) {
+        let v0 := $u256_h3271ca15373d4483_wordrepr_h7483d41ac8178d88_to_word($value)
         $storagemap_set_word_with_salt__u256__3271ca15373d4483($key, 0, v0)
         leave
       }
-      function $storagemap_k__v__const_salt__u256__set__u256_u256_1__3c02c0f2b86be0bb($self, $key, $value) {
-        let v0 := $u256_wordrepr_to_word($value)
+      function $storagemap_k__v__const_salt__u256__h5955888dd44c2a19_set__u256_u256_1__3c02c0f2b86be0bb($self, $key, $value) {
+        let v0 := $u256_h3271ca15373d4483_wordrepr_h7483d41ac8178d88_to_word($value)
         $storagemap_set_word_with_salt__u256__3271ca15373d4483($key, 1, v0)
         leave
       }
@@ -122,37 +122,37 @@ object "BalanceMap" {
       }
       function $storagemap_storage_slot_with_salt__u256__3271ca15373d4483($key, $salt) -> ret {
         let v0 := mload(64)
-        let v1 := $u256_storagekey_write_key(v0, $key)
+        let v1 := $u256_h3271ca15373d4483_storagekey_hf9e3d38a13ff4409_write_key(v0, $key)
         mstore(add(v0, v1), $salt)
         let v2 := keccak256(v0, add(v1, 32))
         ret := v2
         leave
       }
       function $transfer__eff_mem($from, $to, $amount, $balances) -> ret {
-        let v0 := $storagemap_k__v__const_salt__u256__get__u256_u256_0__6a346ad3c930d971($balances, $from)
+        let v0 := $storagemap_k__v__const_salt__u256__h5955888dd44c2a19_get__u256_u256_0__6a346ad3c930d971($balances, $from)
         let v1 := lt(v0, $amount)
         if v1 {
           ret := 1
           leave
         }
         if iszero(v1) {
-          let v2 := $storagemap_k__v__const_salt__u256__get__u256_u256_0__6a346ad3c930d971($balances, $to)
-          $storagemap_k__v__const_salt__u256__set__u256_u256_0__6a346ad3c930d971($balances, $from, sub(v0, $amount))
-          $storagemap_k__v__const_salt__u256__set__u256_u256_0__6a346ad3c930d971($balances, $to, add(v2, $amount))
+          let v2 := $storagemap_k__v__const_salt__u256__h5955888dd44c2a19_get__u256_u256_0__6a346ad3c930d971($balances, $to)
+          $storagemap_k__v__const_salt__u256__h5955888dd44c2a19_set__u256_u256_0__6a346ad3c930d971($balances, $from, sub(v0, $amount))
+          $storagemap_k__v__const_salt__u256__h5955888dd44c2a19_set__u256_u256_0__6a346ad3c930d971($balances, $to, add(v2, $amount))
           ret := 0
           leave
         }
       }
-      function $u256_storagekey_write_key($ptr, $self) -> ret {
+      function $u256_h3271ca15373d4483_storagekey_hf9e3d38a13ff4409_write_key($ptr, $self) -> ret {
         mstore($ptr, $self)
         ret := 32
         leave
       }
-      function $u256_wordrepr_from_word($word) -> ret {
+      function $u256_h3271ca15373d4483_wordrepr_h7483d41ac8178d88_from_word($word) -> ret {
         ret := $word
         leave
       }
-      function $u256_wordrepr_to_word($self) -> ret {
+      function $u256_h3271ca15373d4483_wordrepr_h7483d41ac8178d88_to_word($self) -> ret {
         ret := $self
         leave
       }

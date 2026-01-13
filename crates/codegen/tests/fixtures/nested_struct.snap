@@ -32,7 +32,7 @@ object "NestedStruct" {
         leave
       }
       function $runtime() {
-        let v0 := $stor_ptr__Evm_Outer__31089a952466fa6f(0, 0)
+        let v0 := $stor_ptr__Evm_hef0af3106e109414_Outer_hccd04e332bd35653__177c3c9a6f7ae368(0, 0)
         let v1 := v0
         let v2 := calldataload(0)
         let v3 := shr(224, v2)
@@ -55,7 +55,7 @@ object "NestedStruct" {
             return(0, 0)
           }
       }
-      function $stor_ptr__Evm_Outer__31089a952466fa6f($self, $slot) -> ret {
+      function $stor_ptr__Evm_hef0af3106e109414_Outer_hccd04e332bd35653__177c3c9a6f7ae368($self, $slot) -> ret {
         ret := $slot
         leave
       }

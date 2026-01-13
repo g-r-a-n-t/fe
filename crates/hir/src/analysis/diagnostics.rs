@@ -1904,6 +1904,61 @@ impl DiagnosticVoucher for BodyDiag<'_> {
                 }
             }
 
+            Self::ContractRootEffectTraitNotImplemented {
+                owner,
+                idx,
+                root_ty,
+                trait_req,
+            } => {
+                let span = owner.effect_param_path_span(db, *idx).resolve(db);
+                let root = root_ty.pretty_print(db);
+
+                CompleteDiagnostic {
+                    severity,
+                    message: "unsupported contract effect".to_string(),
+                    sub_diagnostics: vec![SubDiagnostic {
+                        style: LabelStyle::Primary,
+                        message: format!(
+                            "contract root effect `{root}` does not implement `{}`",
+                            trait_req.pretty_print(db, false),
+                        ),
+                        span,
+                    }],
+                    notes: vec![format!(
+                        "contract-scoped trait effects must be implemented by the target `RootEffect` (`{root}`)"
+                    )],
+                    error_code,
+                }
+            }
+
+            Self::ContractRootEffectTypeNotZeroSized {
+                owner,
+                key,
+                idx,
+                given,
+            } => {
+                let idx = *idx;
+                let span = owner.effect_param_path_span(db, idx).resolve(db);
+                let key_str = key.pretty_print(db);
+                let given_str = given.pretty_print(db);
+
+                CompleteDiagnostic {
+                    severity,
+                    message: "unsupported contract effect".to_string(),
+                    sub_diagnostics: vec![SubDiagnostic {
+                        style: LabelStyle::Primary,
+                        message: format!(
+                            "contract-scoped type effects must be zero-sized, but `{key_str}` resolves to `{given_str}`"
+                        ),
+                        span,
+                    }],
+                    notes: vec![
+                        "use a trait effect (implemented by the target `RootEffect`) or use a zero-sized type".to_string(),
+                    ],
+                    error_code,
+                }
+            }
+
             Self::MissingEffect { primary, func, key } => {
                 let func_name = func
                     .name(db)

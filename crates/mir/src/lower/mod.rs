@@ -754,8 +754,13 @@ impl<'db, 'a> MirBuilder<'db, 'a> {
                 }
             }
             Pat::Tuple(pats) | Pat::PathTuple(_, pats) => {
-                let base_ty = self.typed_body.pat_ty(self.db, pat);
+                let owner_ty = self.typed_body.pat_ty(self.db, pat);
+                let owner_by_ref = self.is_by_ref_ty(owner_ty);
+                let tuple_repr = self.builder.body.value(value).repr;
                 for (idx, field_pat) in pats.iter().enumerate() {
+                    if !owner_by_ref && idx != 0 {
+                        continue;
+                    }
                     let Partial::Present(field_pat_data) = field_pat.data(self.db, self.body)
                     else {
                         continue;
@@ -764,7 +769,15 @@ impl<'db, 'a> MirBuilder<'db, 'a> {
                         continue;
                     }
                     let field_ty = self.typed_body.pat_ty(self.db, *field_pat);
-                    let field_value = self.project_tuple_elem_value(value, base_ty, idx, field_ty);
+                    let field_value = if owner_by_ref {
+                        self.project_tuple_elem_value(value, owner_ty, idx, field_ty)
+                    } else {
+                        self.alloc_value(
+                            field_ty,
+                            ValueOrigin::TransparentCast { value },
+                            tuple_repr,
+                        )
+                    };
                     self.bind_pat_value(*field_pat, field_value);
                     if self.current_block().is_none() {
                         break;
@@ -772,18 +785,38 @@ impl<'db, 'a> MirBuilder<'db, 'a> {
                 }
             }
             Pat::Record(_, fields) => {
-                let base_ty = self.typed_body.pat_ty(self.db, pat);
+                let owner_ty = self.typed_body.pat_ty(self.db, pat);
+                let owner_by_ref = self.is_by_ref_ty(owner_ty);
+                let record_repr = self.builder.body.value(value).repr;
+                let base_space = self.value_address_space(value);
                 for field in fields {
                     let Some(label) = field.label(self.db, self.body) else {
                         continue;
                     };
-                    let Some(info) = self.field_access_info(base_ty, FieldIndex::Ident(label))
+                    let Some(info) = self.field_access_info(owner_ty, FieldIndex::Ident(label))
                     else {
                         continue;
                     };
+                    if !owner_by_ref && info.field_idx != 0 {
+                        continue;
+                    }
                     let field_ty = self.typed_body.pat_ty(self.db, field.pat);
-                    let field_value =
-                        self.project_tuple_elem_value(value, base_ty, info.field_idx, field_ty);
+                    let field_value = if owner_by_ref {
+                        if self
+                            .value_repr_for_ty(field_ty, AddressSpaceKind::Memory)
+                            .address_space()
+                            .is_some()
+                        {
+                            self.set_pat_address_space(field.pat, base_space);
+                        }
+                        self.project_tuple_elem_value(value, owner_ty, info.field_idx, field_ty)
+                    } else {
+                        self.alloc_value(
+                            field_ty,
+                            ValueOrigin::TransparentCast { value },
+                            record_repr,
+                        )
+                    };
                     self.bind_pat_value(field.pat, field_value);
                     if self.current_block().is_none() {
                         break;

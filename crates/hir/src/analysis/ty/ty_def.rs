@@ -360,6 +360,52 @@ impl<'db> TyId<'db> {
         )
     }
 
+    /// Returns `true` if this type is known to have no runtime representation.
+    ///
+    /// This is a structural check (not based on byte-size calculation):
+    /// - `()` and empty structs are zero-sized
+    /// - tuples/structs/arrays are zero-sized iff all elements/fields are zero-sized
+    pub fn is_zero_sized(self, db: &'db dyn HirAnalysisDb) -> bool {
+        fn inner<'db>(
+            db: &'db dyn HirAnalysisDb,
+            ty: TyId<'db>,
+            visiting: &mut FxHashSet<TyId<'db>>,
+        ) -> bool {
+            if !visiting.insert(ty) {
+                return false;
+            }
+
+            let result = if ty.is_never(db)
+                || matches!(ty.base_ty(db).data(db), TyData::TyBase(TyBase::Func(_)))
+            {
+                true
+            } else if ty.is_tuple(db) {
+                ty.field_types(db)
+                    .into_iter()
+                    .all(|field_ty| inner(db, field_ty, visiting))
+            } else if ty.is_array(db) {
+                let (_, args) = ty.decompose_ty_app(db);
+                match args.first().copied() {
+                    Some(elem_ty) => inner(db, elem_ty, visiting),
+                    None => false,
+                }
+            } else if let Some(adt_def) = ty.adt_def(db)
+                && matches!(adt_def.adt_ref(db), AdtRef::Struct(_))
+            {
+                ty.field_types(db)
+                    .into_iter()
+                    .all(|field_ty| inner(db, field_ty, visiting))
+            } else {
+                false
+            };
+
+            visiting.remove(&ty);
+            result
+        }
+
+        inner(db, self, &mut FxHashSet::default())
+    }
+
     pub fn is_string(self, db: &dyn HirAnalysisDb) -> bool {
         matches!(
             self.base_ty(db).data(db),

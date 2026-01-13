@@ -578,7 +578,7 @@ where
                     false,
                 ));
                 RecordPatField {
-                    label: Partial::Absent,
+                    label: Partial::Present(field_name),
                     pat,
                 }
             })

@@ -4,11 +4,11 @@ use super::{
     ty_check::{RecordLike, TraitOps},
     ty_def::{Kind, TyId},
 };
-use crate::span::DynLazySpan;
 use crate::visitor::prelude::*;
 use crate::{analysis::HirAnalysisDb, hir_def::Trait};
 use crate::{analysis::diagnostics::DiagnosticVoucher, hir_def::PathId};
 use crate::{analysis::name_resolution::diagnostics::PathResDiag, hir_def::ItemKind};
+use crate::{analysis::ty::ty_check::EffectParamOwner, span::DynLazySpan};
 use crate::{
     core::hir_def::{
         CallableDef, Enum, FieldIndex, FieldParent, Func, GenericParamOwner, IdentId, ImplTrait,
@@ -234,9 +234,23 @@ pub enum BodyDiag<'db> {
     UndefinedVariable(DynLazySpan<'db>, IdentId<'db>),
 
     InvalidEffectKey {
-        owner: crate::analysis::ty::ty_check::EffectParamOwner<'db>,
+        owner: EffectParamOwner<'db>,
         key: PathId<'db>,
         idx: usize,
+    },
+
+    ContractRootEffectTraitNotImplemented {
+        owner: EffectParamOwner<'db>,
+        idx: usize,
+        root_ty: TyId<'db>,
+        trait_req: TraitInstId<'db>,
+    },
+
+    ContractRootEffectTypeNotZeroSized {
+        owner: EffectParamOwner<'db>,
+        key: PathId<'db>,
+        idx: usize,
+        given: TyId<'db>,
     },
 
     MissingEffect {
@@ -556,6 +570,8 @@ impl<'db> BodyDiag<'db> {
             Self::MissingRecordFields { .. } => 11,
             Self::UndefinedVariable(..) => 12,
             Self::InvalidEffectKey { .. } => 51,
+            Self::ContractRootEffectTraitNotImplemented { .. } => 53,
+            Self::ContractRootEffectTypeNotZeroSized { .. } => 54,
             Self::MissingEffect { .. } => 36,
             Self::EffectMutabilityMismatch { .. } => 37,
             Self::EffectTypeMismatch { .. } => 38,

@@ -13,6 +13,7 @@ pub use self::contract::{
     resolve_variant_in_msg,
 };
 pub use self::path::RecordLike;
+use crate::analysis::name_resolution::resolve_path;
 use crate::analysis::ty::fold::TyFoldable;
 use crate::analysis::ty::visitor::TyVisitable;
 use crate::hir_def::CallableDef;
@@ -157,7 +158,7 @@ impl<'db> TyChecker<'db> {
                 continue;
             };
 
-            if crate::analysis::name_resolution::resolve_path(
+            if resolve_path(
                 self.db,
                 key_path,
                 func.scope(),
@@ -205,6 +206,11 @@ impl<'db> TyChecker<'db> {
             .filter_map(|f| f.name(self.db))
             .collect();
 
+        let assumptions = PredicateListId::empty_list(self.db);
+        let root_effect_ty =
+            super::resolve_default_root_effect_ty(self.db, contract.scope(), assumptions);
+        let contract_ingot = contract.top_mod(self.db).ingot(self.db);
+
         for (idx, effect) in effects.data(self.db).iter().enumerate() {
             let Some(key_path) = effect.key_path.to_opt() else {
                 continue;
@@ -212,20 +218,49 @@ impl<'db> TyChecker<'db> {
 
             // Labeled effects are always type/trait keyed: `name: Type`.
             if effect.name.is_some() {
-                if crate::analysis::name_resolution::resolve_path(
+                let resolved = resolve_path(
                     self.db,
                     key_path,
                     contract.scope(),
                     self.env.assumptions(),
                     false,
-                )
-                .is_err()
-                {
-                    self.push_diag(BodyDiag::InvalidEffectKey {
+                );
+                match resolved {
+                    Ok(PathRes::Trait(trait_inst)) => {
+                        let Some(root_effect_ty) = root_effect_ty else {
+                            continue;
+                        };
+                        let trait_req =
+                            super::instantiate_trait_self(self.db, trait_inst, root_effect_ty);
+                        let goal = Canonicalized::new(self.db, trait_req).value;
+                        if matches!(
+                            is_goal_satisfiable(self.db, contract_ingot, goal, assumptions),
+                            GoalSatisfiability::UnSat(_) | GoalSatisfiability::ContainsInvalid
+                        ) {
+                            self.push_diag(BodyDiag::ContractRootEffectTraitNotImplemented {
+                                owner,
+                                idx,
+                                root_ty: root_effect_ty,
+                                trait_req,
+                            });
+                        }
+                    }
+                    Ok(PathRes::Ty(ty) | PathRes::TyAlias(_, ty)) => {
+                        let given = normalize_ty(self.db, ty, contract.scope(), assumptions);
+                        if !given.is_zero_sized(self.db) {
+                            self.push_diag(BodyDiag::ContractRootEffectTypeNotZeroSized {
+                                owner,
+                                key: key_path,
+                                idx,
+                                given,
+                            });
+                        }
+                    }
+                    Ok(_) | Err(_) => self.push_diag(BodyDiag::InvalidEffectKey {
                         owner,
                         key: key_path,
                         idx,
-                    });
+                    }),
                 }
                 continue;
             }

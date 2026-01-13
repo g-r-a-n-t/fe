@@ -1,11 +1,12 @@
 ---
 source: crates/codegen/tests/yul.rs
+assertion_line: 42
 expression: output
 input_file: tests/fixtures/if_else.fe
 ---
-function if_else(cond) -> ret {
+function if_else($cond) -> ret {
   let v0 := 0
-  switch cond
+  switch $cond
     case 1 {
       let v1 := helper(1)
       v0 := v1
@@ -21,7 +22,7 @@ function if_else(cond) -> ret {
   ret := v0
   leave
 }
-function helper(x) -> ret {
-  ret := add(x, 1)
+function helper($x) -> ret {
+  ret := add($x, 1)
   leave
 }

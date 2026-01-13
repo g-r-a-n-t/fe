@@ -1,20 +1,21 @@
 ---
 source: crates/codegen/tests/yul.rs
+assertion_line: 42
 expression: output
 input_file: tests/fixtures/effect_ptr_domains.fe
 ---
-function bump(foo) {
-  let v0 := sload(foo)
-  sstore(foo, add(v0, 1))
-  let v1 := sload(add(foo, 1))
-  sstore(add(foo, 1), add(v1, 2))
+function bump($foo) {
+  let v0 := sload($foo)
+  sstore($foo, add(v0, 1))
+  let v1 := sload(add($foo, 1))
+  sstore(add($foo, 1), add(v1, 2))
   leave
 }
-function test_effect_ptr_domains(st, mem) {
-  let v0 := mem_ptr__mem__RawMem_Foo__19292a5189c12f79(mem, 256)
+function test_effect_ptr_domains($st, $mem) {
+  let v0 := mem_ptr__mem__RawMem_Foo__19292a5189c12f79($mem, 256)
   let v1 := v0
   bump__eff_mem(v1)
-  let v2 := stor_ptr__st__RawStorage_Foo__d44156c896232646(st, 0)
+  let v2 := stor_ptr__st__RawStorage_Foo__d44156c896232646($st, 0)
   let v3 := v2
   bump(v3)
   let v4 := mload(0x40)
@@ -29,18 +30,18 @@ function test_effect_ptr_domains(st, mem) {
   bump__eff_mem(v5)
   leave
 }
-function mem_ptr__mem__RawMem_Foo__19292a5189c12f79(self, addr) -> ret {
-  ret := addr
+function mem_ptr__mem__RawMem_Foo__19292a5189c12f79($self, $addr) -> ret {
+  ret := $addr
   leave
 }
-function bump__eff_mem(foo) {
-  let v0 := mload(foo)
-  mstore(foo, add(v0, 1))
-  let v1 := mload(add(foo, 32))
-  mstore(add(foo, 32), add(v1, 2))
+function bump__eff_mem($foo) {
+  let v0 := mload($foo)
+  mstore($foo, add(v0, 1))
+  let v1 := mload(add($foo, 32))
+  mstore(add($foo, 32), add(v1, 2))
   leave
 }
-function stor_ptr__st__RawStorage_Foo__d44156c896232646(self, slot) -> ret {
-  ret := slot
+function stor_ptr__st__RawStorage_Foo__d44156c896232646($self, $slot) -> ret {
+  ret := $slot
   leave
 }

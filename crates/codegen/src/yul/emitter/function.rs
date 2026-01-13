@@ -4,7 +4,7 @@ use rustc_hash::{FxHashMap, FxHashSet};
 
 use crate::yul::{doc::YulDoc, errors::YulError, state::BlockState};
 
-use super::util::{escape_yul_reserved, function_name};
+use super::util::function_name;
 
 /// Emits Yul for a single MIR function.
 pub(super) struct FunctionEmitter<'db> {
@@ -103,7 +103,7 @@ impl<'db> FunctionEmitter<'db> {
 }
 
 fn unique_yul_name(raw_name: &str, used: &mut FxHashSet<String>) -> String {
-    let base = escape_yul_reserved(raw_name);
+    let base = format!("${raw_name}");
     let mut candidate = base.clone();
     let mut suffix = 0;
     while used.contains(&candidate) {

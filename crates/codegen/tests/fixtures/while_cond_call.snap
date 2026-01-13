@@ -4,8 +4,8 @@ assertion_line: 42
 expression: output
 input_file: tests/fixtures/while_cond_call.fe
 ---
-function lt_ten(value) -> ret {
-  ret := lt(value, 10)
+function lt_ten($value) -> ret {
+  ret := lt($value, 10)
   leave
 }
 function while_cond_call() -> ret {

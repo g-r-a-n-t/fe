@@ -3,24 +3,24 @@ source: crates/codegen/tests/yul.rs
 expression: output
 input_file: tests/fixtures/newtype_field_mut_method_call.fe
 ---
-function counter_bump(self) {
-  let v0 := mload(self)
-  mstore(self, add(v0, 1))
+function counter_bump($self) {
+  let v0 := mload($self)
+  mstore($self, add(v0, 1))
   leave
 }
-function wrapcounter_bump(self) {
-  let v0 := self
+function wrapcounter_bump($self) {
+  let v0 := $self
   let v1 := mload(v0)
   mstore(v0, add(v1, 1))
   leave
 }
-function newtype_field_mut_method_call(x) -> ret {
+function newtype_field_mut_method_call($x) -> ret {
   let v0 := mload(0x40)
   if iszero(v0) {
     v0 := 0x80
   }
   mstore(0x40, add(v0, 64))
-  mstore(v0, x)
+  mstore(v0, $x)
   mstore(add(v0, 32), 0)
   let v1 := mload(0x40)
   if iszero(v1) {
@@ -37,8 +37,8 @@ function newtype_field_mut_method_call(x) -> ret {
   ret := v4
   leave
 }
-function wrapcounter_bump_mem(self) {
-  let v0 := self
+function wrapcounter_bump_mem($self) {
+  let v0 := $self
   let v1 := mload(v0)
   mstore(v0, add(v1, 1))
   leave

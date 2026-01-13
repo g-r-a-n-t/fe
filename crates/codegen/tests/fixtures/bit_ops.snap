@@ -1,14 +1,15 @@
 ---
 source: crates/codegen/tests/yul.rs
+assertion_line: 42
 expression: output
 input_file: tests/fixtures/bit_ops.fe
 ---
-function bit_ops(x, y) -> ret {
-  let v0 := and(x, y)
-  let v1 := or(x, y)
-  let v2 := xor(x, y)
-  let v3 := shl(8, x)
-  let v4 := shr(2, x)
+function bit_ops($x, $y) -> ret {
+  let v0 := and($x, $y)
+  let v1 := or($x, $y)
+  let v2 := xor($x, $y)
+  let v3 := shl(8, $x)
+  let v4 := shr(2, $x)
   let v5 := mload(0x40)
   if iszero(v5) {
     v5 := 0x80
@@ -22,7 +23,7 @@ function bit_ops(x, y) -> ret {
   ret := v5
   leave
 }
-function pow_op(x, y) -> ret {
-  ret := exp(x, y)
+function pow_op($x, $y) -> ret {
+  ret := exp($x, $y)
   leave
 }

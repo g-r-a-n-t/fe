@@ -1,13 +1,12 @@
 ---
 source: crates/codegen/tests/yul.rs
-assertion_line: 42
 expression: output
 input_file: tests/fixtures/unit_method_call.fe
 ---
-function counter_increment(self) {
+function counter_increment($self) {
   leave
 }
-function call_unit_method(c) {
-  counter_increment(c)
+function call_unit_method($c) {
+  counter_increment($c)
   leave
 }

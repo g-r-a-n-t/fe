@@ -6,23 +6,23 @@ input_file: tests/fixtures/storage.fe
 ---
 object "Coin" {
   code {
-    function init() {
+    function $init() {
       let v0 := datasize("Coin_deployed")
       let v1 := dataoffset("Coin_deployed")
       codecopy(0, v1, v0)
       return(0, v0)
     }
-    init()
+    $init()
   }
 
   object "Coin_deployed" {
     code {
-      function abi_encode($value, $ops) {
+      function $abi_encode($value, $ops) {
         let v0 := 0
         mstore(v0, $value)
         return(v0, 32)
       }
-      function balance_of_raw($user, $store) -> ret {
+      function $balance_of_raw($user, $store) -> ret {
         let v0 := 0
         switch $user
           case 0 {
@@ -36,7 +36,7 @@ object "Coin" {
         ret := v0
         leave
       }
-      function credit_alice($amount, $store, $supply) -> ret {
+      function $credit_alice($amount, $store, $supply) -> ret {
         let v0 := sload($store)
         sstore($store, add(v0, $amount))
         let v1 := sload($supply)
@@ -45,7 +45,7 @@ object "Coin" {
         ret := v2
         leave
       }
-      function credit_bob($amount, $store, $supply) -> ret {
+      function $credit_bob($amount, $store, $supply) -> ret {
         let v0 := sload(add($store, 1))
         sstore(add($store, 1), add(v0, $amount))
         let v1 := sload($supply)
@@ -54,9 +54,9 @@ object "Coin" {
         ret := v2
         leave
       }
-      function runtime() {
-        let v0 := stor_ptr__Evm_CoinStore__d1ec7298de486d2f(0, 0)
-        let v1 := stor_ptr__Evm_TotalSupply__b0f1a753085dcbd(0, 2)
+      function $runtime() {
+        let v0 := $stor_ptr__Evm_CoinStore__d1ec7298de486d2f(0, 0)
+        let v1 := $stor_ptr__Evm_TotalSupply__b0f1a753085dcbd(0, 2)
         let v2 := v0
         let v3 := v1
         let v4 := calldataload(0)
@@ -68,20 +68,20 @@ object "Coin" {
             let v8 := 0
             switch v6
               case 0 {
-                let v9 := credit_alice(v7, v2, v3)
+                let v9 := $credit_alice(v7, v2, v3)
                 v8 := v9
               }
               default {
-                let v10 := credit_bob(v7, v2, v3)
+                let v10 := $credit_bob(v7, v2, v3)
                 v8 := v10
               }
             let v11 := v8
-            abi_encode(v11, 0)
+            $abi_encode(v11, 0)
           }
           case 1818602213 {
             let v12 := calldataload(4)
-            let v13 := balance_of_raw(v12, v2)
-            abi_encode(v13, 0)
+            let v13 := $balance_of_raw(v12, v2)
+            $abi_encode(v13, 0)
           }
           case 217554442 {
             let v14 := calldataload(4)
@@ -89,39 +89,39 @@ object "Coin" {
             let v16 := 0
             switch v14
               case 0 {
-                let v17 := transfer_from_alice(v15, v2)
+                let v17 := $transfer_from_alice(v15, v2)
                 v16 := v17
               }
               default {
-                let v18 := transfer_from_bob(v15, v2)
+                let v18 := $transfer_from_bob(v15, v2)
                 v16 := v18
               }
             let v19 := v16
-            let v20 := transfer_result_code(v19)
-            abi_encode(v20, 0)
+            let v20 := $transfer_result_code(v19)
+            $abi_encode(v20, 0)
           }
           case 960555502 {
-            let v21 := total_supply(v3)
-            abi_encode(v21, 0)
+            let v21 := $total_supply(v3)
+            $abi_encode(v21, 0)
           }
           default {
             return(0, 0)
           }
       }
-      function stor_ptr__Evm_CoinStore__d1ec7298de486d2f($self, $slot) -> ret {
+      function $stor_ptr__Evm_CoinStore__d1ec7298de486d2f($self, $slot) -> ret {
         ret := $slot
         leave
       }
-      function stor_ptr__Evm_TotalSupply__b0f1a753085dcbd($self, $slot) -> ret {
+      function $stor_ptr__Evm_TotalSupply__b0f1a753085dcbd($self, $slot) -> ret {
         ret := $slot
         leave
       }
-      function total_supply($supply) -> ret {
+      function $total_supply($supply) -> ret {
         let v0 := sload($supply)
         ret := v0
         leave
       }
-      function transfer_from_alice($amount, $store) -> ret {
+      function $transfer_from_alice($amount, $store) -> ret {
         let v0 := sload($store)
         let v1 := lt(v0, $amount)
         if v1 {
@@ -149,7 +149,7 @@ object "Coin" {
           leave
         }
       }
-      function transfer_from_bob($amount, $store) -> ret {
+      function $transfer_from_bob($amount, $store) -> ret {
         let v0 := sload(add($store, 1))
         let v1 := lt(v0, $amount)
         if v1 {
@@ -177,7 +177,7 @@ object "Coin" {
           leave
         }
       }
-      function transfer_result_code($res) -> ret {
+      function $transfer_result_code($res) -> ret {
         let v0 := 0
         let v1 := mload($res)
         switch v1
@@ -192,7 +192,7 @@ object "Coin" {
         ret := v0
         leave
       }
-      runtime()
+      $runtime()
       return(0, 0)
     }
   }

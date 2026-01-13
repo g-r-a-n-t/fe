@@ -4,7 +4,7 @@ assertion_line: 42
 expression: output
 input_file: tests/fixtures/ret.fe
 ---
-function retfoo($b1, $x) -> ret {
+function $retfoo($b1, $x) -> ret {
   let v0 := $b1
   if v0 {
     ret := 0

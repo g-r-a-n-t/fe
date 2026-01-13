@@ -4,7 +4,7 @@ assertion_line: 42
 expression: output
 input_file: tests/fixtures/match_struct.fe
 ---
-function match_struct_fields($p) -> ret {
+function $match_struct_fields($p) -> ret {
   let v0 := 0
   let v1 := and(mload(add($p, 1)), 0xff)
   switch v1
@@ -39,7 +39,7 @@ function match_struct_fields($p) -> ret {
   ret := v0
   leave
 }
-function match_struct_wildcard($p) -> ret {
+function $match_struct_wildcard($p) -> ret {
   let v0 := 0
   let v1 := and(mload($p), 0xff)
   switch v1

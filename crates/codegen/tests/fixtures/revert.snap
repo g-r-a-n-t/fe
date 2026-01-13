@@ -4,7 +4,7 @@ assertion_line: 42
 expression: output
 input_file: tests/fixtures/revert.fe
 ---
-function fail($ops) {
+function $fail($ops) {
   mstore(0, 42)
   revert(0, 32)
 }

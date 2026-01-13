@@ -4,7 +4,7 @@ assertion_line: 42
 expression: output
 input_file: tests/fixtures/match_nested_enum.fe
 ---
-function match_nested_enum($outer) -> ret {
+function $match_nested_enum($outer) -> ret {
   let v0 := 0
   let v1 := mload($outer)
   switch v1

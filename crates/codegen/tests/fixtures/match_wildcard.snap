@@ -4,7 +4,7 @@ assertion_line: 42
 expression: output
 input_file: tests/fixtures/match_wildcard.fe
 ---
-function match_with_wildcard($c) -> ret {
+function $match_with_wildcard($c) -> ret {
   let v0 := 0
   let v1 := mload($c)
   switch v1
@@ -17,7 +17,7 @@ function match_with_wildcard($c) -> ret {
   ret := v0
   leave
 }
-function wildcard_not_last($x) -> ret {
+function $wildcard_not_last($x) -> ret {
   let v0 := 0
   switch $x
     case 0 {
@@ -29,7 +29,7 @@ function wildcard_not_last($x) -> ret {
   ret := v0
   leave
 }
-function multiple_before_wildcard($c) -> ret {
+function $multiple_before_wildcard($c) -> ret {
   let v0 := 0
   let v1 := mload($c)
   switch v1

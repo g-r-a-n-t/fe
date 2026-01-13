@@ -4,7 +4,7 @@ assertion_line: 42
 expression: output
 input_file: tests/fixtures/match_tuple_binding.fe
 ---
-function match_tuple_extract($t) -> ret {
+function $match_tuple_extract($t) -> ret {
   let v0 := 0
   let v1 := and(mload($t), 0xff)
   switch v1
@@ -32,7 +32,7 @@ function match_tuple_extract($t) -> ret {
   ret := v0
   leave
 }
-function match_nested_extract($t) -> ret {
+function $match_nested_extract($t) -> ret {
   let v0 := 0
   let v1 := and(mload(add($t, 1)), 0xff)
   switch v1

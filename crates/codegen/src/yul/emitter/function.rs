@@ -4,7 +4,7 @@ use rustc_hash::{FxHashMap, FxHashSet};
 
 use crate::yul::{doc::YulDoc, errors::YulError, state::BlockState};
 
-use super::util::function_name;
+use super::util::{function_name, prefix_yul_name};
 
 /// Emits Yul for a single MIR function.
 pub(super) struct FunctionEmitter<'db> {
@@ -46,13 +46,13 @@ impl<'db> FunctionEmitter<'db> {
 
     /// Produces the final Yul docs for the current MIR function.
     pub(super) fn emit_doc(mut self) -> Result<Vec<YulDoc>, YulError> {
-        let func_name = self.mir_func.symbol_name.as_str();
+        let func_name = prefix_yul_name(&self.mir_func.symbol_name);
         let (param_names, mut state) = self.init_entry_state();
         let body_docs = self.emit_block(self.mir_func.body.entry, &mut state)?;
         let function_doc = YulDoc::block(
             format!(
                 "{} ",
-                self.format_function_signature(func_name, &param_names)
+                self.format_function_signature(&func_name, &param_names)
             ),
             body_docs,
         );

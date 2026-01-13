@@ -4,17 +4,17 @@ assertion_line: 42
 expression: output
 input_file: tests/fixtures/alloc.fe
 ---
-function bump($size) -> ret {
-  let v0 := alloc($size)
+function $bump($size) -> ret {
+  let v0 := $alloc($size)
   ret := v0
   leave
 }
-function bump_const() -> ret {
-  let v0 := alloc(64)
+function $bump_const() -> ret {
+  let v0 := $alloc(64)
   ret := v0
   leave
 }
-function alloc($size) -> ret {
+function $alloc($size) -> ret {
   let v0 := mload(64)
   let v1 := eq(v0, 0)
   if v1 {

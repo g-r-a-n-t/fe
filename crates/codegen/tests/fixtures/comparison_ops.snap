@@ -3,7 +3,7 @@ source: crates/codegen/tests/yul.rs
 expression: output
 input_file: tests/fixtures/comparison_ops.fe
 ---
-function comparison_ops() -> ret {
+function $comparison_ops() -> ret {
   let v0 := 1
   let v1 := 2
   let v2 := 3

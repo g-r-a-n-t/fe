@@ -4,7 +4,7 @@ assertion_line: 42
 expression: output
 input_file: tests/fixtures/match_return.fe
 ---
-function f($e, $ops) {
+function $f($e, $ops) {
   let v0 := mload($e)
   switch v0
     case 0 {

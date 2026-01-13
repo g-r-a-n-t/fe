@@ -4,7 +4,7 @@ assertion_line: 42
 expression: output
 input_file: tests/fixtures/match_enum_with_data.fe
 ---
-function make_some($value) -> ret {
+function $make_some($value) -> ret {
   let v0 := mload(0x40)
   if iszero(v0) {
     v0 := 0x80
@@ -15,7 +15,7 @@ function make_some($value) -> ret {
   ret := v0
   leave
 }
-function match_option($opt) -> ret {
+function $match_option($opt) -> ret {
   let v0 := 0
   let v1 := mload($opt)
   switch v1

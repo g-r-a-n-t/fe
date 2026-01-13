@@ -4,7 +4,7 @@ assertion_line: 42
 expression: output
 input_file: tests/fixtures/aug_assign_bit_ops.fe
 ---
-function aug_assign_bit_ops($x, $y) -> ret {
+function $aug_assign_bit_ops($x, $y) -> ret {
   let v0 := $x
   v0 := exp(v0, $y)
   v0 := shl(3, v0)

@@ -4,7 +4,7 @@ assertion_line: 42
 expression: output
 input_file: tests/fixtures/match_enum.fe
 ---
-function match_enum($e) -> ret {
+function $match_enum($e) -> ret {
   let v0 := 0
   let v1 := mload($e)
   switch v1

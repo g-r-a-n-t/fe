@@ -3,7 +3,7 @@ source: crates/codegen/tests/yul.rs
 expression: output
 input_file: tests/fixtures/zero_sized_aggregates.fe
 ---
-function tuple_with_empty() -> ret {
+function $tuple_with_empty() -> ret {
   let v0 := 5
   let v1 := mload(0x40)
   if iszero(v1) {
@@ -17,10 +17,10 @@ function tuple_with_empty() -> ret {
   ret := v3
   leave
 }
-function tuple_only_empty() {
+function $tuple_only_empty() {
   leave
 }
-function struct_with_empty() -> ret {
+function $struct_with_empty() -> ret {
   let v0 := 7
   let v1 := mload(0x40)
   if iszero(v1) {
@@ -34,7 +34,7 @@ function struct_with_empty() -> ret {
   ret := v3
   leave
 }
-function empty_field_assign() {
+function $empty_field_assign() {
   let v0 := mload(0x40)
   if iszero(v0) {
     v0 := 0x80

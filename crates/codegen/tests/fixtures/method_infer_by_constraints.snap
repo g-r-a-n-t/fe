@@ -3,13 +3,13 @@ source: crates/codegen/tests/yul.rs
 expression: output
 input_file: tests/fixtures/method_infer_by_constraints.fe
 ---
-function call() -> ret {
+function $call() -> ret {
   let v0 := 10
-  let v1 := s_t__foo_foo__u64__aee7f05a097ffa16(v0)
+  let v1 := $s_t__foo_foo__u64__aee7f05a097ffa16(v0)
   ret := v1
   leave
 }
-function s_t__foo_foo__u64__aee7f05a097ffa16($self) -> ret {
+function $s_t__foo_foo__u64__aee7f05a097ffa16($self) -> ret {
   let v0 := mload(0x40)
   if iszero(v0) {
     v0 := 0x80

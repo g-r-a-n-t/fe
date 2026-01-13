@@ -4,7 +4,7 @@ assertion_line: 42
 expression: output
 input_file: tests/fixtures/match_nested_default.fe
 ---
-function nested_with_defaults($o) -> ret {
+function $nested_with_defaults($o) -> ret {
   let v0 := 0
   let v1 := mload($o)
   switch v1
@@ -34,7 +34,7 @@ function nested_with_defaults($o) -> ret {
   ret := v0
   leave
 }
-function outer_specific_inner_wildcard($o) -> ret {
+function $outer_specific_inner_wildcard($o) -> ret {
   let v0 := 0
   let v1 := mload($o)
   switch v1
@@ -54,7 +54,7 @@ function outer_specific_inner_wildcard($o) -> ret {
   ret := v0
   leave
 }
-function deeply_nested_wildcard($d) -> ret {
+function $deeply_nested_wildcard($d) -> ret {
   let v0 := 0
   let v1 := mload($d)
   switch v1
@@ -81,7 +81,7 @@ function deeply_nested_wildcard($d) -> ret {
   ret := v0
   leave
 }
-function exhaustive_inner_outer_wildcard($o) -> ret {
+function $exhaustive_inner_outer_wildcard($o) -> ret {
   let v0 := 0
   let v1 := mload($o)
   switch v1

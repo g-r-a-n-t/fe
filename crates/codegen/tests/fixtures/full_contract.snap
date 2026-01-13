@@ -5,23 +5,23 @@ input_file: tests/fixtures/full_contract.fe
 ---
 object "ShapeDispatcher" {
   code {
-    function init() {
+    function $init() {
       let v0 := datasize("ShapeDispatcher_deployed")
       let v1 := dataoffset("ShapeDispatcher_deployed")
       codecopy(0, v1, v0)
       return(0, v0)
     }
-    init()
+    $init()
   }
 
   object "ShapeDispatcher_deployed" {
     code {
-      function abi_encode($value, $ops) {
+      function $abi_encode($value, $ops) {
         let v0 := 0
         mstore(v0, $value)
         return(v0, 32)
       }
-      function dispatch() {
+      function $dispatch() {
         let v0 := calldataload(0)
         let v1 := shr(224, v0)
         let v2 := eq(v1, 151146943)
@@ -40,31 +40,31 @@ object "ShapeDispatcher" {
           mstore(v6, add(v7, 1))
           let v8 := mload(add(v6, 32))
           mstore(add(v6, 32), add(v8, 2))
-          let v9 := point_area_mem(v6)
-          abi_encode(v9, 0)
+          let v9 := $point_area_mem(v6)
+          $abi_encode(v9, 0)
         }
         let v10 := eq(v1, 2066295049)
         if v10 {
           let v11 := calldataload(4)
           let v12 := v11
           v12 := add(v12, 3)
-          let v13 := square_area(v12)
-          abi_encode(v13, 0)
+          let v13 := $square_area(v12)
+          $abi_encode(v13, 0)
         }
         return(0, 0)
       }
-      function point_area_mem($self) -> ret {
+      function $point_area_mem($self) -> ret {
         let v0 := mload($self)
         let v1 := mload(add($self, 32))
         ret := mul(v0, v1)
         leave
       }
-      function square_area($self) -> ret {
+      function $square_area($self) -> ret {
         let v0 := $self
         ret := mul(v0, v0)
         leave
       }
-      dispatch()
+      $dispatch()
       return(0, 0)
     }
   }

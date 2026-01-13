@@ -4,7 +4,7 @@ assertion_line: 42
 expression: output
 input_file: tests/fixtures/bitnot.fe
 ---
-function bit_not($x) -> ret {
+function $bit_not($x) -> ret {
   ret := not($x)
   leave
 }

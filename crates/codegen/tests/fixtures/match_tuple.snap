@@ -4,7 +4,7 @@ assertion_line: 42
 expression: output
 input_file: tests/fixtures/match_tuple.fe
 ---
-function match_bool_tuple($t) -> ret {
+function $match_bool_tuple($t) -> ret {
   let v0 := 0
   let v1 := iszero(eq(mload(add($t, 1)), 0))
   switch v1
@@ -37,7 +37,7 @@ function match_bool_tuple($t) -> ret {
   ret := v0
   leave
 }
-function match_tuple_with_wildcard($t) -> ret {
+function $match_tuple_with_wildcard($t) -> ret {
   let v0 := 0
   let v1 := iszero(eq(mload($t), 0))
   switch v1
@@ -52,7 +52,7 @@ function match_tuple_with_wildcard($t) -> ret {
   ret := v0
   leave
 }
-function match_mixed_tuple($t) -> ret {
+function $match_mixed_tuple($t) -> ret {
   let v0 := 0
   let v1 := iszero(eq(mload($t), 0))
   switch v1

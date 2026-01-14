@@ -14,7 +14,11 @@ use std::{collections::VecDeque, sync::Arc};
 use crate::yul::doc::{YulDoc, render_docs};
 use crate::yul::errors::YulError;
 
-use super::{EmitModuleError, function::FunctionEmitter, util::function_name};
+use super::{
+    EmitModuleError,
+    function::FunctionEmitter,
+    util::{function_name, prefix_yul_name},
+};
 
 /// Metadata describing a single emitted test object.
 #[derive(Debug, Clone)]
@@ -848,10 +852,11 @@ fn emit_test_object(
 
     let total_param_count = test.value_param_count + test.effect_param_count;
     let call_args = format_call_args(total_param_count);
+    let test_symbol = prefix_yul_name(&test.symbol_name);
     if call_args.is_empty() {
-        runtime_docs.push(YulDoc::line(format!("{}()", test.symbol_name)));
+        runtime_docs.push(YulDoc::line(format!("{test_symbol}()")));
     } else {
-        runtime_docs.push(YulDoc::line(format!("{}({})", test.symbol_name, call_args)));
+        runtime_docs.push(YulDoc::line(format!("{test_symbol}({call_args})")));
     }
     runtime_docs.push(YulDoc::line("return(0, 0)"));
 
@@ -922,6 +927,7 @@ fn emit_contract_init_object(
     let mut init_docs = Vec::new();
     if let Some(symbol) = &entry.init_symbol {
         init_docs.extend(reachable_docs_for_region(graph, &region, docs_by_symbol));
+        let symbol = prefix_yul_name(symbol);
         init_docs.push(YulDoc::line(format!("{symbol}()")));
     }
     components.push(YulDoc::block("code ", init_docs));
@@ -986,6 +992,7 @@ fn emit_contract_deployed_object(
 
     let mut runtime_docs = Vec::new();
     runtime_docs.extend(reachable_docs_for_region(graph, &region, docs_by_symbol));
+    let symbol = prefix_yul_name(symbol);
     runtime_docs.push(YulDoc::line(format!("{symbol}()")));
     runtime_docs.push(YulDoc::line("return(0, 0)"));
 

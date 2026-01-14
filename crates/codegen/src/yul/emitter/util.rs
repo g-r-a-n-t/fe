@@ -1,140 +1,48 @@
 //! Shared utility helpers used across the Yul emitter modules.
 
 use driver::DriverDataBase;
-use hir::hir_def::Func;
+use hir::hir_def::{Func, HirIngot, item::ItemKind, scope_graph::ScopeId};
 
 use super::YulError;
 
-/// Yul reserved words that cannot be used as identifiers.
-///
-/// This includes all Yul opcodes and built-in functions from the EVM dialect.
-const YUL_RESERVED: &[&str] = &[
-    // Arithmetic
-    "add",
-    "sub",
-    "mul",
-    "div",
-    "sdiv",
-    "mod",
-    "smod",
-    "addmod",
-    "mulmod",
-    "exp",
-    "signextend",
-    // Comparison
-    "lt",
-    "gt",
-    "slt",
-    "sgt",
-    "eq",
-    "iszero",
-    // Bitwise
-    "and",
-    "or",
-    "xor",
-    "not",
-    "byte",
-    "shl",
-    "shr",
-    "sar",
-    // Hashing
-    "keccak256",
-    // Memory/Storage
-    "pop",
-    "mload",
-    "mstore",
-    "mstore8",
-    "sload",
-    "sstore",
-    "msize",
-    "tload",
-    "tstore",
-    "mcopy",
-    // Environment
-    "gas",
-    "address",
-    "balance",
-    "selfbalance",
-    "caller",
-    "callvalue",
-    "calldataload",
-    "calldatasize",
-    "calldatacopy",
-    "codesize",
-    "codecopy",
-    "extcodesize",
-    "extcodecopy",
-    "extcodehash",
-    "returndatasize",
-    "returndatacopy",
-    // Contract creation/call
-    "create",
-    "create2",
-    "call",
-    "callcode",
-    "delegatecall",
-    "staticcall",
-    "return",
-    "revert",
-    "selfdestruct",
-    "invalid",
-    "stop",
-    // Block
-    "blockhash",
-    "coinbase",
-    "timestamp",
-    "number",
-    "difficulty",
-    "prevrandao",
-    "gaslimit",
-    "chainid",
-    "basefee",
-    "blobbasefee",
-    "origin",
-    "gasprice",
-    "blobhash",
-    // Logging
-    "log0",
-    "log1",
-    "log2",
-    "log3",
-    "log4",
-    // Data access
-    "datasize",
-    "dataoffset",
-    "datacopy",
-    // Misc
-    "verbatim",
-    "linkersymbol",
-    "memoryguard",
-    // Keywords
-    "true",
-    "false",
-    "leave",
-    "for",
-    "if",
-    "let",
-    "switch",
-    "case",
-    "default",
-    "function",
-    "break",
-    "continue",
-];
-
-/// Escapes a name if it conflicts with a Yul reserved word.
-///
-/// Adds an underscore prefix to names that would conflict with Yul builtins.
-///
-/// * `name` - Raw identifier to sanitize.
-///
-/// Returns the escaped name when reserved, otherwise the original name.
-pub(super) fn escape_yul_reserved(name: &str) -> String {
-    if YUL_RESERVED.contains(&name) {
-        format!("_{name}")
-    } else {
+pub(super) fn prefix_yul_name(name: &str) -> String {
+    if name.starts_with('$') {
         name.to_string()
+    } else {
+        format!("${name}")
     }
+}
+
+pub(super) fn is_std_evm_ops(db: &DriverDataBase, func: Func<'_>) -> bool {
+    if func.body(db).is_some() {
+        return false;
+    }
+
+    let ingot = func.top_mod(db).ingot(db);
+    let root_mod = ingot.root_mod(db);
+
+    let mut path = Vec::new();
+    let mut scope = func.scope();
+    while let Some(parent) = scope.parent_module(db) {
+        match parent {
+            ScopeId::Item(ItemKind::Mod(mod_)) => {
+                if let Some(name) = mod_.name(db).to_opt() {
+                    path.push(name.data(db).to_string());
+                }
+            }
+            ScopeId::Item(ItemKind::TopMod(top_mod)) => {
+                if top_mod != root_mod {
+                    path.push(top_mod.name(db).data(db).to_string());
+                }
+            }
+            _ => {}
+        }
+        scope = parent;
+    }
+    path.reverse();
+
+    path.last().is_some_and(|seg| seg == "ops")
+        && path.iter().rev().nth(1).is_some_and(|seg| seg == "evm")
 }
 
 /// Returns the display name of a function or `<anonymous>` if one does not exist.
@@ -177,6 +85,7 @@ pub(super) fn try_collapse_cast_shim(
 /// Returns `true` when `name` matches one of the temporary casting shims
 /// (`__{src}_as_{dst}`) used while the `as` syntax is unavailable.
 fn is_cast_shim(name: &str) -> bool {
+    let name = name.strip_prefix('$').unwrap_or(name);
     cast_shim_parts(name).is_some()
 }
 

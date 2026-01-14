@@ -1,14 +1,15 @@
 ---
 source: crates/codegen/tests/yul.rs
+assertion_line: 42
 expression: output
 input_file: tests/fixtures/match_nested_default.fe
 ---
-function nested_with_defaults(o) -> ret {
+function $nested_with_defaults($o) -> ret {
   let v0 := 0
-  let v1 := mload(o)
+  let v1 := mload($o)
   switch v1
     case 0 {
-      let v2 := mload(add(o, 32))
+      let v2 := mload(add($o, 32))
       switch v2
         case 0 {
           v0 := 1
@@ -18,7 +19,7 @@ function nested_with_defaults(o) -> ret {
         }
     }
     case 1 {
-      let v3 := mload(add(o, 32))
+      let v3 := mload(add($o, 32))
       switch v3
         case 1 {
           v0 := 2
@@ -33,12 +34,12 @@ function nested_with_defaults(o) -> ret {
   ret := v0
   leave
 }
-function outer_specific_inner_wildcard(o) -> ret {
+function $outer_specific_inner_wildcard($o) -> ret {
   let v0 := 0
-  let v1 := mload(o)
+  let v1 := mload($o)
   switch v1
     case 0 {
-      let v2 := mload(add(o, 32))
+      let v2 := mload(add($o, 32))
       switch v2
         case 0 {
           v0 := 1
@@ -53,15 +54,15 @@ function outer_specific_inner_wildcard(o) -> ret {
   ret := v0
   leave
 }
-function deeply_nested_wildcard(d) -> ret {
+function $deeply_nested_wildcard($d) -> ret {
   let v0 := 0
-  let v1 := mload(d)
+  let v1 := mload($d)
   switch v1
     case 0 {
-      let v2 := mload(add(d, 32))
+      let v2 := mload(add($d, 32))
       switch v2
         case 0 {
-          let v3 := mload(add(d, 64))
+          let v3 := mload(add($d, 64))
           switch v3
             case 0 {
               v0 := 1
@@ -80,12 +81,12 @@ function deeply_nested_wildcard(d) -> ret {
   ret := v0
   leave
 }
-function exhaustive_inner_outer_wildcard(o) -> ret {
+function $exhaustive_inner_outer_wildcard($o) -> ret {
   let v0 := 0
-  let v1 := mload(o)
+  let v1 := mload($o)
   switch v1
     case 0 {
-      let v2 := mload(add(o, 32))
+      let v2 := mload(add($o, 32))
       switch v2
         case 0 {
           v0 := 1

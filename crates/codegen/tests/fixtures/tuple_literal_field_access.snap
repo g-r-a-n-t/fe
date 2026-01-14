@@ -4,7 +4,7 @@ assertion_line: 42
 expression: output
 input_file: tests/fixtures/tuple_literal_field_access.fe
 ---
-function tuple_literal_field_access() -> ret {
+function $tuple_literal_field_access() -> ret {
   let v0 := 1
   let v1 := 2
   let v2 := mload(0x40)
@@ -18,7 +18,7 @@ function tuple_literal_field_access() -> ret {
   ret := v3
   leave
 }
-function tuple_literal_nested_access() -> ret {
+function $tuple_literal_nested_access() -> ret {
   let v0 := 1
   let v1 := 2
   let v2 := 3
@@ -42,7 +42,7 @@ function tuple_literal_nested_access() -> ret {
   ret := v6
   leave
 }
-function tuple_literal_struct_chain() -> ret {
+function $tuple_literal_struct_chain() -> ret {
   let v0 := 1
   let v1 := 2
   let v2 := mload(0x40)

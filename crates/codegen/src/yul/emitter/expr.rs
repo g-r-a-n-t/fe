@@ -19,7 +19,7 @@ use crate::yul::state::BlockState;
 use super::{
     YulError,
     function::FunctionEmitter,
-    util::{function_name, try_collapse_cast_shim},
+    util::{function_name, is_std_evm_ops, prefix_yul_name, try_collapse_cast_shim},
 };
 
 impl<'db> FunctionEmitter<'db> {
@@ -192,6 +192,7 @@ impl<'db> FunctionEmitter<'db> {
             ));
         }
 
+        let is_evm_op = matches!(call.callable.callable_def, CallableDef::Func(func) if is_std_evm_ops(self.db, func));
         let callee = if let Some(name) = &call.resolved_name {
             name.clone()
         } else {
@@ -203,6 +204,11 @@ impl<'db> FunctionEmitter<'db> {
                     ));
                 }
             }
+        };
+        let callee = if is_evm_op {
+            callee
+        } else {
+            prefix_yul_name(&callee)
         };
         let mut lowered_args = Vec::with_capacity(call.args.len());
         for &arg in &call.args {

@@ -1,17 +1,16 @@
 use parser::ast::{self, AttrListOwner as _, ItemModifierOwner as _};
 use salsa::Accumulator as _;
 
+use super::hir_builder::HirBuilder;
+
 use crate::{
-    SelectorError, SelectorErrorKind,
+    HirDb, SelectorError, SelectorErrorKind,
     hir_def::{
-        AssocConstDef, AssocTyDef, AttrListId, Body, BodyKind, BodySourceMap, EffectParamListId,
-        Expr, ExprId, FieldDef, FieldDefListId, Func, FuncParam, FuncParamListId, FuncParamName,
-        GenericArg, GenericArgListId, GenericParamListId, IdentId, Impl, ImplTrait, IntegerId,
-        ItemModifier, LitKind, Mod, NodeStore, Partial, Pat, PathId, PathKind, Stmt, StmtId,
-        Struct, TrackedItemVariant, TraitRefId, TupleTypeId, TypeGenericArg, TypeId, TypeKind,
-        Visibility, WhereClauseId,
+        AssocConstDef, AttrListId, Body, BodyKind, BodySourceMap, Expr, ExprId, FieldDef,
+        FieldDefListId, IdentId, ImplTrait, ItemModifier, LitKind, Mod, NodeStore, Partial, PathId,
+        Struct, TrackedItemVariant, TraitRefId, TupleTypeId, TypeId, TypeKind, Visibility,
     },
-    lower::{FileLowerCtxt, body::BodyCtxt},
+    lower::FileLowerCtxt,
     span::{HirOrigin, MsgDesugared, MsgDesugaredFocus},
 };
 
@@ -39,17 +38,7 @@ use crate::{
 pub(super) fn lower_msg_as_mod<'db>(ctxt: &mut FileLowerCtxt<'db>, ast: ast::Msg) -> Mod<'db> {
     use rustc_hash::FxHashMap;
 
-    let db = ctxt.db();
     let name = IdentId::lower_token_partial(ctxt, ast.name());
-
-    // Use Mod variant for the ID since we're creating a module
-    let id = ctxt.joined_id(TrackedItemVariant::Mod(name));
-    ctxt.enter_item_scope(id, true);
-
-    // Insert synthetic prelude use for the module
-    ctxt.insert_synthetic_prelude_use();
-    // Insert `use super::*` so msg modules can see parent types
-    ctxt.insert_synthetic_super_use();
 
     // Lower any existing attributes on the msg block
     let attributes = AttrListId::lower_ast_opt(ctxt, ast.attr_list());
@@ -66,32 +55,36 @@ pub(super) fn lower_msg_as_mod<'db>(ctxt: &mut FileLowerCtxt<'db>, ast: ast::Msg
     // Track selectors for duplicate detection
     let mut seen_selectors: FxHashMap<u32, SeenSelector> = FxHashMap::default();
 
-    // Lower each variant as a struct + impl MsgVariant
-    if let Some(variants) = ast.variants() {
-        for (idx, variant) in variants.into_iter().enumerate() {
-            lower_msg_variant(ctxt, &ast, idx, variant, &mut seen_selectors);
+    let mut builder = HirBuilder::new(ctxt, msg_desugared);
+    builder.desugared_mod(name, attributes, vis, |builder| {
+        if let Some(variants) = ast.variants() {
+            for (idx, variant) in variants.into_iter().enumerate() {
+                lower_msg_variant(builder, &ast, idx, variant, &mut seen_selectors);
+            }
         }
-    }
-
-    let origin = HirOrigin::desugared(msg_desugared);
-    let mod_ = Mod::new(db, id, name, attributes, vis, ctxt.top_mod(), origin);
-    ctxt.leave_item_scope(mod_)
+    })
 }
 
 /// Lowers a single msg variant to a struct and an impl MsgVariant block.
 fn lower_msg_variant<'db>(
-    ctxt: &mut FileLowerCtxt<'db>,
+    builder: &mut HirBuilder<'_, 'db, MsgDesugared>,
     msg_ast: &ast::Msg,
     variant_idx: usize,
     variant: ast::MsgVariant,
     seen_selectors: &mut rustc_hash::FxHashMap<u32, SeenSelector>,
 ) {
+    let mut builder = builder.with_desugared(MsgDesugared {
+        msg: parser::ast::AstPtr::new(msg_ast),
+        variant_idx: Some(variant_idx),
+        focus: Default::default(),
+    });
+
     // Create the struct for this variant
-    let struct_ = lower_msg_variant_struct(ctxt, msg_ast, variant_idx, &variant);
+    let struct_ = lower_msg_variant_struct(&mut builder, &variant);
 
     // Create the impl MsgVariant for this variant
     lower_msg_variant_impl(
-        ctxt,
+        &mut builder,
         msg_ast,
         variant_idx,
         &variant,
@@ -99,369 +92,143 @@ fn lower_msg_variant<'db>(
         seen_selectors,
     );
 
-    // Create `Variant::decode` helper.
-    lower_msg_variant_decode_impl(ctxt, msg_ast, variant_idx, &variant, struct_);
+    // Create `impl Encode<Sol> for Variant` and `impl Decode<Sol> for Variant`.
+    lower_msg_variant_encode_decode_impls(&mut builder, &variant, struct_);
 }
 
-fn lower_msg_variant_decode_impl<'db>(
-    ctxt: &mut FileLowerCtxt<'db>,
-    msg_ast: &ast::Msg,
-    variant_idx: usize,
-    variant: &ast::MsgVariant,
-    struct_: Struct<'db>,
-) -> Impl<'db> {
-    use common::ingot::IngotKind;
-
-    let db = ctxt.db();
-
-    let ingot = ctxt.top_mod().ingot(db);
-    let core_root = if ingot.kind(db) == IngotKind::Core {
-        IdentId::make_ingot(db)
-    } else {
-        IdentId::make_core(db)
-    };
-    // impl Variant { ... }
+fn variant_struct_ty<'db>(db: &'db dyn HirDb, struct_: Struct<'db>) -> TypeId<'db> {
     let struct_name = struct_.name(db);
     let self_type_path = match struct_name.to_opt() {
         Some(name) => PathId::from_ident(db, name),
         None => PathId::from_ident(db, IdentId::new(db, "_".to_string())),
     };
-    let ty = TypeId::new(db, TypeKind::Path(Partial::Present(self_type_path)));
+    TypeId::new(db, TypeKind::Path(Partial::Present(self_type_path)))
+}
 
-    let id = ctxt.joined_id(TrackedItemVariant::Impl(Partial::Present(ty)));
-    ctxt.enter_item_scope(id, false);
-
-    let msg_desugared = MsgDesugared {
-        msg: parser::ast::AstPtr::new(msg_ast),
-        variant_idx: Some(variant_idx),
-        focus: Default::default(),
-    };
-    let body_desugared = msg_desugared.clone();
-    let impl_origin: HirOrigin<ast::Impl> = HirOrigin::desugared(msg_desugared.clone());
-    let func_origin: HirOrigin<ast::Func> = HirOrigin::desugared(msg_desugared);
-    let expr_origin: HirOrigin<ast::Expr> = HirOrigin::desugared(body_desugared.clone());
-    let stmt_origin: HirOrigin<ast::Stmt> = HirOrigin::desugared(body_desugared.clone());
-    let pat_origin: HirOrigin<ast::Pat> = HirOrigin::desugared(body_desugared);
-
-    let impl_ = Impl::new(
-        db,
-        id,
-        Partial::Present(ty),
-        AttrListId::new(db, vec![]),
-        GenericParamListId::new(db, vec![]),
-        WhereClauseId::new(db, vec![]),
-        ctxt.top_mod(),
-        impl_origin,
-    );
-
-    // Generate the `decode` method inside the impl.
-    let decode_fn_name = Partial::Present(IdentId::new(db, "decode".to_string()));
-    let decode_fn_id = ctxt.joined_id(TrackedItemVariant::Func(decode_fn_name));
-    ctxt.enter_item_scope(decode_fn_id, false);
-
-    let std_root = if ingot.kind(db) == IngotKind::Std {
-        IdentId::make_ingot(db)
-    } else {
-        IdentId::new(db, "std".to_string())
-    };
-    let call_data_path = PathId::from_segments(db, &["std", "evm", "calldata", "CallData"]);
-    let call_data_ty = TypeId::new(db, TypeKind::Path(Partial::Present(call_data_path)));
-    let sol_decoder_args = GenericArgListId::new(
-        db,
-        vec![GenericArg::Type(TypeGenericArg {
-            ty: Partial::Present(call_data_ty),
-        })],
-        true,
-    );
-    let sol_decoder_path = PathId::from_ident(db, std_root)
-        .push_ident(db, IdentId::new(db, "abi".to_string()))
-        .push_ident(db, IdentId::new(db, "sol".to_string()))
-        .push(
-            db,
-            PathKind::Ident {
-                ident: Partial::Present(IdentId::new(db, "SolDecoder".to_string())),
-                generic_args: sol_decoder_args,
-            },
-        );
-    let d_ty = TypeId::new(db, TypeKind::Path(Partial::Present(sol_decoder_path)));
-    let params = FuncParamListId::new(
-        db,
-        vec![FuncParam {
-            is_mut: true,
-            label: Some(FuncParamName::Underscore),
-            name: Partial::Present(FuncParamName::ident(db, "d")),
-            ty: Partial::Present(d_ty),
-            self_ty_fallback: false,
-        }],
-    );
-
-    let ret_ty = Some(TypeId::new(
-        db,
-        TypeKind::Path(Partial::Present(PathId::from_ident(
-            db,
-            IdentId::make_self_ty(db),
-        ))),
-    ));
-
-    let mut body_ctxt = BodyCtxt::new(ctxt, ctxt.joined_id(TrackedItemVariant::FuncBody));
-
-    let mut stmts = Vec::new();
-    let mut tmp_counter: usize = 0;
-
+fn lower_msg_variant_field_names<'db>(
+    ctxt: &mut FileLowerCtxt<'db>,
+    variant: &ast::MsgVariant,
+) -> Vec<IdentId<'db>> {
+    let mut names = Vec::new();
     if let Some(params_ast) = variant.params() {
         for field in params_ast.into_iter() {
             let Some(name_token) = field.name() else {
                 continue;
             };
-            let field_name = IdentId::lower_token(body_ctxt.f_ctxt, name_token);
-
-            let Some(field_ty) = TypeId::lower_ast_partial(body_ctxt.f_ctxt, field.ty()).to_opt()
-            else {
-                continue;
-            };
-
-            lower_msg_decode_into(
-                &mut body_ctxt,
-                core_root,
-                field_name,
-                field_ty,
-                &mut tmp_counter,
-                &mut stmts,
-                expr_origin.clone(),
-                stmt_origin.clone(),
-                pat_origin.clone(),
-            );
+            names.push(IdentId::lower_token(ctxt, name_token));
         }
     }
+    names
+}
 
-    let self_path = Partial::Present(PathId::from_ident(db, IdentId::make_self_ty(db)));
+fn lower_msg_variant_field_specs<'db>(
+    ctxt: &mut FileLowerCtxt<'db>,
+    variant: &ast::MsgVariant,
+) -> Vec<(IdentId<'db>, TypeId<'db>)> {
     let mut fields = Vec::new();
     if let Some(params_ast) = variant.params() {
         for field in params_ast.into_iter() {
             let Some(name_token) = field.name() else {
                 continue;
             };
-            let field_name = IdentId::lower_token(body_ctxt.f_ctxt, name_token);
-            let expr = body_ctxt.push_expr(
-                Expr::Path(Partial::Present(PathId::from_ident(db, field_name))),
-                expr_origin.clone(),
-            );
-            fields.push(crate::hir_def::Field {
-                label: Some(field_name),
-                expr,
-            });
-        }
-    }
-    let record_expr = body_ctxt.push_expr(Expr::RecordInit(self_path, fields), expr_origin.clone());
-    stmts.push(body_ctxt.push_stmt(Stmt::Return(Some(record_expr)), stmt_origin.clone()));
-
-    body_ctxt.f_ctxt.enter_block_scope();
-    let root_expr = body_ctxt.push_expr(Expr::Block(stmts), expr_origin.clone());
-    body_ctxt.f_ctxt.leave_block_scope(root_expr);
-    let body = body_ctxt.build(None, root_expr, BodyKind::FuncBody);
-
-    let decode_fn = Func::new(
-        db,
-        decode_fn_id,
-        decode_fn_name,
-        AttrListId::new(db, vec![]),
-        GenericParamListId::new(db, vec![]),
-        WhereClauseId::new(db, vec![]),
-        Partial::Present(params),
-        EffectParamListId::new(db, vec![]),
-        ret_ty,
-        ItemModifier::Pub,
-        Some(body),
-        ctxt.top_mod(),
-        func_origin,
-    );
-    ctxt.leave_item_scope(decode_fn);
-
-    ctxt.leave_item_scope(impl_)
-}
-
-pub(super) fn lower_revert_call<'ctxt, 'db>(
-    body_ctxt: &mut BodyCtxt<'ctxt, 'db>,
-    core_root: IdentId<'db>,
-    expr_origin: HirOrigin<ast::Expr>,
-) -> ExprId {
-    let db = body_ctxt.f_ctxt.db();
-
-    let revert_path =
-        PathId::from_ident(db, core_root).push_ident(db, IdentId::new(db, "revert".to_string()));
-    let revert_callee = body_ctxt.push_expr(
-        Expr::Path(Partial::Present(revert_path)),
-        expr_origin.clone(),
-    );
-    let zero_lit = Expr::Lit(LitKind::Int(IntegerId::from_usize(db, 0)));
-    let call_expr = Expr::Call(
-        revert_callee,
-        vec![
-            crate::hir_def::CallArg {
-                label: None,
-                expr: body_ctxt.push_expr(zero_lit.clone(), expr_origin.clone()),
-            },
-            crate::hir_def::CallArg {
-                label: None,
-                expr: body_ctxt.push_expr(zero_lit, expr_origin.clone()),
-            },
-        ],
-    );
-    body_ctxt.push_expr(call_expr, expr_origin)
-}
-
-#[allow(clippy::too_many_arguments)]
-fn lower_msg_decode_into<'ctxt, 'db>(
-    body_ctxt: &mut BodyCtxt<'ctxt, 'db>,
-    core_root: IdentId<'db>,
-    target_ident: IdentId<'db>,
-    ty: TypeId<'db>,
-    tmp_counter: &mut usize,
-    stmts: &mut Vec<StmtId>,
-    expr_origin: HirOrigin<ast::Expr>,
-    stmt_origin: HirOrigin<ast::Stmt>,
-    pat_origin: HirOrigin<ast::Pat>,
-) {
-    let db = body_ctxt.f_ctxt.db();
-
-    if let TypeKind::Tuple(tup) = ty.data(db) {
-        let mut elem_idents = Vec::new();
-        for elem_ty in tup.data(db) {
-            let Some(elem_ty) = elem_ty.to_opt() else {
+            let field_name = IdentId::lower_token(ctxt, name_token);
+            let Some(field_ty) = TypeId::lower_ast_partial(ctxt, field.ty()).to_opt() else {
                 continue;
             };
-            let elem_ident = IdentId::new(db, format!("__tmp{}", *tmp_counter));
-            *tmp_counter += 1;
-            lower_msg_decode_into(
-                body_ctxt,
-                core_root,
-                elem_ident,
-                elem_ty,
-                tmp_counter,
-                stmts,
-                expr_origin.clone(),
-                stmt_origin.clone(),
-                pat_origin.clone(),
-            );
-            elem_idents.push(elem_ident);
+            fields.push((field_name, field_ty));
         }
-
-        let elems = elem_idents
-            .iter()
-            .map(|ident| {
-                body_ctxt.push_expr(
-                    Expr::Path(Partial::Present(PathId::from_ident(db, *ident))),
-                    expr_origin.clone(),
-                )
-            })
-            .collect();
-        let tuple_expr = body_ctxt.push_expr(Expr::Tuple(elems), expr_origin.clone());
-        let bind_pat = body_ctxt.push_pat(
-            Pat::Path(
-                Partial::Present(PathId::from_ident(db, target_ident)),
-                false,
-            ),
-            pat_origin.clone(),
-        );
-        stmts.push(body_ctxt.push_stmt(Stmt::Let(bind_pat, None, Some(tuple_expr)), stmt_origin));
-        return;
     }
+    fields
+}
 
-    let Some(ty_path) = (match ty.data(db) {
-        TypeKind::Path(p) => p.to_opt(),
-        _ => None,
-    }) else {
-        let revert = lower_revert_call(body_ctxt, core_root, expr_origin.clone());
-        let bind_pat = body_ctxt.push_pat(
-            Pat::Path(
-                Partial::Present(PathId::from_ident(db, target_ident)),
-                false,
-            ),
-            pat_origin.clone(),
+fn lower_msg_variant_encode_decode_impls<'db>(
+    builder: &mut HirBuilder<'_, 'db, MsgDesugared>,
+    variant: &ast::MsgVariant,
+    struct_: Struct<'db>,
+) {
+    lower_msg_variant_encode_impl(builder, variant, struct_);
+    lower_msg_variant_decode_trait_impl(builder, variant, struct_);
+}
+
+fn lower_msg_variant_encode_impl<'db>(
+    builder: &mut HirBuilder<'_, 'db, MsgDesugared>,
+    variant: &ast::MsgVariant,
+    struct_: Struct<'db>,
+) -> ImplTrait<'db> {
+    let field_names = lower_msg_variant_field_names(builder.ctxt(), variant);
+
+    let trait_ref = builder.core_abi_trait_ref_sol("Encode");
+    let ty = variant_struct_ty(builder.db(), struct_);
+
+    builder.impl_trait(trait_ref, ty, |builder| {
+        let abi_encoder_trait_ref = builder.core_abi_trait_ref_sol("AbiEncoder");
+        let (e_generic_params, e_ty) =
+            builder.type_param_with_trait_bound("E", abi_encoder_trait_ref);
+
+        let encoder_ident = builder.ident("e");
+        let params = builder.params([
+            builder.param_self(),
+            builder.param_mut_underscore_named(encoder_ident, e_ty),
+        ]);
+
+        builder.func_generic(
+            "encode",
+            e_generic_params,
+            params,
+            None,
+            ItemModifier::None,
+            |body| {
+                body.let_self_record(&field_names);
+                body.encode_fields(&field_names, encoder_ident);
+            },
         );
-        stmts.push(body_ctxt.push_stmt(Stmt::Let(bind_pat, None, Some(revert)), stmt_origin));
-        return;
-    };
+    })
+}
 
-    let decode_path = ty_path.push_ident(db, IdentId::new(db, "decode".to_string()));
-    let decode_callee = body_ctxt.push_expr(
-        Expr::Path(Partial::Present(decode_path)),
-        expr_origin.clone(),
-    );
-    let d_expr = body_ctxt.push_expr(
-        Expr::Path(Partial::Present(PathId::from_ident(
-            db,
-            IdentId::new(db, "d".to_string()),
-        ))),
-        expr_origin.clone(),
-    );
-    let decode_call = body_ctxt.push_expr(
-        Expr::Call(
-            decode_callee,
-            vec![crate::hir_def::CallArg {
-                label: None,
-                expr: d_expr,
-            }],
-        ),
-        expr_origin.clone(),
-    );
+fn lower_msg_variant_decode_trait_impl<'db>(
+    builder: &mut HirBuilder<'_, 'db, MsgDesugared>,
+    variant: &ast::MsgVariant,
+    struct_: Struct<'db>,
+) -> ImplTrait<'db> {
+    let fields = lower_msg_variant_field_specs(builder.ctxt(), variant);
+    let field_names = fields.iter().map(|(name, _)| *name).collect::<Vec<_>>();
 
-    let bind_pat = body_ctxt.push_pat(
-        Pat::Path(
-            Partial::Present(PathId::from_ident(db, target_ident)),
-            false,
-        ),
-        pat_origin,
-    );
-    stmts.push(body_ctxt.push_stmt(Stmt::Let(bind_pat, None, Some(decode_call)), stmt_origin));
+    let trait_ref = builder.core_abi_trait_ref_sol("Decode");
+    let ty = variant_struct_ty(builder.db(), struct_);
+
+    builder.impl_trait(trait_ref, ty, |builder| {
+        let abi_decoder_trait_ref = builder.core_abi_trait_ref_sol("AbiDecoder");
+        let (d_generic_params, d_ty) =
+            builder.type_param_with_trait_bound("D", abi_decoder_trait_ref);
+
+        let decoder_ident = builder.ident("d");
+        let params = builder.params([builder.param_mut_underscore_named(decoder_ident, d_ty)]);
+
+        builder.func_generic(
+            "decode",
+            d_generic_params,
+            params,
+            Some(builder.self_ty()),
+            ItemModifier::None,
+            |body| {
+                for (name, ty) in fields.iter().copied() {
+                    body.decode_into(name, ty);
+                }
+                body.return_record_self(&field_names);
+            },
+        );
+    })
 }
 
 /// Creates a struct from a msg variant.
 fn lower_msg_variant_struct<'db>(
-    ctxt: &mut FileLowerCtxt<'db>,
-    msg_ast: &ast::Msg,
-    variant_idx: usize,
+    builder: &mut HirBuilder<'_, 'db, MsgDesugared>,
     variant: &ast::MsgVariant,
 ) -> Struct<'db> {
-    let db = ctxt.db();
-    let name = IdentId::lower_token_partial(ctxt, variant.name());
-    let id = ctxt.joined_id(TrackedItemVariant::Struct(name));
-    ctxt.enter_item_scope(id, false);
-
-    // Filter out the #[selector] attribute - it's consumed during desugaring
-    // and shouldn't be kept on the generated struct
-    let attributes = filter_selector_attr(ctxt, variant.attr_list());
-
-    // Msg variant structs are public within the module
-    let vis = Visibility::Public;
-
-    // No generic params or where clause for msg variant structs
-    let generic_params = GenericParamListId::new(db, vec![]);
-    let where_clause = WhereClauseId::new(db, vec![]);
-
-    // Lower the fields, making them all public
-    let fields = lower_msg_variant_fields(ctxt, variant.params());
-
-    let msg_desugared = MsgDesugared {
-        msg: parser::ast::AstPtr::new(msg_ast),
-        variant_idx: Some(variant_idx),
-        focus: Default::default(),
-    };
-    let origin = HirOrigin::desugared(msg_desugared);
-
-    let struct_ = Struct::new(
-        db,
-        id,
-        name,
-        attributes,
-        vis,
-        generic_params,
-        where_clause,
-        fields,
-        ctxt.top_mod(),
-        origin,
-    );
-    ctxt.leave_item_scope(struct_)
+    let name = IdentId::lower_token_partial(builder.ctxt(), variant.name());
+    let attributes = filter_selector_attr(builder.ctxt(), variant.attr_list());
+    let fields = lower_msg_variant_fields(builder.ctxt(), variant.params());
+    builder.pub_struct(name, attributes, fields)
 }
 
 /// Lowers msg variant params to field definitions, making all fields public.
@@ -490,149 +257,48 @@ fn lower_msg_variant_fields<'db>(
 
 /// Creates an `impl MsgVariant for VariantStruct` block.
 fn lower_msg_variant_impl<'db>(
-    ctxt: &mut FileLowerCtxt<'db>,
+    builder: &mut HirBuilder<'_, 'db, MsgDesugared>,
     msg_ast: &ast::Msg,
     variant_idx: usize,
     variant: &ast::MsgVariant,
     struct_: Struct<'db>,
     seen_selectors: &mut rustc_hash::FxHashMap<u32, SeenSelector>,
 ) -> ImplTrait<'db> {
-    use common::ingot::IngotKind;
+    let db = builder.db();
+    let roots = builder.roots();
+    let abi_args = builder.sol_args();
 
-    let db = ctxt.db();
-
-    // Build a fully qualified path to core::message::MsgVariant to ensure we
-    // always reference the core trait, even if the prelude is shadowed.
-    let ingot = ctxt.top_mod().ingot(db);
-    let root = if ingot.kind(db) == IngotKind::Core {
-        IdentId::make_ingot(db)
-    } else {
-        IdentId::make_core(db)
-    };
-    let message = IdentId::new(db, "message".to_string());
-    let msg_variant = IdentId::new(db, "MsgVariant".to_string());
-
-    let std_root = if ingot.kind(db) == IngotKind::Std {
-        IdentId::make_ingot(db)
-    } else {
-        IdentId::new(db, "std".to_string())
-    };
-    let abi = IdentId::new(db, "abi".to_string());
-    let sol = IdentId::new(db, "Sol".to_string());
-    let sol_path = PathId::from_ident(db, std_root)
-        .push_ident(db, abi)
-        .push_ident(db, sol);
-    let sol_ty = TypeId::new(db, TypeKind::Path(Partial::Present(sol_path)));
-    let abi_args = GenericArgListId::new(
-        db,
-        vec![GenericArg::Type(TypeGenericArg {
-            ty: Partial::Present(sol_ty),
-        })],
-        true,
-    );
-
-    let msg_variant_trait_path = PathId::from_ident(db, root).push_ident(db, message).push(
-        db,
-        PathKind::Ident {
-            ident: Partial::Present(msg_variant),
-            generic_args: abi_args,
-        },
-    );
+    let msg_variant_trait_path = PathId::from_ident(db, roots.core)
+        .push_str(db, "message")
+        .push_str_args(db, "MsgVariant", abi_args);
     let trait_ref = TraitRefId::new(db, Partial::Present(msg_variant_trait_path));
 
-    // Create a path to Self (the struct we just created)
-    let struct_name = struct_.name(db);
-    let self_type_path = match struct_name.to_opt() {
-        Some(name) => PathId::from_ident(db, name),
-        None => PathId::from_ident(db, IdentId::new(db, "_".to_string())),
-    };
-    let ty = TypeId::new(db, TypeKind::Path(Partial::Present(self_type_path)));
+    let ty = variant_struct_ty(db, struct_);
 
-    let id = ctxt.joined_id(TrackedItemVariant::ImplTrait(
-        Partial::Present(trait_ref),
-        Partial::Present(ty),
-    ));
-    ctxt.enter_item_scope(id, false);
-
-    let attributes = AttrListId::new(db, vec![]);
-    let generic_params = GenericParamListId::new(db, vec![]);
-    let where_clause = WhereClauseId::new(db, vec![]);
-
-    let args_name = IdentId::new(db, "Args".to_string());
-    let args_ty = {
-        let elems = match variant.params() {
-            Some(params) => params
-                .into_iter()
-                .map(|field| TypeId::lower_ast_partial(ctxt, field.ty()))
-                .collect::<Vec<_>>(),
-            None => vec![],
-        };
-        Partial::Present(TypeId::new(
-            db,
-            TypeKind::Tuple(TupleTypeId::new(db, elems)),
-        ))
-    };
-
-    // Create associated type Return = <return_type>
-    let return_name = IdentId::new(db, "Return".to_string());
-    let return_ty = match variant.ret_ty() {
-        Some(ret_ty) => TypeId::lower_ast_partial(ctxt, Some(ret_ty)),
-        // Default to () if no return type specified
-        None => Partial::Present(TypeId::new(
-            db,
-            TypeKind::Tuple(TupleTypeId::new(db, vec![])),
-        )),
-    };
-    let types = vec![
-        AssocTyDef {
-            attributes: AttrListId::new(db, vec![]),
-            name: Partial::Present(args_name),
-            type_ref: args_ty,
-        },
-        AssocTyDef {
-            attributes: AttrListId::new(db, vec![]),
-            name: Partial::Present(return_name),
-            type_ref: return_ty,
-        },
-    ];
-
-    // Create associated const SELECTOR: u32 = <value>
-    // Extract from #[selector = ...] attribute, or default to 0 if not specified
     let variant_name = variant
         .name()
         .map(|t| t.text().to_string())
         .unwrap_or_default();
-    let selector_const = create_selector_const(
-        ctxt,
-        msg_ast,
-        variant,
-        variant_idx,
-        &variant_name,
-        seen_selectors,
-    );
-    let consts = vec![selector_const];
 
-    let msg_desugared = MsgDesugared {
-        msg: parser::ast::AstPtr::new(msg_ast),
-        variant_idx: Some(variant_idx),
-        focus: Default::default(),
-    };
-    let origin = HirOrigin::desugared(msg_desugared);
-
-    let impl_trait = ImplTrait::new(
-        db,
-        id,
-        Partial::Present(trait_ref),
-        Partial::Present(ty),
-        attributes,
-        generic_params,
-        where_clause,
-        types,
-        consts,
-        ctxt.top_mod(),
-        origin,
-    );
-    ctxt.leave_item_scope(impl_trait)
+    builder.impl_trait_assocs_build(trait_ref, ty, |builder| {
+        let return_ty = match variant.ret_ty() {
+            Some(ret_ty) => TypeId::lower_ast_partial(builder.ctxt(), Some(ret_ty)),
+            None => Partial::Present(TypeId::new(
+                db,
+                TypeKind::Tuple(TupleTypeId::new(db, vec![])),
+            )),
+        };
+        let types = vec![builder.assoc_ty("Return", return_ty)];
+        let consts = vec![create_selector_const(
+            builder.ctxt(),
+            msg_ast,
+            variant,
+            variant_idx,
+            &variant_name,
+            seen_selectors,
+        )];
+        (types, consts)
+    })
 }
 
 /// Info about a seen selector for duplicate detection.
@@ -686,7 +352,7 @@ impl<'db> ParsedSelector<'db> {
     /// Returns the literal and focus for creating the const body.
     fn finalize(
         self,
-        db: &'db dyn crate::HirDb,
+        db: &'db dyn HirDb,
         file: common::file::File,
         variant_name: &str,
         seen_selectors: &mut rustc_hash::FxHashMap<u32, SeenSelector>,

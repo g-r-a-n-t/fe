@@ -171,6 +171,30 @@ impl<'db> PathId<'db> {
         )
     }
 
+    pub fn push_str_args(
+        self,
+        db: &'db dyn HirDb,
+        s: &str,
+        generic_args: GenericArgListId<'db>,
+    ) -> Self {
+        self.push_ident_args(db, IdentId::new(db, s.to_string()), generic_args)
+    }
+
+    pub fn push_ident_args(
+        self,
+        db: &'db dyn HirDb,
+        ident: IdentId<'db>,
+        generic_args: GenericArgListId<'db>,
+    ) -> Self {
+        self.push(
+            db,
+            PathKind::Ident {
+                ident: Partial::Present(ident),
+                generic_args,
+            },
+        )
+    }
+
     pub fn ident(self, db: &'db dyn HirDb) -> Partial<IdentId<'db>> {
         match self.kind(db) {
             PathKind::Ident { ident, .. } => ident,
@@ -183,6 +207,18 @@ impl<'db> PathId<'db> {
             PathKind::Ident { generic_args, .. } => generic_args,
             PathKind::QualifiedType { .. } => GenericArgListId::none(db),
         }
+    }
+
+    pub fn strip_generic_args(self, db: &'db dyn HirDb) -> PathId<'db> {
+        let parent = self.parent(db).map(|p| p.strip_generic_args(db));
+        let kind = match self.kind(db) {
+            PathKind::Ident { ident, .. } => PathKind::Ident {
+                ident,
+                generic_args: GenericArgListId::none(db),
+            },
+            kind @ PathKind::QualifiedType { .. } => kind,
+        };
+        PathId::new(db, kind, parent)
     }
 
     pub fn pretty_print(self, db: &dyn HirDb) -> String {

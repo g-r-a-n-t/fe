@@ -17,6 +17,19 @@ impl<'db> GenericArgListId<'db> {
         Self::new(db, vec![], false)
     }
 
+    pub fn given(db: &'db dyn HirDb, data: Vec<GenericArg<'db>>) -> Self {
+        Self::new(db, data, true)
+    }
+
+    pub fn given1_type(db: &'db dyn HirDb, ty: TypeId<'db>) -> Self {
+        Self::given(
+            db,
+            vec![GenericArg::Type(TypeGenericArg {
+                ty: Partial::Present(ty),
+            })],
+        )
+    }
+
     pub fn len(self, db: &dyn HirDb) -> usize {
         self.data(db).len()
     }

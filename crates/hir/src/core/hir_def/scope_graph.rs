@@ -235,7 +235,7 @@ impl<'db> ScopeId<'db> {
 
     /// Returns the `Scope` data for this scope.
     pub fn data(self, db: &'db dyn HirDb) -> &'db Scope<'db> {
-        self.top_mod(db).scope_graph(db).scope_data(&self)
+        self.scope_graph(db).scope_data(&self)
     }
 
     /// Returns the parent scope of this scope.
@@ -330,7 +330,7 @@ impl<'db> ScopeId<'db> {
     }
 
     pub fn name(self, db: &'db dyn HirDb) -> Option<IdentId<'db>> {
-        match self.data(db).id {
+        match self {
             ScopeId::Item(item) => item.name(db),
 
             ScopeId::Variant(..) => self.resolve_to::<&VariantDef>(db).unwrap().name.to_opt(),
@@ -359,7 +359,7 @@ impl<'db> ScopeId<'db> {
     }
 
     pub fn name_span(self, db: &'db dyn HirDb) -> Option<DynLazySpan<'db>> {
-        match self.data(db).id {
+        match self {
             ScopeId::Item(item) => item.name_span(),
 
             ScopeId::Variant(v) => Some(v.span().name().into()),
@@ -679,7 +679,7 @@ impl<'db> FromScope<'db> for &'db FieldDef<'db> {
 
         match parent {
             FieldParent::Struct(s) => Some(&s.fields(db).data(db)[idx]),
-            FieldParent::Contract(c) => Some(&c.fields(db).data(db)[idx]),
+            FieldParent::Contract(c) => Some(&c.hir_fields(db).data(db)[idx]),
             FieldParent::Variant(v) => match v.kind(db) {
                 VariantKind::Record(fields) => Some(&fields.data(db)[idx]),
                 _ => unreachable!(),

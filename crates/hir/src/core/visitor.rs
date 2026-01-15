@@ -662,7 +662,7 @@ pub fn walk_contract<'db, V>(
     ctxt.with_new_ctxt(
         |span| span.fields(),
         |ctxt| {
-            let id = contract.fields(ctxt.db);
+            let id = contract.hir_fields(ctxt.db);
             let parent = FieldParent::Contract(contract);
             for (idx, field) in id.data(ctxt.db).iter().enumerate() {
                 ctxt.with_new_scoped_ctxt(
@@ -676,10 +676,12 @@ pub fn walk_contract<'db, V>(
         },
     );
 
-    let s_graph = contract.top_mod(ctxt.db).scope_graph(ctxt.db);
     let scope = ScopeId::from_item(contract.into());
-    for child in s_graph.child_items(scope) {
-        visitor.visit_item(&mut VisitorCtxt::with_item(ctxt.db, child), child);
+    let graph = scope.scope_graph(ctxt.db);
+    if graph.scopes.contains_key(&scope) {
+        for child in graph.child_items(scope) {
+            visitor.visit_item(&mut VisitorCtxt::with_item(ctxt.db, child), child);
+        }
     }
 
     // Recv handlers
@@ -1165,11 +1167,13 @@ pub fn walk_expr<'db, V>(
         ),
 
         Expr::Block(stmts) => {
-            let s_graph = ctxt.top_mod().scope_graph(ctxt.db);
             let scope = ctxt.scope();
-            for item in s_graph.child_items(scope) {
-                let mut new_ctxt = VisitorCtxt::with_item(ctxt.db, item);
-                visitor.visit_item(&mut new_ctxt, item);
+            let graph = scope.scope_graph(ctxt.db);
+            if graph.scopes.contains_key(&scope) {
+                for item in graph.child_items(scope) {
+                    let mut new_ctxt = VisitorCtxt::with_item(ctxt.db, item);
+                    visitor.visit_item(&mut new_ctxt, item);
+                }
             }
 
             for stmt_id in stmts {

@@ -15,7 +15,6 @@ use crate::{
             canonical::Canonical,
             corelib::resolve_core_trait,
             diagnostics::{BodyDiag, FuncBodyDiag, TraitConstraintDiag, TyDiagCollection},
-            normalize::normalize_ty,
             trait_def::TraitInstId,
             trait_def::impls_for_ty,
             trait_resolution::{GoalSatisfiability, PredicateListId, is_goal_satisfiable},
@@ -142,26 +141,18 @@ fn check_recv_variant_param_types_decodable<'db>(
     };
     let decode_trait = resolve_core_trait(db, contract.scope(), &["abi", "Decode"]);
 
-    let msg_variant_trait = resolve_core_trait(db, contract.scope(), &["message", "MsgVariant"]);
-    let msg_variant_inst = TraitInstId::new(
-        db,
-        msg_variant_trait,
-        vec![variant.ty, sol_ty],
-        IndexMap::new(),
-    );
-
-    let args_assoc = TyId::assoc_ty(db, msg_variant_inst, IdentId::new(db, "Args".to_string()));
-    let args_ty = normalize_ty(db, args_assoc, contract.scope(), assumptions);
-    check_ty_decodable(
-        db,
-        contract_ingot,
-        decode_trait,
-        sol_ty,
-        args_ty,
-        span,
-        assumptions,
-        diags,
-    );
+    for field_ty in variant.ty.field_types(db) {
+        check_ty_decodable(
+            db,
+            contract_ingot,
+            decode_trait,
+            sol_ty,
+            field_ty,
+            span.clone(),
+            assumptions,
+            diags,
+        );
+    }
 }
 
 /// Returns all variant structs in a msg module (structs that implement MsgVariant).
@@ -692,6 +683,14 @@ pub fn check_contract_recv_arm_body<'db>(
             arm_idx,
         },
     )
+}
+
+#[salsa::tracked(return_ref)]
+pub fn check_contract_init_body<'db>(
+    db: &'db dyn HirAnalysisDb,
+    contract: Contract<'db>,
+) -> (Vec<FuncBodyDiag<'db>>, TypedBody<'db>) {
+    check_body(db, BodyOwner::ContractInit { contract })
 }
 
 pub(super) fn resolve_recv_msg_mod<'db>(

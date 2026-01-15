@@ -161,11 +161,11 @@ pub trait AbiSize {
     const ENCODED_SIZE: u256
 }
 
-pub trait Decode<A: Abi>: AbiSize {
+pub trait Decode<A: Abi> {
     fn decode<D: AbiDecoder<A>>(mut _: D) -> Self
 }
 
-pub trait Encode<A: Abi>: AbiSize {
+pub trait Encode<A: Abi> {
     fn encode<E: AbiEncoder<A>>(self, mut _: E)
 }
 

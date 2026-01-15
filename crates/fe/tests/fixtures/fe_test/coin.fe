@@ -17,49 +17,6 @@ msg CoinMsg {
     TotalSupply -> u256,
 }
 
-// Boilerplate for CoinMsg variants
-
-// Credit
-impl AbiSize for CoinMsg::Credit {
-    const ENCODED_SIZE: u256 = 64
-}
-impl Encode<Sol> for CoinMsg::Credit {
-    fn encode<E: AbiEncoder<Sol>>(self, mut _ e: E) {
-        self.user.encode(e)
-        self.amount.encode(e)
-    }
-}
-
-// Transfer
-impl AbiSize for CoinMsg::Transfer {
-    const ENCODED_SIZE: u256 = 64
-}
-impl Encode<Sol> for CoinMsg::Transfer {
-    fn encode<E: AbiEncoder<Sol>>(self, mut _ e: E) {
-        self.from.encode(e)
-        self.amount.encode(e)
-    }
-}
-
-// BalanceOf
-impl AbiSize for CoinMsg::BalanceOf {
-    const ENCODED_SIZE: u256 = 32
-}
-impl Encode<Sol> for CoinMsg::BalanceOf {
-    fn encode<E: AbiEncoder<Sol>>(self, mut _ e: E) {
-        self.user.encode(e)
-    }
-}
-
-// TotalSupply
-impl AbiSize for CoinMsg::TotalSupply {
-    const ENCODED_SIZE: u256 = 0
-}
-impl Encode<Sol> for CoinMsg::TotalSupply {
-    fn encode<E: AbiEncoder<Sol>>(self, mut _ e: E) {
-    }
-}
-
 struct CoinStore {
     alice: u256,
     bob: u256,

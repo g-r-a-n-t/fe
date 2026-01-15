@@ -8,14 +8,15 @@ use common::ingot::IngotKind;
 use hir::analysis::{
     HirAnalysisDb,
     diagnostics::SpannedHirAnalysisDb,
+    name_resolution::{PathRes, resolve_path},
     ty::{
         adt_def::AdtRef,
         trait_resolution::PredicateListId,
         ty_check::{
-            EffectParamSite, LocalBinding, ParamSite, RecordLike, TypedBody, check_func_body,
+            BodyOwner, EffectParamSite, LocalBinding, ParamSite, RecordLike, TypedBody,
+            check_func_body,
         },
         ty_def::{PrimTy, TyBase, TyData, TyId},
-        ty_lower::lower_opt_hir_ty,
     },
 };
 use hir::hir_def::{
@@ -25,13 +26,12 @@ use hir::hir_def::{
 };
 
 use crate::{
-    core_lib::{CoreLib, CoreLibError},
+    core_lib::CoreLib,
     ir::{
         AddressSpaceKind, BasicBlockId, BodyBuilder, CallOrigin, CodeRegionRoot, ContractFunction,
-        ContractFunctionKind, EffectProviderKind, IntrinsicOp, LocalData, LocalId, LoopInfo,
-        MirBody, MirFunction, MirInst, MirModule, MirProjection, MirProjectionPath, Place, Rvalue,
-        SwitchTarget, SwitchValue, SyntheticValue, Terminator, ValueData, ValueId, ValueOrigin,
-        ValueRepr,
+        ContractFunctionKind, IntrinsicOp, LocalData, LocalId, LoopInfo, MirBody, MirFunction,
+        MirInst, MirModule, MirProjection, MirProjectionPath, Place, Rvalue, SwitchTarget,
+        SwitchValue, SyntheticValue, Terminator, ValueData, ValueId, ValueOrigin, ValueRepr,
     },
     monomorphize::monomorphize_functions,
 };
@@ -41,6 +41,7 @@ use rustc_hash::{FxHashMap, FxHashSet};
 
 mod aggregates;
 mod contract;
+mod contracts;
 mod diagnostics;
 mod expr;
 mod intrinsics;
@@ -56,9 +57,6 @@ use hir::span::LazySpan;
 pub enum MirLowerError {
     MissingBody {
         func_name: String,
-    },
-    MissingCoreHelper {
-        path: String,
     },
     AnalysisDiagnostics {
         func_name: String,
@@ -80,9 +78,6 @@ impl fmt::Display for MirLowerError {
             MirLowerError::MissingBody { func_name } => {
                 write!(f, "function `{func_name}` is missing a body")
             }
-            MirLowerError::MissingCoreHelper { path } => {
-                write!(f, "missing required core helper `{path}`")
-            }
             MirLowerError::AnalysisDiagnostics {
                 func_name,
                 diagnostics,
@@ -98,16 +93,6 @@ impl fmt::Display for MirLowerError {
             }
             MirLowerError::Unsupported { func_name, message } => {
                 write!(f, "unsupported while lowering `{func_name}`: {message}")
-            }
-        }
-    }
-}
-
-impl From<CoreLibError> for MirLowerError {
-    fn from(err: CoreLibError) -> Self {
-        match err {
-            CoreLibError::MissingFunc(path) | CoreLibError::MissingType(path) => {
-                MirLowerError::MissingCoreHelper { path }
             }
         }
     }
@@ -148,6 +133,7 @@ pub fn lower_module<'db>(
     for &func in top_mod.all_funcs(db) {
         queue_func(func);
     }
+
     for &impl_block in top_mod.all_impls(db) {
         for func in impl_block.funcs(db) {
             queue_func(func);
@@ -176,17 +162,11 @@ pub fn lower_module<'db>(
                 diagnostics: rendered,
             });
         }
-        let default_effects = vec![EffectProviderKind::Storage; func.effect_params(db).count()];
-        let lowered = lower_function(
-            db,
-            func,
-            typed_body.clone(),
-            None,
-            default_effects,
-            Vec::new(),
-        )?;
+        let lowered = lower_function(db, func, typed_body.clone(), None, Vec::new())?;
         templates.push(lowered);
     }
+
+    templates.extend(contracts::lower_contract_templates(db, top_mod)?);
 
     let mut functions = monomorphize_functions(db, templates);
     for func in &mut functions {
@@ -211,7 +191,6 @@ pub(crate) fn lower_function<'db>(
     func: Func<'db>,
     typed_body: TypedBody<'db>,
     receiver_space: Option<AddressSpaceKind>,
-    effect_provider_kinds: Vec<EffectProviderKind>,
     generic_args: Vec<TyId<'db>>,
 ) -> MirLowerResult<MirFunction<'db>> {
     let symbol_name = func
@@ -227,16 +206,8 @@ pub(crate) fn lower_function<'db>(
         });
     };
 
-    let effect_provider_kinds_for_func = effect_provider_kinds.clone();
-    let mut builder = MirBuilder::new(
-        db,
-        func,
-        body,
-        &typed_body,
-        &generic_args,
-        receiver_space,
-        effect_provider_kinds,
-    )?;
+    let mut builder =
+        MirBuilder::new_for_func(db, func, body, &typed_body, &generic_args, receiver_space)?;
     let entry = builder.builder.entry_block();
     builder.move_to_block(entry);
     builder.lower_root(body.expr(db));
@@ -268,13 +239,12 @@ pub(crate) fn lower_function<'db>(
     let returns_value = !crate::layout::is_zero_sized_ty(db, ret_ty);
 
     Ok(MirFunction {
-        func,
+        origin: crate::ir::MirFunctionOrigin::Hir(func),
         body: mir_body,
-        typed_body,
+        typed_body: Some(typed_body),
         generic_args,
         ret_ty,
         returns_value,
-        effect_provider_kinds: effect_provider_kinds_for_func,
         contract_function,
         symbol_name,
         receiver_space,
@@ -284,10 +254,12 @@ pub(crate) fn lower_function<'db>(
 /// Stateful helper that incrementally constructs MIR while walking HIR.
 pub(super) struct MirBuilder<'db, 'a> {
     pub(super) db: &'db dyn SpannedHirAnalysisDb,
-    pub(super) func: Func<'db>,
+    pub(super) owner: BodyOwner<'db>,
+    pub(super) hir_func: Option<Func<'db>>,
     pub(super) body: Body<'db>,
     pub(super) typed_body: &'a TypedBody<'db>,
     pub(super) generic_args: &'a [TyId<'db>],
+    pub(super) return_ty: TyId<'db>,
     pub(super) builder: BodyBuilder<'db>,
     pub(super) core: CoreLib<'db>,
     pub(super) loop_stack: Vec<LoopScope>,
@@ -296,7 +268,10 @@ pub(super) struct MirBuilder<'db, 'a> {
     pub(super) binding_locals: FxHashMap<LocalBinding<'db>, LocalId>,
     /// For methods, the address space variant being lowered.
     pub(super) receiver_space: Option<AddressSpaceKind>,
-    pub(super) effect_provider_kinds: Vec<EffectProviderKind>,
+    /// Address space for each effect parameter, indexed by effect param position.
+    pub(super) effect_param_spaces: Vec<AddressSpaceKind>,
+    /// Address space overrides for effect bindings not tied to a function effect list.
+    pub(super) effect_binding_spaces: FxHashMap<LocalBinding<'db>, AddressSpaceKind>,
 }
 
 /// Loop context capturing break/continue targets.
@@ -316,23 +291,27 @@ impl<'db, 'a> MirBuilder<'db, 'a> {
     ///
     /// # Returns
     /// A ready-to-use `MirBuilder` or an error if core helpers are missing.
+    #[allow(clippy::too_many_arguments)]
     fn new(
         db: &'db dyn SpannedHirAnalysisDb,
-        func: Func<'db>,
+        owner: BodyOwner<'db>,
+        hir_func: Option<Func<'db>>,
         body: Body<'db>,
         typed_body: &'a TypedBody<'db>,
         generic_args: &'a [TyId<'db>],
+        return_ty: TyId<'db>,
         receiver_space: Option<AddressSpaceKind>,
-        effect_provider_kinds: Vec<EffectProviderKind>,
     ) -> Result<Self, MirLowerError> {
-        let core = CoreLib::new(db, body)?;
+        let core = CoreLib::new(db, body.scope());
 
         let mut builder = Self {
             db,
-            func,
+            owner,
+            hir_func,
             body,
             typed_body,
             generic_args,
+            return_ty,
             builder: BodyBuilder::new(),
             core,
             loop_stack: Vec::new(),
@@ -340,12 +319,200 @@ impl<'db, 'a> MirBuilder<'db, 'a> {
             pat_address_space: FxHashMap::default(),
             binding_locals: FxHashMap::default(),
             receiver_space,
-            effect_provider_kinds,
+            effect_param_spaces: Vec::new(),
+            effect_binding_spaces: FxHashMap::default(),
         };
 
+        builder.effect_param_spaces = builder.compute_effect_param_spaces();
         builder.seed_signature_locals();
 
         Ok(builder)
+    }
+
+    fn new_for_func(
+        db: &'db dyn SpannedHirAnalysisDb,
+        func: Func<'db>,
+        body: Body<'db>,
+        typed_body: &'a TypedBody<'db>,
+        generic_args: &'a [TyId<'db>],
+        receiver_space: Option<AddressSpaceKind>,
+    ) -> Result<Self, MirLowerError> {
+        let return_ty = func.return_ty(db);
+        Self::new(
+            db,
+            BodyOwner::Func(func),
+            Some(func),
+            body,
+            typed_body,
+            generic_args,
+            return_ty,
+            receiver_space,
+        )
+    }
+
+    fn new_for_body_owner(
+        db: &'db dyn SpannedHirAnalysisDb,
+        owner: BodyOwner<'db>,
+        body: Body<'db>,
+        typed_body: &'a TypedBody<'db>,
+        generic_args: &'a [TyId<'db>],
+        return_ty: TyId<'db>,
+    ) -> Result<Self, MirLowerError> {
+        Self::new(
+            db,
+            owner,
+            None,
+            body,
+            typed_body,
+            generic_args,
+            return_ty,
+            None,
+        )
+    }
+
+    fn seed_synthetic_param_local(
+        &mut self,
+        name: String,
+        ty: TyId<'db>,
+        is_mut: bool,
+        binding: Option<LocalBinding<'db>>,
+    ) -> LocalId {
+        let local = self.builder.body.alloc_local(LocalData {
+            name,
+            ty,
+            is_mut,
+            address_space: AddressSpaceKind::Memory,
+        });
+        self.builder.body.param_locals.push(local);
+        if let Some(binding) = binding {
+            self.binding_locals.insert(binding, local);
+        }
+        local
+    }
+
+    fn seed_synthetic_effect_param_local(
+        &mut self,
+        name: String,
+        binding: LocalBinding<'db>,
+        address_space: AddressSpaceKind,
+    ) -> LocalId {
+        let local = self.builder.body.alloc_local(LocalData {
+            name,
+            ty: self.u256_ty(),
+            is_mut: binding.is_mut(),
+            address_space,
+        });
+        self.builder.body.effect_param_locals.push(local);
+        self.binding_locals.insert(binding, local);
+        self.effect_binding_spaces.insert(binding, address_space);
+        local
+    }
+
+    fn compute_effect_param_spaces(&self) -> Vec<AddressSpaceKind> {
+        let Some(func) = self.hir_func else {
+            return Vec::new();
+        };
+        let assumptions = PredicateListId::empty_list(self.db);
+        let provider_arg_positions: Vec<usize> = CallableDef::Func(func)
+            .params(self.db)
+            .iter()
+            .enumerate()
+            .filter_map(|(idx, ty)| match ty.data(self.db) {
+                TyData::TyParam(param) if param.is_effect_provider() => Some(idx),
+                _ => None,
+            })
+            .collect();
+
+        let mut spaces = vec![AddressSpaceKind::Storage; func.effect_params(self.db).count()];
+        let mut ord = 0usize;
+        for effect in func.effect_params(self.db) {
+            let effect_idx = effect.index();
+            let Some(key_path) = effect.key_path(self.db) else {
+                continue;
+            };
+            if let Ok(path_res) = resolve_path(self.db, key_path, func.scope(), assumptions, false)
+            {
+                let is_type_effect = match path_res {
+                    PathRes::Ty(ty) | PathRes::TyAlias(_, ty) => ty.is_star_kind(self.db),
+                    _ => false,
+                };
+                if is_type_effect {
+                    let provider_pos = provider_arg_positions.get(ord).copied();
+                    ord += 1;
+                    let Some(provider_pos) = provider_pos else {
+                        continue;
+                    };
+                    let provider_ty = self.generic_args.get(provider_pos).copied();
+                    spaces[effect_idx] = provider_ty
+                        .and_then(|ty| self.effect_provider_space_for_provider_ty(ty))
+                        .unwrap_or(AddressSpaceKind::Storage);
+                    continue;
+                }
+            }
+
+            if let Some(provider_ty) = self
+                .contract_field_provider_ty_for_effect_site(EffectParamSite::Func(func), effect_idx)
+                && let Some(space) = self.effect_provider_space_for_provider_ty(provider_ty)
+            {
+                spaces[effect_idx] = space;
+            }
+        }
+
+        spaces
+    }
+
+    fn contract_field_provider_ty_for_effect_site(
+        &self,
+        site: EffectParamSite<'db>,
+        idx: usize,
+    ) -> Option<TyId<'db>> {
+        let contract = match site {
+            EffectParamSite::Func(func) => {
+                let ItemKind::Contract(contract) = func.scope().parent_item(self.db)? else {
+                    return None;
+                };
+                contract
+            }
+            EffectParamSite::Contract(contract)
+            | EffectParamSite::ContractInit { contract }
+            | EffectParamSite::ContractRecvArm { contract, .. } => contract,
+        };
+
+        let key_path = match site {
+            EffectParamSite::Func(func) => func
+                .effect_params(self.db)
+                .nth(idx)
+                .and_then(|effect| effect.key_path(self.db))?,
+            EffectParamSite::Contract(contract) => contract
+                .effect_params(self.db)
+                .nth(idx)
+                .and_then(|effect| effect.key_path(self.db))?,
+            EffectParamSite::ContractInit { contract } => contract
+                .init(self.db)?
+                .effects(self.db)
+                .data(self.db)
+                .get(idx)?
+                .key_path
+                .to_opt()?,
+            EffectParamSite::ContractRecvArm {
+                contract,
+                recv_idx,
+                arm_idx,
+            } => contract
+                .recv_arm(self.db, recv_idx as usize, arm_idx as usize)?
+                .effects
+                .data(self.db)
+                .get(idx)?
+                .key_path
+                .to_opt()?,
+        };
+
+        if key_path.len(self.db) != 1 {
+            return None;
+        }
+        let field_name = key_path.ident(self.db).to_opt()?;
+        let field = contract.fields(self.db).get(&field_name)?;
+        field.is_provider.then_some(field.declared_ty)
     }
 
     /// Consumes the builder and returns the accumulated MIR body.
@@ -455,16 +622,21 @@ impl<'db, 'a> MirBuilder<'db, 'a> {
         binding: &LocalBinding<'db>,
     ) -> AddressSpaceKind {
         match binding {
-            LocalBinding::EffectParam { idx, .. } => match self
-                .effect_provider_kinds
-                .get(*idx)
-                .copied()
-                .unwrap_or(EffectProviderKind::Storage)
-            {
-                EffectProviderKind::Memory => AddressSpaceKind::Memory,
-                EffectProviderKind::Storage => AddressSpaceKind::Storage,
-                EffectProviderKind::Calldata => AddressSpaceKind::Memory,
-            },
+            LocalBinding::EffectParam { site, idx, .. } => {
+                if let Some(space) = self.effect_binding_spaces.get(binding).copied() {
+                    return space;
+                }
+                if let Some(func) = self.hir_func
+                    && matches!(site, EffectParamSite::Func(site_func) if *site_func == func)
+                {
+                    return self
+                        .effect_param_spaces
+                        .get(*idx)
+                        .copied()
+                        .unwrap_or(AddressSpaceKind::Storage);
+                }
+                AddressSpaceKind::Storage
+            }
             LocalBinding::Local { pat, .. } => self
                 .pat_address_space
                 .get(pat)
@@ -477,15 +649,22 @@ impl<'db, 'a> MirBuilder<'db, 'a> {
                     }
                     AddressSpaceKind::Memory
                 }
-                ParamSite::EffectField(_) => match self
-                    .effect_provider_kinds
-                    .get(*idx)
-                    .copied()
-                    .unwrap_or(EffectProviderKind::Storage)
-                {
-                    EffectProviderKind::Memory => AddressSpaceKind::Memory,
-                    EffectProviderKind::Storage => AddressSpaceKind::Storage,
-                    EffectProviderKind::Calldata => AddressSpaceKind::Memory,
+                ParamSite::ContractInit(_) => AddressSpaceKind::Memory,
+                ParamSite::EffectField(effect_site) => match effect_site {
+                    _ if self.effect_binding_spaces.contains_key(binding) => self
+                        .effect_binding_spaces
+                        .get(binding)
+                        .copied()
+                        .unwrap_or(AddressSpaceKind::Storage),
+                    EffectParamSite::Func(effect_func)
+                        if self.hir_func.is_some_and(|current| current == *effect_func) =>
+                    {
+                        self.effect_param_spaces
+                            .get(*idx)
+                            .copied()
+                            .unwrap_or(AddressSpaceKind::Storage)
+                    }
+                    _ => AddressSpaceKind::Storage,
                 },
             },
         }
@@ -499,21 +678,21 @@ impl<'db, 'a> MirBuilder<'db, 'a> {
     /// # Returns
     /// The address space kind for the expression.
     pub(super) fn expr_address_space(&self, expr: ExprId) -> AddressSpaceKind {
-        // Propagate storage space through field projections so nested storage fields
-        // continue to be treated as storage pointers.
+        // Propagate storage space through projections so nested fields continue to be treated as
+        // storage pointers.
         let exprs = self.body.exprs(self.db);
         if let Partial::Present(expr_data) = &exprs[expr] {
             match expr_data {
                 Expr::Field(base, _) => {
                     let base_space = self.expr_address_space(*base);
-                    if matches!(base_space, AddressSpaceKind::Storage) {
-                        return AddressSpaceKind::Storage;
+                    if !matches!(base_space, AddressSpaceKind::Memory) {
+                        return base_space;
                     }
                 }
                 Expr::Bin(base, _, BinOp::Index) => {
                     let base_space = self.expr_address_space(*base);
-                    if matches!(base_space, AddressSpaceKind::Storage) {
-                        return AddressSpaceKind::Storage;
+                    if !matches!(base_space, AddressSpaceKind::Memory) {
+                        return base_space;
                     }
                 }
                 _ => {}
@@ -560,13 +739,164 @@ impl<'db, 'a> MirBuilder<'db, 'a> {
         }
     }
 
+    fn project_tuple_elem_value(
+        &mut self,
+        tuple_value: ValueId,
+        tuple_ty: TyId<'db>,
+        field_idx: usize,
+        field_ty: TyId<'db>,
+    ) -> ValueId {
+        // Transparent newtype access: field 0 is a representation-preserving cast.
+        if field_idx == 0 && crate::repr::transparent_newtype_field_ty(self.db, tuple_ty).is_some()
+        {
+            let base_repr = self.builder.body.value(tuple_value).repr;
+            if !base_repr.is_ref() {
+                let space = base_repr
+                    .address_space()
+                    .unwrap_or(AddressSpaceKind::Memory);
+                return self.alloc_value(
+                    field_ty,
+                    ValueOrigin::TransparentCast { value: tuple_value },
+                    self.value_repr_for_ty(field_ty, space),
+                );
+            }
+        }
+
+        let base_space = self.value_address_space(tuple_value);
+        let place = Place::new(
+            tuple_value,
+            MirProjectionPath::from_projection(hir::projection::Projection::Field(field_idx)),
+        );
+        if self.is_by_ref_ty(field_ty) {
+            return self.alloc_value(
+                field_ty,
+                ValueOrigin::PlaceRef(place),
+                ValueRepr::Ref(base_space),
+            );
+        }
+        let dest = self.alloc_temp_local(field_ty, false, "arg");
+        self.builder.body.locals[dest.index()].address_space = AddressSpaceKind::Memory;
+        self.assign(None, Some(dest), Rvalue::Load { place });
+        self.alloc_value(field_ty, ValueOrigin::Local(dest), ValueRepr::Word)
+    }
+
+    fn bind_pat_value(&mut self, pat: PatId, value: ValueId) {
+        let Some(block) = self.current_block() else {
+            return;
+        };
+        let Partial::Present(pat_data) = pat.data(self.db, self.body) else {
+            return;
+        };
+
+        match pat_data {
+            Pat::WildCard | Pat::Rest => {}
+            Pat::Path(_, is_mut) => {
+                let binding = self
+                    .typed_body
+                    .pat_binding(pat)
+                    .unwrap_or(LocalBinding::Local {
+                        pat,
+                        is_mut: *is_mut,
+                    });
+                let Some(local) = self.local_for_binding(binding) else {
+                    return;
+                };
+                self.move_to_block(block);
+                self.assign(None, Some(local), Rvalue::Value(value));
+                let pat_ty = self.typed_body.pat_ty(self.db, pat);
+                if self
+                    .value_repr_for_ty(pat_ty, AddressSpaceKind::Memory)
+                    .address_space()
+                    .is_some()
+                {
+                    let space = self.value_address_space(value);
+                    self.set_pat_address_space(pat, space);
+                }
+            }
+            Pat::Tuple(pats) | Pat::PathTuple(_, pats) => {
+                let owner_ty = self.typed_body.pat_ty(self.db, pat);
+                let owner_by_ref = self.is_by_ref_ty(owner_ty);
+                let tuple_repr = self.builder.body.value(value).repr;
+                for (idx, field_pat) in pats.iter().enumerate() {
+                    if !owner_by_ref && idx != 0 {
+                        continue;
+                    }
+                    let Partial::Present(field_pat_data) = field_pat.data(self.db, self.body)
+                    else {
+                        continue;
+                    };
+                    if matches!(field_pat_data, Pat::WildCard | Pat::Rest) {
+                        continue;
+                    }
+                    let field_ty = self.typed_body.pat_ty(self.db, *field_pat);
+                    let field_value = if owner_by_ref {
+                        self.project_tuple_elem_value(value, owner_ty, idx, field_ty)
+                    } else {
+                        self.alloc_value(
+                            field_ty,
+                            ValueOrigin::TransparentCast { value },
+                            tuple_repr,
+                        )
+                    };
+                    self.bind_pat_value(*field_pat, field_value);
+                    if self.current_block().is_none() {
+                        break;
+                    }
+                }
+            }
+            Pat::Record(_, fields) => {
+                let owner_ty = self.typed_body.pat_ty(self.db, pat);
+                let owner_by_ref = self.is_by_ref_ty(owner_ty);
+                let record_repr = self.builder.body.value(value).repr;
+                let base_space = self.value_address_space(value);
+                for field in fields {
+                    let Some(label) = field.label(self.db, self.body) else {
+                        continue;
+                    };
+                    let Some(info) = self.field_access_info(owner_ty, FieldIndex::Ident(label))
+                    else {
+                        continue;
+                    };
+                    if !owner_by_ref && info.field_idx != 0 {
+                        continue;
+                    }
+                    let field_ty = self.typed_body.pat_ty(self.db, field.pat);
+                    let field_value = if owner_by_ref {
+                        if self
+                            .value_repr_for_ty(field_ty, AddressSpaceKind::Memory)
+                            .address_space()
+                            .is_some()
+                        {
+                            self.set_pat_address_space(field.pat, base_space);
+                        }
+                        self.project_tuple_elem_value(value, owner_ty, info.field_idx, field_ty)
+                    } else {
+                        self.alloc_value(
+                            field_ty,
+                            ValueOrigin::TransparentCast { value },
+                            record_repr,
+                        )
+                    };
+                    self.bind_pat_value(field.pat, field_value);
+                    if self.current_block().is_none() {
+                        break;
+                    }
+                }
+            }
+            _ => {}
+        }
+    }
+
     fn seed_signature_locals(&mut self) {
-        for (idx, param) in self.func.params(self.db).enumerate() {
+        let Some(func) = self.hir_func else {
+            return;
+        };
+        for (idx, param) in func.params(self.db).enumerate() {
             let binding = self
                 .typed_body
                 .param_binding(idx)
                 .unwrap_or(LocalBinding::Param {
-                    site: ParamSite::Func(self.func),
+                    site: ParamSite::Func(func),
                     idx,
                     ty: param.ty(self.db),
                     is_mut: param.is_mut(self.db),
@@ -589,13 +919,13 @@ impl<'db, 'a> MirBuilder<'db, 'a> {
             self.binding_locals.insert(binding, local);
         }
 
-        for effect in self.func.effect_params(self.db) {
+        for effect in func.effect_params(self.db) {
             let idx = effect.index();
             let Some(key_path) = effect.key_path(self.db) else {
                 continue;
             };
             let binding = LocalBinding::EffectParam {
-                site: EffectParamSite::Func(self.func),
+                site: EffectParamSite::Func(func),
                 idx,
                 key_path,
                 is_mut: effect.is_mut(self.db),
@@ -628,7 +958,9 @@ impl<'db, 'a> MirBuilder<'db, 'a> {
         let needs_effect_param_local = matches!(
             binding,
             LocalBinding::EffectParam {
-                site: EffectParamSite::Contract(_) | EffectParamSite::ContractRecvArm { .. },
+                site: EffectParamSite::Contract(_)
+                    | EffectParamSite::ContractInit { .. }
+                    | EffectParamSite::ContractRecvArm { .. },
                 ..
             }
         );
@@ -637,7 +969,8 @@ impl<'db, 'a> MirBuilder<'db, 'a> {
             idx,
             ..
         } = binding
-            && matches!(effect_site, EffectParamSite::Func(func) if func == self.func)
+            && let Some(current) = self.hir_func
+            && matches!(effect_site, EffectParamSite::Func(func) if func == current)
             && let Some(&local) = self.builder.body.effect_param_locals.get(idx)
         {
             self.binding_locals.insert(binding, local);
@@ -678,6 +1011,14 @@ impl<'db, 'a> MirBuilder<'db, 'a> {
                     .and_then(|param| param.name(self.db))
                     .map(|ident| ident.data(self.db).to_string())
                     .or_else(|| Some(format!("arg{idx}"))),
+                ParamSite::ContractInit(contract) => contract
+                    .init(self.db)?
+                    .params(self.db)
+                    .data(self.db)
+                    .get(idx)
+                    .and_then(|param| param.name())
+                    .map(|ident| ident.data(self.db).to_string())
+                    .or_else(|| Some(format!("arg{idx}"))),
                 ParamSite::EffectField(effect_site) => {
                     let name = match effect_site {
                         EffectParamSite::Func(func) => func
@@ -685,6 +1026,12 @@ impl<'db, 'a> MirBuilder<'db, 'a> {
                             .nth(idx)
                             .and_then(|effect| effect.name(self.db)),
                         EffectParamSite::Contract(contract) => contract
+                            .effects(self.db)
+                            .data(self.db)
+                            .get(idx)
+                            .and_then(|effect| effect.name),
+                        EffectParamSite::ContractInit { contract } => contract
+                            .init(self.db)?
                             .effects(self.db)
                             .data(self.db)
                             .get(idx)
@@ -722,6 +1069,13 @@ impl<'db, 'a> MirBuilder<'db, 'a> {
                         .get(idx)
                         .and_then(|effect| effect.name)
                         .map(|ident| ident.data(self.db).to_string()),
+                    EffectParamSite::ContractInit { contract } => contract
+                        .init(self.db)?
+                        .effects(self.db)
+                        .data(self.db)
+                        .get(idx)
+                        .and_then(|effect| effect.name)
+                        .map(|ident| ident.data(self.db).to_string()),
                     EffectParamSite::ContractRecvArm {
                         contract,
                         recv_idx,
@@ -754,42 +1108,11 @@ impl<'db, 'a> MirBuilder<'db, 'a> {
         Some(value_id)
     }
 
-    pub(super) fn effect_provider_kind_for_binding(
-        &self,
-        binding: LocalBinding<'db>,
-    ) -> EffectProviderKind {
-        match binding {
-            LocalBinding::EffectParam { idx, .. } => self
-                .effect_provider_kinds
-                .get(idx)
-                .copied()
-                .unwrap_or(EffectProviderKind::Storage),
-            LocalBinding::Param { ty, .. } => self
-                .effect_provider_kind_for_provider_ty(ty)
-                .unwrap_or(EffectProviderKind::Storage),
-            LocalBinding::Local { pat, .. } => {
-                let ty = self.typed_body.pat_ty(self.db, pat);
-                self.effect_provider_kind_for_provider_ty(ty)
-                    .unwrap_or(EffectProviderKind::Storage)
-            }
-        }
-    }
-
-    pub(super) fn effect_provider_kind_for_address_space(
-        &self,
-        space: AddressSpaceKind,
-    ) -> EffectProviderKind {
-        match space {
-            AddressSpaceKind::Memory => EffectProviderKind::Memory,
-            AddressSpaceKind::Storage => EffectProviderKind::Storage,
-        }
-    }
-
-    pub(super) fn effect_provider_kind_for_provider_ty(
+    pub(super) fn effect_provider_space_for_provider_ty(
         &self,
         provider_ty: TyId<'db>,
-    ) -> Option<EffectProviderKind> {
-        crate::repr::effect_provider_kind_for_ty(self.db, &self.core, provider_ty)
+    ) -> Option<AddressSpaceKind> {
+        crate::repr::effect_provider_space_for_ty(self.db, &self.core, provider_ty)
     }
 
     /// Determines the address space associated with a MIR value.

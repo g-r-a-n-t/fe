@@ -1,16 +1,21 @@
+use crate::analysis::ty::canonical::Canonicalized;
 use crate::analysis::ty::diagnostics::BodyDiag;
+use crate::analysis::ty::trait_resolution::{
+    GoalSatisfiability, PredicateListId, is_goal_satisfiable,
+};
+use crate::analysis::ty::ty_check::EffectParamOwner;
 use crate::core::adt_lower::lower_adt;
 use crate::core::hir_def::{
-    IdentId, ItemKind, TopLevelMod, Trait, TypeAlias,
+    IdentId, ItemKind, PathId, TopLevelMod, Trait, TypeAlias,
     scope_graph::{ScopeGraph, ScopeId},
 };
-use crate::span::{DesugaredOrigin, HirOrigin};
 use adt_def::{AdtDef, AdtRef};
+use common::indexmap::IndexMap;
 use diagnostics::{DefConflictError, TraitLowerDiag, TyLowerDiag};
 use rustc_hash::{FxHashMap, FxHashSet};
 use smallvec1::SmallVec;
 use trait_resolution::constraint::super_trait_cycle;
-use ty_def::{InvalidCause, TyData};
+use ty_def::{InvalidCause, TyData, TyId};
 use ty_lower::lower_type_alias;
 
 use crate::analysis::name_resolution::{PathRes, resolve_path};
@@ -25,6 +30,7 @@ pub mod canonical;
 pub mod const_eval;
 pub mod const_ty;
 pub mod corelib;
+pub mod effects;
 
 pub mod decision_tree;
 pub mod diagnostics;
@@ -43,6 +49,8 @@ pub mod ty_error;
 pub mod ty_lower;
 pub mod unify;
 pub mod visitor;
+
+const DEFAULT_TARGET_TY_PATH: &[&str] = &["std", "evm", "EvmTarget"];
 
 /// An analysis pass for type definitions.
 pub struct AdtDefAnalysisPass {}
@@ -153,17 +161,10 @@ impl ModuleAnalysisPass for BodyAnalysisPass {
         db: &'db dyn HirAnalysisDb,
         top_mod: TopLevelMod<'db>,
     ) -> Vec<Box<dyn DiagnosticVoucher + 'db>> {
-        // Only check non-contract functions. Contract desugared functions
-        // are checked in ContractAnalysisPass.
+        // Check function bodies; contract-specific analysis is handled separately.
         top_mod
             .all_funcs(db)
             .iter()
-            .filter(|func| {
-                !matches!(
-                    func.origin(db),
-                    HirOrigin::Desugared(DesugaredOrigin::ContractLowering(_))
-                )
-            })
             .flat_map(|func| &ty_check::check_func_body(db, *func).0)
             .map(|diag| diag.to_voucher())
             .collect()
@@ -175,7 +176,6 @@ impl ModuleAnalysisPass for BodyAnalysisPass {
 /// - Contract field type validation
 /// - Contract effects validation
 /// - Recv blocks validation
-/// - Desugared function type-checking (only if no prior errors)
 pub struct ContractAnalysisPass {}
 
 impl ModuleAnalysisPass for ContractAnalysisPass {
@@ -184,18 +184,6 @@ impl ModuleAnalysisPass for ContractAnalysisPass {
         db: &'db dyn HirAnalysisDb,
         top_mod: TopLevelMod<'db>,
     ) -> Vec<Box<dyn DiagnosticVoucher + 'db>> {
-        let contract_desugared_funcs: Vec<_> = top_mod
-            .all_funcs(db)
-            .iter()
-            .filter(|func| {
-                matches!(
-                    func.origin(db),
-                    HirOrigin::Desugared(DesugaredOrigin::ContractLowering(_))
-                )
-            })
-            .copied()
-            .collect();
-
         let mut diags: Vec<Box<dyn DiagnosticVoucher + 'db>> = vec![];
 
         for &contract in top_mod.all_contracts(db) {
@@ -203,21 +191,54 @@ impl ModuleAnalysisPass for ContractAnalysisPass {
             diags.extend(contract.diags(db).into_iter().map(|d| d.to_voucher()));
 
             // 2. Validate contract-level effects (`contract Foo uses (ctx: Ctx)`).
-            let assumptions = trait_resolution::PredicateListId::empty_list(db);
+            let assumptions = PredicateListId::empty_list(db);
+            let root_effect_ty = resolve_default_root_effect_ty(db, contract.scope(), assumptions);
+            let contract_ingot = contract.top_mod(db).ingot(db);
             for (idx, effect) in contract.effects(db).data(db).iter().enumerate() {
                 let Some(key_path) = effect.key_path.to_opt() else {
                     continue;
                 };
 
-                if !matches!(
-                    resolve_path(db, key_path, contract.scope(), assumptions, false),
-                    Ok(PathRes::Ty(_) | PathRes::TyAlias(_, _) | PathRes::Trait(_))
-                ) {
-                    diags.push(Box::new(BodyDiag::InvalidEffectKey {
-                        owner: ty_check::EffectParamOwner::Contract(contract),
-                        key: key_path,
-                        idx,
-                    }) as _);
+                let resolved = resolve_path(db, key_path, contract.scope(), assumptions, false);
+                match resolved {
+                    Ok(PathRes::Trait(trait_inst)) => {
+                        let Some(root_effect_ty) = root_effect_ty else {
+                            continue;
+                        };
+
+                        let trait_req = instantiate_trait_self(db, trait_inst, root_effect_ty);
+                        let goal = Canonicalized::new(db, trait_req).value;
+                        if matches!(
+                            is_goal_satisfiable(db, contract_ingot, goal, assumptions),
+                            GoalSatisfiability::UnSat(_) | GoalSatisfiability::ContainsInvalid
+                        ) {
+                            diags.push(Box::new(BodyDiag::ContractRootEffectTraitNotImplemented {
+                                owner: EffectParamOwner::Contract(contract),
+
+                                idx,
+                                root_ty: root_effect_ty,
+                                trait_req,
+                            }) as _);
+                        }
+                    }
+                    Ok(PathRes::Ty(ty) | PathRes::TyAlias(_, ty)) => {
+                        let given = normalize::normalize_ty(db, ty, contract.scope(), assumptions);
+                        if !given.is_zero_sized(db) {
+                            diags.push(Box::new(BodyDiag::ContractRootEffectTypeNotZeroSized {
+                                owner: EffectParamOwner::Contract(contract),
+                                key: key_path,
+                                idx,
+                                given,
+                            }) as _);
+                        }
+                    }
+                    Ok(_) | Err(_) => {
+                        diags.push(Box::new(BodyDiag::InvalidEffectKey {
+                            owner: EffectParamOwner::Contract(contract),
+                            key: key_path,
+                            idx,
+                        }) as _);
+                    }
                 }
             }
 
@@ -227,6 +248,15 @@ impl ModuleAnalysisPass for ContractAnalysisPass {
                     .iter()
                     .map(|diag| diag.to_voucher()),
             );
+
+            if contract.init(db).is_some() {
+                diags.extend(
+                    ty_check::check_contract_init_body(db, contract)
+                        .0
+                        .iter()
+                        .map(|diag| diag.to_voucher()),
+                );
+            }
 
             let recvs = contract.recvs(db);
             for (recv_idx, recv) in recvs.data(db).iter().enumerate() {
@@ -252,23 +282,46 @@ impl ModuleAnalysisPass for ContractAnalysisPass {
             }
         }
 
-        // 4. Only type-check desugared functions if there are no contract errors.
-        // This prevents cascading errors from malformed contract types.
-        if diags.is_empty() {
-            let desugared_diags: Vec<Box<dyn DiagnosticVoucher + 'db>> = contract_desugared_funcs
-                .iter()
-                .flat_map(|func| &ty_check::check_func_body(db, *func).0)
-                .map(|diag| diag.to_voucher())
-                .collect();
-
-            if !desugared_diags.is_empty() {
-                tracing::error!("Desugared contract functions have diagnostics");
-                diags.extend(desugared_diags);
-            }
-        }
-
         diags
     }
+}
+
+fn resolve_default_root_effect_ty<'db>(
+    db: &'db dyn HirAnalysisDb,
+    scope: ScopeId<'db>,
+    assumptions: PredicateListId<'db>,
+) -> Option<TyId<'db>> {
+    let target_path = PathId::from_segments(db, DEFAULT_TARGET_TY_PATH);
+    let target_ty = match resolve_path(db, target_path, scope, assumptions, false).ok()? {
+        PathRes::Ty(ty) | PathRes::TyAlias(_, ty) => ty,
+        _ => return None,
+    };
+
+    let target_trait = corelib::resolve_core_trait(db, scope, &["contracts", "Target"]);
+    let inst_target =
+        trait_def::TraitInstId::new(db, target_trait, vec![target_ty], IndexMap::new());
+    let root_ident = IdentId::new(db, "RootEffect".to_owned());
+    Some(normalize::normalize_ty(
+        db,
+        TyId::assoc_ty(db, inst_target, root_ident),
+        scope,
+        assumptions,
+    ))
+}
+
+fn instantiate_trait_self<'db>(
+    db: &'db dyn HirAnalysisDb,
+    inst: trait_def::TraitInstId<'db>,
+    self_ty: TyId<'db>,
+) -> trait_def::TraitInstId<'db> {
+    let def = inst.def(db);
+    let mut args = inst.args(db).to_vec();
+    if args.is_empty() {
+        args.push(self_ty);
+    } else {
+        args[0] = self_ty;
+    }
+    trait_def::TraitInstId::new(db, def, args, inst.assoc_type_bindings(db).clone())
 }
 
 /// An analysis pass for trait definitions.
@@ -341,19 +394,10 @@ impl ModuleAnalysisPass for FuncAnalysisPass {
         db: &'db dyn HirAnalysisDb,
         top_mod: TopLevelMod<'db>,
     ) -> Vec<Box<dyn DiagnosticVoucher + 'db>> {
-        // Skip contract-desugared functions. Their parameter types may contain
-        // synthetic paths (e.g., `Msg::Variant::Args`) that can produce misleading
-        // diagnostics if the msg type doesn't exist. Contract-specific diagnostics
-        // are handled in ContractAnalysisPass.
+        // Function diagnostics are handled here; contract-specific diagnostics are separate.
         top_mod
             .all_funcs(db)
             .iter()
-            .filter(|func| {
-                !matches!(
-                    func.origin(db),
-                    HirOrigin::Desugared(DesugaredOrigin::ContractLowering(_))
-                )
-            })
             .flat_map(|func| func.diags(db))
             .map(|diag| diag.to_voucher())
             .collect()

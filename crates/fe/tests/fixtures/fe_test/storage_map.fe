@@ -20,62 +20,6 @@ msg MapMsg {
     SetAllowance { user: u256, value: u256 } -> u256,
 }
 
-// Boilerplate for MapMsg variants
-
-// BalanceOf
-impl AbiSize for MapMsg::BalanceOf {
-    const ENCODED_SIZE: u256 = 32
-}
-impl Encode<Sol> for MapMsg::BalanceOf {
-    fn encode<E: AbiEncoder<Sol>>(self, mut _ e: E) {
-        self.user.encode(e)
-    }
-}
-
-// SetBalance
-impl AbiSize for MapMsg::SetBalance {
-    const ENCODED_SIZE: u256 = 64
-}
-impl Encode<Sol> for MapMsg::SetBalance {
-    fn encode<E: AbiEncoder<Sol>>(self, mut _ e: E) {
-        self.user.encode(e)
-        self.value.encode(e)
-    }
-}
-
-// Transfer
-impl AbiSize for MapMsg::Transfer {
-    const ENCODED_SIZE: u256 = 96
-}
-impl Encode<Sol> for MapMsg::Transfer {
-    fn encode<E: AbiEncoder<Sol>>(self, mut _ e: E) {
-        self.from.encode(e)
-        self.to.encode(e)
-        self.amount.encode(e)
-    }
-}
-
-// GetAllowance
-impl AbiSize for MapMsg::GetAllowance {
-    const ENCODED_SIZE: u256 = 32
-}
-impl Encode<Sol> for MapMsg::GetAllowance {
-    fn encode<E: AbiEncoder<Sol>>(self, mut _ e: E) {
-        self.user.encode(e)
-    }
-}
-
-// SetAllowance
-impl AbiSize for MapMsg::SetAllowance {
-    const ENCODED_SIZE: u256 = 64
-}
-impl Encode<Sol> for MapMsg::SetAllowance {
-    fn encode<E: AbiEncoder<Sol>>(self, mut _ e: E) {
-        self.user.encode(e)
-        self.value.encode(e)
-    }
-}
-
 struct BalanceMapStore {
     balances: StorageMap<u256, u256, 0>,
     allowances: StorageMap<u256, u256, 1>,

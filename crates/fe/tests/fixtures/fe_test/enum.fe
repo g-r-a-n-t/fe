@@ -19,37 +19,6 @@ msg EnumMsg {
     IsSomeCheck { value: u256 } -> u256,
 }
 
-// Boilerplate for EnumMsg variants
-
-// MakeSome
-impl AbiSize for EnumMsg::MakeSome {
-    const ENCODED_SIZE: u256 = 32
-}
-impl Encode<Sol> for EnumMsg::MakeSome {
-    fn encode<E: AbiEncoder<Sol>>(self, mut _ e: E) {
-        self.value.encode(e)
-    }
-}
-
-// MakeNone
-impl AbiSize for EnumMsg::MakeNone {
-    const ENCODED_SIZE: u256 = 0
-}
-impl Encode<Sol> for EnumMsg::MakeNone {
-    fn encode<E: AbiEncoder<Sol>>(self, mut _ e: E) {
-    }
-}
-
-// IsSomeCheck
-impl AbiSize for EnumMsg::IsSomeCheck {
-    const ENCODED_SIZE: u256 = 32
-}
-impl Encode<Sol> for EnumMsg::IsSomeCheck {
-    fn encode<E: AbiEncoder<Sol>>(self, mut _ e: E) {
-        self.value.encode(e)
-    }
-}
-
 pub contract EnumContract {
     recv EnumMsg {
         MakeSome { value } -> u256 {

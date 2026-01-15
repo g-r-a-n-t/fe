@@ -32,29 +32,6 @@ msg ShapeMsg {
     DispatchSquare { side: u256 } -> u256,
 }
 
-// Boilerplate for ShapeMsg variants
-
-// DispatchPoint
-impl AbiSize for ShapeMsg::DispatchPoint {
-    const ENCODED_SIZE: u256 = 64
-}
-impl Encode<Sol> for ShapeMsg::DispatchPoint {
-    fn encode<E: AbiEncoder<Sol>>(self, mut _ e: E) {
-        self.x.encode(e)
-        self.y.encode(e)
-    }
-}
-
-// DispatchSquare
-impl AbiSize for ShapeMsg::DispatchSquare {
-    const ENCODED_SIZE: u256 = 32
-}
-impl Encode<Sol> for ShapeMsg::DispatchSquare {
-    fn encode<E: AbiEncoder<Sol>>(self, mut _ e: E) {
-        self.side.encode(e)
-    }
-}
-
 pub contract ShapeDispatcher {
     recv ShapeMsg {
         DispatchPoint { x, y } -> u256 {

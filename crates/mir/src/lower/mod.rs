@@ -426,33 +426,95 @@ impl<'db, 'a> MirBuilder<'db, 'a> {
         let mut spaces = vec![AddressSpaceKind::Storage; func.effect_params(self.db).count()];
         let mut ord = 0usize;
         for effect in func.effect_params(self.db) {
+            let effect_idx = effect.index();
             let Some(key_path) = effect.key_path(self.db) else {
                 continue;
             };
-            let Ok(path_res) = resolve_path(self.db, key_path, func.scope(), assumptions, false)
-            else {
-                continue;
-            };
-            let is_type_effect = match path_res {
-                PathRes::Ty(ty) | PathRes::TyAlias(_, ty) => ty.is_star_kind(self.db),
-                _ => false,
-            };
-            if !is_type_effect {
-                continue;
+            if let Ok(path_res) = resolve_path(self.db, key_path, func.scope(), assumptions, false) {
+                let is_type_effect = match path_res {
+                    PathRes::Ty(ty) | PathRes::TyAlias(_, ty) => ty.is_star_kind(self.db),
+                    _ => false,
+                };
+                if is_type_effect {
+                    let provider_pos = provider_arg_positions.get(ord).copied();
+                    ord += 1;
+                    let Some(provider_pos) = provider_pos else {
+                        continue;
+                    };
+                    let provider_ty = self.generic_args.get(provider_pos).copied();
+                    spaces[effect_idx] = provider_ty
+                        .and_then(|ty| self.effect_provider_space_for_provider_ty(ty))
+                        .unwrap_or(AddressSpaceKind::Storage);
+                    continue;
+                }
             }
 
-            let provider_pos = provider_arg_positions.get(ord).copied();
-            ord += 1;
-            let Some(provider_pos) = provider_pos else {
-                continue;
-            };
-            let provider_ty = self.generic_args.get(provider_pos).copied();
-            spaces[effect.index()] = provider_ty
-                .and_then(|ty| self.effect_provider_space_for_provider_ty(ty))
-                .unwrap_or(AddressSpaceKind::Storage);
+            if let Some(provider_ty) = self
+                .contract_field_provider_ty_for_effect_site(EffectParamSite::Func(func), effect_idx)
+                && let Some(space) = self.effect_provider_space_for_provider_ty(provider_ty)
+            {
+                spaces[effect_idx] = space;
+            }
         }
 
         spaces
+    }
+
+    fn contract_field_provider_ty_for_effect_site(
+        &self,
+        site: EffectParamSite<'db>,
+        idx: usize,
+    ) -> Option<TyId<'db>> {
+        let contract = match site {
+            EffectParamSite::Func(func) => {
+                let ItemKind::Contract(contract) = func.scope().parent_item(self.db)? else {
+                    return None;
+                };
+                contract
+            }
+            EffectParamSite::Contract(contract)
+            | EffectParamSite::ContractInit { contract }
+            | EffectParamSite::ContractRecvArm { contract, .. } => contract,
+        };
+
+        let key_path = match site {
+            EffectParamSite::Func(func) => func
+                .effect_params(self.db)
+                .nth(idx)
+                .and_then(|effect| effect.key_path(self.db))?,
+            EffectParamSite::Contract(contract) => contract
+                .effect_params(self.db)
+                .nth(idx)
+                .and_then(|effect| effect.key_path(self.db))?,
+            EffectParamSite::ContractInit { contract } => contract
+                .init(self.db)?
+                .effects(self.db)
+                .data(self.db)
+                .get(idx)?
+                .key_path
+                .to_opt()?,
+            EffectParamSite::ContractRecvArm {
+                contract,
+                recv_idx,
+                arm_idx,
+            } => contract
+                .recv_arm(self.db, recv_idx as usize, arm_idx as usize)?
+                .effects
+                .data(self.db)
+                .get(idx)?
+                .key_path
+                .to_opt()?,
+        };
+
+        if key_path.len(self.db) != 1 {
+            return None;
+        }
+        let field_name = key_path.ident(self.db).to_opt()?;
+        let field = contract
+            .field_infos(self.db)
+            .iter()
+            .find(|field| field.name == Some(field_name))?;
+        field.is_provider.then_some(field.declared_ty)
     }
 
     /// Consumes the builder and returns the accumulated MIR body.

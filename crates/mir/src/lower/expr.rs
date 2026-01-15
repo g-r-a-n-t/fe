@@ -569,9 +569,12 @@ impl<'db, 'a> MirBuilder<'db, 'a> {
                             })
                         }
                         LocalBinding::Param {
-                            site: ParamSite::EffectField(_),
+                            site: ParamSite::EffectField(effect_site),
+                            idx,
                             ..
-                        } => TyId::app(self.db, self.core.stor_ptr_ctor, target_ty),
+                        } => self
+                            .contract_field_provider_ty_for_effect_site(effect_site, idx)
+                            .unwrap_or_else(|| TyId::app(self.db, self.core.stor_ptr_ctor, target_ty)),
                         _ => TyId::app(self.db, self.core.mem_ptr_ctor, target_ty),
                     }
                 }

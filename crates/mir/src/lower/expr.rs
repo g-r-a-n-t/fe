@@ -71,32 +71,25 @@ impl<'db, 'a> MirBuilder<'db, 'a> {
                     .is_some_and(|id| id.data(self.db) == contract_name)
             })?;
 
-        let fields = contract.hir_fields(self.db).data(self.db);
-        if field_idx >= fields.len() {
-            return None;
-        }
+        let fields = contract.fields(self.db);
+        let field = fields.get_index(field_idx)?.1;
+        let desired_space = if field.is_provider {
+            self.effect_provider_space_for_provider_ty(field.declared_ty)?
+        } else {
+            AddressSpaceKind::Storage
+        };
 
-        let infos = contract.field_infos(self.db);
-
-        let desired_space = infos.get(field_idx).and_then(|info| {
-            if info.is_provider {
-                self.effect_provider_space_for_provider_ty(info.declared_ty)
-            } else {
-                Some(AddressSpaceKind::Storage)
-            }
-        })?;
-
-        let mut offset = 0usize;
-        for info in infos.iter().take(field_idx) {
-            let space = if info.is_provider {
-                self.effect_provider_space_for_provider_ty(info.declared_ty)?
+        let mut offset = 0;
+        for field in fields.values().take(field_idx) {
+            let space = if field.is_provider {
+                self.effect_provider_space_for_provider_ty(field.declared_ty)?
             } else {
                 AddressSpaceKind::Storage
             };
             if space != desired_space {
                 continue;
             }
-            offset += ty_storage_slots(self.db, info.target_ty)?;
+            offset += ty_storage_slots(self.db, field.target_ty)?;
         }
         Some(offset)
     }
@@ -574,7 +567,9 @@ impl<'db, 'a> MirBuilder<'db, 'a> {
                             ..
                         } => self
                             .contract_field_provider_ty_for_effect_site(effect_site, idx)
-                            .unwrap_or_else(|| TyId::app(self.db, self.core.stor_ptr_ctor, target_ty)),
+                            .unwrap_or_else(|| {
+                                TyId::app(self.db, self.core.stor_ptr_ctor, target_ty)
+                            }),
                         _ => TyId::app(self.db, self.core.mem_ptr_ctor, target_ty),
                     }
                 }

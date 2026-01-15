@@ -679,7 +679,7 @@ impl<'db> FromScope<'db> for &'db FieldDef<'db> {
 
         match parent {
             FieldParent::Struct(s) => Some(&s.fields(db).data(db)[idx]),
-            FieldParent::Contract(c) => Some(&c.fields(db).data(db)[idx]),
+            FieldParent::Contract(c) => Some(&c.hir_fields(db).data(db)[idx]),
             FieldParent::Variant(v) => match v.kind(db) {
                 VariantKind::Record(fields) => Some(&fields.data(db)[idx]),
                 _ => unreachable!(),

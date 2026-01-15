@@ -430,7 +430,8 @@ impl<'db, 'a> MirBuilder<'db, 'a> {
             let Some(key_path) = effect.key_path(self.db) else {
                 continue;
             };
-            if let Ok(path_res) = resolve_path(self.db, key_path, func.scope(), assumptions, false) {
+            if let Ok(path_res) = resolve_path(self.db, key_path, func.scope(), assumptions, false)
+            {
                 let is_type_effect = match path_res {
                     PathRes::Ty(ty) | PathRes::TyAlias(_, ty) => ty.is_star_kind(self.db),
                     _ => false,
@@ -510,10 +511,7 @@ impl<'db, 'a> MirBuilder<'db, 'a> {
             return None;
         }
         let field_name = key_path.ident(self.db).to_opt()?;
-        let field = contract
-            .field_infos(self.db)
-            .iter()
-            .find(|field| field.name == Some(field_name))?;
+        let field = contract.fields(self.db).get(&field_name)?;
         field.is_provider.then_some(field.declared_ty)
     }
 

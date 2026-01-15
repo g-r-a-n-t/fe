@@ -59,7 +59,7 @@ pub(super) fn lower_contract_templates<'db>(
 
         let core_lib = CoreLib::new(db, contract.scope());
 
-        let fields = contract.field_infos(db);
+        let fields = contract.fields(db);
         let slot_offsets = compute_field_slot_offsets(db, &core_lib, fields)?;
 
         // User-body handlers first (so entrypoints can call them by symbol).
@@ -67,7 +67,6 @@ pub(super) fn lower_contract_templates<'db>(
             out.push(lower_init_handler(
                 db,
                 contract,
-                fields,
                 &symbols,
                 &core_lib,
                 target.host.root_effect_ty,
@@ -78,7 +77,6 @@ pub(super) fn lower_contract_templates<'db>(
                 out.push(lower_recv_arm_handler(
                     db,
                     contract,
-                    fields,
                     arm,
                     target.abi.abi_ty,
                     &symbols,
@@ -92,7 +90,6 @@ pub(super) fn lower_contract_templates<'db>(
         out.push(lower_init_entrypoint(
             db,
             contract,
-            fields,
             &target,
             &symbols,
             &slot_offsets,
@@ -100,7 +97,6 @@ pub(super) fn lower_contract_templates<'db>(
         out.push(lower_runtime_entrypoint(
             db,
             contract,
-            fields,
             &target,
             &symbols,
             &slot_offsets,
@@ -514,38 +510,41 @@ impl<'db, 'a> ContractMirCx<'db, 'a> {
     fn emit_field_providers(
         &self,
         builder: &mut BodyBuilder<'db>,
-        fields: &[ContractFieldInfo<'db>],
+        contract: Contract<'db>,
         slot_offsets: &[BigUint],
         root_value: ValueId,
         host_field_func: Func<'db>,
     ) -> Vec<ValueId> {
         let u256_ty = TyId::u256(self.db);
-        let mut field_values = Vec::with_capacity(fields.len());
-        for (idx, field) in fields.iter().enumerate() {
-            let slot = slot_offsets
-                .get(idx)
-                .cloned()
-                .unwrap_or_else(|| BigUint::from(0u8));
-            let slot_value = builder.const_int_value(u256_ty, slot);
-            let call = self.field_value_call(
-                host_field_func,
-                root_value,
-                slot_value,
-                field.declared_ty,
-                field.is_provider,
-            );
-            let field_value = builder
-                .assign_to_new_local(
-                    format!("field{idx}"),
-                    u256_ty,
-                    true,
-                    AddressSpaceKind::Memory,
-                    Rvalue::Call(call),
-                )
-                .value;
-            field_values.push(field_value);
-        }
-        field_values
+
+        contract
+            .fields(self.db)
+            .iter()
+            .enumerate()
+            .map(|(idx, (_, field))| {
+                let slot = slot_offsets
+                    .get(idx)
+                    .cloned()
+                    .unwrap_or_else(|| BigUint::from(0u8));
+                let slot_value = builder.const_int_value(u256_ty, slot);
+                let call = self.field_value_call(
+                    host_field_func,
+                    root_value,
+                    slot_value,
+                    field.declared_ty,
+                    field.is_provider,
+                );
+                builder
+                    .assign_to_new_local(
+                        format!("field{idx}"),
+                        u256_ty,
+                        true,
+                        AddressSpaceKind::Memory,
+                        Rvalue::Call(call),
+                    )
+                    .value
+            })
+            .collect()
     }
 
     fn effect_args_from_sources(
@@ -724,12 +723,12 @@ fn path_from_segments<'db>(
 fn compute_field_slot_offsets<'db>(
     db: &'db dyn HirAnalysisDb,
     core: &CoreLib<'db>,
-    fields: &[ContractFieldInfo<'db>],
+    fields: &IndexMap<IdentId<'db>, ContractFieldInfo<'db>>,
 ) -> MirLowerResult<Vec<BigUint>> {
     let mut next_offset: FxHashMap<AddressSpaceKind, usize> = FxHashMap::default();
     let mut out = Vec::with_capacity(fields.len());
 
-    for field in fields {
+    for (_, field) in fields {
         let space = if field.is_provider {
             repr::effect_provider_space_for_ty(db, core, field.declared_ty)
                 .unwrap_or(AddressSpaceKind::Storage)
@@ -815,7 +814,6 @@ impl<'db> TyFolder<'db> for RootEffectFolder<'db> {
 fn lower_init_handler<'db>(
     db: &'db dyn SpannedHirAnalysisDb,
     contract: Contract<'db>,
-    fields: &[ContractFieldInfo<'db>],
     symbols: &ContractSymbols,
     core: &CoreLib<'db>,
     root_effect_ty: TyId<'db>,
@@ -870,7 +868,7 @@ fn lower_init_handler<'db>(
     let init_env = contract
         .init_effect_env(db)
         .expect("contract init handler requested without init");
-    seed_effect_param_locals(db, &mut builder, fields, init_env.bindings(db), core);
+    seed_effect_param_locals(db, &mut builder, contract, init_env.bindings(db), core);
 
     let entry = builder.builder.entry_block();
     builder.move_to_block(entry);
@@ -906,7 +904,6 @@ fn lower_init_handler<'db>(
 fn lower_recv_arm_handler<'db>(
     db: &'db dyn SpannedHirAnalysisDb,
     contract: Contract<'db>,
-    fields: &[ContractFieldInfo<'db>],
     arm: RecvArmView<'db>,
     abi: TyId<'db>,
     symbols: &ContractSymbols,
@@ -963,7 +960,7 @@ fn lower_recv_arm_handler<'db>(
     let args_local = builder.seed_synthetic_param_local("args".to_string(), args_ty, false, None);
 
     let effects = arm.effective_effect_env(db).bindings(db);
-    seed_effect_param_locals(db, &mut builder, fields, effects, core);
+    seed_effect_param_locals(db, &mut builder, contract, effects, core);
 
     // Prologue: destructure decoded args tuple into pattern bindings.
     let arg_bindings = arm.arg_bindings(db);
@@ -1027,10 +1024,11 @@ fn lower_recv_arm_handler<'db>(
 fn seed_effect_param_locals<'db>(
     db: &'db dyn HirAnalysisDb,
     builder: &mut MirBuilder<'db, '_>,
-    fields: &[ContractFieldInfo<'db>],
+    contract: Contract<'db>,
     effects: &[EffectBinding<'db>],
     core: &CoreLib<'db>,
 ) {
+    let fields = contract.fields(db);
     for effect in effects {
         let name = effect.binding_name.data(db).to_string();
         let binding = match effect.source {
@@ -1042,8 +1040,8 @@ fn seed_effect_param_locals<'db>(
             },
             EffectSource::Field(field_idx) => {
                 let ty = fields
-                    .get(field_idx as usize)
-                    .map(|f| f.target_ty)
+                    .get_index(field_idx as usize)
+                    .map(|(_, field)| field.target_ty)
                     .unwrap_or_else(|| TyId::invalid(db, InvalidCause::Other));
                 LocalBinding::Param {
                     site: ParamSite::EffectField(effect.binding_site),
@@ -1056,8 +1054,8 @@ fn seed_effect_param_locals<'db>(
 
         let addr_space = match effect.source {
             EffectSource::Root => AddressSpaceKind::Storage,
-            EffectSource::Field(field_idx) => match fields.get(field_idx as usize) {
-                Some(field) if field.is_provider => {
+            EffectSource::Field(field_idx) => match fields.get_index(field_idx as usize) {
+                Some((_, field)) if field.is_provider => {
                     repr::effect_provider_space_for_ty(db, core, field.declared_ty)
                         .unwrap_or(AddressSpaceKind::Storage)
                 }
@@ -1072,7 +1070,6 @@ fn seed_effect_param_locals<'db>(
 fn lower_init_entrypoint<'db>(
     db: &'db dyn SpannedHirAnalysisDb,
     contract: Contract<'db>,
-    fields: &[ContractFieldInfo<'db>],
     target: &TargetContext<'db>,
     symbols: &ContractSymbols,
     slot_offsets: &[BigUint],
@@ -1092,7 +1089,7 @@ fn lower_init_entrypoint<'db>(
 
     let field_values = cx.emit_field_providers(
         &mut builder,
-        fields,
+        contract,
         slot_offsets,
         root_value,
         target.host.init_field_fn,
@@ -1296,7 +1293,6 @@ fn lower_init_entrypoint<'db>(
 fn lower_runtime_entrypoint<'db>(
     db: &'db dyn SpannedHirAnalysisDb,
     contract: Contract<'db>,
-    fields: &[ContractFieldInfo<'db>],
     target: &TargetContext<'db>,
     symbols: &ContractSymbols,
     slot_offsets: &[BigUint],
@@ -1316,7 +1312,7 @@ fn lower_runtime_entrypoint<'db>(
 
     let field_values = cx.emit_field_providers(
         &mut builder,
-        fields,
+        contract,
         slot_offsets,
         root_value,
         target.host.field_fn,

@@ -1213,7 +1213,7 @@ impl<'db> Contract<'db> {
         result.push_str(" {\n");
 
         // Fields
-        for field in self.fields(db).data(db) {
+        for field in self.hir_fields(db).data(db) {
             let field_str = format_field_def(field, db, 1);
             result.push_str(&format!("{},\n", field_str));
         }

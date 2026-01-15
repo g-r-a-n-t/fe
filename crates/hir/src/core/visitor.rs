@@ -662,7 +662,7 @@ pub fn walk_contract<'db, V>(
     ctxt.with_new_ctxt(
         |span| span.fields(),
         |ctxt| {
-            let id = contract.fields(ctxt.db);
+            let id = contract.hir_fields(ctxt.db);
             let parent = FieldParent::Contract(contract);
             for (idx, field) in id.data(ctxt.db).iter().enumerate() {
                 ctxt.with_new_scoped_ctxt(

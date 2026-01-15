@@ -751,7 +751,7 @@ pub struct Contract<'db> {
     pub name: Partial<IdentId<'db>>,
     pub(in crate::core) attributes: AttrListId<'db>,
     pub vis: Visibility,
-    pub(in crate::core) fields: FieldDefListId<'db>,
+    pub(in crate::core) hir_fields: FieldDefListId<'db>,
     /// `uses` clause attached to the contract header
     pub effects: EffectParamListId<'db>,
     /// Optional init block owned by the contract.
@@ -770,10 +770,6 @@ impl<'db> Contract<'db> {
 
     pub fn scope(self) -> ScopeId<'db> {
         ScopeId::from_item(self.into())
-    }
-
-    pub fn hir_fields(self, db: &'db dyn HirDb) -> FieldDefListId<'db> {
-        self.fields(db)
     }
 
     pub fn recv_arm(
@@ -1377,7 +1373,7 @@ impl<'db> FieldParent<'db> {
     pub(in crate::core) fn fields_list(self, db: &'db dyn HirDb) -> FieldDefListId<'db> {
         match self {
             FieldParent::Struct(struct_) => struct_.fields(db),
-            FieldParent::Contract(contract) => contract.fields(db),
+            FieldParent::Contract(contract) => contract.hir_fields(db),
             FieldParent::Variant(variant) => match variant.kind(db) {
                 VariantKind::Record(fields) => fields,
                 _ => unreachable!(),

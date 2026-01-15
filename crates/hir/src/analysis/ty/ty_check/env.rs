@@ -460,14 +460,11 @@ impl<'db> TyCheckEnv<'db> {
     ) -> Option<TyId<'db>> {
         let contract = self.contract_from_site(site)?;
         let ident = key_path.ident(self.db).to_opt()?;
-        let idx = contract.hir_fields(self.db).field_idx(self.db, ident)?;
 
-        // `Contract::field_infos` is cached (tracked) and safe to call in the type-checker.
-        let infos = contract.field_infos(self.db);
-        let ty = infos
-            .get(idx)
-            .map(|info| info.target_ty)
-            .unwrap_or_else(|| TyId::invalid(self.db, InvalidCause::Other));
+        let ty = contract
+            .fields(self.db)
+            .get(&ident)
+            .map(|info| info.target_ty)?;
 
         Some(if ty.is_star_kind(self.db) {
             ty

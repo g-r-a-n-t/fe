@@ -758,7 +758,7 @@ impl<'db> RecvArmView<'db> {
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Update)]
 pub struct ContractFieldInfo<'db> {
     pub index: u32,
-    pub name: Option<IdentId<'db>>,
+    pub name: IdentId<'db>,
     pub declared_ty: TyId<'db>,
     pub is_provider: bool,
     pub target_ty: TyId<'db>,
@@ -867,7 +867,10 @@ impl<'db> Contract<'db> {
     }
 
     #[salsa::tracked(return_ref)]
-    pub fn field_infos(self, db: &'db dyn HirAnalysisDb) -> Vec<ContractFieldInfo<'db>> {
+    pub fn fields(
+        self,
+        db: &'db dyn HirAnalysisDb,
+    ) -> IndexMap<IdentId<'db>, ContractFieldInfo<'db>> {
         let scope = self.top_mod(db).scope();
         let assumptions = PredicateListId::empty_list(db);
         let ingot = self.top_mod(db).ingot(db);
@@ -879,9 +882,9 @@ impl<'db> Contract<'db> {
 
         hir_fields
             .iter()
+            .filter(|field| field.name.is_present())
             .enumerate()
             .map(|(idx, field)| {
-                let name = field.name.to_opt();
                 let declared_ty = lower_opt_hir_ty(db, field.type_ref(), scope, assumptions);
 
                 let inst = TraitInstId::new(db, effect_ref, vec![declared_ty], IndexMap::new());
@@ -899,13 +902,17 @@ impl<'db> Contract<'db> {
                         ),
                     };
 
-                ContractFieldInfo {
-                    index: idx as u32,
+                let name = field.name.unwrap();
+                (
                     name,
-                    declared_ty,
-                    is_provider,
-                    target_ty: target_ty.unwrap_or(declared_ty),
-                }
+                    ContractFieldInfo {
+                        index: idx as u32,
+                        name,
+                        declared_ty,
+                        is_provider,
+                        target_ty: target_ty.unwrap_or(declared_ty),
+                    },
+                )
             })
             .collect()
     }
@@ -1016,16 +1023,6 @@ impl<'db> Func<'db> {
     }
 }
 
-fn field_name_index_map<'db>(fields: &[ContractFieldInfo<'db>]) -> FxHashMap<IdentId<'db>, u32> {
-    let mut map = FxHashMap::default();
-    for f in fields {
-        if let Some(name) = f.name {
-            map.insert(name, f.index);
-        }
-    }
-    map
-}
-
 fn contract_effect_decl_map<'db>(
     db: &'db dyn HirAnalysisDb,
     contract: Contract<'db>,
@@ -1047,8 +1044,7 @@ fn contract_scoped_effect_bindings<'db>(
     list_site: EffectParamSite<'db>,
     list: EffectParamListId<'db>,
 ) -> Vec<EffectBinding<'db>> {
-    let fields = contract.field_infos(db);
-    let field_name_to_index = field_name_index_map(fields);
+    let fields = contract.fields(db);
     let contract_named_effects = contract_effect_decl_map(db, contract);
     let assumptions = PredicateListId::empty_list(db);
 
@@ -1077,12 +1073,10 @@ fn contract_scoped_effect_bindings<'db>(
 
         if key_path.len(db) == 1
             && let Some(name) = key_path.ident(db).to_opt()
-            && let Some(&field_idx) = field_name_to_index.get(&name)
+            && let Some(field) = fields.get(&name)
         {
-            let target_ty = fields
-                .get(field_idx as usize)
-                .map(|f| f.target_ty)
-                .unwrap_or_else(|| TyId::invalid(db, InvalidCause::Other));
+            let field_idx = field.index;
+            let target_ty = field.target_ty;
 
             out.push(EffectBinding {
                 binding_name: name,
@@ -1140,57 +1134,7 @@ fn contract_scoped_effect_bindings<'db>(
         });
     }
 
-    check_field_mutability_invariants(db, contract, fields, &mut out);
     out
-}
-
-fn check_field_mutability_invariants<'db>(
-    db: &'db dyn HirAnalysisDb,
-    contract: Contract<'db>,
-    fields: &[ContractFieldInfo<'db>],
-    effects: &mut [EffectBinding<'db>],
-) {
-    // This is intentionally best-effort; diagnostics are emitted by analysis passes.
-    let assumptions = PredicateListId::empty_list(db);
-    let contract_ingot = contract.top_mod(db).ingot(db);
-
-    let effect_ref_mut = resolve_core_trait(db, contract.scope(), &["effect_ref", "EffectRefMut"]);
-
-    let stor_ptr_ctor = resolve_core_stor_ptr_ctor(db, contract.scope(), assumptions);
-
-    for effect in effects {
-        let EffectSource::Field(field_idx) = effect.source else {
-            continue;
-        };
-        if !effect.is_mut {
-            continue;
-        }
-        let Some(field) = fields.get(field_idx as usize) else {
-            continue;
-        };
-
-        let provider_ty = if field.is_provider {
-            Some(field.declared_ty)
-        } else {
-            stor_ptr_ctor.map(|ctor| TyId::app(db, ctor, field.declared_ty))
-        };
-        let Some(provider_ty) = provider_ty else {
-            continue;
-        };
-
-        let inst = TraitInstId::new(db, effect_ref_mut, vec![provider_ty], IndexMap::new());
-        let canonical = Canonicalized::new(db, inst);
-        let sat = is_goal_satisfiable(db, contract_ingot, canonical.value, assumptions);
-        if matches!(
-            sat,
-            GoalSatisfiability::UnSat(_) | GoalSatisfiability::ContainsInvalid
-        ) {
-            // Mark the key as invalid to keep downstream lowering conservative.
-            effect.key_kind = EffectKeyKind::Other;
-            effect.key_ty = None;
-            effect.key_trait = None;
-        }
-    }
 }
 
 fn resolve_effect_key<'db>(
@@ -1335,31 +1279,6 @@ fn resolve_sol_abi_ty<'db>(
         .push_ident(db, IdentId::new(db, "Sol".to_string()));
 
     match resolve_path(db, sol_path, scope, assumptions, false).ok()? {
-        PathRes::Ty(ty) | PathRes::TyAlias(_, ty) => Some(ty),
-        _ => None,
-    }
-}
-
-fn resolve_core_stor_ptr_ctor<'db>(
-    db: &'db dyn HirAnalysisDb,
-    scope: ScopeId<'db>,
-    assumptions: PredicateListId<'db>,
-) -> Option<TyId<'db>> {
-    use crate::analysis::name_resolution::{PathRes, resolve_path};
-    use common::ingot::IngotKind;
-
-    let ingot = scope.ingot(db);
-    let root = if ingot.kind(db) == IngotKind::Core {
-        IdentId::make_ingot(db)
-    } else {
-        IdentId::make_core(db)
-    };
-
-    let stor_ptr_path = PathId::from_ident(db, root)
-        .push_ident(db, IdentId::new(db, "effect_ref".to_string()))
-        .push_ident(db, IdentId::new(db, "StorPtr".to_string()));
-
-    match resolve_path(db, stor_ptr_path, scope, assumptions, false).ok()? {
         PathRes::Ty(ty) | PathRes::TyAlias(_, ty) => Some(ty),
         _ => None,
     }

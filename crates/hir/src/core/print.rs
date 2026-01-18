@@ -121,18 +121,6 @@ impl Visibility {
     }
 }
 
-impl ItemModifier {
-    /// Returns the modifier keywords.
-    pub fn pretty_print(self) -> &'static str {
-        match self {
-            ItemModifier::Pub => "pub ",
-            ItemModifier::Unsafe => "unsafe ",
-            ItemModifier::PubAndUnsafe => "pub unsafe ",
-            ItemModifier::None => "",
-        }
-    }
-}
-
 // ============================================================================
 // Literals
 // ============================================================================
@@ -1030,8 +1018,15 @@ impl<'db> Func<'db> {
         // Attributes
         result.push_str(&self.attributes(db).pretty_print_with_newline(db));
 
-        // Modifiers (pub, unsafe)
-        result.push_str(self.modifier(db).pretty_print());
+        // Modifiers (pub, const, unsafe)
+        let modifiers = self.modifiers(db);
+        result.push_str(modifiers.vis.pretty_print());
+        if modifiers.is_const {
+            result.push_str("const ");
+        }
+        if modifiers.is_unsafe {
+            result.push_str("unsafe ");
+        }
 
         // fn keyword
         result.push_str("fn ");
@@ -1639,8 +1634,9 @@ fn print_items_with_extern_blocks<'db>(
     };
 
     for item in items {
-        // Check if this is an extern function (function without body at module level)
+        // Check if this is an extern function (function declared within an `extern { ... }` block)
         if let ItemKind::Func(func) = item
+            && func.is_extern(db)
             && func.body(db).is_none()
         {
             extern_funcs.push(*func);

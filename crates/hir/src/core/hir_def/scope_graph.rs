@@ -772,9 +772,15 @@ mod tests {
             match i {
                 0 => assert!(matches!(item, ItemKind::TopMod(_))),
                 1 => assert!(matches!(item, ItemKind::Mod(_))),
-                2 => assert!(matches!(item, ItemKind::Func(_))),
+                2 => match item {
+                    ItemKind::Func(func) => assert!(!func.is_extern(&db)),
+                    other => panic!("expected func at index {i}, got {other:?}"),
+                },
                 3 => assert!(matches!(item, ItemKind::Body(_))),
-                4 => assert!(matches!(item, ItemKind::Func(_))),
+                4 => match item {
+                    ItemKind::Func(func) => assert!(func.is_extern(&db)),
+                    other => panic!("expected func at index {i}, got {other:?}"),
+                },
                 5 => assert!(matches!(item, ItemKind::Enum(_))),
                 6 => assert!(matches!(item, ItemKind::Mod(_))),
                 7 => assert!(matches!(item, ItemKind::Struct(_))),

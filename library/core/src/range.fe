@@ -36,7 +36,11 @@ pub struct Range<S: Bound, E: Bound> {
 /// Fully const range: `Known<S>..Known<E>`
 impl<const S: usize, const E: usize> Seq<usize> for Range<Known<S>, Known<E>> {
     fn len(self) -> usize {
-        E - S
+        if E < S {
+            0
+        } else {
+            E - S
+        }
     }
 
     fn get(self, i: usize) -> usize {
@@ -47,7 +51,11 @@ impl<const S: usize, const E: usize> Seq<usize> for Range<Known<S>, Known<E>> {
 /// Const start, dynamic end: `Known<S>..n` (common `0..n` pattern)
 impl<const S: usize> Seq<usize> for Range<Known<S>, Unknown> {
     fn len(self) -> usize {
-        self.end - S
+        if self.end < S {
+            0
+        } else {
+            self.end - S
+        }
     }
 
     fn get(self, i: usize) -> usize {
@@ -58,7 +66,11 @@ impl<const S: usize> Seq<usize> for Range<Known<S>, Unknown> {
 /// Dynamic start, const end: `n..Known<E>`
 impl<const E: usize> Seq<usize> for Range<Unknown, Known<E>> {
     fn len(self) -> usize {
-        E - self.start
+        if E < self.start {
+            0
+        } else {
+            E - self.start
+        }
     }
 
     fn get(self, i: usize) -> usize {
@@ -69,7 +81,11 @@ impl<const E: usize> Seq<usize> for Range<Unknown, Known<E>> {
 /// Fully dynamic range: `start..end`
 impl Seq<usize> for Range<Unknown, Unknown> {
     fn len(self) -> usize {
-        self.end - self.start
+        if self.end < self.start {
+            0
+        } else {
+            self.end - self.start
+        }
     }
 
     fn get(self, i: usize) -> usize {

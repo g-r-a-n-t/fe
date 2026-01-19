@@ -1531,7 +1531,7 @@ impl<'db, 'a> MirBuilder<'db, 'a> {
     ///
     /// If the type checker resolved Seq::len and Seq::get methods for this loop,
     /// uses those to implement iteration. Otherwise falls back to special-cased
-    /// array/range lowering.
+    /// array lowering (legacy path for ill-typed code).
     fn lower_for(&mut self, stmt: StmtId, pat: PatId, iter_expr: ExprId, body_expr: ExprId) {
         let Some(block) = self.current_block() else {
             return;
@@ -1543,12 +1543,10 @@ impl<'db, 'a> MirBuilder<'db, 'a> {
             return;
         }
 
-        // Fallback to special-cased lowering for arrays and ranges
+        // Fallback to special-cased lowering for arrays.
         let iter_ty = self.typed_body.expr_ty(self.db, iter_expr);
         if iter_ty.is_array(self.db) {
             self.lower_for_array(stmt, pat, iter_expr, body_expr, block);
-        } else {
-            self.lower_for_range(stmt, pat, iter_expr, body_expr, block);
         }
     }
 
@@ -1601,19 +1599,6 @@ impl<'db, 'a> MirBuilder<'db, 'a> {
             return;
         };
 
-        // Get the element binding from the pattern
-        let Partial::Present(pat_data) = pat.data(self.db, self.body) else {
-            return;
-        };
-        let binding = self
-            .typed_body
-            .pat_binding(pat)
-            .unwrap_or(LocalBinding::Local {
-                pat,
-                is_mut: matches!(pat_data, Pat::Path(_, true)),
-            });
-        let elem_local = self.local_for_binding(binding);
-
         // Allocate blocks for loop structure
         let cond_entry = self.alloc_block();
         let body_block = self.alloc_block();
@@ -1652,22 +1637,19 @@ impl<'db, 'a> MirBuilder<'db, 'a> {
         self.move_to_block(body_block);
 
         // Call Seq::get to get the element
-        if let Some(elem_local) = elem_local {
-            let idx_for_get = self.builder.body.alloc_value(ValueData {
-                ty: usize_ty,
-                origin: ValueOrigin::Local(idx_local),
-                repr: ValueRepr::Word,
-            });
-            let elem_value = self.emit_seq_get_call(
-                iterable_value,
-                idx_for_get,
-                elem_ty,
-                &seq_info.get_callable,
-                &seq_info.get_effect_args,
-            );
-
-            self.assign(None, Some(elem_local), Rvalue::Value(elem_value));
-        }
+        let idx_for_get = self.builder.body.alloc_value(ValueData {
+            ty: usize_ty,
+            origin: ValueOrigin::Local(idx_local),
+            repr: ValueRepr::Word,
+        });
+        let elem_value = self.emit_seq_get_call(
+            iterable_value,
+            idx_for_get,
+            elem_ty,
+            &seq_info.get_callable,
+            &seq_info.get_effect_args,
+        );
+        self.bind_pat_value(pat, elem_value);
 
         // Execute the body
         let _ = self.lower_expr(body_expr);
@@ -1859,183 +1841,6 @@ impl<'db, 'a> MirBuilder<'db, 'a> {
         })
     }
 
-    /// Lower a for-loop over a Range.
-    ///
-    /// Desugars `for i in start..end` into:
-    /// ```
-    /// let mut i = range.start
-    /// while i < range.end {
-    ///     body
-    ///     i = i + 1
-    /// }
-    /// ```
-    fn lower_for_range(
-        &mut self,
-        stmt: StmtId,
-        pat: PatId,
-        iter_expr: ExprId,
-        body_expr: ExprId,
-        block: BasicBlockId,
-    ) {
-        let usize_ty = TyId::new(self.db, TyData::TyBase(TyBase::Prim(PrimTy::Usize)));
-
-        // Lower the range expression to get a Range value
-        self.move_to_block(block);
-        let range_value = self.lower_expr(iter_expr);
-        let Some(after_range_block) = self.current_block() else {
-            return;
-        };
-
-        // Get the range type and extract start/end fields
-        let range_ty = self.typed_body.expr_ty(self.db, iter_expr);
-        let start_ident = IdentId::new(self.db, "start".to_string());
-        let end_ident = IdentId::new(self.db, "end".to_string());
-
-        // Extract the start value from the range
-        let start_value =
-            if let Some(info) = self.field_access_info(range_ty, FieldIndex::Ident(start_ident)) {
-                let place = Place::new(
-                    range_value,
-                    MirProjectionPath::from_projection(Projection::Field(info.field_idx)),
-                );
-                let start_val = self.builder.body.alloc_value(ValueData {
-                    ty: usize_ty,
-                    origin: ValueOrigin::PlaceRef(place.clone()),
-                    repr: ValueRepr::Word,
-                });
-                // Emit a load instruction for the start value
-                self.assign(None, None, Rvalue::Load { place });
-                start_val
-            } else {
-                // Fallback: just use 0
-                self.synthetic_u256(BigUint::from(0u64))
-            };
-
-        // Extract the end value from the range
-        let end_value =
-            if let Some(info) = self.field_access_info(range_ty, FieldIndex::Ident(end_ident)) {
-                let place = Place::new(
-                    range_value,
-                    MirProjectionPath::from_projection(Projection::Field(info.field_idx)),
-                );
-                let end_val = self.builder.body.alloc_value(ValueData {
-                    ty: usize_ty,
-                    origin: ValueOrigin::PlaceRef(place.clone()),
-                    repr: ValueRepr::Word,
-                });
-                self.assign(None, None, Rvalue::Load { place });
-                end_val
-            } else {
-                // Fallback
-                self.synthetic_u256(BigUint::from(0u64))
-            };
-
-        // Get the loop variable binding from the pattern
-        let Partial::Present(pat_data) = pat.data(self.db, self.body) else {
-            return;
-        };
-        let binding = self
-            .typed_body
-            .pat_binding(pat)
-            .unwrap_or(LocalBinding::Local {
-                pat,
-                is_mut: matches!(pat_data, Pat::Path(_, true)),
-            });
-        let Some(loop_var_local) = self.local_for_binding(binding) else {
-            return;
-        };
-
-        // Initialize the loop variable with start value
-        self.move_to_block(after_range_block);
-        self.assign(Some(stmt), Some(loop_var_local), Rvalue::Value(start_value));
-
-        // Allocate blocks for the loop structure
-        let cond_entry = self.alloc_block();
-        let body_block = self.alloc_block();
-        let inc_block = self.alloc_block();
-        let exit_block = self.alloc_block();
-
-        // Jump to condition
-        self.goto(cond_entry);
-
-        // Condition block: loop_var < end
-        self.move_to_block(cond_entry);
-        let loop_var_value = self.builder.body.alloc_value(ValueData {
-            ty: usize_ty,
-            origin: ValueOrigin::Local(loop_var_local),
-            repr: ValueRepr::Word,
-        });
-        let cond_value = self.builder.body.alloc_value(ValueData {
-            ty: TyId::new(self.db, TyData::TyBase(TyBase::Prim(PrimTy::Bool))),
-            origin: ValueOrigin::Binary {
-                op: BinOp::Comp(hir::hir_def::expr::CompBinOp::Lt),
-                lhs: loop_var_value,
-                rhs: end_value,
-            },
-            repr: ValueRepr::Word,
-        });
-        let cond_header = cond_entry;
-
-        // Set up loop scope
-        self.loop_stack.push(LoopScope {
-            continue_target: inc_block,
-            break_target: exit_block,
-        });
-
-        // Body block
-        self.move_to_block(body_block);
-        let _ = self.lower_expr(body_expr);
-        let body_end = self.current_block();
-
-        self.loop_stack.pop();
-
-        // Normal fallthrough from the body goes to the increment block; `continue`
-        // also targets `inc_block` via the loop scope.
-        if let Some(body_end_block) = body_end {
-            self.move_to_block(body_end_block);
-            self.goto(inc_block);
-        }
-
-        self.move_to_block(inc_block);
-        // loop_var = loop_var + 1
-        let one = self.synthetic_u256(BigUint::from(1u64));
-        let current_val = self.builder.body.alloc_value(ValueData {
-            ty: usize_ty,
-            origin: ValueOrigin::Local(loop_var_local),
-            repr: ValueRepr::Word,
-        });
-        let incremented = self.builder.body.alloc_value(ValueData {
-            ty: usize_ty,
-            origin: ValueOrigin::Binary {
-                op: BinOp::Arith(ArithBinOp::Add),
-                lhs: current_val,
-                rhs: one,
-            },
-            repr: ValueRepr::Word,
-        });
-        self.assign(None, Some(loop_var_local), Rvalue::Value(incremented));
-        let Some(inc_end) = self.current_block() else {
-            return;
-        };
-        self.goto(cond_entry);
-
-        // Wire up the branch
-        self.move_to_block(cond_header);
-        self.branch(cond_value, body_block, exit_block);
-
-        // Register loop info
-        self.builder.body.loop_headers.insert(
-            cond_entry,
-            LoopInfo {
-                body: body_block,
-                exit: exit_block,
-                backedge: Some(inc_end),
-            },
-        );
-
-        self.move_to_block(exit_block);
-    }
-
     /// Lower a for-loop over an array.
     ///
     /// Desugars `for x in arr` into:
@@ -2075,19 +1880,6 @@ impl<'db, 'a> MirBuilder<'db, 'a> {
 
         // Create hidden index local
         let idx_local = self.alloc_temp_local(usize_ty, true, "for_idx");
-
-        // Get the element binding from the pattern
-        let Partial::Present(pat_data) = pat.data(self.db, self.body) else {
-            return;
-        };
-        let binding = self
-            .typed_body
-            .pat_binding(pat)
-            .unwrap_or(LocalBinding::Local {
-                pat,
-                is_mut: matches!(pat_data, Pat::Path(_, true)),
-            });
-        let elem_local = self.local_for_binding(binding);
 
         // Initialize index to 0
         self.move_to_block(after_array_block);
@@ -2131,32 +1923,37 @@ impl<'db, 'a> MirBuilder<'db, 'a> {
         self.move_to_block(body_block);
 
         // Bind element: elem = arr[idx]
-        if let Some(elem_local) = elem_local {
-            let idx_for_access = self.builder.body.alloc_value(ValueData {
-                ty: usize_ty,
-                origin: ValueOrigin::Local(idx_local),
-                repr: ValueRepr::Word,
-            });
+        let idx_for_access = self.builder.body.alloc_value(ValueData {
+            ty: usize_ty,
+            origin: ValueOrigin::Local(idx_local),
+            repr: ValueRepr::Word,
+        });
 
-            let place = Place::new(
-                array_value,
-                MirProjectionPath::from_projection(Projection::Index(IndexSource::Dynamic(
-                    idx_for_access,
-                ))),
-            );
+        let place = Place::new(
+            array_value,
+            MirProjectionPath::from_projection(Projection::Index(IndexSource::Dynamic(
+                idx_for_access,
+            ))),
+        );
 
-            if self.is_by_ref_ty(elem_ty) {
-                let addr_space = self.value_address_space(array_value);
-                let elem_value = self.builder.body.alloc_value(ValueData {
-                    ty: elem_ty,
-                    origin: ValueOrigin::PlaceRef(place),
-                    repr: ValueRepr::Ref(addr_space),
-                });
-                self.assign(None, Some(elem_local), Rvalue::Value(elem_value));
-            } else {
-                self.assign(None, Some(elem_local), Rvalue::Load { place });
-            }
-        }
+        let elem_value = if self.is_by_ref_ty(elem_ty) {
+            let addr_space = self.value_address_space(array_value);
+            self.builder.body.alloc_value(ValueData {
+                ty: elem_ty,
+                origin: ValueOrigin::PlaceRef(place),
+                repr: ValueRepr::Ref(addr_space),
+            })
+        } else {
+            let dest = self.alloc_temp_local(elem_ty, false, "load");
+            self.assign(None, Some(dest), Rvalue::Load { place });
+            self.builder.body.alloc_value(ValueData {
+                ty: elem_ty,
+                origin: ValueOrigin::Local(dest),
+                repr: self.value_repr_for_ty(elem_ty, AddressSpaceKind::Memory),
+            })
+        };
+
+        self.bind_pat_value(pat, elem_value);
 
         // Execute the body
         let _ = self.lower_expr(body_expr);

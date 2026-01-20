@@ -797,8 +797,12 @@ impl<'db> TyChecker<'db> {
                                   provided_ty: TyId<'db>,
                                   required_mut: bool|
          -> Option<TyId<'db>> {
-            let effect_handle_inst =
-                TraitInstId::new(this.db, effect_handle_trait, vec![provided_ty], IndexMap::new());
+            let effect_handle_inst = TraitInstId::new(
+                this.db,
+                effect_handle_trait,
+                vec![provided_ty],
+                IndexMap::new(),
+            );
             let canonical_handle = Canonicalized::new(this.db, effect_handle_inst);
             let handle_sat = is_goal_satisfiable(
                 this.db,
@@ -811,8 +815,13 @@ impl<'db> TyChecker<'db> {
                 GoalSatisfiability::UnSat(_) | GoalSatisfiability::ContainsInvalid => provided_ty,
                 _ => {
                     let target_assoc = effect_handle_inst.assoc_ty(this.db, target_ident)?;
-                    normalize_ty(this.db, target_assoc, this.env.scope(), this.env.assumptions())
-                        .fold_with(this.db, &mut this.table)
+                    normalize_ty(
+                        this.db,
+                        target_assoc,
+                        this.env.scope(),
+                        this.env.assumptions(),
+                    )
+                    .fold_with(this.db, &mut this.table)
                 }
             };
 

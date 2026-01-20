@@ -3,6 +3,7 @@ use std::{
     hash::{Hash, Hasher},
 };
 
+use common::indexmap::IndexMap;
 use hir::analysis::ty::corelib::{resolve_core_trait, resolve_lib_type_path};
 use hir::analysis::{
     HirAnalysisDb,
@@ -19,7 +20,6 @@ use hir::analysis::{
     },
 };
 use hir::hir_def::{CallableDef, Func, IdentId, PathKind, item::ItemKind, scope_graph::ScopeId};
-use common::indexmap::IndexMap;
 use rustc_hash::FxHashMap;
 
 use crate::{

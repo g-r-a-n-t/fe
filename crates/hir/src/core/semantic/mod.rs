@@ -802,7 +802,12 @@ pub struct EffectBinding<'db> {
     pub source: EffectSource,
     pub binding_site: EffectParamSite<'db>,
     pub binding_idx: u32,
-    pub binding_key_path: PathId<'db>,
+    /// The path written at the binding site (e.g. `uses (ctx)` or `uses (mut store)`).
+    ///
+    /// Note: this is not necessarily the semantic "key path" that resolves to a type/trait; for
+    /// contract-scoped named imports, this is the import name, while the resolved key is captured
+    /// by `key_kind`/`key_ty`/`key_trait`.
+    pub binding_path: PathId<'db>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Update)]
@@ -989,7 +994,7 @@ impl<'db> Contract<'db> {
                     source: EffectSource::Root,
                     binding_site: contract_site,
                     binding_idx: idx as u32,
-                    binding_key_path: key_path,
+                    binding_path: key_path,
                 })
             })
             .collect()
@@ -1035,7 +1040,7 @@ impl<'db> Func<'db> {
                     source: EffectSource::Root,
                     binding_site: EffectParamSite::Func(self),
                     binding_idx: idx as u32,
-                    binding_key_path: key_path,
+                    binding_path: key_path,
                 })
             })
             .collect()
@@ -1085,7 +1090,7 @@ fn contract_scoped_effect_bindings<'db>(
                 source: EffectSource::Root,
                 binding_site: list_site,
                 binding_idx: idx as u32,
-                binding_key_path: key_path,
+                binding_path: key_path,
             });
             continue;
         }
@@ -1106,7 +1111,7 @@ fn contract_scoped_effect_bindings<'db>(
                 source: EffectSource::Field(field_idx),
                 binding_site: list_site,
                 binding_idx: idx as u32,
-                binding_key_path: key_path,
+                binding_path: key_path,
             });
             continue;
         }
@@ -1128,7 +1133,7 @@ fn contract_scoped_effect_bindings<'db>(
                 source: EffectSource::Root,
                 binding_site: list_site,
                 binding_idx: idx as u32,
-                binding_key_path: key_path,
+                binding_path: key_path,
             });
             continue;
         }
@@ -1149,7 +1154,7 @@ fn contract_scoped_effect_bindings<'db>(
             source: EffectSource::Root,
             binding_site: list_site,
             binding_idx: idx as u32,
-            binding_key_path: key_path,
+            binding_path: key_path,
         });
     }
 

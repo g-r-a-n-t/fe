@@ -1,9 +1,8 @@
 use crate::{
     analysis::place::Place,
     hir_def::{
-        Body, Contract, Expr, ExprId, Func, IdentId, IntegerId, ItemKind,
-        Partial, Pat, PatId, PathId, Stmt, StmtId, prim_ty::PrimTy,
-        scope_graph::ScopeId,
+        Body, Contract, Expr, ExprId, Func, IdentId, IntegerId, ItemKind, Partial, Pat, PatId,
+        PathId, Stmt, StmtId, prim_ty::PrimTy, scope_graph::ScopeId,
     },
     span::DynLazySpan,
 };
@@ -227,16 +226,16 @@ impl<'db> TyCheckEnv<'db> {
 
             let provided_ty = match kind {
                 EffectKeyKind::Trait => provider_ty,
-                EffectKeyKind::Type => match resolve_path(
-                    self.db,
-                    key_path,
-                    func.scope(),
-                    base_assumptions,
-                    false,
-                ) {
-                    Ok(PathRes::Ty(ty) | PathRes::TyAlias(_, ty)) if ty.is_star_kind(self.db) => ty,
-                    _ => TyId::invalid(self.db, InvalidCause::Other),
-                },
+                EffectKeyKind::Type => {
+                    match resolve_path(self.db, key_path, func.scope(), base_assumptions, false) {
+                        Ok(PathRes::Ty(ty) | PathRes::TyAlias(_, ty))
+                            if ty.is_star_kind(self.db) =>
+                        {
+                            ty
+                        }
+                        _ => TyId::invalid(self.db, InvalidCause::Other),
+                    }
+                }
                 EffectKeyKind::Other => unreachable!(),
             };
 
@@ -325,8 +324,7 @@ impl<'db> TyCheckEnv<'db> {
                 arm_idx,
                 ..
             } => {
-                let Some(arm) =
-                    contract.recv_arm(self.db, recv_idx as usize, arm_idx as usize)
+                let Some(arm) = contract.recv_arm(self.db, recv_idx as usize, arm_idx as usize)
                 else {
                     return;
                 };
@@ -340,13 +338,9 @@ impl<'db> TyCheckEnv<'db> {
             };
 
             if let Some(binding_name) = effect.name {
-                let Ok(path_res) = resolve_path(
-                    self.db,
-                    key_path,
-                    contract.scope(),
-                    assumptions,
-                    false,
-                ) else {
+                let Ok(path_res) =
+                    resolve_path(self.db, key_path, contract.scope(), assumptions, false)
+                else {
                     continue;
                 };
 
@@ -382,11 +376,9 @@ impl<'db> TyCheckEnv<'db> {
                     binding: Some(binding),
                 };
 
-                if let Some(key) = self.effect_key_for_path_in_scope(
-                    key_path,
-                    contract.scope(),
-                    assumptions,
-                ) {
+                if let Some(key) =
+                    self.effect_key_for_path_in_scope(key_path, contract.scope(), assumptions)
+                {
                     self.effect_env.insert(key, provided);
                 }
                 continue;

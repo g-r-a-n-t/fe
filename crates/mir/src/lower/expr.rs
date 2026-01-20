@@ -8,6 +8,7 @@ use hir::{
 
 use hir::analysis::ty::{
     binder::Binder,
+    effects::EffectKeyKind,
     fold::{AssocTySubst, TyFoldable},
     normalize::normalize_ty,
 };
@@ -873,22 +874,36 @@ impl<'db, 'a> MirBuilder<'db, 'a> {
     }
 
     fn effect_param_key_is_trait(&self, binding: LocalBinding<'db>) -> bool {
-        let LocalBinding::EffectParam { key_path, .. } = binding else {
+        let LocalBinding::EffectParam { site, idx, .. } = binding else {
             return false;
         };
-        let Ok(res) = hir::analysis::name_resolution::path_resolver::resolve_path(
-            self.db,
-            key_path,
-            self.owner.scope(),
-            PredicateListId::empty_list(self.db),
-            false,
-        ) else {
+        let idx = u32::try_from(idx).ok();
+        let Some(idx) = idx else {
             return false;
         };
+
+        let bindings = match site {
+            EffectParamSite::Func(func) => func.effect_bindings(self.db),
+            EffectParamSite::Contract(contract) => contract.effect_bindings(self.db),
+            EffectParamSite::ContractInit { contract } => contract.init_effect_bindings(self.db),
+            EffectParamSite::ContractRecvArm {
+                contract,
+                recv_idx,
+                arm_idx,
+            } => contract
+                .recv(self.db, recv_idx)
+                .unwrap()
+                .arm(self.db, arm_idx)
+                .unwrap()
+                .effective_effect_bindings(self.db),
+        };
+
         matches!(
-            res,
-            hir::analysis::name_resolution::path_resolver::PathRes::Trait(_)
-                | hir::analysis::name_resolution::path_resolver::PathRes::TraitMethod(..)
+            bindings
+                .iter()
+                .find(|binding| binding.binding_idx == idx)
+                .map(|binding| binding.key_kind),
+            Some(EffectKeyKind::Trait)
         )
     }
 

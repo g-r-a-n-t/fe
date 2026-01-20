@@ -13,8 +13,7 @@ use hir::analysis::{
         adt_def::AdtRef,
         trait_resolution::PredicateListId,
         ty_check::{
-            BodyOwner, EffectParamSite, LocalBinding, ParamSite, RecordLike, TypedBody,
-            check_func_body,
+            EffectParamSite, LocalBinding, ParamSite, RecordLike, TypedBody, check_func_body,
         },
         ty_def::{PrimTy, TyBase, TyData, TyId},
     },
@@ -254,7 +253,6 @@ pub(crate) fn lower_function<'db>(
 /// Stateful helper that incrementally constructs MIR while walking HIR.
 pub(super) struct MirBuilder<'db, 'a> {
     pub(super) db: &'db dyn SpannedHirAnalysisDb,
-    pub(super) owner: BodyOwner<'db>,
     pub(super) hir_func: Option<Func<'db>>,
     pub(super) body: Body<'db>,
     pub(super) typed_body: &'a TypedBody<'db>,
@@ -294,7 +292,6 @@ impl<'db, 'a> MirBuilder<'db, 'a> {
     #[allow(clippy::too_many_arguments)]
     fn new(
         db: &'db dyn SpannedHirAnalysisDb,
-        owner: BodyOwner<'db>,
         hir_func: Option<Func<'db>>,
         body: Body<'db>,
         typed_body: &'a TypedBody<'db>,
@@ -306,7 +303,6 @@ impl<'db, 'a> MirBuilder<'db, 'a> {
 
         let mut builder = Self {
             db,
-            owner,
             hir_func,
             body,
             typed_body,
@@ -340,7 +336,6 @@ impl<'db, 'a> MirBuilder<'db, 'a> {
         let return_ty = func.return_ty(db);
         Self::new(
             db,
-            BodyOwner::Func(func),
             Some(func),
             body,
             typed_body,
@@ -352,22 +347,12 @@ impl<'db, 'a> MirBuilder<'db, 'a> {
 
     fn new_for_body_owner(
         db: &'db dyn SpannedHirAnalysisDb,
-        owner: BodyOwner<'db>,
         body: Body<'db>,
         typed_body: &'a TypedBody<'db>,
         generic_args: &'a [TyId<'db>],
         return_ty: TyId<'db>,
     ) -> Result<Self, MirLowerError> {
-        Self::new(
-            db,
-            owner,
-            None,
-            body,
-            typed_body,
-            generic_args,
-            return_ty,
-            None,
-        )
+        Self::new(db, None, body, typed_body, generic_args, return_ty, None)
     }
 
     fn seed_synthetic_param_local(

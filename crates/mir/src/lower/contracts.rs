@@ -21,7 +21,7 @@ use hir::{
         diagnostics::SpannedHirAnalysisDb,
         ty::{
             fold::{TyFoldable, TyFolder},
-            ty_check::{BodyOwner, LocalBinding, ParamSite, TypedBody},
+            ty_check::{LocalBinding, ParamSite, TypedBody},
             ty_def::{InvalidCause, TyBase, TyData},
         },
     },
@@ -858,14 +858,8 @@ fn lower_init_handler<'db>(
     let effect_kinds = contract_effect_param_key_kinds(db, contract, init.effects(db));
     let concretized_typed_body =
         concretize_contract_root_effects(db, typed_body, root_effect_ty, effect_kinds);
-    let mut builder = MirBuilder::new_for_body_owner(
-        db,
-        BodyOwner::ContractInit { contract },
-        body,
-        &concretized_typed_body,
-        &[],
-        TyId::unit(db),
-    )?;
+    let mut builder =
+        MirBuilder::new_for_body_owner(db, body, &concretized_typed_body, &[], TyId::unit(db))?;
 
     // Seed explicit value params.
     for (idx, param) in init.params(db).data(db).iter().enumerate() {
@@ -968,18 +962,8 @@ fn lower_recv_arm_handler<'db>(
     let effect_kinds = contract_effect_param_key_kinds(db, contract, hir_arm.effects);
     let concretized_typed_body =
         concretize_contract_root_effects(db, typed_body, root_effect_ty, effect_kinds);
-    let mut builder = MirBuilder::new_for_body_owner(
-        db,
-        BodyOwner::ContractRecvArm {
-            contract,
-            recv_idx,
-            arm_idx,
-        },
-        body,
-        &concretized_typed_body,
-        &[],
-        ret_ty,
-    )?;
+    let mut builder =
+        MirBuilder::new_for_body_owner(db, body, &concretized_typed_body, &[], ret_ty)?;
 
     let args_local = builder.seed_synthetic_param_local("args".to_string(), args_ty, false, None);
 
@@ -1059,7 +1043,7 @@ fn seed_effect_param_locals<'db>(
             EffectSource::Root => LocalBinding::EffectParam {
                 site: effect.binding_site,
                 idx: effect.binding_idx as usize,
-                key_path: effect.binding_key_path,
+                key_path: effect.binding_path,
                 is_mut: effect.is_mut,
             },
             EffectSource::Field(field_idx) => {

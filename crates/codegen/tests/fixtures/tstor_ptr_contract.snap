@@ -7,7 +7,7 @@ object "GuardContract" {
   code {
     function $__GuardContract_init() {
       let v0 := $init_field__Evm_u256__5d0807bcb3704261(0, 0)
-      let v1 := $tstorptr_t__effectref_from_raw__bool__947c0c03c59c6f07(0)
+      let v1 := $tstorptr_t__effecthandle_from_raw__bool__947c0c03c59c6f07(0)
       let v2 := dataoffset("GuardContract_deployed")
       let v3 := datasize("GuardContract_deployed")
       let v4 := codesize()
@@ -94,15 +94,15 @@ object "GuardContract" {
       leave
     }
     function $stor_ptr__Evm_u256__5d0807bcb3704261($self, $slot) -> ret {
-      let v0 := $storptr_t__effectref_from_raw__u256__3271ca15373d4483($slot)
+      let v0 := $storptr_t__effecthandle_from_raw__u256__3271ca15373d4483($slot)
       ret := v0
       leave
     }
-    function $storptr_t__effectref_from_raw__u256__3271ca15373d4483($raw) -> ret {
+    function $storptr_t__effecthandle_from_raw__u256__3271ca15373d4483($raw) -> ret {
       ret := $raw
       leave
     }
-    function $tstorptr_t__effectref_from_raw__bool__947c0c03c59c6f07($raw) -> ret {
+    function $tstorptr_t__effecthandle_from_raw__bool__947c0c03c59c6f07($raw) -> ret {
       ret := $raw
       leave
     }
@@ -122,7 +122,7 @@ object "GuardContract" {
       }
       function $__GuardContract_runtime() {
         let v0 := $evm_contracthost_field__u256__3271ca15373d4483(0, 0)
-        let v1 := $tstorptr_t__effectref_from_raw__bool__947c0c03c59c6f07(0)
+        let v1 := $tstorptr_t__effecthandle_from_raw__bool__947c0c03c59c6f07(0)
         let v2 := $runtime_selector__Evm_Sol__2533f5c49b57a682(0)
         let v3 := $runtime_decoder__Evm_Sol__2533f5c49b57a682(0)
         switch v2
@@ -323,15 +323,15 @@ object "GuardContract" {
         leave
       }
       function $stor_ptr__Evm_u256__5d0807bcb3704261($self, $slot) -> ret {
-        let v0 := $storptr_t__effectref_from_raw__u256__3271ca15373d4483($slot)
+        let v0 := $storptr_t__effecthandle_from_raw__u256__3271ca15373d4483($slot)
         ret := v0
         leave
       }
-      function $storptr_t__effectref_from_raw__u256__3271ca15373d4483($raw) -> ret {
+      function $storptr_t__effecthandle_from_raw__u256__3271ca15373d4483($raw) -> ret {
         ret := $raw
         leave
       }
-      function $tstorptr_t__effectref_from_raw__bool__947c0c03c59c6f07($raw) -> ret {
+      function $tstorptr_t__effecthandle_from_raw__bool__947c0c03c59c6f07($raw) -> ret {
         ret := $raw
         leave
       }

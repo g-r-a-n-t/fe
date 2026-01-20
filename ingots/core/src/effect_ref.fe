@@ -1,11 +1,12 @@
 /// Effect reference traits.
 ///
-/// These traits provide a type-level interface for "effect providers" that act as
-/// references (pointers) to some underlying `Target` type.
+/// Fe models effects as implicit "provider" generic parameters. The `EffectRef<T>` marker traits
+/// express that a provider type can satisfy a read-only (or mutable) effect whose domain is `T`,
+/// while `EffectHandle` captures concrete pointer/handle providers with a runtime representation.
 ///
-/// Backends may define their own concrete provider types, but `core` also
-/// provides a small set of general-purpose provider types (`MemPtr<T>`,
-/// `StorPtr<T>`) that backends can map onto their runtime model.
+/// Backends may define their own concrete provider types, but `core` also provides a small set of
+/// general-purpose provider types (`MemPtr<T>`, `StorPtr<T>`) that backends can map onto their
+/// runtime model.
 
 /// Effect provider address-space marker.
 pub struct Memory {}
@@ -46,8 +47,16 @@ pub struct StorPtr<T> {
     handle: u256
 }
 
-/// Read-only effect reference: values implementing this trait can provide access to `Target`.
-pub trait EffectRef {
+/// Marker: `Self` can satisfy a read-only effect whose domain is `Target`.
+pub trait EffectRef<Target> {}
+
+/// Marker: `Self` can satisfy a *mutable* effect whose domain is `Target`.
+pub trait EffectRefMut<Target>: EffectRef<Target> {}
+
+/// A concrete pointer/handle provider with a runtime representation.
+///
+/// This is the place to keep `from_raw`/`raw` and address-space metadata.
+pub trait EffectHandle {
     type Target
     type AddressSpace
 
@@ -58,10 +67,14 @@ pub trait EffectRef {
     fn raw(self) -> u256
 }
 
-/// Mutable effect reference: values implementing this trait can provide mutable access to `Target`.
-pub trait EffectRefMut: EffectRef {}
+/// Marker: a handle that supports mutable access.
+pub trait EffectHandleMut: EffectHandle {}
 
-impl<T> EffectRef for MemPtr<T> {
+impl<T> EffectRef<T> for T {}
+// Mutability is checked at the term level.
+impl<T> EffectRefMut<T> for T {}
+
+impl<T> EffectHandle for MemPtr<T> {
     type Target = T
     type AddressSpace = Memory
 
@@ -73,9 +86,12 @@ impl<T> EffectRef for MemPtr<T> {
         self.addr
     }
 }
-impl<T> EffectRefMut for MemPtr<T> {}
+impl<T> EffectHandleMut for MemPtr<T> {}
 
-impl<T> EffectRef for StorPtr<T> {
+impl<T> EffectRef<T> for MemPtr<T> {}
+impl<T> EffectRefMut<T> for MemPtr<T> {}
+
+impl<T> EffectHandle for StorPtr<T> {
     type Target = T
     type AddressSpace = Storage
 
@@ -87,4 +103,7 @@ impl<T> EffectRef for StorPtr<T> {
         self.handle
     }
 }
-impl<T> EffectRefMut for StorPtr<T> {}
+impl<T> EffectHandleMut for StorPtr<T> {}
+
+impl<T> EffectRef<T> for StorPtr<T> {}
+impl<T> EffectRefMut<T> for StorPtr<T> {}

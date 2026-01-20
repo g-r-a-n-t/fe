@@ -3,7 +3,7 @@ use std::{
     hash::{Hash, Hasher},
 };
 
-use hir::analysis::ty::corelib::resolve_lib_type_path;
+use hir::analysis::ty::corelib::{resolve_core_trait, resolve_lib_type_path};
 use hir::analysis::{
     HirAnalysisDb,
     diagnostics::SpannedHirAnalysisDb,
@@ -12,13 +12,14 @@ use hir::analysis::{
         const_ty::ConstTyData,
         fold::{TyFoldable, TyFolder},
         normalize::normalize_ty,
-        trait_def::resolve_trait_method_instance,
+        trait_def::{TraitInstId, resolve_trait_method_instance},
         trait_resolution::PredicateListId,
         ty_check::check_func_body,
         ty_def::{TyData, TyId},
     },
 };
-use hir::hir_def::{CallableDef, Func, PathKind, item::ItemKind, scope_graph::ScopeId};
+use hir::hir_def::{CallableDef, Func, IdentId, PathKind, item::ItemKind, scope_graph::ScopeId};
+use common::indexmap::IndexMap;
 use rustc_hash::FxHashMap;
 
 use crate::{
@@ -78,6 +79,23 @@ enum CallTarget<'db> {
     Decl(Func<'db>),
     /// The callee is a MIR-synthetic function.
     Synthetic(crate::ir::MirFunctionOrigin<'db>),
+}
+
+fn resolve_default_root_effect_ty<'db>(
+    db: &'db dyn HirAnalysisDb,
+    scope: ScopeId<'db>,
+    assumptions: PredicateListId<'db>,
+) -> Option<TyId<'db>> {
+    let target_ty = resolve_lib_type_path(db, scope, "std::evm::EvmTarget")?;
+    let target_trait = resolve_core_trait(db, scope, &["contracts", "Target"]);
+    let inst_target = TraitInstId::new(db, target_trait, vec![target_ty], IndexMap::new());
+    let root_ident = IdentId::new(db, "RootEffect".to_owned());
+    Some(normalize_ty(
+        db,
+        TyId::assoc_ty(db, inst_target, root_ident),
+        scope,
+        assumptions,
+    ))
 }
 
 impl<'db> InstanceKey<'db> {
@@ -177,6 +195,7 @@ impl<'db> Monomorphizer<'db> {
 
             let mut args = Vec::with_capacity(provider_param_count);
             let assumptions = PredicateListId::empty_list(self.db);
+            let root_effect_ty = resolve_default_root_effect_ty(self.db, func.scope(), assumptions);
             for effect in func.effect_params(self.db) {
                 let Some(key_path) = effect.key_path(self.db) else {
                     continue;
@@ -190,15 +209,22 @@ impl<'db> Monomorphizer<'db> {
                 ) else {
                     continue;
                 };
-                let target_ty = match path_res {
+                match path_res {
                     hir::analysis::name_resolution::PathRes::Ty(ty)
-                    | hir::analysis::name_resolution::PathRes::TyAlias(_, ty) => ty,
+                    | hir::analysis::name_resolution::PathRes::TyAlias(_, ty) => {
+                        if !ty.is_star_kind(self.db) {
+                            continue;
+                        }
+                        args.push(TyId::app(self.db, stor_ptr_ctor, ty));
+                    }
+                    hir::analysis::name_resolution::PathRes::Trait(_) => {
+                        let Some(root_effect_ty) = root_effect_ty else {
+                            continue;
+                        };
+                        args.push(root_effect_ty);
+                    }
                     _ => continue,
-                };
-                if !target_ty.is_star_kind(self.db) {
-                    continue;
                 }
-                args.push(TyId::app(self.db, stor_ptr_ctor, target_ty));
             }
 
             if args.len() == provider_param_count {

@@ -122,11 +122,11 @@ object "EchoContract" {
       leave
     }
     function $stor_ptr__Evm_Foo__c3089d776807df8e($self, $slot) -> ret {
-      let v0 := $storptr_t__effectref_from_raw__Foo__668f96d7165c93b($slot)
+      let v0 := $storptr_t__effecthandle_from_raw__Foo__668f96d7165c93b($slot)
       ret := v0
       leave
     }
-    function $storptr_t__effectref_from_raw__Foo__668f96d7165c93b($raw) -> ret {
+    function $storptr_t__effecthandle_from_raw__Foo__668f96d7165c93b($raw) -> ret {
       ret := $raw
       leave
     }
@@ -381,11 +381,11 @@ object "EchoContract" {
         leave
       }
       function $stor_ptr__Evm_Foo__c3089d776807df8e($self, $slot) -> ret {
-        let v0 := $storptr_t__effectref_from_raw__Foo__668f96d7165c93b($slot)
+        let v0 := $storptr_t__effecthandle_from_raw__Foo__668f96d7165c93b($slot)
         ret := v0
         leave
       }
-      function $storptr_t__effectref_from_raw__Foo__668f96d7165c93b($raw) -> ret {
+      function $storptr_t__effecthandle_from_raw__Foo__668f96d7165c93b($raw) -> ret {
         ret := $raw
         leave
       }

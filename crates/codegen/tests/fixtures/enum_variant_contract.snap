@@ -16,7 +16,7 @@ object "EnumContract" {
 
   object "EnumContract_deployed" {
     code {
-      function $abi_encode_u256($value, $ops) {
+      function $abi_encode_u256__Evm__1572a3ac6cae1070($value, $ops) {
         let v0 := 0
         mstore(v0, $value)
         return(v0, 32)
@@ -48,7 +48,7 @@ object "EnumContract" {
             default {
             }
           let v9 := v5
-          $abi_encode_u256(v9, 0)
+          $abi_encode_u256__Evm__1572a3ac6cae1070(v9, 0)
         }
         if iszero(v2) {
           let v10 := eq(v1, 1163776883)
@@ -73,7 +73,7 @@ object "EnumContract" {
               default {
               }
             let v16 := v12
-            $abi_encode_u256(v16, 0)
+            $abi_encode_u256__Evm__1572a3ac6cae1070(v16, 0)
           }
           if iszero(v10) {
             let v17 := eq(v1, 3572425762)
@@ -100,7 +100,7 @@ object "EnumContract" {
               default {
               }
             let v22 := v20
-            $abi_encode_u256(v22, 0)
+            $abi_encode_u256__Evm__1572a3ac6cae1070(v22, 0)
           }
         }
       }

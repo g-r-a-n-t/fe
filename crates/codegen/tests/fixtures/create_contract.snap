@@ -512,11 +512,11 @@ object "Factory" {
           leave
         }
         function $stor_ptr__Evm_Pair__9b3d1e5de783f256($self, $slot) -> ret {
-          let v0 := $storptr_t__effectref_from_raw__Pair__f889f9d568bc82f1($slot)
+          let v0 := $storptr_t__effecthandle_from_raw__Pair__f889f9d568bc82f1($slot)
           ret := v0
           leave
         }
-        function $storptr_t__effectref_from_raw__Pair__f889f9d568bc82f1($raw) -> ret {
+        function $storptr_t__effecthandle_from_raw__Pair__f889f9d568bc82f1($raw) -> ret {
           ret := $raw
           leave
         }
@@ -637,11 +637,11 @@ object "Factory" {
             leave
           }
           function $stor_ptr__Evm_Pair__9b3d1e5de783f256($self, $slot) -> ret {
-            let v0 := $storptr_t__effectref_from_raw__Pair__f889f9d568bc82f1($slot)
+            let v0 := $storptr_t__effecthandle_from_raw__Pair__f889f9d568bc82f1($slot)
             ret := v0
             leave
           }
-          function $storptr_t__effectref_from_raw__Pair__f889f9d568bc82f1($raw) -> ret {
+          function $storptr_t__effecthandle_from_raw__Pair__f889f9d568bc82f1($raw) -> ret {
             ret := $raw
             leave
           }

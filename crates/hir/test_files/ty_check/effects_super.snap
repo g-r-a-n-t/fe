@@ -150,7 +150,7 @@ note:
    ┌─ effects_super.fe:47:5
    │
 47 │     mem.store(offset: x, value: ctx.caller())
-   │     ^^^ mem: Mem
+   │     ^^^ __effprov1
 
 note: 
    ┌─ effects_super.fe:47:5
@@ -168,7 +168,7 @@ note:
    ┌─ effects_super.fe:47:33
    │
 47 │     mem.store(offset: x, value: ctx.caller())
-   │                                 ^^^ ctx: Ctx
+   │                                 ^^^ __effprov0
 
 note: 
    ┌─ effects_super.fe:47:33
@@ -180,7 +180,7 @@ note:
    ┌─ effects_super.fe:48:5
    │
 48 │     sto.store(slot: x, value: 100)
-   │     ^^^ sto: Storage
+   │     ^^^ __effprov2
 
 note: 
    ┌─ effects_super.fe:48:5
@@ -204,7 +204,7 @@ note:
    ┌─ effects_super.fe:49:5
    │
 49 │     sto.load(slot: x)
-   │     ^^^ sto: Storage
+   │     ^^^ __effprov2
 
 note: 
    ┌─ effects_super.fe:49:5

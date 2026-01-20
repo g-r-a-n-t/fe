@@ -155,8 +155,8 @@ struct TargetHostContext<'db> {
     init_input_ty: TyId<'db>,
     input_ty: TyId<'db>,
     alloc_fn: Func<'db>,
-    effect_ref_trait: Trait<'db>,
-    effect_ref_from_raw_fn: Func<'db>,
+    effect_handle_trait: Trait<'db>,
+    effect_handle_from_raw_fn: Func<'db>,
     field_fn: Func<'db>,
     init_field_fn: Func<'db>,
     runtime_selector_fn: Func<'db>,
@@ -229,12 +229,12 @@ impl<'db> TargetHostContext<'db> {
             resolve_assoc_ty(db, contract_host_inst, scope, assumptions, "InitInput");
         let input_ty = resolve_assoc_ty(db, contract_host_inst, scope, assumptions, "Input");
 
-        let effect_ref_trait = resolve_core_trait(db, scope, &["effect_ref", "EffectRef"])
+        let effect_handle_trait =  resolve_core_trait(db, scope, &["effect_ref", "EffectHandle"])
             .ok_or_else(|| MirLowerError::Unsupported {
                 func_name: "<contract lowering>".into(),
                 message: "missing core trait `effect_ref::EffectRef`".into(),
             })?;
-        let effect_ref_from_raw = require_trait_method(db, effect_ref_trait, "from_raw")?;
+        let effect_handle_from_raw = require_trait_method(db, effect_handle_trait, "from_raw")?;
 
         let alloc_func = resolve_value_func_path(db, top_mod, scope, spec.alloc_func_path)?;
 
@@ -254,8 +254,8 @@ impl<'db> TargetHostContext<'db> {
             init_input_ty,
             input_ty,
             alloc_fn: alloc_func,
-            effect_ref_trait,
-            effect_ref_from_raw_fn: effect_ref_from_raw,
+            effect_handle_trait,
+            effect_handle_from_raw_fn: effect_handle_from_raw,
             field_fn: host_field,
             init_field_fn: host_init_field,
             runtime_selector_fn: host_runtime_selector,
@@ -509,12 +509,12 @@ impl<'db, 'a> ContractMirCx<'db, 'a> {
         if is_provider {
             let inst = TraitInstId::new(
                 self.db,
-                self.host.effect_ref_trait,
+                self.host.effect_handle_trait,
                 vec![declared_ty],
                 IndexMap::new(),
             );
             return self.call_hir(
-                CallableDef::Func(self.host.effect_ref_from_raw_fn),
+                CallableDef::Func(self.host.effect_handle_from_raw_fn),
                 inst.args(self.db).to_vec(),
                 Some(inst),
                 vec![slot_value],

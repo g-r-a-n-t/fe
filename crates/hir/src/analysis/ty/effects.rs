@@ -23,15 +23,24 @@ pub(crate) fn effect_key_kind<'db>(
     key_path: PathId<'db>,
     scope: ScopeId<'db>,
 ) -> EffectKeyKind {
-    // Avoid recursive generic-arg lowering cycles by resolving the key without its generic args.
     let assumptions = PredicateListId::empty_list(db);
-    let key_path = key_path.strip_generic_args(db);
+    let stripped_path = key_path.strip_generic_args(db);
 
-    match resolve_path(db, key_path, scope, assumptions, false) {
+    let classify = |res| match res {
         Ok(PathRes::Ty(_) | PathRes::TyAlias(_, _)) => EffectKeyKind::Type,
-        Ok(PathRes::Trait(_)) => EffectKeyKind::Trait,
+        Ok(PathRes::Trait(_) | PathRes::TraitMethod(..)) => EffectKeyKind::Trait,
         _ => EffectKeyKind::Other,
+    };
+
+    // Prefer classifying the key without lowering generic args to avoid recursive generic-arg
+    // lowering cycles. If that fails (e.g., generic traits/types that require args), fall back to
+    // resolving the full key path.
+    let kind = classify(resolve_path(db, stripped_path, scope, assumptions, false));
+    if kind != EffectKeyKind::Other {
+        return kind;
     }
+
+    classify(resolve_path(db, key_path, scope, assumptions, false))
 }
 
 fn effect_key_kind_cycle_initial<'db>(
@@ -54,7 +63,7 @@ fn effect_key_kind_cycle_recover<'db>(
 
 /// Returns a per-effect mapping from effect index → hidden provider generic-arg index.
 ///
-/// For non-type effects (trait effects) the entry is `None`.
+/// Effects whose keys are neither a type nor a trait have `None` entries.
 #[salsa::tracked(return_ref)]
 pub fn place_effect_provider_param_index_map<'db>(
     db: &'db dyn HirAnalysisDb,
@@ -80,7 +89,7 @@ pub fn place_effect_provider_param_index_map<'db>(
         };
         if !matches!(
             effect_key_kind(db, key_path, func.scope()),
-            EffectKeyKind::Type
+            EffectKeyKind::Type | EffectKeyKind::Trait
         ) {
             continue;
         }

@@ -1,4 +1,4 @@
-use core::effect_ref::{EffectRef, EffectRefMut}
+use core::effect_ref::{EffectHandle, EffectHandleMut, EffectRef, EffectRefMut}
 use core::{size_of}
 use core::abi::{Abi, AbiDecoder, AbiEncoder, AbiSize, Decode, Encode}
 use core::contracts::ContractHost
@@ -71,7 +71,7 @@ pub struct CalldataPtr<T> {
     pub offset: u256
 }
 
-impl<T> EffectRef for CalldataPtr<T> {
+impl<T> EffectHandle for CalldataPtr<T> {
     type Target = T
     type AddressSpace = core::effect_ref::Calldata
 
@@ -84,6 +84,9 @@ impl<T> EffectRef for CalldataPtr<T> {
     }
 }
 
+impl<T> EffectRef<T> for CalldataPtr<T> {}
+// no EffectRefMut for calldata
+
 /// Transient storage pointer/handle to a value of type `T`.
 ///
 /// This is like `StorPtr<T>`, but reads/writes are intended to compile to
@@ -92,7 +95,7 @@ pub struct TStorPtr<T> {
     pub slot: u256
 }
 
-impl<T> EffectRef for TStorPtr<T> {
+impl<T> EffectHandle for TStorPtr<T> {
     type Target = T
     type AddressSpace = core::effect_ref::TransientStorage
 
@@ -105,7 +108,10 @@ impl<T> EffectRef for TStorPtr<T> {
     }
 }
 
-impl<T> EffectRefMut for TStorPtr<T> {}
+impl<T> EffectHandleMut for TStorPtr<T> {}
+
+impl<T> EffectRef<T> for TStorPtr<T> {}
+impl<T> EffectRefMut<T> for TStorPtr<T> {}
 
 // -----------------------------------------------------------------------------
 // EVM effects

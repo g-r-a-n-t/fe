@@ -103,16 +103,16 @@ object "NewtypeStorageFieldMutMethodCall" {
       leave
     }
     function $stor_ptr__Evm_Wrap__321e432d5b6fc018($self, $slot) -> ret {
-      let v0 := $storptr_t__effectref_from_raw__u256__3271ca15373d4483($slot)
+      let v0 := $storptr_t__effecthandle_from_raw__u256__3271ca15373d4483($slot)
       ret := v0
       leave
     }
     function $stor_ptr__Evm_u256__5d0807bcb3704261($self, $slot) -> ret {
-      let v0 := $storptr_t__effectref_from_raw__u256__3271ca15373d4483($slot)
+      let v0 := $storptr_t__effecthandle_from_raw__u256__3271ca15373d4483($slot)
       ret := v0
       leave
     }
-    function $storptr_t__effectref_from_raw__u256__3271ca15373d4483($raw) -> ret {
+    function $storptr_t__effecthandle_from_raw__u256__3271ca15373d4483($raw) -> ret {
       ret := $raw
       leave
     }
@@ -327,16 +327,16 @@ object "NewtypeStorageFieldMutMethodCall" {
         leave
       }
       function $stor_ptr__Evm_Wrap__321e432d5b6fc018($self, $slot) -> ret {
-        let v0 := $storptr_t__effectref_from_raw__u256__3271ca15373d4483($slot)
+        let v0 := $storptr_t__effecthandle_from_raw__u256__3271ca15373d4483($slot)
         ret := v0
         leave
       }
       function $stor_ptr__Evm_u256__5d0807bcb3704261($self, $slot) -> ret {
-        let v0 := $storptr_t__effectref_from_raw__u256__3271ca15373d4483($slot)
+        let v0 := $storptr_t__effecthandle_from_raw__u256__3271ca15373d4483($slot)
         ret := v0
         leave
       }
-      function $storptr_t__effectref_from_raw__u256__3271ca15373d4483($raw) -> ret {
+      function $storptr_t__effecthandle_from_raw__u256__3271ca15373d4483($raw) -> ret {
         ret := $raw
         leave
       }

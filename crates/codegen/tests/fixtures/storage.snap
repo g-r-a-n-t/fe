@@ -16,7 +16,7 @@ object "Coin" {
 
   object "Coin_deployed" {
     code {
-      function $abi_encode($value, $ops) {
+      function $abi_encode__Evm__1572a3ac6cae1070($value, $ops) {
         let v0 := 0
         mstore(v0, $value)
         return(v0, 32)
@@ -75,12 +75,12 @@ object "Coin" {
                 v8 := v10
               }
             let v11 := v8
-            $abi_encode(v11, 0)
+            $abi_encode__Evm__1572a3ac6cae1070(v11, 0)
           }
           case 1818602213 {
             let v12 := calldataload(4)
             let v13 := $balance_of_raw__StorPtr_CoinStore___ba1c0d0726e89ba2(v12, v2)
-            $abi_encode(v13, 0)
+            $abi_encode__Evm__1572a3ac6cae1070(v13, 0)
           }
           case 217554442 {
             let v14 := calldataload(4)
@@ -97,27 +97,27 @@ object "Coin" {
               }
             let v19 := v16
             let v20 := $transfer_result_code(v19)
-            $abi_encode(v20, 0)
+            $abi_encode__Evm__1572a3ac6cae1070(v20, 0)
           }
           case 960555502 {
             let v21 := $total_supply__StorPtr_TotalSupply___2e654c25952f42f9(v3)
-            $abi_encode(v21, 0)
+            $abi_encode__Evm__1572a3ac6cae1070(v21, 0)
           }
           default {
             return(0, 0)
           }
       }
       function $stor_ptr__Evm_CoinStore__d1ec7298de486d2f($self, $slot) -> ret {
-        let v0 := $storptr_t__effectref_from_raw__CoinStore__fc61705bf538fde2($slot)
+        let v0 := $storptr_t__effecthandle_from_raw__CoinStore__fc61705bf538fde2($slot)
         ret := v0
         leave
       }
       function $stor_ptr__Evm_TotalSupply__b0f1a753085dcbd($self, $slot) -> ret {
-        let v0 := $storptr_t__effectref_from_raw__CoinStore__fc61705bf538fde2($slot)
+        let v0 := $storptr_t__effecthandle_from_raw__CoinStore__fc61705bf538fde2($slot)
         ret := v0
         leave
       }
-      function $storptr_t__effectref_from_raw__CoinStore__fc61705bf538fde2($raw) -> ret {
+      function $storptr_t__effecthandle_from_raw__CoinStore__fc61705bf538fde2($raw) -> ret {
         ret := $raw
         leave
       }

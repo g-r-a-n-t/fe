@@ -757,6 +757,8 @@ impl<'db> TyChecker<'db> {
         else {
             return Vec::new();
         };
+        let effect_handle_trait =
+            resolve_core_trait(self.db, self.env.scope(), &["effect_ref", "EffectHandle"]);
         let target_ident = IdentId::new(self.db, "Target".to_string());
 
         let callee_provider_arg_idx_by_effect =
@@ -795,10 +797,29 @@ impl<'db> TyChecker<'db> {
                                   provided_ty: TyId<'db>,
                                   required_mut: bool|
          -> Option<TyId<'db>> {
+            let effect_handle_inst =
+                TraitInstId::new(this.db, effect_handle_trait, vec![provided_ty], IndexMap::new());
+            let canonical_handle = Canonicalized::new(this.db, effect_handle_inst);
+            let handle_sat = is_goal_satisfiable(
+                this.db,
+                ingot,
+                canonical_handle.value,
+                this.env.assumptions(),
+            );
+
+            let target_ty = match handle_sat {
+                GoalSatisfiability::UnSat(_) | GoalSatisfiability::ContainsInvalid => provided_ty,
+                _ => {
+                    let target_assoc = effect_handle_inst.assoc_ty(this.db, target_ident)?;
+                    normalize_ty(this.db, target_assoc, this.env.scope(), this.env.assumptions())
+                        .fold_with(this.db, &mut this.table)
+                }
+            };
+
             let effect_ref_inst = TraitInstId::new(
                 this.db,
                 effect_ref_trait,
-                vec![provided_ty],
+                vec![provided_ty, target_ty],
                 IndexMap::new(),
             );
             let canonical_ref = Canonicalized::new(this.db, effect_ref_inst);
@@ -815,7 +836,7 @@ impl<'db> TyChecker<'db> {
                 let effect_ref_mut_inst = TraitInstId::new(
                     this.db,
                     effect_ref_mut_trait,
-                    vec![provided_ty],
+                    vec![provided_ty, target_ty],
                     IndexMap::new(),
                 );
                 let canonical_mut = Canonicalized::new(this.db, effect_ref_mut_inst);
@@ -833,14 +854,6 @@ impl<'db> TyChecker<'db> {
                 }
             }
 
-            let target_assoc = effect_ref_inst.assoc_ty(this.db, target_ident)?;
-            let target_ty = normalize_ty(
-                this.db,
-                target_assoc,
-                this.env.scope(),
-                this.env.assumptions(),
-            )
-            .fold_with(this.db, &mut this.table);
             Some(target_ty)
         };
 
@@ -863,15 +876,10 @@ impl<'db> TyChecker<'db> {
                 continue;
             }
 
-            let provider_arg_idx_for_param = match path_res {
-                PathRes::Ty(ty) | PathRes::TyAlias(_, ty) if ty.is_star_kind(self.db) => {
-                    callee_provider_arg_idx_by_effect
-                        .get(effect.index())
-                        .copied()
-                        .flatten()
-                }
-                _ => None,
-            };
+            let provider_arg_idx_for_param = callee_provider_arg_idx_by_effect
+                .get(effect.index())
+                .copied()
+                .flatten();
 
             let candidate_frames = self.env.effect_candidate_frames_in_scope(
                 key_path,
@@ -931,6 +939,13 @@ impl<'db> TyChecker<'db> {
                                 provider_target_ty(self, provided.ty, required_mut)
                                 && can_unify(self, expected, target_ty)
                             {
+                                if required_mut
+                                    && self.table.fold_ty(self.db, target_ty)
+                                        == self.table.fold_ty(self.db, provided.ty)
+                                    && !provided.is_mut
+                                {
+                                    continue;
+                                }
                                 viable.push((
                                     provided,
                                     EffectRequirement::Type(expected),
@@ -1163,11 +1178,14 @@ impl<'db> TyChecker<'db> {
                 continue;
             }
 
-            // If the caller supplies a concrete provider value (e.g. `MemPtr<T>`), unify it with
-            // the callee's hidden provider generic argument now so later stages don't have to
-            // re-infer it from expression types.
+            // If the caller supplies a concrete provider value, unify it with the callee's hidden
+            // provider generic argument now so later stages don't have to re-infer it from
+            // expression types.
             if let Some(provider_arg_idx) = provider_arg_idx_for_param
-                && matches!(satisfaction, EffectSatisfaction::Provider { .. })
+                && matches!(
+                    satisfaction,
+                    EffectSatisfaction::Provider { .. } | EffectSatisfaction::TraitByValue
+                )
                 && let Some(provider_var) = callable.generic_args().get(provider_arg_idx).copied()
             {
                 let existing_provider = self.table.fold_ty(self.db, provider_var);

@@ -445,9 +445,9 @@ impl<'db> GenericParamCollector<'db> {
             _ => vec![],
         };
 
-        // For each type effect parameter `uses (T)` / `uses (mut T)`, insert an implicit generic
-        // parameter that carries the "provider type" (e.g. `MemPtr<T>` / `StorPtr<T>`). This
-        // allows monomorphization to treat type-effect domains as normal generic arguments.
+        // For each effect parameter, insert an implicit generic parameter that carries the
+        // concrete "provider type". This allows monomorphization to treat effects as ordinary
+        // implicit generics and substitute a concrete provider at call sites.
         if let GenericParamOwner::Func(func) = owner {
             let mut provider_idx = 0usize;
             for effect in func.effect_params(db) {
@@ -456,7 +456,7 @@ impl<'db> GenericParamCollector<'db> {
                 };
                 if !matches!(
                     effect_key_kind(db, key_path, func.scope()),
-                    EffectKeyKind::Type
+                    EffectKeyKind::Type | EffectKeyKind::Trait
                 ) {
                     continue;
                 }

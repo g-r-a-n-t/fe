@@ -10,11 +10,13 @@ use hir::analysis::{
     diagnostics::SpannedHirAnalysisDb,
     diagnostics::format_diags,
     ty::{
+        canonical::Canonicalized,
         const_ty::ConstTyData,
+        effects::EffectKeyKind,
         fold::{TyFoldable, TyFolder},
         normalize::normalize_ty,
         trait_def::{TraitInstId, resolve_trait_method_instance},
-        trait_resolution::PredicateListId,
+        trait_resolution::{GoalSatisfiability, PredicateListId, is_goal_satisfiable},
         ty_check::check_func_body,
         ty_def::{TyData, TyId},
     },
@@ -196,38 +198,58 @@ impl<'db> Monomorphizer<'db> {
             let mut args = Vec::with_capacity(provider_param_count);
             let assumptions = PredicateListId::empty_list(self.db);
             let root_effect_ty = resolve_default_root_effect_ty(self.db, func.scope(), assumptions);
-            for effect in func.effect_params(self.db) {
-                let Some(key_path) = effect.key_path(self.db) else {
-                    continue;
-                };
-                let Ok(path_res) = hir::analysis::name_resolution::resolve_path(
-                    self.db,
-                    key_path,
-                    func.scope(),
-                    assumptions,
-                    false,
-                ) else {
-                    continue;
-                };
-                match path_res {
-                    hir::analysis::name_resolution::PathRes::Ty(ty)
-                    | hir::analysis::name_resolution::PathRes::TyAlias(_, ty) => {
+            let mut can_seed = true;
+            for binding in func.effect_bindings(self.db) {
+                match binding.key_kind {
+                    EffectKeyKind::Type => {
+                        let Some(ty) = binding.key_ty else {
+                            continue;
+                        };
                         if !ty.is_star_kind(self.db) {
                             continue;
                         }
                         args.push(TyId::app(self.db, stor_ptr_ctor, ty));
                     }
-                    hir::analysis::name_resolution::PathRes::Trait(_) => {
+                    EffectKeyKind::Trait => {
                         let Some(root_effect_ty) = root_effect_ty else {
-                            continue;
+                            can_seed = false;
+                            break;
                         };
+                        let Some(key_trait) = binding.key_trait else {
+                            can_seed = false;
+                            break;
+                        };
+                        let mut trait_args = key_trait.args(self.db).to_vec();
+                        if trait_args.is_empty() {
+                            can_seed = false;
+                            break;
+                        }
+                        trait_args[0] = root_effect_ty;
+                        let goal = Canonicalized::new(
+                            self.db,
+                            TraitInstId::new(
+                                self.db,
+                                key_trait.def(self.db),
+                                trait_args,
+                                key_trait.assoc_type_bindings(self.db).clone(),
+                            ),
+                        )
+                        .value;
+                        let ingot = func.top_mod(self.db).ingot(self.db);
+                        if !matches!(
+                            is_goal_satisfiable(self.db, ingot, goal, assumptions),
+                            GoalSatisfiability::Satisfied(_)
+                        ) {
+                            can_seed = false;
+                            break;
+                        }
                         args.push(root_effect_ty);
                     }
-                    _ => continue,
+                    EffectKeyKind::Other => continue,
                 }
             }
 
-            if args.len() == provider_param_count {
+            if can_seed && args.len() == provider_param_count {
                 let _ = self.ensure_instance(func, &args, receiver_space);
             }
         }

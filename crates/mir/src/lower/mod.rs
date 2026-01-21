@@ -406,10 +406,21 @@ impl<'db, 'a> MirBuilder<'db, 'a> {
                 .copied()
                 .flatten()
                 && let Some(provider_ty) = self.generic_args.get(provider_arg_idx).copied()
-                && let Some(space) = self.effect_provider_space_for_provider_ty(provider_ty)
             {
-                spaces[effect_idx] = space;
-                continue;
+                if let Some(space) = self.effect_provider_space_for_provider_ty(provider_ty) {
+                    spaces[effect_idx] = space;
+                    continue;
+                }
+
+                // By-ref provider values are passed as pointers; default to memory so callers and
+                // callees agree on the address space for projections.
+                if matches!(
+                    crate::repr::repr_kind_for_ty(self.db, &self.core, provider_ty),
+                    crate::repr::ReprKind::Ref
+                ) {
+                    spaces[effect_idx] = AddressSpaceKind::Memory;
+                    continue;
+                }
             }
 
             if let Some(provider_ty) = self

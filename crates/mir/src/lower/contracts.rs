@@ -9,8 +9,8 @@ use hir::{
         HirAnalysisDb,
         name_resolution::{PathRes, resolve_path},
         ty::{
-            corelib::resolve_core_trait, effects::EffectKeyKind, normalize::normalize_ty,
-            trait_def::TraitInstId, trait_resolution::PredicateListId, ty_def::TyId,
+            corelib::resolve_core_trait, normalize::normalize_ty, trait_def::TraitInstId,
+            trait_resolution::PredicateListId, ty_def::TyId,
         },
     },
     hir_def::{Func, Trait, scope_graph::ScopeId},
@@ -20,13 +20,12 @@ use hir::{
     analysis::{
         diagnostics::SpannedHirAnalysisDb,
         ty::{
-            fold::{TyFoldable, TyFolder},
-            ty_check::{LocalBinding, ParamSite, TypedBody},
+            ty_check::{LocalBinding, ParamSite},
             ty_def::{InvalidCause, TyBase, TyData},
         },
     },
     hir_def::{
-        CallableDef, Contract, EffectParamListId, IdentId, PathId, TopLevelMod,
+        CallableDef, Contract, IdentId, PathId, TopLevelMod,
         expr::{ArithBinOp, BinOp, CompBinOp},
     },
 };
@@ -64,13 +63,7 @@ pub(super) fn lower_contract_templates<'db>(
 
         // User-body handlers first (so entrypoints can call them by symbol).
         if contract.init(db).is_some() {
-            out.push(lower_init_handler(
-                db,
-                contract,
-                &symbols,
-                &core_lib,
-                target.host.root_effect_ty,
-            )?);
+            out.push(lower_init_handler(db, contract, &symbols, &core_lib)?);
         }
         for recv in contract.recv_views(db) {
             for arm in recv.arms(db) {
@@ -81,7 +74,6 @@ pub(super) fn lower_contract_templates<'db>(
                     target.abi.abi_ty,
                     &symbols,
                     &core_lib,
-                    target.host.root_effect_ty,
                 )?);
             }
         }
@@ -778,69 +770,11 @@ fn compute_field_slot_offsets<'db>(
     Ok(out)
 }
 
-fn concretize_contract_root_effects<'db>(
-    db: &'db dyn HirAnalysisDb,
-    typed_body: &TypedBody<'db>,
-    root_effect_ty: TyId<'db>,
-    effect_kinds: Vec<EffectKeyKind>,
-) -> TypedBody<'db> {
-    let mut folder = RootEffectFolder {
-        root_effect_ty,
-        effect_kinds,
-    };
-    typed_body.clone().fold_with(db, &mut folder)
-}
-
-fn contract_effect_param_key_kinds<'db>(
-    db: &'db dyn HirAnalysisDb,
-    contract: Contract<'db>,
-    handler_effects: EffectParamListId<'db>,
-) -> Vec<EffectKeyKind> {
-    let assumptions = PredicateListId::empty_list(db);
-    let scope = contract.scope();
-    contract
-        .effects(db)
-        .data(db)
-        .iter()
-        .chain(handler_effects.data(db).iter())
-        .filter_map(|effect| effect.key_path.to_opt())
-        .map(|key_path| {
-            let key_path = key_path.strip_generic_args(db);
-            match resolve_path(db, key_path, scope, assumptions, false) {
-                Ok(PathRes::Trait(_) | PathRes::TraitMethod(..)) => EffectKeyKind::Trait,
-                Ok(PathRes::Ty(_) | PathRes::TyAlias(_, _)) => EffectKeyKind::Type,
-                _ => EffectKeyKind::Other,
-            }
-        })
-        .collect()
-}
-
-struct RootEffectFolder<'db> {
-    root_effect_ty: TyId<'db>,
-    effect_kinds: Vec<EffectKeyKind>,
-}
-
-impl<'db> TyFolder<'db> for RootEffectFolder<'db> {
-    fn fold_ty(&mut self, db: &'db dyn HirAnalysisDb, ty: TyId<'db>) -> TyId<'db> {
-        match ty.data(db) {
-            TyData::TyParam(param) if param.is_effect() => {
-                if matches!(self.effect_kinds.get(param.idx), Some(EffectKeyKind::Trait)) {
-                    self.root_effect_ty
-                } else {
-                    ty
-                }
-            }
-            _ => ty.super_fold_with(db, self),
-        }
-    }
-}
-
 fn lower_init_handler<'db>(
     db: &'db dyn SpannedHirAnalysisDb,
     contract: Contract<'db>,
     symbols: &ContractSymbols,
     core: &CoreLib<'db>,
-    root_effect_ty: TyId<'db>,
 ) -> MirLowerResult<MirFunction<'db>> {
     let init = contract
         .init(db)
@@ -855,11 +789,7 @@ fn lower_init_handler<'db>(
         });
     }
 
-    let effect_kinds = contract_effect_param_key_kinds(db, contract, init.effects(db));
-    let concretized_typed_body =
-        concretize_contract_root_effects(db, typed_body, root_effect_ty, effect_kinds);
-    let mut builder =
-        MirBuilder::new_for_body_owner(db, body, &concretized_typed_body, &[], TyId::unit(db))?;
+    let mut builder = MirBuilder::new_for_body_owner(db, body, typed_body, &[], TyId::unit(db))?;
 
     // Seed explicit value params.
     for (idx, param) in init.params(db).data(db).iter().enumerate() {
@@ -908,7 +838,7 @@ fn lower_init_handler<'db>(
     Ok(MirFunction {
         origin: MirFunctionOrigin::Synthetic(SyntheticId::ContractInitHandler(contract)),
         body: mir_body,
-        typed_body: Some(concretized_typed_body),
+        typed_body: Some(typed_body.to_owned()),
         generic_args: Vec::new(),
         ret_ty: TyId::unit(db),
         returns_value: false,
@@ -926,7 +856,6 @@ fn lower_recv_arm_handler<'db>(
     abi: TyId<'db>,
     symbols: &ContractSymbols,
     core: &CoreLib<'db>,
-    root_effect_ty: TyId<'db>,
 ) -> MirLowerResult<MirFunction<'db>> {
     let recv_idx = arm.recv(db).index(db);
     let arm_idx = arm.index(db);
@@ -959,11 +888,7 @@ fn lower_recv_arm_handler<'db>(
     let args_ty = abi_info.args_ty;
     let ret_ty = abi_info.ret_ty.unwrap_or_else(|| TyId::unit(db));
 
-    let effect_kinds = contract_effect_param_key_kinds(db, contract, hir_arm.effects);
-    let concretized_typed_body =
-        concretize_contract_root_effects(db, typed_body, root_effect_ty, effect_kinds);
-    let mut builder =
-        MirBuilder::new_for_body_owner(db, body, &concretized_typed_body, &[], ret_ty)?;
+    let mut builder = MirBuilder::new_for_body_owner(db, body, typed_body, &[], ret_ty)?;
 
     let args_local = builder.seed_synthetic_param_local("args".to_string(), args_ty, false, None);
 
@@ -1019,7 +944,7 @@ fn lower_recv_arm_handler<'db>(
             arm_idx,
         }),
         body: mir_body,
-        typed_body: Some(concretized_typed_body),
+        typed_body: Some(typed_body.to_owned()),
         generic_args: Vec::new(),
         ret_ty,
         returns_value: !layout::is_zero_sized_ty(db, ret_ty),

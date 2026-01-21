@@ -8,10 +8,8 @@ use common::ingot::IngotKind;
 use hir::analysis::{
     HirAnalysisDb,
     diagnostics::SpannedHirAnalysisDb,
-    name_resolution::{PathRes, resolve_path},
     ty::{
         adt_def::AdtRef,
-        trait_resolution::PredicateListId,
         ty_check::{
             EffectParamSite, LocalBinding, ParamSite, RecordLike, TypedBody, check_func_body,
         },
@@ -397,42 +395,21 @@ impl<'db, 'a> MirBuilder<'db, 'a> {
         let Some(func) = self.hir_func else {
             return Vec::new();
         };
-        let assumptions = PredicateListId::empty_list(self.db);
-        let provider_arg_positions: Vec<usize> = CallableDef::Func(func)
-            .params(self.db)
-            .iter()
-            .enumerate()
-            .filter_map(|(idx, ty)| match ty.data(self.db) {
-                TyData::TyParam(param) if param.is_effect_provider() => Some(idx),
-                _ => None,
-            })
-            .collect();
+        let provider_arg_idx_by_effect =
+            hir::analysis::ty::effects::place_effect_provider_param_index_map(self.db, func);
 
         let mut spaces = vec![AddressSpaceKind::Storage; func.effect_params(self.db).count()];
-        let mut ord = 0usize;
         for effect in func.effect_params(self.db) {
             let effect_idx = effect.index();
-            let Some(key_path) = effect.key_path(self.db) else {
-                continue;
-            };
-            if let Ok(path_res) = resolve_path(self.db, key_path, func.scope(), assumptions, false)
+            if let Some(provider_arg_idx) = provider_arg_idx_by_effect
+                .get(effect_idx)
+                .copied()
+                .flatten()
+                && let Some(provider_ty) = self.generic_args.get(provider_arg_idx).copied()
+                && let Some(space) = self.effect_provider_space_for_provider_ty(provider_ty)
             {
-                let is_type_effect = match path_res {
-                    PathRes::Ty(ty) | PathRes::TyAlias(_, ty) => ty.is_star_kind(self.db),
-                    _ => false,
-                };
-                if is_type_effect {
-                    let provider_pos = provider_arg_positions.get(ord).copied();
-                    ord += 1;
-                    let Some(provider_pos) = provider_pos else {
-                        continue;
-                    };
-                    let provider_ty = self.generic_args.get(provider_pos).copied();
-                    spaces[effect_idx] = provider_ty
-                        .and_then(|ty| self.effect_provider_space_for_provider_ty(ty))
-                        .unwrap_or(AddressSpaceKind::Storage);
-                    continue;
-                }
+                spaces[effect_idx] = space;
+                continue;
             }
 
             if let Some(provider_ty) = self

@@ -6,12 +6,7 @@ use hir::{
     projection::{IndexSource, Projection},
 };
 
-use hir::analysis::ty::{
-    binder::Binder,
-    effects::EffectKeyKind,
-    fold::{AssocTySubst, TyFoldable},
-    normalize::normalize_ty,
-};
+use hir::analysis::ty::effects::EffectKeyKind;
 
 use crate::{
     ir::{Place, Rvalue},
@@ -497,7 +492,6 @@ impl<'db, 'a> MirBuilder<'db, 'a> {
         callable: &mut hir::analysis::ty::ty_check::Callable<'db>,
         resolved: &[ResolvedEffectArg<'db>],
     ) {
-        let assumptions = PredicateListId::empty_list(self.db);
         let provider_arg_idx_by_effect =
             hir::analysis::ty::effects::place_effect_provider_param_index_map(self.db, callee);
         let caller_provider_arg_idx_by_effect = self.hir_func.map(|func| {
@@ -518,32 +512,19 @@ impl<'db, 'a> MirBuilder<'db, 'a> {
                 continue;
             };
 
+            if !matches!(resolved_arg.key_kind, EffectKeyKind::Type) {
+                continue;
+            }
+            let Some(target_ty) = resolved_arg.instantiated_target_ty else {
+                continue;
+            };
+
             // Don't stomp explicit provider arguments (HIR unifies those already).
             if let Some(existing) = callable.generic_args().get(provider_arg_idx).copied()
                 && !matches!(existing.data(self.db), TyData::TyVar(_))
             {
                 continue;
             }
-
-            let Some(key_path) = effect_view.key_path(self.db) else {
-                continue;
-            };
-            let Ok(path_res) = resolve_path(self.db, key_path, callee.scope(), assumptions, false)
-            else {
-                continue;
-            };
-            let base_target_ty = match path_res {
-                PathRes::Ty(ty) | PathRes::TyAlias(_, ty) if ty.is_star_kind(self.db) => ty,
-                _ => continue,
-            };
-
-            let mut target_ty =
-                Binder::bind(base_target_ty).instantiate(self.db, callable.generic_args());
-            if let Some(inst) = callable.trait_inst() {
-                let mut subst = AssocTySubst::new(inst);
-                target_ty = target_ty.fold_with(self.db, &mut subst);
-            }
-            target_ty = normalize_ty(self.db, target_ty, callee.scope(), assumptions);
 
             let inferred_provider_ty = match resolved_arg.pass_mode {
                 EffectPassMode::ByTempPlace => {
@@ -873,14 +854,14 @@ impl<'db, 'a> MirBuilder<'db, 'a> {
         }
     }
 
-    fn effect_param_key_is_trait(&self, binding: LocalBinding<'db>) -> bool {
+    pub(super) fn effect_param_key_kind(
+        &self,
+        binding: LocalBinding<'db>,
+    ) -> Option<EffectKeyKind> {
         let LocalBinding::EffectParam { site, idx, .. } = binding else {
-            return false;
+            return None;
         };
-        let idx = u32::try_from(idx).ok();
-        let Some(idx) = idx else {
-            return false;
-        };
+        let idx = u32::try_from(idx).ok()?;
 
         let bindings = match site {
             EffectParamSite::Func(func) => func.effect_bindings(self.db),
@@ -898,12 +879,23 @@ impl<'db, 'a> MirBuilder<'db, 'a> {
                 .effective_effect_bindings(self.db),
         };
 
+        bindings
+            .iter()
+            .find(|binding| binding.binding_idx == idx)
+            .map(|binding| binding.key_kind)
+    }
+
+    pub(super) fn effect_param_key_is_trait(&self, binding: LocalBinding<'db>) -> bool {
         matches!(
-            bindings
-                .iter()
-                .find(|binding| binding.binding_idx == idx)
-                .map(|binding| binding.key_kind),
+            self.effect_param_key_kind(binding),
             Some(EffectKeyKind::Trait)
+        )
+    }
+
+    pub(super) fn effect_param_key_is_type(&self, binding: LocalBinding<'db>) -> bool {
+        matches!(
+            self.effect_param_key_kind(binding),
+            Some(EffectKeyKind::Type)
         )
     }
 

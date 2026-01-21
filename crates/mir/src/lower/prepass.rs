@@ -4,6 +4,7 @@ use super::*;
 use hir::analysis::name_resolution::{PathRes, resolve_path};
 use hir::analysis::ty::const_eval::{ConstValue, try_eval_const_body, try_eval_const_ref};
 use hir::analysis::ty::const_ty::{ConstTyData, EvaluatedConstTy};
+use hir::analysis::ty::trait_resolution::PredicateListId;
 
 impl<'db, 'a> MirBuilder<'db, 'a> {
     /// Helper to iterate expressions and conditionally force value lowering.
@@ -130,14 +131,14 @@ impl<'db, 'a> MirBuilder<'db, 'a> {
                     } else if let Some(target) = self.code_region_target_from_ty(ty) {
                         ValueOrigin::FuncItem(target)
                     } else if let Some(local) = self.local_for_binding(binding) {
-                        if matches!(binding, LocalBinding::EffectParam { .. })
+                        if self.effect_param_key_is_type(binding)
                             && matches!(repr, ValueRepr::Word)
                             && !crate::layout::is_zero_sized_ty(self.db, ty)
                         {
-                            // Effect params are addressable providers; even when their runtime
-                            // representation is a single word, treat them as `Ref` roots so
-                            // lowering can emit `Place`-based loads/stores (including transparent
-                            // newtype peeling over field-0 projections).
+                            // Type-effect params are addressable providers; even when their runtime
+                            // representation is a single word, treat them as `Ref` roots so lowering
+                            // can emit `Place`-based loads/stores (including transparent newtype
+                            // peeling over field-0 projections).
                             repr = ValueRepr::Ref(self.address_space_for_binding(&binding));
                         }
                         ValueOrigin::Local(local)

@@ -20,6 +20,7 @@ use crate::analysis::ty::{
     canonical::Canonicalized,
     corelib::{resolve_core_range_types, resolve_core_trait, resolve_lib_type_path},
     diagnostics::{BodyDiag, FuncBodyDiag},
+    effects::EffectKeyKind,
     effects::place_effect_provider_param_index_map,
     fold::{AssocTySubst, TyFoldable as _, TyFolder},
     trait_def::TraitInstId,
@@ -1213,11 +1214,29 @@ impl<'db> TyChecker<'db> {
                 }
             }
 
+            let (key_kind, instantiated_target_ty) = match requirement {
+                EffectRequirement::Type(expected) => (
+                    EffectKeyKind::Type,
+                    Some(normalize_ty(
+                        self.db,
+                        expected.fold_with(self.db, &mut self.table),
+                        func.scope(),
+                        callee_assumptions,
+                    )),
+                ),
+                EffectRequirement::Trait(_) => (EffectKeyKind::Trait, None),
+            };
+
+            // Provider generic argument selection for direct place-effects is deferred to MIR
+            // lowering (Option B). The type checker records the effect argument form, pass mode,
+            // and (for type effects) the instantiated target type.
             resolved_args.push(super::ResolvedEffectArg {
                 param_idx,
                 key: key_path,
                 arg,
                 pass_mode,
+                key_kind,
+                instantiated_target_ty,
             });
 
             if let EffectRequirement::Type(expected) = requirement {

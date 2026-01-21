@@ -1,0 +1,26 @@
+---
+source: crates/mir/tests/lowering_snapshots.rs
+expression: mir_output
+---
+fn mockctx_ctx_inc(v0: MockCtx) -> u256:
+  bb0:
+    ret (v0 + 1)
+
+fn entry() -> u256:
+  bb0:
+    v0: u256 = 10
+    bind 31
+    bind v0
+    v1: u256 = alloc mem
+    store mem[v1] = v0
+    v2: u256 = bump__MockCtx_MemPtr_u256___ee73cb6eabc9f507(31, v1)
+    v0 = load mem[v1]
+    ret v2
+
+fn bump__MockCtx_MemPtr_u256___ee73cb6eabc9f507(v0: u256, v1: u256) -> u256:
+  bb0:
+    v2: u256 = mockctx_ctx_inc(v0)
+    v3: u256 = load mem[v1]
+    store mem[v1] = (v3 + v2)
+    v4: u256 = load mem[v1]
+    ret v4

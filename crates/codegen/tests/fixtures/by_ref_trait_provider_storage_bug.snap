@@ -118,7 +118,7 @@ object "ByRefTraitProviderStorageBug" {
     code {
       function $__ByRefTraitProviderStorageBug_recv_0_0($args, $ctx) -> ret {
         let v0 := $ctx
-        let v1 := $use_ctx__Pair__f889f9d568bc82f1(v0)
+        let v1 := $use_ctx_eff0_stor__Pair__f889f9d568bc82f1(v0)
         ret := v1
         leave
       }
@@ -199,18 +199,18 @@ object "ByRefTraitProviderStorageBug" {
       function $go_decode_decode__SolDecoder_CallData___c1e4510fd444b966($d) {
         leave
       }
-      function $pair_ctx_sum($self) -> ret {
-        let v0 := mload($self)
-        let v1 := mload(add($self, 32))
+      function $pair_ctx_sum_stor($self) -> ret {
+        let v0 := sload($self)
+        let v1 := sload(add($self, 1))
         ret := add(v0, v1)
         leave
       }
       function $return_value__Evm_Sol_u256__fe091c64bccbbbf1($self, $value) {
         let v0 := $sol_abi_encoder_new()
-        let v1 := $solencoder_abiencoder_reserve_head(v0, 32)
+        let v1 := $solencoder_abiencoder_reserve_head_mem(v0, 32)
         pop(v1)
         $u256_encode_encode__Sol_SolEncoder__dce63ad1a1fe4ae2($value, v0)
-        let v2 := $solencoder_abiencoder_finish(v0)
+        let v2 := $solencoder_abiencoder_finish_mem(v0)
         let v3 := mload(v2)
         let v4 := mload(add(v2, 32))
         $evm_contracthost_return_bytes($self, v3, v4)
@@ -264,7 +264,7 @@ object "ByRefTraitProviderStorageBug" {
         ret := v4
         leave
       }
-      function $solencoder_abiencoder_finish($self) -> ret {
+      function $solencoder_abiencoder_finish_mem($self) -> ret {
         let v0 := mload($self)
         let v1 := mload(add($self, 64))
         let v2 := mload(0x40)
@@ -277,13 +277,13 @@ object "ByRefTraitProviderStorageBug" {
         ret := v2
         leave
       }
-      function $solencoder_abiencoder_reserve_head($self, $bytes) -> ret {
+      function $solencoder_abiencoder_reserve_head_mem($self, $bytes) -> ret {
         $solencoder_ensure_init_mem($self, $bytes)
         let v0 := mload($self)
         ret := v0
         leave
       }
-      function $solencoder_abiencoder_write_word($self, $v) {
+      function $solencoder_abiencoder_write_word_mem($self, $v) {
         let v0 := mload(add($self, 32))
         mstore(v0, $v)
         mstore(add($self, 32), add(v0, 32))
@@ -323,11 +323,11 @@ object "ByRefTraitProviderStorageBug" {
         leave
       }
       function $u256_encode_encode__Sol_SolEncoder__dce63ad1a1fe4ae2($self, $e) {
-        $solencoder_abiencoder_write_word($e, $self)
+        $solencoder_abiencoder_write_word_mem($e, $self)
         leave
       }
-      function $use_ctx__Pair__f889f9d568bc82f1($ctx) -> ret {
-        let v0 := $pair_ctx_sum($ctx)
+      function $use_ctx_eff0_stor__Pair__f889f9d568bc82f1($ctx) -> ret {
+        let v0 := $pair_ctx_sum_stor($ctx)
         ret := v0
         leave
       }

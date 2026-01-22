@@ -1,5 +1,6 @@
 ---
 source: crates/codegen/tests/yul.rs
+assertion_line: 33
 expression: output
 input_file: tests/fixtures/newtype_storage_byplace_effect_arg.fe
 ---
@@ -219,10 +220,10 @@ object "NewtypeByPlaceEffectArg" {
       }
       function $return_value__Evm_Sol_u256__fe091c64bccbbbf1($self, $value) {
         let v0 := $sol_abi_encoder_new()
-        let v1 := $solencoder_abiencoder_reserve_head(v0, 32)
+        let v1 := $solencoder_abiencoder_reserve_head_mem(v0, 32)
         pop(v1)
         $u256_encode_encode__Sol_SolEncoder__dce63ad1a1fe4ae2($value, v0)
-        let v2 := $solencoder_abiencoder_finish(v0)
+        let v2 := $solencoder_abiencoder_finish_mem(v0)
         let v3 := mload(v2)
         let v4 := mload(add(v2, 32))
         $evm_contracthost_return_bytes($self, v3, v4)
@@ -282,7 +283,7 @@ object "NewtypeByPlaceEffectArg" {
         ret := v4
         leave
       }
-      function $solencoder_abiencoder_finish($self) -> ret {
+      function $solencoder_abiencoder_finish_mem($self) -> ret {
         let v0 := mload($self)
         let v1 := mload(add($self, 64))
         let v2 := mload(0x40)
@@ -295,13 +296,13 @@ object "NewtypeByPlaceEffectArg" {
         ret := v2
         leave
       }
-      function $solencoder_abiencoder_reserve_head($self, $bytes) -> ret {
+      function $solencoder_abiencoder_reserve_head_mem($self, $bytes) -> ret {
         $solencoder_ensure_init_mem($self, $bytes)
         let v0 := mload($self)
         ret := v0
         leave
       }
-      function $solencoder_abiencoder_write_word($self, $v) {
+      function $solencoder_abiencoder_write_word_mem($self, $v) {
         let v0 := mload(add($self, 32))
         mstore(v0, $v)
         mstore(add($self, 32), add(v0, 32))
@@ -346,7 +347,7 @@ object "NewtypeByPlaceEffectArg" {
         leave
       }
       function $u256_encode_encode__Sol_SolEncoder__dce63ad1a1fe4ae2($self, $e) {
-        $solencoder_abiencoder_write_word($e, $self)
+        $solencoder_abiencoder_write_word_mem($e, $self)
         leave
       }
       function $u256_intword_to_word($self) -> ret {

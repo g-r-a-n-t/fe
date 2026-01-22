@@ -421,15 +421,23 @@ impl<'db, 'a> MirBuilder<'db, 'a> {
 
         let mut receiver_space = None;
         if self.is_method_call(expr) && !args.is_empty() {
-            let needs_space = callable
-                .callable_def
-                .receiver_ty(self.db)
-                .is_some_and(|binder| {
-                    let ty = binder.instantiate_identity();
+            let needs_space = if let Some(trait_inst) = callable.trait_inst() {
+                trait_inst.args(self.db).first().copied().is_some_and(|ty| {
                     self.value_repr_for_ty(ty, AddressSpaceKind::Memory)
                         .address_space()
                         .is_some()
-                });
+                })
+            } else {
+                callable
+                    .callable_def
+                    .receiver_ty(self.db)
+                    .is_some_and(|binder| {
+                        let ty = binder.instantiate_identity();
+                        self.value_repr_for_ty(ty, AddressSpaceKind::Memory)
+                            .address_space()
+                            .is_some()
+                    })
+            };
             if needs_space {
                 receiver_space = Some(self.value_address_space(args[0]));
             }

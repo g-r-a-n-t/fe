@@ -159,7 +159,7 @@ pub fn lower_module<'db>(
                 diagnostics: rendered,
             });
         }
-        let lowered = lower_function(db, func, typed_body.clone(), None, Vec::new())?;
+        let lowered = lower_function(db, func, typed_body.clone(), None, Vec::new(), Vec::new())?;
         templates.push(lowered);
     }
 
@@ -189,6 +189,7 @@ pub(crate) fn lower_function<'db>(
     typed_body: TypedBody<'db>,
     receiver_space: Option<AddressSpaceKind>,
     generic_args: Vec<TyId<'db>>,
+    effect_param_space_overrides: Vec<Option<AddressSpaceKind>>,
 ) -> MirLowerResult<MirFunction<'db>> {
     let symbol_name = func
         .name(db)
@@ -203,8 +204,15 @@ pub(crate) fn lower_function<'db>(
         });
     };
 
-    let mut builder =
-        MirBuilder::new_for_func(db, func, body, &typed_body, &generic_args, receiver_space)?;
+    let mut builder = MirBuilder::new_for_func(
+        db,
+        func,
+        body,
+        &typed_body,
+        &generic_args,
+        receiver_space,
+        &effect_param_space_overrides,
+    )?;
     let entry = builder.builder.entry_block();
     builder.move_to_block(entry);
     builder.lower_root(body.expr(db));
@@ -296,6 +304,7 @@ impl<'db, 'a> MirBuilder<'db, 'a> {
         generic_args: &'a [TyId<'db>],
         return_ty: TyId<'db>,
         receiver_space: Option<AddressSpaceKind>,
+        effect_param_space_overrides: &[Option<AddressSpaceKind>],
     ) -> Result<Self, MirLowerError> {
         let core = CoreLib::new(db, body.scope());
 
@@ -318,6 +327,13 @@ impl<'db, 'a> MirBuilder<'db, 'a> {
         };
 
         builder.effect_param_spaces = builder.compute_effect_param_spaces();
+        for (idx, space) in effect_param_space_overrides.iter().enumerate() {
+            if idx < builder.effect_param_spaces.len()
+                && let Some(space) = *space
+            {
+                builder.effect_param_spaces[idx] = space;
+            }
+        }
         builder.seed_signature_locals();
 
         Ok(builder)
@@ -330,6 +346,7 @@ impl<'db, 'a> MirBuilder<'db, 'a> {
         typed_body: &'a TypedBody<'db>,
         generic_args: &'a [TyId<'db>],
         receiver_space: Option<AddressSpaceKind>,
+        effect_param_space_overrides: &[Option<AddressSpaceKind>],
     ) -> Result<Self, MirLowerError> {
         let return_ty = func.return_ty(db);
         Self::new(
@@ -340,6 +357,7 @@ impl<'db, 'a> MirBuilder<'db, 'a> {
             generic_args,
             return_ty,
             receiver_space,
+            effect_param_space_overrides,
         )
     }
 
@@ -350,7 +368,16 @@ impl<'db, 'a> MirBuilder<'db, 'a> {
         generic_args: &'a [TyId<'db>],
         return_ty: TyId<'db>,
     ) -> Result<Self, MirLowerError> {
-        Self::new(db, None, body, typed_body, generic_args, return_ty, None)
+        Self::new(
+            db,
+            None,
+            body,
+            typed_body,
+            generic_args,
+            return_ty,
+            None,
+            &[],
+        )
     }
 
     fn seed_synthetic_param_local(

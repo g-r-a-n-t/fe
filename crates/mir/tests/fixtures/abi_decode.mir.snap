@@ -19,7 +19,7 @@ fn soldecoder_i__new__CallData__b9ab8dc8a4b2f9e(v0: I) -> SolDecoder<CallData>:
 
 fn u256_decode_decode__Sol_SolDecoder_CallData___828c6f2e3bda3cab(v0: D) -> u256:
   bb0:
-    v1: u256 = soldecoder_i__abidecoder_read_word_mem__CallData__b9ab8dc8a4b2f9e(v0)
+    v1: u256 = soldecoder_i__abidecoder_read_word__CallData__b9ab8dc8a4b2f9e(v0)
     ret v1
 
 fn cursor_i__new__CallData__b9ab8dc8a4b2f9e(v0: I) -> Cursor<CallData>:
@@ -29,7 +29,7 @@ fn cursor_i__new__CallData__b9ab8dc8a4b2f9e(v0: I) -> Cursor<CallData>:
     v1: Cursor<CallData> = v2
     ret v1
 
-fn soldecoder_i__abidecoder_read_word_mem__CallData__b9ab8dc8a4b2f9e(v0: SolDecoder<I>) -> u256:
+fn soldecoder_i__abidecoder_read_word__CallData__b9ab8dc8a4b2f9e(v0: SolDecoder<I>) -> u256:
   bb0:
     v2: CallData = load mem[&mem[v0].0].0
     v1: u256 = calldata_byteinput_len(v2)

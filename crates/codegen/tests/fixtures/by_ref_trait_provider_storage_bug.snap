@@ -156,7 +156,7 @@ object "ByRefTraitProviderStorageBug" {
         ret := v0
         leave
       }
-      function $cursor_i__fork_mem__CallData__b9ab8dc8a4b2f9e($self, $pos) -> ret {
+      function $cursor_i__fork__CallData__b9ab8dc8a4b2f9e($self, $pos) -> ret {
         let v0 := mload($self)
         let v1 := mload(0x40)
         if iszero(v1) {
@@ -207,10 +207,10 @@ object "ByRefTraitProviderStorageBug" {
       }
       function $return_value__Evm_Sol_u256__fe091c64bccbbbf1($self, $value) {
         let v0 := $sol_abi_encoder_new()
-        let v1 := $solencoder_abiencoder_reserve_head_mem(v0, 32)
+        let v1 := $solencoder_abiencoder_reserve_head(v0, 32)
         pop(v1)
         $u256_encode_encode__Sol_SolEncoder__dce63ad1a1fe4ae2($value, v0)
-        let v2 := $solencoder_abiencoder_finish_mem(v0)
+        let v2 := $solencoder_abiencoder_finish(v0)
         let v3 := mload(v2)
         let v4 := mload(add(v2, 32))
         $evm_contracthost_return_bytes($self, v3, v4)
@@ -233,6 +233,12 @@ object "ByRefTraitProviderStorageBug" {
         ret := v4
         leave
       }
+      function $s_intdowncast_downcast_unchecked__u256_u32__6e3637cd3e911b35($self) -> ret {
+        let v0 := $u256_intword_to_word($self)
+        let v1 := $u32_intword_from_word(v0)
+        ret := v1
+        leave
+      }
       function $sol_abi_decoder_with_base__CallData__b9ab8dc8a4b2f9e($input, $base) -> ret {
         let v0 := $soldecoder_i__with_base__CallData__b9ab8dc8a4b2f9e($input, $base)
         ret := v0
@@ -244,13 +250,13 @@ object "ByRefTraitProviderStorageBug" {
         leave
       }
       function $sol_abi_selector_from_prefix($prefix) -> ret {
-        let v0 := shr(224, $prefix)
+        let v0 := $s_intdowncast_downcast_unchecked__u256_u32__6e3637cd3e911b35(shr(224, $prefix))
         ret := v0
         leave
       }
       function $soldecoder_i__with_base__CallData__b9ab8dc8a4b2f9e($input, $base) -> ret {
         let v0 := $cursor_i__new__CallData__b9ab8dc8a4b2f9e($input)
-        let v1 := $cursor_i__fork_mem__CallData__b9ab8dc8a4b2f9e(v0, $base)
+        let v1 := $cursor_i__fork__CallData__b9ab8dc8a4b2f9e(v0, $base)
         let v2 := mload(0x40)
         if iszero(v2) {
           v2 := 0x80
@@ -264,7 +270,7 @@ object "ByRefTraitProviderStorageBug" {
         ret := v4
         leave
       }
-      function $solencoder_abiencoder_finish_mem($self) -> ret {
+      function $solencoder_abiencoder_finish($self) -> ret {
         let v0 := mload($self)
         let v1 := mload(add($self, 64))
         let v2 := mload(0x40)
@@ -277,19 +283,19 @@ object "ByRefTraitProviderStorageBug" {
         ret := v2
         leave
       }
-      function $solencoder_abiencoder_reserve_head_mem($self, $bytes) -> ret {
-        $solencoder_ensure_init_mem($self, $bytes)
+      function $solencoder_abiencoder_reserve_head($self, $bytes) -> ret {
+        $solencoder_ensure_init($self, $bytes)
         let v0 := mload($self)
         ret := v0
         leave
       }
-      function $solencoder_abiencoder_write_word_mem($self, $v) {
+      function $solencoder_abiencoder_write_word($self, $v) {
         let v0 := mload(add($self, 32))
         mstore(v0, $v)
         mstore(add($self, 32), add(v0, 32))
         leave
       }
-      function $solencoder_ensure_init_mem($self, $bytes) {
+      function $solencoder_ensure_init($self, $bytes) {
         let v0 := mload($self)
         let v1 := eq(v0, 0)
         if v1 {
@@ -323,7 +329,15 @@ object "ByRefTraitProviderStorageBug" {
         leave
       }
       function $u256_encode_encode__Sol_SolEncoder__dce63ad1a1fe4ae2($self, $e) {
-        $solencoder_abiencoder_write_word_mem($e, $self)
+        $solencoder_abiencoder_write_word($e, $self)
+        leave
+      }
+      function $u256_intword_to_word($self) -> ret {
+        ret := $self
+        leave
+      }
+      function $u32_intword_from_word($word) -> ret {
+        ret := $word
         leave
       }
       function $use_ctx_eff0_stor__Pair__f889f9d568bc82f1($ctx) -> ret {

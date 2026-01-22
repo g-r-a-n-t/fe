@@ -161,7 +161,7 @@ impl<'db> Monomorphizer<'db> {
     fn seed_roots(&mut self) {
         for idx in 0..self.templates.len() {
             let origin = self.templates[idx].origin;
-            let receiver_space = self.templates[idx].receiver_space;
+            let receiver_space = canonicalize_receiver_space(self.templates[idx].receiver_space);
 
             if let crate::ir::MirFunctionOrigin::Synthetic(_) = origin {
                 let _ = self.ensure_synthetic_instance(origin, receiver_space);
@@ -303,7 +303,7 @@ impl<'db> Monomorphizer<'db> {
                             Some(inst_idx),
                             target_func,
                             args,
-                            call.receiver_space,
+                            canonicalize_receiver_space(call.receiver_space),
                             effect_param_space_overrides,
                         ));
                     }
@@ -320,7 +320,7 @@ impl<'db> Monomorphizer<'db> {
                         None,
                         target_func,
                         args,
-                        call.receiver_space,
+                        canonicalize_receiver_space(call.receiver_space),
                         effect_param_space_overrides,
                     ));
                 }
@@ -427,6 +427,7 @@ impl<'db> Monomorphizer<'db> {
         origin: crate::ir::MirFunctionOrigin<'db>,
         receiver_space: Option<AddressSpaceKind>,
     ) -> Option<(usize, String)> {
+        let receiver_space = canonicalize_receiver_space(receiver_space);
         debug_assert!(
             matches!(origin, crate::ir::MirFunctionOrigin::Synthetic(_)),
             "ensure_synthetic_instance called with non-synthetic origin"
@@ -460,6 +461,7 @@ impl<'db> Monomorphizer<'db> {
         receiver_space: Option<AddressSpaceKind>,
         effect_param_space_overrides: &[Option<AddressSpaceKind>],
     ) -> Option<(usize, String)> {
+        let receiver_space = canonicalize_receiver_space(receiver_space);
         let norm_scope = crate::ty::normalization_scope_for_args(self.db, func, args);
         let assumptions = PredicateListId::empty_list(self.db);
         let normalized_args: Vec<_> = args
@@ -717,6 +719,7 @@ impl<'db> Monomorphizer<'db> {
         receiver_space: Option<AddressSpaceKind>,
         effect_param_space_overrides: &[Option<AddressSpaceKind>],
     ) -> String {
+        let receiver_space = canonicalize_receiver_space(receiver_space);
         let mut base = func
             .name(self.db)
             .to_opt()
@@ -808,6 +811,7 @@ impl<'db> Monomorphizer<'db> {
         func: Func<'db>,
         receiver_space: Option<AddressSpaceKind>,
     ) -> Option<usize> {
+        let receiver_space = canonicalize_receiver_space(receiver_space);
         let key = TemplateKey {
             origin: crate::ir::MirFunctionOrigin::Hir(func),
             receiver_space,
@@ -965,6 +969,15 @@ fn sanitize_symbol_component(component: &str) -> String {
         .chars()
         .map(|ch| if ch.is_ascii_alphanumeric() { ch } else { '_' })
         .collect()
+}
+
+fn canonicalize_receiver_space(
+    receiver_space: Option<AddressSpaceKind>,
+) -> Option<AddressSpaceKind> {
+    match receiver_space {
+        None | Some(AddressSpaceKind::Memory) => None,
+        Some(space) => Some(space),
+    }
 }
 
 fn effect_param_space_suffix(spaces: &[Option<AddressSpaceKind>]) -> String {

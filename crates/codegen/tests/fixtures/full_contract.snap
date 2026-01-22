@@ -1,5 +1,6 @@
 ---
 source: crates/codegen/tests/yul.rs
+assertion_line: 33
 expression: output
 input_file: tests/fixtures/full_contract.fe
 ---
@@ -40,7 +41,7 @@ object "ShapeDispatcher" {
           mstore(v6, add(v7, 1))
           let v8 := mload(add(v6, 32))
           mstore(add(v6, 32), add(v8, 2))
-          let v9 := $point_area_mem(v6)
+          let v9 := $point_area(v6)
           $abi_encode__Evm__1572a3ac6cae1070(v9, 0)
         }
         let v10 := eq(v1, 2066295049)
@@ -53,7 +54,7 @@ object "ShapeDispatcher" {
         }
         return(0, 0)
       }
-      function $point_area_mem($self) -> ret {
+      function $point_area($self) -> ret {
         let v0 := mload($self)
         let v1 := mload(add($self, 32))
         ret := mul(v0, v1)

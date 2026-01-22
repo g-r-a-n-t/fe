@@ -65,7 +65,7 @@ object "CoolCoin" {
       leave
     }
     function $address_decode_decode__Sol_SolDecoder_MemoryBytes___c66d50dfccf37f39($d) -> ret {
-      let v0 := $soldecoder_i__abidecoder_read_word_mem__MemoryBytes__b48f82585f3ed728($d)
+      let v0 := $soldecoder_i__abidecoder_read_word__MemoryBytes__b48f82585f3ed728($d)
       ret := v0
       leave
     }
@@ -152,12 +152,12 @@ object "CoolCoin" {
       ret := v0
       leave
     }
-    function $memorybytes_byteinput_len_mem($self) -> ret {
+    function $memorybytes_byteinput_len($self) -> ret {
       let v0 := mload(add($self, 32))
       ret := v0
       leave
     }
-    function $memorybytes_byteinput_word_at_mem($self, $byte_offset) -> ret {
+    function $memorybytes_byteinput_word_at($self, $byte_offset) -> ret {
       let v0 := mload($self)
       let v1 := mload(add(v0, $byte_offset))
       ret := v1
@@ -189,8 +189,8 @@ object "CoolCoin" {
       ret := v0
       leave
     }
-    function $soldecoder_i__abidecoder_read_word_mem__MemoryBytes__b48f82585f3ed728($self) -> ret {
-      let v0 := $memorybytes_byteinput_len_mem($self)
+    function $soldecoder_i__abidecoder_read_word__MemoryBytes__b48f82585f3ed728($self) -> ret {
+      let v0 := $memorybytes_byteinput_len($self)
       let v1 := mload(add($self, 64))
       let v2 := add(v1, 32)
       let v3 := mload(add($self, 64))
@@ -199,7 +199,7 @@ object "CoolCoin" {
         revert(0, 0)
       }
       let v5 := mload(add($self, 64))
-      let v6 := $memorybytes_byteinput_word_at_mem($self, v5)
+      let v6 := $memorybytes_byteinput_word_at($self, v5)
       mstore(add($self, 64), v2)
       ret := v6
       leave
@@ -283,7 +283,7 @@ object "CoolCoin" {
       leave
     }
     function $u256_decode_decode__Sol_SolDecoder_MemoryBytes___c66d50dfccf37f39($d) -> ret {
-      let v0 := $soldecoder_i__abidecoder_read_word_mem__MemoryBytes__b48f82585f3ed728($d)
+      let v0 := $soldecoder_i__abidecoder_read_word__MemoryBytes__b48f82585f3ed728($d)
       ret := v0
       leave
     }
@@ -560,7 +560,7 @@ object "CoolCoin" {
         leave
       }
       function $address_decode_decode__Sol_SolDecoder_CallData___828c6f2e3bda3cab($d) -> ret {
-        let v0 := $soldecoder_i__abidecoder_read_word_mem__CallData__b9ab8dc8a4b2f9e($d)
+        let v0 := $soldecoder_i__abidecoder_read_word__CallData__b9ab8dc8a4b2f9e($d)
         ret := v0
         leave
       }
@@ -649,10 +649,10 @@ object "CoolCoin" {
       function $bool_encode_encode__Sol_SolEncoder__dce63ad1a1fe4ae2($self, $e) {
         let v0 := $self
         if v0 {
-          $solencoder_abiencoder_write_word_mem($e, 1)
+          $solencoder_abiencoder_write_word($e, 1)
         }
         if iszero(v0) {
-          $solencoder_abiencoder_write_word_mem($e, 0)
+          $solencoder_abiencoder_write_word($e, 0)
         }
         leave
       }
@@ -710,7 +710,7 @@ object "CoolCoin" {
         ret := v0
         leave
       }
-      function $cursor_i__fork_mem__CallData__b9ab8dc8a4b2f9e($self, $pos) -> ret {
+      function $cursor_i__fork__CallData__b9ab8dc8a4b2f9e($self, $pos) -> ret {
         let v0 := mload($self)
         let v1 := mload(0x40)
         if iszero(v1) {
@@ -833,50 +833,50 @@ object "CoolCoin" {
       }
       function $return_value__Evm_Sol_String_32___fce5fd9d073f47ee($self, $value) {
         let v0 := $sol_abi_encoder_new()
-        let v1 := $solencoder_abiencoder_reserve_head_mem(v0, 32)
+        let v1 := $solencoder_abiencoder_reserve_head(v0, 32)
         pop(v1)
         $string_const_n__usize__encode_encode__Sol_32_SolEncoder__85bcb27fa2f25e8f($value, v0)
-        let v2 := $solencoder_abiencoder_finish_mem(v0)
+        let v2 := $solencoder_abiencoder_finish(v0)
         let v3 := mload(v2)
         let v4 := mload(add(v2, 32))
         $evm_contracthost_return_bytes($self, v3, v4)
       }
       function $return_value__Evm_Sol_String_8___90b3a09bdf47bf15($self, $value) {
         let v0 := $sol_abi_encoder_new()
-        let v1 := $solencoder_abiencoder_reserve_head_mem(v0, 32)
+        let v1 := $solencoder_abiencoder_reserve_head(v0, 32)
         pop(v1)
         $string_const_n__usize__encode_encode__Sol_32_SolEncoder__85bcb27fa2f25e8f($value, v0)
-        let v2 := $solencoder_abiencoder_finish_mem(v0)
+        let v2 := $solencoder_abiencoder_finish(v0)
         let v3 := mload(v2)
         let v4 := mload(add(v2, 32))
         $evm_contracthost_return_bytes($self, v3, v4)
       }
       function $return_value__Evm_Sol_bool__261f3a707fad09c8($self, $value) {
         let v0 := $sol_abi_encoder_new()
-        let v1 := $solencoder_abiencoder_reserve_head_mem(v0, 32)
+        let v1 := $solencoder_abiencoder_reserve_head(v0, 32)
         pop(v1)
         $bool_encode_encode__Sol_SolEncoder__dce63ad1a1fe4ae2($value, v0)
-        let v2 := $solencoder_abiencoder_finish_mem(v0)
+        let v2 := $solencoder_abiencoder_finish(v0)
         let v3 := mload(v2)
         let v4 := mload(add(v2, 32))
         $evm_contracthost_return_bytes($self, v3, v4)
       }
       function $return_value__Evm_Sol_u256__fe091c64bccbbbf1($self, $value) {
         let v0 := $sol_abi_encoder_new()
-        let v1 := $solencoder_abiencoder_reserve_head_mem(v0, 32)
+        let v1 := $solencoder_abiencoder_reserve_head(v0, 32)
         pop(v1)
         $u256_encode_encode__Sol_SolEncoder__dce63ad1a1fe4ae2($value, v0)
-        let v2 := $solencoder_abiencoder_finish_mem(v0)
+        let v2 := $solencoder_abiencoder_finish(v0)
         let v3 := mload(v2)
         let v4 := mload(add(v2, 32))
         $evm_contracthost_return_bytes($self, v3, v4)
       }
       function $return_value__Evm_Sol_u8__d483d38efd15a73d($self, $value) {
         let v0 := $sol_abi_encoder_new()
-        let v1 := $solencoder_abiencoder_reserve_head_mem(v0, 32)
+        let v1 := $solencoder_abiencoder_reserve_head(v0, 32)
         pop(v1)
         $u8_encode_encode__Sol_SolEncoder__dce63ad1a1fe4ae2($value, v0)
-        let v2 := $solencoder_abiencoder_finish_mem(v0)
+        let v2 := $solencoder_abiencoder_finish(v0)
         let v3 := mload(v2)
         let v4 := mload(add(v2, 32))
         $evm_contracthost_return_bytes($self, v3, v4)
@@ -920,7 +920,7 @@ object "CoolCoin" {
         ret := v0
         leave
       }
-      function $soldecoder_i__abidecoder_read_word_mem__CallData__b9ab8dc8a4b2f9e($self) -> ret {
+      function $soldecoder_i__abidecoder_read_word__CallData__b9ab8dc8a4b2f9e($self) -> ret {
         let v0 := mload($self)
         let v1 := $calldata_byteinput_len(v0)
         let v2 := mload(add($self, 32))
@@ -939,7 +939,7 @@ object "CoolCoin" {
       }
       function $soldecoder_i__with_base__CallData__b9ab8dc8a4b2f9e($input, $base) -> ret {
         let v0 := $cursor_i__new__CallData__b9ab8dc8a4b2f9e($input)
-        let v1 := $cursor_i__fork_mem__CallData__b9ab8dc8a4b2f9e(v0, $base)
+        let v1 := $cursor_i__fork__CallData__b9ab8dc8a4b2f9e(v0, $base)
         let v2 := mload(0x40)
         if iszero(v2) {
           v2 := 0x80
@@ -953,7 +953,7 @@ object "CoolCoin" {
         ret := v4
         leave
       }
-      function $solencoder_abiencoder_finish_mem($self) -> ret {
+      function $solencoder_abiencoder_finish($self) -> ret {
         let v0 := mload($self)
         let v1 := mload(add($self, 64))
         let v2 := mload(0x40)
@@ -966,19 +966,19 @@ object "CoolCoin" {
         ret := v2
         leave
       }
-      function $solencoder_abiencoder_reserve_head_mem($self, $bytes) -> ret {
-        $solencoder_ensure_init_mem($self, $bytes)
+      function $solencoder_abiencoder_reserve_head($self, $bytes) -> ret {
+        $solencoder_ensure_init($self, $bytes)
         let v0 := mload($self)
         ret := v0
         leave
       }
-      function $solencoder_abiencoder_write_word_mem($self, $v) {
+      function $solencoder_abiencoder_write_word($self, $v) {
         let v0 := mload(add($self, 32))
         mstore(v0, $v)
         mstore(add($self, 32), add(v0, 32))
         leave
       }
-      function $solencoder_ensure_init_mem($self, $bytes) {
+      function $solencoder_ensure_init($self, $bytes) {
         let v0 := mload($self)
         let v1 := eq(v0, 0)
         if v1 {
@@ -1120,7 +1120,7 @@ object "CoolCoin" {
       }
       function $string_const_n__usize__encode_encode__Sol_32_SolEncoder__85bcb27fa2f25e8f($self, $e) {
         let v0 := $self
-        $solencoder_abiencoder_write_word_mem($e, v0)
+        $solencoder_abiencoder_write_word($e, v0)
         leave
       }
       function $symbol_decode_decode__SolDecoder_CallData___c1e4510fd444b966($d) {
@@ -1183,12 +1183,12 @@ object "CoolCoin" {
         leave
       }
       function $u256_decode_decode__Sol_SolDecoder_CallData___828c6f2e3bda3cab($d) -> ret {
-        let v0 := $soldecoder_i__abidecoder_read_word_mem__CallData__b9ab8dc8a4b2f9e($d)
+        let v0 := $soldecoder_i__abidecoder_read_word__CallData__b9ab8dc8a4b2f9e($d)
         ret := v0
         leave
       }
       function $u256_encode_encode__Sol_SolEncoder__dce63ad1a1fe4ae2($self, $e) {
-        $solencoder_abiencoder_write_word_mem($e, $self)
+        $solencoder_abiencoder_write_word($e, $self)
         leave
       }
       function $u256_intword_to_word($self) -> ret {
@@ -1213,7 +1213,7 @@ object "CoolCoin" {
         leave
       }
       function $u8_encode_encode__Sol_SolEncoder__dce63ad1a1fe4ae2($self, $e) {
-        $solencoder_abiencoder_write_word_mem($e, $self)
+        $solencoder_abiencoder_write_word($e, $self)
         leave
       }
       $__CoolCoin_runtime()

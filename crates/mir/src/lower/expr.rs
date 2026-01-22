@@ -439,7 +439,10 @@ impl<'db, 'a> MirBuilder<'db, 'a> {
                     })
             };
             if needs_space {
-                receiver_space = Some(self.value_address_space(args[0]));
+                let space = self.value_address_space(args[0]);
+                if !matches!(space, AddressSpaceKind::Memory) {
+                    receiver_space = Some(space);
+                }
             }
         }
 

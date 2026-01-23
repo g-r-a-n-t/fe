@@ -1238,7 +1238,13 @@ pub fn resolve_name_res<'db>(
                 ItemKind::Func(func) => {
                     let func_def = func.as_callable(db).unwrap();
                     let ty = TyId::func(db, func_def);
-                    PathRes::Func(TyId::foldl(db, ty, args))
+                    // Generic args for callables are unified in the type-checker (for both call
+                    // expressions and callable values), which knows how to align explicit args
+                    // after implicit params like effect-provider generics).
+                    //
+                    // Applying them eagerly here via `foldl` would bind user generics to the wrong
+                    // parameter slots once implicit params are prepended.
+                    PathRes::Func(ty)
                 }
                 ItemKind::Const(const_) => {
                     if !args.is_empty() {

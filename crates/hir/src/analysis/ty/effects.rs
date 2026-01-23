@@ -1,7 +1,12 @@
 use crate::analysis::HirAnalysisDb;
-use crate::analysis::name_resolution::{PathRes, resolve_path};
+use crate::analysis::name_resolution::{
+    NameDomain, PathRes, resolve_ident_to_bucket, resolve_path,
+};
+use crate::analysis::ty::const_ty::ConstTyData;
+use crate::analysis::ty::fold::{AssocTySubst, TyFoldable, TyFolder};
+use crate::analysis::ty::trait_def::TraitInstId;
 use crate::analysis::ty::trait_resolution::PredicateListId;
-use crate::analysis::ty::ty_def::TyData;
+use crate::analysis::ty::ty_def::{TyData, TyId};
 use crate::hir_def::scope_graph::ScopeId;
 use crate::hir_def::{CallableDef, Func, PathId};
 use salsa::Update;
@@ -38,6 +43,20 @@ pub(crate) fn effect_key_kind<'db>(
     let kind = classify(resolve_path(db, stripped_path, scope, assumptions, false));
     if kind != EffectKeyKind::Other {
         return kind;
+    }
+
+    // `resolve_path` rejects generic trait paths when the generic args are stripped, which can
+    // create a cycle when this classification runs during generic-param collection. For bare
+    // identifiers, consult the name-resolution bucket to classify without lowering args.
+    if stripped_path.parent(db).is_none()
+        && let Ok(res) = resolve_ident_to_bucket(db, stripped_path, scope).pick(NameDomain::TYPE)
+    {
+        if res.is_trait() {
+            return EffectKeyKind::Trait;
+        }
+        if res.is_type() {
+            return EffectKeyKind::Type;
+        }
     }
 
     classify(resolve_path(db, key_path, scope, assumptions, false))
@@ -101,4 +120,68 @@ pub fn place_effect_provider_param_index_map<'db>(
     }
 
     out
+}
+
+pub(crate) fn instantiate_trait_effect_requirement<'db>(
+    db: &'db dyn HirAnalysisDb,
+    trait_inst: TraitInstId<'db>,
+    callee_generic_args: &[TyId<'db>],
+    provided_ty: TyId<'db>,
+    assoc_ty_subst: Option<TraitInstId<'db>>,
+) -> TraitInstId<'db> {
+    struct InstantiateCalleeArgs<'db, 'a> {
+        args: &'a [TyId<'db>],
+    }
+
+    impl<'db> TyFolder<'db> for InstantiateCalleeArgs<'db, '_> {
+        fn fold_ty(&mut self, db: &'db dyn HirAnalysisDb, ty: TyId<'db>) -> TyId<'db> {
+            match ty.data(db) {
+                TyData::TyParam(param) if !param.is_effect() && !param.is_trait_self() => {
+                    self.args.get(param.idx).copied().unwrap_or(ty)
+                }
+                TyData::ConstTy(const_ty) => {
+                    if let ConstTyData::TyParam(param, _) = const_ty.data(db)
+                        && !param.is_effect()
+                        && !param.is_trait_self()
+                        && let Some(arg) = self.args.get(param.idx)
+                    {
+                        *arg
+                    } else {
+                        ty.super_fold_with(db, self)
+                    }
+                }
+                _ => ty.super_fold_with(db, self),
+            }
+        }
+    }
+
+    struct SelfSubst<'db> {
+        self_subst: TyId<'db>,
+    }
+
+    impl<'db> TyFolder<'db> for SelfSubst<'db> {
+        fn fold_ty(&mut self, db: &'db dyn HirAnalysisDb, ty: TyId<'db>) -> TyId<'db> {
+            match ty.data(db) {
+                TyData::TyParam(p) if p.is_trait_self() => self.self_subst,
+                _ => ty.super_fold_with(db, self),
+            }
+        }
+    }
+
+    let mut instantiation = InstantiateCalleeArgs {
+        args: callee_generic_args,
+    };
+    let trait_inst = trait_inst.fold_with(db, &mut instantiation);
+
+    let mut self_subst = SelfSubst {
+        self_subst: provided_ty,
+    };
+    let mut trait_req = trait_inst.fold_with(db, &mut self_subst);
+
+    if let Some(inst) = assoc_ty_subst {
+        let mut subst = AssocTySubst::new(inst);
+        trait_req = trait_req.fold_with(db, &mut subst);
+    }
+
+    trait_req
 }

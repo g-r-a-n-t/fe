@@ -718,14 +718,6 @@ impl<'db> TyChecker<'db> {
         self.env.body()
     }
 
-    fn parent_expr(&self) -> Option<&'db Expr<'db>> {
-        let id = self.env.parent_expr()?;
-        match &self.body().exprs(self.db)[id] {
-            Partial::Present(expr) => Some(expr),
-            Partial::Absent => None,
-        }
-    }
-
     fn lit_ty(&mut self, lit: &LitKind<'db>) -> TyId<'db> {
         match lit {
             LitKind::Bool(_) => TyId::bool(self.db),

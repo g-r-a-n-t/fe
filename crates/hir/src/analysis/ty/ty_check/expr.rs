@@ -670,7 +670,11 @@ impl<'db> TyChecker<'db> {
             return ExprProp::invalid(self.db);
         }
 
-        let mut callable = if let Some(existing) = self.env.callable_expr(*callee) {
+        let callable = if matches!(
+            callee.data(self.db, self.body()),
+            Partial::Present(Expr::Path(..))
+        ) && let Some(existing) = self.env.callable_expr(*callee)
+        {
             existing.clone()
         } else {
             match Callable::new(
@@ -688,24 +692,6 @@ impl<'db> TyChecker<'db> {
         };
 
         let call_span = expr.span(self.body()).into_call_expr();
-
-        if let Partial::Present(Expr::Path(Partial::Present(path))) =
-            callee.data(self.db, self.body())
-        {
-            let idx = path.segment_index(self.db);
-
-            if !callable.unify_generic_args(
-                self,
-                path.generic_args(self.db),
-                expr.span(self.body())
-                    .into_path_expr()
-                    .path()
-                    .segment(idx)
-                    .generic_args(),
-            ) {
-                return ExprProp::invalid(self.db);
-            }
-        };
 
         callable.check_args(self, args, call_span.args(), None, false);
 
@@ -1277,16 +1263,13 @@ impl<'db> TyChecker<'db> {
                 Some(EffectRequirement::Type(expected))
             }
             PathRes::Trait(trait_inst) => {
-                let mut instantiation_args = Vec::with_capacity(1 + callable.generic_args().len());
-                instantiation_args.push(provided_ty);
-                instantiation_args.extend_from_slice(callable.generic_args());
-
-                let mut trait_req =
-                    Binder::bind(*trait_inst).instantiate(self.db, &instantiation_args);
-                if let Some(inst) = callable.trait_inst() {
-                    let mut subst = AssocTySubst::new(inst);
-                    trait_req = trait_req.fold_with(self.db, &mut subst);
-                }
+                let trait_req = crate::analysis::ty::effects::instantiate_trait_effect_requirement(
+                    self.db,
+                    *trait_inst,
+                    callable.generic_args(),
+                    provided_ty,
+                    callable.trait_inst(),
+                );
                 Some(EffectRequirement::Trait(trait_req))
             }
             _ => None,
@@ -1447,25 +1430,40 @@ impl<'db> TyChecker<'db> {
         let Partial::Present(path) = path else {
             return ExprProp::invalid(self.db);
         };
+        let path = *path;
 
         let path_expr_span = expr.span(self.body()).into_path_expr();
         let path_span = path_expr_span.clone().path();
 
+        let is_call_callee = self.env.parent_expr().is_some_and(|parent| {
+            matches!(
+                self.body().exprs(self.db)[parent],
+                Partial::Present(Expr::Call(callee, _)) if callee == expr
+            )
+        });
+
+        let idx = path.segment_index(self.db);
+        let generic_args = path.generic_args(self.db);
+        let generic_args_span = path_span.clone().segment(idx).generic_args();
+        let unify_generic_args = |tc: &mut Self, callable: &mut Callable<'db>| {
+            callable.unify_generic_args(tc, generic_args, generic_args_span.clone())
+        };
+
         let res = if path.is_bare_ident(self.db) {
             let ident_span: DynLazySpan<'db> = path_expr_span.clone().into();
-            resolve_ident_expr(self.db, &self.env, *path, ident_span)
+            resolve_ident_expr(self.db, &self.env, path, ident_span)
         } else {
-            match self.resolve_path(*path, true, path_span.clone()) {
+            match self.resolve_path(path, true, path_span.clone()) {
                 Ok(r) => ResolvedPathInBody::Reso(r),
                 Err(err) => {
-                    let expected_kind = if matches!(self.parent_expr(), Some(Expr::Call(..))) {
+                    let expected_kind = if is_call_callee {
                         ExpectedPathKind::Function
                     } else {
                         ExpectedPathKind::Value
                     };
 
                     if let Some(diag) =
-                        err.into_diag(self.db, *path, path_span.clone(), expected_kind)
+                        err.into_diag(self.db, path, path_span.clone(), expected_kind)
                     {
                         self.push_diag(diag)
                     }
@@ -1516,7 +1514,17 @@ impl<'db> TyChecker<'db> {
                     }
                 }
                 PathRes::Func(ty) => {
-                    ExprProp::new(self.instantiate_contract_func_item_ty(ty), true)
+                    let mut callable =
+                        Callable::new(self.db, ty, expr.span(self.body()).into(), None)
+                            .expect("function item path should resolve to callable");
+                    if !unify_generic_args(self, &mut callable) {
+                        return ExprProp::invalid(self.db);
+                    }
+
+                    ExprProp::new(
+                        self.instantiate_contract_func_item_ty(callable.ty(self.db)),
+                        true,
+                    )
                 }
                 PathRes::Trait(trait_) => {
                     let diag = BodyDiag::NotValue {
@@ -1588,17 +1596,20 @@ impl<'db> TyChecker<'db> {
                         }
                     };
 
-                    if self.env.callable_expr(expr).is_none() {
-                        let callable = Callable::new(
-                            self.db,
-                            method_ty,
-                            expr.span(self.body()).into(),
-                            trait_inst,
-                        )
-                        .expect("method path should resolve to callable");
-                        self.env.register_callable(expr, callable);
+                    let mut callable = Callable::new(
+                        self.db,
+                        method_ty,
+                        expr.span(self.body()).into(),
+                        trait_inst,
+                    )
+                    .expect("method path should resolve to callable");
+
+                    if !unify_generic_args(self, &mut callable) {
+                        return ExprProp::invalid(self.db);
                     }
 
+                    let method_ty = callable.ty(self.db);
+                    self.env.register_callable(expr, callable);
                     ExprProp::new(method_ty, true)
                 }
                 PathRes::TraitMethod(trait_inst, method) => {
@@ -1666,9 +1677,15 @@ impl<'db> TyChecker<'db> {
                         inst,
                     );
 
-                    let callable =
+                    let mut callable =
                         Callable::new(self.db, func_ty, expr.span(self.body()).into(), Some(inst))
                             .expect("trait method path should resolve to callable");
+
+                    if !unify_generic_args(self, &mut callable) {
+                        return ExprProp::invalid(self.db);
+                    }
+
+                    let func_ty = callable.ty(self.db);
                     self.env.register_callable(expr, callable);
                     ExprProp::new(func_ty, true)
                 }

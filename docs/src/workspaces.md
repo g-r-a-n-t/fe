@@ -6,6 +6,8 @@ Fe supports **workspaces**: a single root `fe.toml` that groups multiple ingots 
 - Dependency resolution between members by `name`.
 - Workspace-level defaults (e.g. a shared version for members that omit one).
 
+> Note: “Workspace” here refers to Fe ingot workspaces (`fe.toml`), not the Rust/Cargo workspace used to build this repository.
+
 This document describes the workspace feature as implemented in the current codebase.
 
 ## Concepts

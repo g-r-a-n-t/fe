@@ -16,8 +16,13 @@ pub async fn handle_goto_implementation(
     backend: &Backend,
     params: GotoDefinitionParams,
 ) -> Result<Option<GotoDefinitionResponse>, ResponseError> {
-    let internal_url =
-        backend.map_client_uri_to_internal(params.text_document_position_params.text_document.uri.clone());
+    let internal_url = backend.map_client_uri_to_internal(
+        params
+            .text_document_position_params
+            .text_document
+            .uri
+            .clone(),
+    );
 
     let Some(file) = backend.db.workspace().get(&backend.db, &internal_url) else {
         return Ok(None);

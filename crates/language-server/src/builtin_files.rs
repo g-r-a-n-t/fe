@@ -120,9 +120,8 @@ impl BuiltinFiles {
 
             let out_path = join_url_path(&out_dir, relative);
             if let Some(parent) = out_path.parent() {
-                std::fs::create_dir_all(parent).with_context(|| {
-                    format!("create builtin temp dir {}", parent.display())
-                })?;
+                std::fs::create_dir_all(parent)
+                    .with_context(|| format!("create builtin temp dir {}", parent.display()))?;
             }
 
             std::fs::write(&out_path, file.text(db))

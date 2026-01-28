@@ -420,10 +420,7 @@ pub async fn handle_files_need_diagnostics(
     Ok(())
 }
 
-fn map_related_info_uris(
-    backend: &Backend,
-    diagnostics: &mut [async_lsp::lsp_types::Diagnostic],
-) {
+fn map_related_info_uris(backend: &Backend, diagnostics: &mut [async_lsp::lsp_types::Diagnostic]) {
     for diagnostic in diagnostics.iter_mut() {
         let Some(related) = diagnostic.related_information.as_mut() else {
             continue;

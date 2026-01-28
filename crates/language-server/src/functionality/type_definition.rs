@@ -13,8 +13,13 @@ pub async fn handle_goto_type_definition(
     backend: &Backend,
     params: async_lsp::lsp_types::GotoDefinitionParams,
 ) -> Result<Option<async_lsp::lsp_types::GotoDefinitionResponse>, ResponseError> {
-    let internal_url = backend
-        .map_client_uri_to_internal(params.text_document_position_params.text_document.uri.clone());
+    let internal_url = backend.map_client_uri_to_internal(
+        params
+            .text_document_position_params
+            .text_document
+            .uri
+            .clone(),
+    );
 
     let Some(file) = backend.db.workspace().get(&backend.db, &internal_url) else {
         return Ok(None);

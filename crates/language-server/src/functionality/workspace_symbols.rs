@@ -113,10 +113,7 @@ fn item_to_workspace_symbol(
         kind,
         tags: None,
         deprecated: None,
-        location: Location {
-            uri,
-            range,
-        },
+        location: Location { uri, range },
         container_name: None,
     })
 }

@@ -12,13 +12,7 @@ pub async fn handle_document_symbols(
     backend: &Backend,
     params: async_lsp::lsp_types::DocumentSymbolParams,
 ) -> Result<Option<DocumentSymbolResponse>, ResponseError> {
-    let file_path_str = params.text_document.uri.path();
-    let url = url::Url::from_file_path(file_path_str).map_err(|()| {
-        ResponseError::new(
-            async_lsp::ErrorCode::INTERNAL_ERROR,
-            format!("Invalid file path: {file_path_str}"),
-        )
-    })?;
+    let url = backend.map_client_uri_to_internal(params.text_document.uri.clone());
 
     let file = backend
         .db

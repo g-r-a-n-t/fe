@@ -5,7 +5,8 @@ use async_lsp::{
     ErrorCode, LanguageClient, ResponseError,
     lsp_types::{
         DocumentFormattingParams, Hover, HoverParams, InitializeParams, InitializeResult,
-        InitializedParams, LogMessageParams, Position, Range, TextEdit,
+        InitializedParams, LogMessageParams, MessageType, Position, Range, ShowMessageParams,
+        TextEdit,
     },
 };
 
@@ -237,6 +238,19 @@ pub async fn handle_file_change(
     backend: &mut Backend,
     message: FileChange,
 ) -> Result<(), ResponseError> {
+    if backend.is_builtin_tmp_uri(&message.uri) {
+        if matches!(message.kind, ChangeKind::Edit(_))
+            && backend.readonly_warnings.insert(message.uri.clone())
+        {
+            let _ = backend.client.clone().show_message(ShowMessageParams {
+                typ: MessageType::ERROR,
+                message: "Built-in library files are read-only in the editor; edits are ignored."
+                    .to_string(),
+            });
+        }
+        return Ok(());
+    }
+
     let path = match message.uri.to_file_path() {
         Ok(p) => p,
         Err(_) => {
@@ -376,6 +390,7 @@ pub async fn handle_files_need_diagnostics(
     let ingots_need_diagnostics: FxHashSet<_> = need_diagnostics
         .iter()
         .filter_map(|NeedsDiagnostics(url)| {
+            let url = backend.map_client_uri_to_internal(url.clone());
             backend
                 .db
                 .workspace()
@@ -388,8 +403,10 @@ pub async fn handle_files_need_diagnostics(
         use crate::lsp_diagnostics::LspDiagnostics;
         let diagnostics_map = backend.db.diagnostics_for_ingot(ingot);
 
-        for uri in diagnostics_map.keys() {
-            let diagnostic = diagnostics_map.get(uri).cloned().unwrap_or_default();
+        for (internal_uri, diags) in diagnostics_map.iter() {
+            let uri = backend.map_internal_uri_to_client(internal_uri.clone());
+            let mut diagnostic = diags.clone();
+            map_related_info_uris(backend, &mut diagnostic);
             let diagnostics_params = async_lsp::lsp_types::PublishDiagnosticsParams {
                 uri: uri.clone(),
                 diagnostics: diagnostic,
@@ -403,24 +420,33 @@ pub async fn handle_files_need_diagnostics(
     Ok(())
 }
 
+fn map_related_info_uris(
+    backend: &Backend,
+    diagnostics: &mut [async_lsp::lsp_types::Diagnostic],
+) {
+    for diagnostic in diagnostics.iter_mut() {
+        let Some(related) = diagnostic.related_information.as_mut() else {
+            continue;
+        };
+        for info in related.iter_mut() {
+            info.location.uri = backend.map_internal_uri_to_client(info.location.uri.clone());
+        }
+    }
+}
+
 pub async fn handle_hover_request(
     backend: &Backend,
     message: HoverParams,
 ) -> Result<Option<Hover>, ResponseError> {
-    let path_str = message // Renamed to path_str to avoid confusion with Url
-        .text_document_position_params
-        .text_document
-        .uri
-        .path();
-
-    let Ok(url) = url::Url::from_file_path(path_str) else {
-        warn!("handle_hover_request failed to convert path to URL: `{path_str}`");
-        return Ok(None);
-    };
+    let url = backend.map_client_uri_to_internal(
+        message
+            .text_document_position_params
+            .text_document
+            .uri
+            .clone(),
+    );
     let Some(file) = backend.db.workspace().get(&backend.db, &url) else {
-        warn!(
-            "handle_hover_request failed to get file for url: `{url}` (original path: `{path_str}`)"
-        );
+        warn!("handle_hover_request failed to get file for url: `{url}`");
         return Ok(None);
     };
 
@@ -442,12 +468,11 @@ pub async fn handle_formatting(
     backend: &Backend,
     params: DocumentFormattingParams,
 ) -> Result<Option<Vec<TextEdit>>, ResponseError> {
-    let path_str = params.text_document.uri.path();
-
-    let Ok(url) = url::Url::from_file_path(path_str) else {
-        warn!("handle_formatting: invalid path `{path_str}`");
+    if backend.is_builtin_tmp_uri(&params.text_document.uri) {
         return Ok(None);
-    };
+    }
+
+    let url = backend.map_client_uri_to_internal(params.text_document.uri.clone());
 
     let Some(file) = backend.db.workspace().get(&backend.db, &url) else {
         warn!("handle_formatting: file not found `{url}`");

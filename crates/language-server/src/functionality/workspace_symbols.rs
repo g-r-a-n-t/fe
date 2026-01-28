@@ -25,6 +25,10 @@ pub async fn handle_workspace_symbols(
         collect_matching_symbols(&backend.db, top_mod, &query, &mut symbols);
     }
 
+    for symbol in symbols.iter_mut() {
+        symbol.location.uri = backend.map_internal_uri_to_client(symbol.location.uri.clone());
+    }
+
     Ok(Some(WorkspaceSymbolResponse::Flat(symbols)))
 }
 
@@ -110,7 +114,7 @@ fn item_to_workspace_symbol(
         tags: None,
         deprecated: None,
         location: Location {
-            uri: uri.to_string().parse().ok()?,
+            uri,
             range,
         },
         container_name: None,

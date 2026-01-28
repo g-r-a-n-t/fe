@@ -1,5 +1,6 @@
 #![allow(clippy::print_stderr, clippy::print_stdout)]
 mod check;
+mod cli;
 mod test;
 #[cfg(not(target_arch = "wasm32"))]
 mod tree;
@@ -17,6 +18,9 @@ use walkdir::WalkDir;
 #[derive(Debug, Clone, Parser)]
 #[command(version, about, long_about = None)]
 pub struct Options {
+    /// Show verbose resolver output.
+    #[arg(short, long, global = true)]
+    pub verbose: bool,
     #[command(subcommand)]
     pub command: Command,
 }
@@ -36,6 +40,7 @@ pub enum Command {
     },
     #[cfg(not(target_arch = "wasm32"))]
     Tree {
+        #[arg(default_value_t = default_project_path())]
         path: Utf8PathBuf,
     },
     /// Format Fe source code.
@@ -58,11 +63,27 @@ pub enum Command {
         #[arg(long)]
         show_logs: bool,
     },
-    New,
+    /// Create a new ingot or workspace.
+    New {
+        /// Path to create the ingot or workspace in.
+        path: Utf8PathBuf,
+        /// Create a workspace instead of a single ingot.
+        #[arg(long)]
+        workspace: bool,
+        /// Override the default inferred name.
+        #[arg(long)]
+        name: Option<String>,
+        /// Override the default version (default: 0.1.0).
+        #[arg(long)]
+        version: Option<String>,
+        /// Do not attempt to add this ingot to an enclosing workspace.
+        #[arg(long)]
+        no_workspace_update: bool,
+    },
 }
 
 fn default_project_path() -> Utf8PathBuf {
-    driver::files::find_project_root().unwrap_or(Utf8PathBuf::from("."))
+    Utf8PathBuf::from(".")
 }
 
 fn main() {
@@ -70,6 +91,7 @@ fn main() {
     run(&opts);
 }
 pub fn run(opts: &Options) {
+    driver::set_resolver_verbose(opts.verbose);
     match &opts.command {
         Command::Build => eprintln!("`fe build` doesn't work at the moment"),
         Command::Check {
@@ -95,7 +117,24 @@ pub fn run(opts: &Options) {
         } => {
             test::run_tests(path, filter.as_deref(), *show_logs);
         }
-        Command::New => eprintln!("`fe new` doesn't work at the moment"),
+        Command::New {
+            path,
+            workspace,
+            name,
+            version,
+            no_workspace_update,
+        } => {
+            if let Err(err) = cli::new::run(
+                path,
+                *workspace,
+                name.as_deref(),
+                version.as_deref(),
+                *no_workspace_update,
+            ) {
+                eprintln!("❌ {err}");
+                std::process::exit(1);
+            }
+        }
     }
 }
 

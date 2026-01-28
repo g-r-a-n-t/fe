@@ -297,7 +297,7 @@ fn resolve_default_root_effect_ty<'db>(
         _ => return None,
     };
 
-    let target_trait = corelib::resolve_core_trait(db, scope, &["contracts", "Target"]);
+    let target_trait = corelib::resolve_core_trait(db, scope, &["contracts", "Target"])?;
     let inst_target =
         trait_def::TraitInstId::new(db, target_trait, vec![target_ty], IndexMap::new());
     let root_ident = IdentId::new(db, "RootEffect".to_owned());

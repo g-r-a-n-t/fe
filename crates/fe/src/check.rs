@@ -1,27 +1,312 @@
+use std::collections::HashSet;
+
 use camino::Utf8PathBuf;
 use codegen::emit_module_yul;
-use common::InputDb;
+use common::{
+    InputDb,
+    config::{Config, WorkspaceConfig},
+    file::IngotFileKind,
+};
 use driver::DriverDataBase;
 use hir::hir_def::{HirIngot, TopLevelMod};
 use mir::lower_module;
+use resolver::ResolutionHandler;
+use resolver::ingot::{FeTomlProbe, infer_config_kind};
+use resolver::{Resolver, files::ancestor_fe_toml_dirs};
 use url::Url;
+
+struct ResolvedMember {
+    path: Utf8PathBuf,
+    url: Url,
+}
+
+enum CheckTarget {
+    StandaloneFile(Utf8PathBuf),
+    Directory(Utf8PathBuf),
+    WorkspaceMember(Utf8PathBuf),
+}
+
+struct ConfigProbe;
+
+impl ResolutionHandler<resolver::files::FilesResolver> for ConfigProbe {
+    type Item = FeTomlProbe;
+
+    fn handle_resolution(
+        &mut self,
+        _description: &Url,
+        resource: resolver::files::FilesResource,
+    ) -> Self::Item {
+        for file in &resource.files {
+            if file.path.as_str().ends_with("fe.toml") {
+                return FeTomlProbe::Present {
+                    kind_hint: infer_config_kind(&file.content),
+                };
+            }
+        }
+        FeTomlProbe::Missing
+    }
+}
 
 pub fn check(path: &Utf8PathBuf, dump_mir: bool, emit_yul_min: bool) {
     let mut db = DriverDataBase::default();
 
-    // Determine if we're dealing with a single file or an ingot directory
-    let has_errors = if path.is_file() && path.extension() == Some("fe") {
-        check_single_file(&mut db, path, dump_mir, emit_yul_min)
-    } else if path.is_dir() {
-        check_ingot(&mut db, path, dump_mir, emit_yul_min)
-    } else {
-        eprintln!("❌ Error: Path must be either a .fe file or a directory containing fe.toml");
-        std::process::exit(1);
+    let target = match resolve_check_target(&mut db, path) {
+        Ok(target) => target,
+        Err(message) => {
+            eprintln!("❌ Error: {message}");
+            std::process::exit(1);
+        }
+    };
+
+    let has_errors = match target {
+        CheckTarget::StandaloneFile(file_path) => {
+            check_single_file(&mut db, &file_path, dump_mir, emit_yul_min)
+        }
+        CheckTarget::WorkspaceMember(dir_path) => {
+            check_ingot(&mut db, &dir_path, dump_mir, emit_yul_min)
+        }
+        CheckTarget::Directory(dir_path) => {
+            check_directory(&mut db, &dir_path, dump_mir, emit_yul_min)
+        }
     };
 
     if has_errors {
         std::process::exit(1);
     }
+}
+
+fn resolve_check_target(
+    db: &mut DriverDataBase,
+    path: &Utf8PathBuf,
+) -> Result<CheckTarget, String> {
+    let arg = path.as_str();
+    let is_name = is_name_candidate(arg);
+    let path_exists = path.exists();
+
+    if path.is_file() {
+        if path.extension() == Some("fe") {
+            return Ok(CheckTarget::StandaloneFile(path.clone()));
+        }
+        return Err("Path must be either a .fe file or a directory containing fe.toml".into());
+    }
+
+    let name_match = if is_name {
+        resolve_member_by_name(db, arg)?
+    } else {
+        None
+    };
+
+    let path_member = if is_name && path_exists {
+        resolve_member_by_path(db, path)?
+    } else {
+        None
+    };
+
+    if path_exists && name_match.is_some() {
+        match (&name_match, &path_member) {
+            (Some(name_member), Some(path_member)) => {
+                if name_member.url == path_member.url {
+                    return Ok(CheckTarget::WorkspaceMember(path_member.path.clone()));
+                }
+                return Err(format!(
+                    "Argument \"{arg}\" matches a workspace member name but does not match the provided path"
+                ));
+            }
+            (Some(_), None) => {
+                return Err(format!(
+                    "Argument \"{arg}\" matches a workspace member name but does not match the provided path"
+                ));
+            }
+            _ => {}
+        }
+    }
+
+    if let Some(name_member) = name_match {
+        return Ok(CheckTarget::WorkspaceMember(name_member.path));
+    }
+
+    if path_exists {
+        if path.is_dir() && path.join("fe.toml").is_file() {
+            return Ok(CheckTarget::Directory(path.clone()));
+        }
+        return Err("Path must be either a .fe file or a directory containing fe.toml".into());
+    }
+
+    Err("Path must be either a .fe file or a directory containing fe.toml".into())
+}
+
+fn check_directory(
+    db: &mut DriverDataBase,
+    dir_path: &Utf8PathBuf,
+    dump_mir: bool,
+    emit_yul_min: bool,
+) -> bool {
+    let ingot_url = match dir_url(dir_path) {
+        Ok(url) => url,
+        Err(message) => {
+            eprintln!("{message}");
+            return true;
+        }
+    };
+
+    let had_init_diagnostics = driver::init_ingot(db, &ingot_url);
+    if had_init_diagnostics {
+        return true;
+    }
+
+    let config = match config_from_db(db, dir_path) {
+        Ok(Some(config)) => config,
+        Ok(None) => {
+            eprintln!("❌ Error: No fe.toml file found in the root directory");
+            return true;
+        }
+        Err(err) => {
+            eprintln!("❌ Error: {err}");
+            return true;
+        }
+    };
+
+    match config {
+        Config::Workspace(workspace) => {
+            check_workspace(db, dir_path, *workspace, dump_mir, emit_yul_min)
+        }
+        Config::Ingot(_) => check_ingot_url(db, &ingot_url, dump_mir, emit_yul_min),
+    }
+}
+
+fn is_name_candidate(value: &str) -> bool {
+    !value.is_empty() && value.chars().all(|c| c.is_ascii_alphanumeric() || c == '_')
+}
+
+fn resolve_member_by_name(
+    db: &mut DriverDataBase,
+    name: &str,
+) -> Result<Option<ResolvedMember>, String> {
+    let cwd = std::env::current_dir()
+        .map_err(|err| format!("Failed to read current directory: {err}"))?;
+    let cwd = Utf8PathBuf::from_path_buf(cwd)
+        .map_err(|_| "Current directory is not valid UTF-8".to_string())?;
+    let workspace_root = find_workspace_root(db, &cwd)?;
+    let Some(workspace_root) = workspace_root else {
+        return Ok(None);
+    };
+    let workspace_url = dir_url(&workspace_root)?;
+    let mut matches = db.dependency_graph().workspace_members_by_name(
+        db,
+        &workspace_url,
+        &smol_str::SmolStr::new(name),
+    );
+    if matches.is_empty() {
+        return Ok(None);
+    }
+    if matches.len() > 1 {
+        return Err(format!(
+            "Multiple workspace members named \"{name}\"; specify a path instead"
+        ));
+    }
+    let member = matches.pop().map(|member| ResolvedMember {
+        path: workspace_root.join(member.path.as_str()),
+        url: member.url,
+    });
+    Ok(member)
+}
+
+fn resolve_member_by_path(
+    db: &mut DriverDataBase,
+    path: &Utf8PathBuf,
+) -> Result<Option<ResolvedMember>, String> {
+    if !path.is_dir() {
+        return Ok(None);
+    }
+    let workspace_root = find_workspace_root(db, path)?;
+    let Some(workspace_root) = workspace_root else {
+        return Ok(None);
+    };
+    let workspace_url = dir_url(&workspace_root)?;
+    let members = db
+        .dependency_graph()
+        .workspace_member_records(db, &workspace_url);
+    let canonical = path
+        .canonicalize_utf8()
+        .map_err(|_| format!("Error: invalid or non-existent directory path: {path}"))?;
+    let target_url = Url::from_directory_path(canonical.as_str())
+        .map_err(|_| format!("Error: invalid directory path: {path}"))?;
+
+    Ok(members
+        .into_iter()
+        .find(|member| member.url == target_url)
+        .map(|member| ResolvedMember {
+            path: workspace_root.join(member.path.as_str()),
+            url: member.url,
+        }))
+}
+
+fn find_workspace_root(
+    db: &mut DriverDataBase,
+    start: &Utf8PathBuf,
+) -> Result<Option<Utf8PathBuf>, String> {
+    let dirs = ancestor_fe_toml_dirs(start.as_std_path());
+    for dir in dirs {
+        let dir = Utf8PathBuf::from_path_buf(dir)
+            .map_err(|_| "Encountered non UTF-8 workspace path".to_string())?;
+        let url = dir_url(&dir)?;
+        let mut resolver = resolver::ingot::minimal_files_resolver();
+        let summary = resolver
+            .resolve(&mut ConfigProbe, &url)
+            .map_err(|err| err.to_string())?;
+        if summary.kind_hint() == Some(resolver::ingot::ConfigKind::Workspace) {
+            if db
+                .dependency_graph()
+                .workspace_member_records(db, &url)
+                .is_empty()
+            {
+                let _ = driver::init_ingot(db, &url);
+            }
+            return Ok(Some(dir));
+        }
+    }
+    Ok(None)
+}
+
+fn config_from_db(db: &DriverDataBase, dir_path: &Utf8PathBuf) -> Result<Option<Config>, String> {
+    let config_path = if dir_path.is_absolute() {
+        dir_path.join("fe.toml")
+    } else {
+        let cwd = std::env::current_dir()
+            .map_err(|err| format!("Failed to read current directory: {err}"))?;
+        let cwd = Utf8PathBuf::from_path_buf(cwd)
+            .map_err(|_| "Current directory is not valid UTF-8".to_string())?;
+        cwd.join(dir_path).join("fe.toml")
+    };
+    if !config_path.is_file() {
+        return Ok(None);
+    }
+    let config_url = Url::from_file_path(config_path.as_std_path())
+        .map_err(|_| format!("Invalid config path: {config_path}"))?;
+    let content = db
+        .workspace()
+        .get(db, &config_url)
+        .ok_or_else(|| format!("Config file not loaded by resolver: {config_path}"))?
+        .text(db)
+        .to_string();
+    let config_file =
+        Config::parse(&content).map_err(|err| format!("Failed to parse {config_path}: {err}"))?;
+    Ok(Some(config_file))
+}
+
+fn dir_url(path: &Utf8PathBuf) -> Result<Url, String> {
+    let canonical_path = match path.canonicalize_utf8() {
+        Ok(path) => path,
+        Err(_) => {
+            let cwd = std::env::current_dir()
+                .map_err(|err| format!("Failed to read current directory: {err}"))?;
+            let cwd = Utf8PathBuf::from_path_buf(cwd)
+                .map_err(|_| "Current directory is not valid UTF-8".to_string())?;
+            cwd.join(path)
+        }
+    };
+    Url::from_directory_path(canonical_path.as_str())
+        .map_err(|_| format!("Error: invalid or non-existent directory path: {path}"))
 }
 
 fn check_single_file(
@@ -30,7 +315,6 @@ fn check_single_file(
     dump_mir: bool,
     emit_yul_min: bool,
 ) -> bool {
-    // Create a file URL for the single .fe file
     let file_url = match Url::from_file_path(file_path.canonicalize_utf8().unwrap()) {
         Ok(url) => url,
         Err(_) => {
@@ -39,17 +323,33 @@ fn check_single_file(
         }
     };
 
-    // Read the file content
-    let content = match std::fs::read_to_string(file_path) {
-        Ok(content) => content,
-        Err(err) => {
-            eprintln!("Error reading file {file_path}: {err}");
-            return true;
-        }
-    };
+    struct StandaloneFileLoader<'a> {
+        db: &'a mut DriverDataBase,
+    }
 
-    // Add the file to the workspace
-    db.workspace().touch(db, file_url.clone(), Some(content));
+    impl<'a> ResolutionHandler<resolver::files::FilesResolver> for StandaloneFileLoader<'a> {
+        type Item = ();
+
+        fn handle_resolution(
+            &mut self,
+            _description: &Url,
+            resource: resolver::files::FilesResource,
+        ) -> Self::Item {
+            for file in resource.files {
+                let file_url =
+                    Url::from_file_path(file.path.as_std_path()).expect("valid file URL");
+                self.db
+                    .workspace()
+                    .touch(self.db, file_url, Some(file.content));
+            }
+        }
+    }
+
+    let mut resolver = resolver::files::FilesResolver::new();
+    if let Err(err) = resolver.resolve(&mut StandaloneFileLoader { db }, &file_url) {
+        eprintln!("Error reading file {file_path}: {err}");
+        return true;
+    }
 
     // Try to get the file and check it for errors
     if let Some(file) = db.workspace().get(db, &file_url) {
@@ -102,7 +402,20 @@ fn check_ingot(
         return true;
     }
 
-    let Some(ingot) = db.workspace().containing_ingot(db, ingot_url.clone()) else {
+    check_ingot_url(db, &ingot_url, dump_mir, emit_yul_min)
+}
+
+fn check_ingot_url(
+    db: &mut DriverDataBase,
+    ingot_url: &Url,
+    dump_mir: bool,
+    emit_yul_min: bool,
+) -> bool {
+    if db
+        .workspace()
+        .containing_ingot(db, ingot_url.clone())
+        .is_none()
+    {
         // Check if the issue is a missing fe.toml file
         let config_url = match ingot_url.join("fe.toml") {
             Ok(url) => url,
@@ -122,13 +435,77 @@ fn check_ingot(
             eprintln!("❌ Error: Could not resolve ingot from directory");
         }
         return true;
+    }
+
+    let mut seen = HashSet::new();
+    check_ingot_and_dependencies(db, ingot_url, dump_mir, emit_yul_min, &mut seen)
+}
+
+fn check_workspace(
+    db: &mut DriverDataBase,
+    dir_path: &Utf8PathBuf,
+    workspace_config: WorkspaceConfig,
+    dump_mir: bool,
+    emit_yul_min: bool,
+) -> bool {
+    let workspace_url = match dir_url(dir_path) {
+        Ok(url) => url,
+        Err(message) => {
+            eprintln!("{message}");
+            return true;
+        }
     };
 
-    // Check if the ingot has source files before trying to analyze
+    let members = match driver::workspace_members(&workspace_config.workspace, &workspace_url) {
+        Ok(members) => members,
+        Err(err) => {
+            eprintln!("❌ Error resolving workspace members: {err}");
+            return true;
+        }
+    };
+
+    if members.is_empty() {
+        eprintln!("⚠️  No workspace members found");
+        return false;
+    }
+
+    let mut seen = HashSet::new();
+    let mut has_errors = false;
+    for member in members {
+        let member_url = member.url;
+        let member_has_errors =
+            check_ingot_and_dependencies(db, &member_url, dump_mir, emit_yul_min, &mut seen);
+        has_errors |= member_has_errors;
+    }
+
+    has_errors
+}
+
+fn check_ingot_and_dependencies(
+    db: &mut DriverDataBase,
+    ingot_url: &Url,
+    dump_mir: bool,
+    emit_yul_min: bool,
+    seen: &mut HashSet<Url>,
+) -> bool {
+    if !seen.insert(ingot_url.clone()) {
+        return false;
+    }
+
+    let Some(ingot) = db.workspace().containing_ingot(db, ingot_url.clone()) else {
+        eprintln!("❌ Error: Could not resolve ingot {ingot_url}");
+        return true;
+    };
+
     if ingot.root_file(db).is_err() {
         eprintln!(
             "source files resolution error: `src` folder does not exist in the ingot directory"
         );
+        return true;
+    }
+
+    if !ingot_has_source_files(db, ingot) {
+        eprintln!("❌ Error: Could not find source files for ingot {ingot_url}");
         return true;
     }
 
@@ -148,20 +525,25 @@ fn check_ingot(
         }
     }
 
-    // Collect all dependencies with errors
     let mut dependency_errors = Vec::new();
-    for dependency_url in db.dependency_graph().dependency_urls(db, &ingot_url) {
+    for dependency_url in db.dependency_graph().dependency_urls(db, ingot_url) {
+        if !seen.insert(dependency_url.clone()) {
+            continue;
+        }
         let Some(ingot) = db.workspace().containing_ingot(db, dependency_url.clone()) else {
-            // Skip dependencies that can't be resolved
             continue;
         };
+        if !ingot_has_source_files(db, ingot) {
+            eprintln!("❌ Error: Could not find source files for ingot {dependency_url}");
+            has_errors = true;
+            continue;
+        }
         let diags = db.run_on_ingot(ingot);
         if !diags.is_empty() {
             dependency_errors.push((dependency_url, diags));
         }
     }
 
-    // Print dependency errors if any exist
     if !dependency_errors.is_empty() {
         has_errors = true;
         if dependency_errors.len() == 1 {
@@ -177,6 +559,13 @@ fn check_ingot(
     }
 
     has_errors
+}
+
+fn ingot_has_source_files(db: &DriverDataBase, ingot: hir::Ingot<'_>) -> bool {
+    ingot
+        .files(db)
+        .iter()
+        .any(|(_, file)| matches!(file.kind(db), Some(IngotFileKind::Source)))
 }
 
 fn print_dependency_info(db: &DriverDataBase, dependency_url: &Url) {

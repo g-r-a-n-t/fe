@@ -232,10 +232,6 @@ impl<'db> TyChecker<'db> {
             unreachable!()
         };
         let prop = self.check_expr_unknown(*lhs);
-        if *op == UnOp::Plus {
-            // TODO: remove support for unary plus? what should it do?
-            return prop;
-        }
         if prop.ty.has_invalid(self.db) {
             return ExprProp::invalid(self.db);
         }
@@ -248,6 +244,15 @@ impl<'db> TyChecker<'db> {
         let base_ty = prop.ty.base_ty(self.db);
         if base_ty.is_ty_var(self.db) {
             let diag = BodyDiag::TypeMustBeKnown(lhs.span(self.body()).into());
+            self.push_diag(diag);
+            return ExprProp::invalid(self.db);
+        }
+
+        if *op == UnOp::Plus {
+            if prop.ty.is_integral(self.db) {
+                return prop;
+            }
+            let diag = BodyDiag::UnsupportedUnaryPlus(expr.span(self.body()).into());
             self.push_diag(diag);
             return ExprProp::invalid(self.db);
         }
@@ -742,10 +747,16 @@ impl<'db> TyChecker<'db> {
             .extend_all_bounds(self.db);
 
         let ingot = self.env.body().top_mod(self.db).ingot(self.db);
-        let effect_ref_trait =
-            resolve_core_trait(self.db, self.env.scope(), &["effect_ref", "EffectRef"]);
-        let effect_ref_mut_trait =
-            resolve_core_trait(self.db, self.env.scope(), &["effect_ref", "EffectRefMut"]);
+        let Some(effect_ref_trait) =
+            resolve_core_trait(self.db, self.env.scope(), &["effect_ref", "EffectRef"])
+        else {
+            return Vec::new();
+        };
+        let Some(effect_ref_mut_trait) =
+            resolve_core_trait(self.db, self.env.scope(), &["effect_ref", "EffectRefMut"])
+        else {
+            return Vec::new();
+        };
         let target_ident = IdentId::new(self.db, "Target".to_string());
 
         let callee_provider_arg_idx_by_effect =
@@ -2080,7 +2091,11 @@ impl<'db> TyChecker<'db> {
         op: &dyn TraitOps,
         rhs_expr: Option<ExprId>,
     ) -> ExprProp<'db> {
-        let trait_def = resolve_core_trait(self.db, self.env.scope(), &op.trait_path_segments());
+        let Some(trait_def) =
+            resolve_core_trait(self.db, self.env.scope(), &op.trait_path_segments())
+        else {
+            return ExprProp::invalid(self.db);
+        };
 
         let c_lhs_ty = Canonicalized::new(self.db, lhs_ty);
 
@@ -2357,12 +2372,12 @@ fn resolve_ident_expr<'db>(
                     let mut cand_spans = Vec::new();
                     for name in cands.iter() {
                         if let Some(span) = name.kind.name_span(db) {
-                            let from_prelude = name
+                            let from_implicit = name
                                 .derivation
                                 .use_stmt()
-                                .map(|use_| use_.is_prelude_use(db))
+                                .map(|use_| use_.is_synthetic_use(db))
                                 .unwrap_or(false);
-                            cand_spans.push((span, from_prelude));
+                            cand_spans.push((span, from_implicit));
                         }
                     }
 

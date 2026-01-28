@@ -1,4 +1,5 @@
 mod backend;
+mod builtin_files;
 mod cli;
 mod fallback;
 mod functionality;

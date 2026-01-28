@@ -20,13 +20,16 @@ pub async fn handle_rename(
     backend: &Backend,
     params: async_lsp::lsp_types::RenameParams,
 ) -> Result<Option<WorkspaceEdit>, ResponseError> {
-    let path_str = params.text_document_position.text_document.uri.path();
+    let lsp_uri = params.text_document_position.text_document.uri.clone();
+    if backend.is_builtin_tmp_uri(&lsp_uri) {
+        return Err(ResponseError::new(
+            async_lsp::ErrorCode::INVALID_REQUEST,
+            "Renaming symbols in built-in library files is not supported.".to_string(),
+        ));
+    }
 
-    let Ok(url) = url::Url::from_file_path(path_str) else {
-        return Ok(None);
-    };
-
-    let Some(file) = backend.db.workspace().get(&backend.db, &url) else {
+    let internal_url = backend.map_client_uri_to_internal(lsp_uri);
+    let Some(file) = backend.db.workspace().get(&backend.db, &internal_url) else {
         return Ok(None);
     };
 
@@ -41,6 +44,19 @@ pub async fn handle_rename(
     let Some(target) = resolution.first() else {
         return Ok(None);
     };
+
+    if let Target::Scope(scope) = target
+        && scope
+            .name_span(&backend.db)
+            .and_then(|span| span.resolve(&backend.db))
+            .and_then(|span| span.file.url(&backend.db))
+            .is_some_and(|url| url.scheme().starts_with("builtin-"))
+    {
+        return Err(ResponseError::new(
+            async_lsp::ErrorCode::INVALID_REQUEST,
+            "Renaming symbols defined in the built-in libraries is not supported.".to_string(),
+        ));
+    }
 
     let new_name = &params.new_name;
 
@@ -135,6 +151,9 @@ pub async fn handle_rename(
             }
         }
     }
+
+    // Never propose edits to embedded built-in library sources.
+    changes.retain(|url, _| !url.scheme().starts_with("builtin-"));
 
     if changes.is_empty() {
         Ok(None)

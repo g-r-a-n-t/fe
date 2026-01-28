@@ -61,11 +61,7 @@ pub async fn handle_semantic_tokens_full(
     backend: &Backend,
     params: async_lsp::lsp_types::SemanticTokensParams,
 ) -> Result<Option<SemanticTokensResult>, ResponseError> {
-    let path_str = params.text_document.uri.path();
-
-    let Ok(url) = url::Url::from_file_path(path_str) else {
-        return Ok(None);
-    };
+    let url = backend.map_client_uri_to_internal(params.text_document.uri.clone());
 
     let Some(file) = backend.db.workspace().get(&backend.db, &url) else {
         return Ok(None);

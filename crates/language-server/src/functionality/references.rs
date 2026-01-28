@@ -73,13 +73,9 @@ pub async fn handle_references(
     backend: &Backend,
     params: async_lsp::lsp_types::ReferenceParams,
 ) -> Result<Option<Vec<async_lsp::lsp_types::Location>>, ResponseError> {
-    let path_str = params.text_document_position.text_document.uri.path();
-
-    let Ok(url) = url::Url::from_file_path(path_str) else {
-        return Ok(None);
-    };
-
-    let Some(file) = backend.db.workspace().get(&backend.db, &url) else {
+    let internal_url =
+        backend.map_client_uri_to_internal(params.text_document_position.text_document.uri.clone());
+    let Some(file) = backend.db.workspace().get(&backend.db, &internal_url) else {
         return Ok(None);
     };
 
@@ -88,7 +84,13 @@ pub async fn handle_references(
         to_offset_from_position(params.text_document_position.position, file_text.as_str());
 
     let top_mod = map_file_to_mod(&backend.db, file);
-    let locations = find_references_at_cursor(&backend.db, top_mod, cursor);
+    let locations = find_references_at_cursor(&backend.db, top_mod, cursor)
+        .into_iter()
+        .map(|mut location| {
+            location.uri = backend.map_internal_uri_to_client(location.uri);
+            location
+        })
+        .collect::<Vec<_>>();
 
     if locations.is_empty() {
         Ok(None)

@@ -31,9 +31,11 @@ fn collect_effect_constraints_for_func<'db>(
     let provider_map = place_effect_provider_param_index_map(db, func);
     let provider_params = CallableDef::Func(func).params(db);
 
-    let effect_ref_trait = resolve_core_trait(db, func.scope(), &["effect_ref", "EffectRef"]);
+    let effect_ref_trait = resolve_core_trait(db, func.scope(), &["effect_ref", "EffectRef"])
+        .expect("missing required core trait `core::effect_ref::EffectRef`");
     let effect_ref_mut_trait =
-        resolve_core_trait(db, func.scope(), &["effect_ref", "EffectRefMut"]);
+        resolve_core_trait(db, func.scope(), &["effect_ref", "EffectRefMut"])
+            .expect("missing required core trait `core::effect_ref::EffectRefMut`");
 
     let mut out = Vec::new();
     for effect in func.effect_params(db) {

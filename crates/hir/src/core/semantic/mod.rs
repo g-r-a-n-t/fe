@@ -895,11 +895,8 @@ impl<'db> Contract<'db> {
         let assumptions = PredicateListId::empty_list(db);
         let ingot = self.top_mod(db).ingot(db);
 
-        let Some(effect_handle) =
-            resolve_core_trait(db, scope, &["effect_ref", "EffectHandle"])
-        else {
-            return IndexMap::new();
-        };
+        let effect_handle = resolve_core_trait(db, scope, &["effect_ref", "EffectHandle"])
+            .expect("missing required core trait `core::effect_ref::EffectHandle`");
         let target_ident = IdentId::new(db, "Target".to_string());
 
         let hir_fields = self.hir_fields(db).data(db);

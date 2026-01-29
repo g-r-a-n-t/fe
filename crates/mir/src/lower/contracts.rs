@@ -221,11 +221,8 @@ impl<'db> TargetHostContext<'db> {
             resolve_assoc_ty(db, contract_host_inst, scope, assumptions, "InitInput");
         let input_ty = resolve_assoc_ty(db, contract_host_inst, scope, assumptions, "Input");
 
-        let effect_handle_trait =  resolve_core_trait(db, scope, &["effect_ref", "EffectHandle"])
-            .ok_or_else(|| MirLowerError::Unsupported {
-                func_name: "<contract lowering>".into(),
-                message: "missing core trait `effect_ref::EffectRef`".into(),
-            })?;
+        let effect_handle_trait = resolve_core_trait(db, scope, &["effect_ref", "EffectHandle"])
+            .expect("missing required core trait `core::effect_ref::EffectHandle`");
         let effect_handle_from_raw = require_trait_method(db, effect_handle_trait, "from_raw")?;
 
         let alloc_func = resolve_value_func_path(db, top_mod, scope, spec.alloc_func_path)?;

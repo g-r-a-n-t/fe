@@ -734,18 +734,15 @@ impl<'db> TyChecker<'db> {
             .extend_all_bounds(self.db);
 
         let ingot = self.env.body().top_mod(self.db).ingot(self.db);
-        let Some(effect_ref_trait) =
+        let effect_ref_trait =
             resolve_core_trait(self.db, self.env.scope(), &["effect_ref", "EffectRef"])
-        else {
-            return Vec::new();
-        };
-        let Some(effect_ref_mut_trait) =
+                .expect("missing required core trait `core::effect_ref::EffectRef`");
+        let effect_ref_mut_trait =
             resolve_core_trait(self.db, self.env.scope(), &["effect_ref", "EffectRefMut"])
-        else {
-            return Vec::new();
-        };
+                .expect("missing required core trait `core::effect_ref::EffectRefMut`");
         let effect_handle_trait =
-            resolve_core_trait(self.db, self.env.scope(), &["effect_ref", "EffectHandle"]);
+            resolve_core_trait(self.db, self.env.scope(), &["effect_ref", "EffectHandle"])
+                .expect("missing required core trait `core::effect_ref::EffectHandle`");
         let target_ident = IdentId::new(self.db, "Target".to_string());
 
         let callee_provider_arg_idx_by_effect =

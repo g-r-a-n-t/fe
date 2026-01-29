@@ -90,7 +90,7 @@ fn resolve_default_root_effect_ty<'db>(
     assumptions: PredicateListId<'db>,
 ) -> Option<TyId<'db>> {
     let target_ty = resolve_lib_type_path(db, scope, "std::evm::EvmTarget")?;
-    let target_trait = resolve_core_trait(db, scope, &["contracts", "Target"]);
+    let target_trait = resolve_core_trait(db, scope, &["contracts", "Target"])?;
     let inst_target = TraitInstId::new(db, target_trait, vec![target_ty], IndexMap::new());
     let root_ident = IdentId::new(db, "RootEffect".to_owned());
     Some(normalize_ty(

@@ -96,7 +96,8 @@ fn effect_provider_space_via_domain_trait<'db>(
     core: &CoreLib<'db>,
     ty: TyId<'db>,
 ) -> Option<AddressSpaceKind> {
-    let effect_handle =  resolve_core_trait(db, core.scope, &["effect_ref", "EffectHandle"])?;
+    let effect_handle = resolve_core_trait(db, core.scope, &["effect_ref", "EffectHandle"])
+        .expect("missing required core trait `core::effect_ref::EffectHandle`");
     let ingot = core.scope.top_mod(db).ingot(db);
     let assumptions = PredicateListId::empty_list(db);
 

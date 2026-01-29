@@ -1,5 +1,6 @@
 ---
 source: crates/codegen/tests/yul.rs
+assertion_line: 33
 expression: output
 input_file: tests/fixtures/newtype_storage_byplace_effect_arg.fe
 ---
@@ -103,16 +104,16 @@ object "NewtypeByPlaceEffectArg" {
       leave
     }
     function $stor_ptr__Evm_Wrap__321e432d5b6fc018($self, $slot) -> ret {
-      let v0 := $storptr_t__effectref_from_raw__u256__3271ca15373d4483($slot)
+      let v0 := $storptr_t__effecthandle_from_raw__u256__3271ca15373d4483($slot)
       ret := v0
       leave
     }
     function $stor_ptr__Evm_u256__5d0807bcb3704261($self, $slot) -> ret {
-      let v0 := $storptr_t__effectref_from_raw__u256__3271ca15373d4483($slot)
+      let v0 := $storptr_t__effecthandle_from_raw__u256__3271ca15373d4483($slot)
       ret := v0
       leave
     }
-    function $storptr_t__effectref_from_raw__u256__3271ca15373d4483($raw) -> ret {
+    function $storptr_t__effecthandle_from_raw__u256__3271ca15373d4483($raw) -> ret {
       ret := $raw
       leave
     }
@@ -172,7 +173,7 @@ object "NewtypeByPlaceEffectArg" {
         ret := v0
         leave
       }
-      function $cursor_i__fork_mem__CallData__b9ab8dc8a4b2f9e($self, $pos) -> ret {
+      function $cursor_i__fork__CallData__b9ab8dc8a4b2f9e($self, $pos) -> ret {
         let v0 := mload($self)
         let v1 := mload(0x40)
         if iszero(v1) {
@@ -268,7 +269,7 @@ object "NewtypeByPlaceEffectArg" {
       }
       function $soldecoder_i__with_base__CallData__b9ab8dc8a4b2f9e($input, $base) -> ret {
         let v0 := $cursor_i__new__CallData__b9ab8dc8a4b2f9e($input)
-        let v1 := $cursor_i__fork_mem__CallData__b9ab8dc8a4b2f9e(v0, $base)
+        let v1 := $cursor_i__fork__CallData__b9ab8dc8a4b2f9e(v0, $base)
         let v2 := mload(0x40)
         if iszero(v2) {
           v2 := 0x80
@@ -296,7 +297,7 @@ object "NewtypeByPlaceEffectArg" {
         leave
       }
       function $solencoder_abiencoder_reserve_head($self, $bytes) -> ret {
-        $solencoder_ensure_init_mem($self, $bytes)
+        $solencoder_ensure_init($self, $bytes)
         let v0 := mload($self)
         ret := v0
         leave
@@ -307,7 +308,7 @@ object "NewtypeByPlaceEffectArg" {
         mstore(add($self, 32), add(v0, 32))
         leave
       }
-      function $solencoder_ensure_init_mem($self, $bytes) {
+      function $solencoder_ensure_init($self, $bytes) {
         let v0 := mload($self)
         let v1 := eq(v0, 0)
         if v1 {
@@ -332,16 +333,16 @@ object "NewtypeByPlaceEffectArg" {
         leave
       }
       function $stor_ptr__Evm_Wrap__321e432d5b6fc018($self, $slot) -> ret {
-        let v0 := $storptr_t__effectref_from_raw__u256__3271ca15373d4483($slot)
+        let v0 := $storptr_t__effecthandle_from_raw__u256__3271ca15373d4483($slot)
         ret := v0
         leave
       }
       function $stor_ptr__Evm_u256__5d0807bcb3704261($self, $slot) -> ret {
-        let v0 := $storptr_t__effectref_from_raw__u256__3271ca15373d4483($slot)
+        let v0 := $storptr_t__effecthandle_from_raw__u256__3271ca15373d4483($slot)
         ret := v0
         leave
       }
-      function $storptr_t__effectref_from_raw__u256__3271ca15373d4483($raw) -> ret {
+      function $storptr_t__effecthandle_from_raw__u256__3271ca15373d4483($raw) -> ret {
         ret := $raw
         leave
       }

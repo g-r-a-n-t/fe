@@ -1,5 +1,6 @@
 ---
 source: crates/codegen/tests/yul.rs
+assertion_line: 33
 expression: output
 input_file: tests/fixtures/high_level_contract.fe
 ---
@@ -122,11 +123,11 @@ object "EchoContract" {
       leave
     }
     function $stor_ptr__Evm_Foo__c3089d776807df8e($self, $slot) -> ret {
-      let v0 := $storptr_t__effectref_from_raw__Foo__668f96d7165c93b($slot)
+      let v0 := $storptr_t__effecthandle_from_raw__Foo__668f96d7165c93b($slot)
       ret := v0
       leave
     }
-    function $storptr_t__effectref_from_raw__Foo__668f96d7165c93b($raw) -> ret {
+    function $storptr_t__effecthandle_from_raw__Foo__668f96d7165c93b($raw) -> ret {
       ret := $raw
       leave
     }
@@ -201,7 +202,7 @@ object "EchoContract" {
         ret := v0
         leave
       }
-      function $cursor_i__fork_mem__CallData__b9ab8dc8a4b2f9e($self, $pos) -> ret {
+      function $cursor_i__fork__CallData__b9ab8dc8a4b2f9e($self, $pos) -> ret {
         let v0 := mload($self)
         let v1 := mload(0x40)
         if iszero(v1) {
@@ -317,7 +318,7 @@ object "EchoContract" {
       }
       function $soldecoder_i__with_base__CallData__b9ab8dc8a4b2f9e($input, $base) -> ret {
         let v0 := $cursor_i__new__CallData__b9ab8dc8a4b2f9e($input)
-        let v1 := $cursor_i__fork_mem__CallData__b9ab8dc8a4b2f9e(v0, $base)
+        let v1 := $cursor_i__fork__CallData__b9ab8dc8a4b2f9e(v0, $base)
         let v2 := mload(0x40)
         if iszero(v2) {
           v2 := 0x80
@@ -345,7 +346,7 @@ object "EchoContract" {
         leave
       }
       function $solencoder_abiencoder_reserve_head($self, $bytes) -> ret {
-        $solencoder_ensure_init_mem($self, $bytes)
+        $solencoder_ensure_init($self, $bytes)
         let v0 := mload($self)
         ret := v0
         leave
@@ -356,7 +357,7 @@ object "EchoContract" {
         mstore(add($self, 32), add(v0, 32))
         leave
       }
-      function $solencoder_ensure_init_mem($self, $bytes) {
+      function $solencoder_ensure_init($self, $bytes) {
         let v0 := mload($self)
         let v1 := eq(v0, 0)
         if v1 {
@@ -381,11 +382,11 @@ object "EchoContract" {
         leave
       }
       function $stor_ptr__Evm_Foo__c3089d776807df8e($self, $slot) -> ret {
-        let v0 := $storptr_t__effectref_from_raw__Foo__668f96d7165c93b($slot)
+        let v0 := $storptr_t__effecthandle_from_raw__Foo__668f96d7165c93b($slot)
         ret := v0
         leave
       }
-      function $storptr_t__effectref_from_raw__Foo__668f96d7165c93b($raw) -> ret {
+      function $storptr_t__effecthandle_from_raw__Foo__668f96d7165c93b($raw) -> ret {
         ret := $raw
         leave
       }

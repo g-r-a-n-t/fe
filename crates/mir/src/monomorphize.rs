@@ -3,22 +3,25 @@ use std::{
     hash::{Hash, Hasher},
 };
 
-use hir::analysis::ty::corelib::resolve_lib_type_path;
+use common::indexmap::IndexMap;
+use hir::analysis::ty::corelib::{resolve_core_trait, resolve_lib_type_path};
 use hir::analysis::{
     HirAnalysisDb,
     diagnostics::SpannedHirAnalysisDb,
     diagnostics::format_diags,
     ty::{
+        canonical::Canonicalized,
         const_ty::ConstTyData,
+        effects::EffectKeyKind,
         fold::{TyFoldable, TyFolder},
         normalize::normalize_ty,
-        trait_def::resolve_trait_method_instance,
-        trait_resolution::PredicateListId,
+        trait_def::{TraitInstId, resolve_trait_method_instance},
+        trait_resolution::{GoalSatisfiability, PredicateListId, is_goal_satisfiable},
         ty_check::check_func_body,
         ty_def::{TyData, TyId},
     },
 };
-use hir::hir_def::{CallableDef, Func, PathKind, item::ItemKind, scope_graph::ScopeId};
+use hir::hir_def::{CallableDef, Func, IdentId, PathKind, item::ItemKind, scope_graph::ScopeId};
 use rustc_hash::FxHashMap;
 
 use crate::{
@@ -62,6 +65,7 @@ struct InstanceKey<'db> {
     origin: crate::ir::MirFunctionOrigin<'db>,
     args: Vec<TyId<'db>>,
     receiver_space: Option<AddressSpaceKind>,
+    effect_param_space_overrides: Vec<Option<AddressSpaceKind>>,
 }
 #[derive(Clone, PartialEq, Eq, Hash)]
 struct TemplateKey<'db> {
@@ -80,17 +84,36 @@ enum CallTarget<'db> {
     Synthetic(crate::ir::MirFunctionOrigin<'db>),
 }
 
+fn resolve_default_root_effect_ty<'db>(
+    db: &'db dyn HirAnalysisDb,
+    scope: ScopeId<'db>,
+    assumptions: PredicateListId<'db>,
+) -> Option<TyId<'db>> {
+    let target_ty = resolve_lib_type_path(db, scope, "std::evm::EvmTarget")?;
+    let target_trait = resolve_core_trait(db, scope, &["contracts", "Target"])?;
+    let inst_target = TraitInstId::new(db, target_trait, vec![target_ty], IndexMap::new());
+    let root_ident = IdentId::new(db, "RootEffect".to_owned());
+    Some(normalize_ty(
+        db,
+        TyId::assoc_ty(db, inst_target, root_ident),
+        scope,
+        assumptions,
+    ))
+}
+
 impl<'db> InstanceKey<'db> {
     /// Pack a function and its (possibly empty) substitution list for hashing.
     fn new(
         origin: crate::ir::MirFunctionOrigin<'db>,
         args: &[TyId<'db>],
         receiver_space: Option<AddressSpaceKind>,
+        effect_param_space_overrides: &[Option<AddressSpaceKind>],
     ) -> Self {
         Self {
             origin,
             args: args.to_vec(),
             receiver_space,
+            effect_param_space_overrides: effect_param_space_overrides.to_vec(),
         }
     }
 }
@@ -138,7 +161,7 @@ impl<'db> Monomorphizer<'db> {
     fn seed_roots(&mut self) {
         for idx in 0..self.templates.len() {
             let origin = self.templates[idx].origin;
-            let receiver_space = self.templates[idx].receiver_space;
+            let receiver_space = canonicalize_receiver_space(self.templates[idx].receiver_space);
 
             if let crate::ir::MirFunctionOrigin::Synthetic(_) = origin {
                 let _ = self.ensure_synthetic_instance(origin, receiver_space);
@@ -155,7 +178,7 @@ impl<'db> Monomorphizer<'db> {
             // Seed non-generic functions immediately so we always emit them.
             let params = def.params(self.db);
             if params.is_empty() {
-                let _ = self.ensure_instance(func, &[], receiver_space);
+                let _ = self.ensure_instance(func, &[], receiver_space, &[]);
                 continue;
             }
 
@@ -177,32 +200,60 @@ impl<'db> Monomorphizer<'db> {
 
             let mut args = Vec::with_capacity(provider_param_count);
             let assumptions = PredicateListId::empty_list(self.db);
-            for effect in func.effect_params(self.db) {
-                let Some(key_path) = effect.key_path(self.db) else {
-                    continue;
-                };
-                let Ok(path_res) = hir::analysis::name_resolution::resolve_path(
-                    self.db,
-                    key_path,
-                    func.scope(),
-                    assumptions,
-                    false,
-                ) else {
-                    continue;
-                };
-                let target_ty = match path_res {
-                    hir::analysis::name_resolution::PathRes::Ty(ty)
-                    | hir::analysis::name_resolution::PathRes::TyAlias(_, ty) => ty,
-                    _ => continue,
-                };
-                if !target_ty.is_star_kind(self.db) {
-                    continue;
+            let root_effect_ty = resolve_default_root_effect_ty(self.db, func.scope(), assumptions);
+            let mut can_seed = true;
+            for binding in func.effect_bindings(self.db) {
+                match binding.key_kind {
+                    EffectKeyKind::Type => {
+                        let Some(ty) = binding.key_ty else {
+                            continue;
+                        };
+                        if !ty.is_star_kind(self.db) {
+                            continue;
+                        }
+                        args.push(TyId::app(self.db, stor_ptr_ctor, ty));
+                    }
+                    EffectKeyKind::Trait => {
+                        let Some(root_effect_ty) = root_effect_ty else {
+                            can_seed = false;
+                            break;
+                        };
+                        let Some(key_trait) = binding.key_trait else {
+                            can_seed = false;
+                            break;
+                        };
+                        let mut trait_args = key_trait.args(self.db).to_vec();
+                        if trait_args.is_empty() {
+                            can_seed = false;
+                            break;
+                        }
+                        trait_args[0] = root_effect_ty;
+                        let goal = Canonicalized::new(
+                            self.db,
+                            TraitInstId::new(
+                                self.db,
+                                key_trait.def(self.db),
+                                trait_args,
+                                key_trait.assoc_type_bindings(self.db).clone(),
+                            ),
+                        )
+                        .value;
+                        let ingot = func.top_mod(self.db).ingot(self.db);
+                        if !matches!(
+                            is_goal_satisfiable(self.db, ingot, goal, assumptions),
+                            GoalSatisfiability::Satisfied(_)
+                        ) {
+                            can_seed = false;
+                            break;
+                        }
+                        args.push(root_effect_ty);
+                    }
+                    EffectKeyKind::Other => continue,
                 }
-                args.push(TyId::app(self.db, stor_ptr_ctor, target_ty));
             }
 
-            if args.len() == provider_param_count {
-                let _ = self.ensure_instance(func, &args, receiver_space);
+            if can_seed && args.len() == provider_param_count {
+                let _ = self.ensure_instance(func, &args, receiver_space, &[]);
             }
         }
     }
@@ -229,6 +280,7 @@ impl<'db> Monomorphizer<'db> {
             CallTarget<'db>,
             Vec<TyId<'db>>,
             Option<AddressSpaceKind>,
+            Vec<Option<AddressSpaceKind>>,
         )> = {
             let function = &self.instances[func_idx];
             let mut sites = Vec::new();
@@ -240,12 +292,19 @@ impl<'db> Monomorphizer<'db> {
                     } = inst
                         && let Some((target_func, args)) = self.resolve_call_target(call)
                     {
+                        let effect_param_space_overrides = self.call_effect_param_space_overrides(
+                            function,
+                            call,
+                            target_func,
+                            &args,
+                        );
                         sites.push((
                             bb_idx,
                             Some(inst_idx),
                             target_func,
                             args,
-                            call.receiver_space,
+                            canonicalize_receiver_space(call.receiver_space),
+                            effect_param_space_overrides,
                         ));
                     }
                 }
@@ -254,7 +313,16 @@ impl<'db> Monomorphizer<'db> {
                     &block.terminator
                     && let Some((target_func, args)) = self.resolve_call_target(call)
                 {
-                    sites.push((bb_idx, None, target_func, args, call.receiver_space));
+                    let effect_param_space_overrides =
+                        self.call_effect_param_space_overrides(function, call, target_func, &args);
+                    sites.push((
+                        bb_idx,
+                        None,
+                        target_func,
+                        args,
+                        canonicalize_receiver_space(call.receiver_space),
+                        effect_param_space_overrides,
+                    ));
                 }
             }
             sites
@@ -277,18 +345,25 @@ impl<'db> Monomorphizer<'db> {
                 .collect::<Vec<_>>()
         };
 
-        for (bb_idx, inst_idx, target, args, receiver_space) in call_sites {
+        for (bb_idx, inst_idx, target, args, receiver_space, effect_param_space_overrides) in
+            call_sites
+        {
             let resolved_name = match target {
                 CallTarget::Template(func) => {
                     let (_, symbol) = self
-                        .ensure_instance(func, &args, receiver_space)
+                        .ensure_instance(func, &args, receiver_space, &effect_param_space_overrides)
                         .unwrap_or_else(|| {
                             let name = func.pretty_print_signature(self.db);
                             panic!("failed to instantiate MIR for `{name}`");
                         });
                     Some(symbol)
                 }
-                CallTarget::Decl(func) => Some(self.mangled_name(func, &args, receiver_space)),
+                CallTarget::Decl(func) => Some(self.mangled_name(
+                    func,
+                    &args,
+                    receiver_space,
+                    &effect_param_space_overrides,
+                )),
                 CallTarget::Synthetic(origin) => {
                     let (_, symbol) = self
                         .ensure_synthetic_instance(origin, receiver_space)
@@ -328,7 +403,7 @@ impl<'db> Monomorphizer<'db> {
         for (value_idx, target) in func_item_sites {
             let (_, symbol) = match target.origin {
                 crate::ir::MirFunctionOrigin::Hir(func) => self
-                    .ensure_instance(func, &target.generic_args, None)
+                    .ensure_instance(func, &target.generic_args, None, &[])
                     .unwrap_or_else(|| {
                         let name = func.pretty_print(self.db);
                         panic!("failed to instantiate MIR for `{name}`");
@@ -352,12 +427,13 @@ impl<'db> Monomorphizer<'db> {
         origin: crate::ir::MirFunctionOrigin<'db>,
         receiver_space: Option<AddressSpaceKind>,
     ) -> Option<(usize, String)> {
+        let receiver_space = canonicalize_receiver_space(receiver_space);
         debug_assert!(
             matches!(origin, crate::ir::MirFunctionOrigin::Synthetic(_)),
             "ensure_synthetic_instance called with non-synthetic origin"
         );
 
-        let key = InstanceKey::new(origin, &[], receiver_space);
+        let key = InstanceKey::new(origin, &[], receiver_space, &[]);
         if let Some(&idx) = self.instance_map.get(&key) {
             let symbol = self.instances[idx].symbol_name.clone();
             return Some((idx, symbol));
@@ -383,7 +459,9 @@ impl<'db> Monomorphizer<'db> {
         func: Func<'db>,
         args: &[TyId<'db>],
         receiver_space: Option<AddressSpaceKind>,
+        effect_param_space_overrides: &[Option<AddressSpaceKind>],
     ) -> Option<(usize, String)> {
+        let receiver_space = canonicalize_receiver_space(receiver_space);
         let norm_scope = crate::ty::normalization_scope_for_args(self.db, func, args);
         let assumptions = PredicateListId::empty_list(self.db);
         let normalized_args: Vec<_> = args
@@ -392,19 +470,29 @@ impl<'db> Monomorphizer<'db> {
             .map(|ty| normalize_ty(self.db, ty, norm_scope, assumptions))
             .collect();
 
+        let normalized_effect_param_space_overrides =
+            self.normalize_effect_param_space_overrides(func, effect_param_space_overrides);
+
         let key = InstanceKey::new(
             crate::ir::MirFunctionOrigin::Hir(func),
             &normalized_args,
             receiver_space,
+            &normalized_effect_param_space_overrides,
         );
         if let Some(&idx) = self.instance_map.get(&key) {
             let symbol = self.instances[idx].symbol_name.clone();
             return Some((idx, symbol));
         }
 
-        let symbol_name = self.mangled_name(func, &normalized_args, receiver_space);
+        let symbol_name = self.mangled_name(
+            func,
+            &normalized_args,
+            receiver_space,
+            &normalized_effect_param_space_overrides,
+        );
 
-        let mut instance = if args.is_empty() {
+        let mut instance = if args.is_empty() && normalized_effect_param_space_overrides.is_empty()
+        {
             let template_idx = self.ensure_template(func, receiver_space)?;
             let mut instance = self.templates[template_idx].clone();
             instance.receiver_space = receiver_space;
@@ -435,6 +523,7 @@ impl<'db> Monomorphizer<'db> {
                 typed_body,
                 receiver_space,
                 normalized_args.clone(),
+                normalized_effect_param_space_overrides.clone(),
             )
             .unwrap_or_else(|err| {
                 let name = func.pretty_print_signature(self.db);
@@ -570,7 +659,7 @@ impl<'db> Monomorphizer<'db> {
                     .collect();
                 target.symbol = match target.origin {
                     crate::ir::MirFunctionOrigin::Hir(func) => {
-                        Some(self.mangled_name(func, &target.generic_args, None))
+                        Some(self.mangled_name(func, &target.generic_args, None, &[]))
                     }
                     crate::ir::MirFunctionOrigin::Synthetic(_) => self
                         .func_index
@@ -628,7 +717,9 @@ impl<'db> Monomorphizer<'db> {
         func: Func<'db>,
         args: &[TyId<'db>],
         receiver_space: Option<AddressSpaceKind>,
+        effect_param_space_overrides: &[Option<AddressSpaceKind>],
     ) -> String {
+        let receiver_space = canonicalize_receiver_space(receiver_space);
         let mut base = func
             .name(self.db)
             .to_opt()
@@ -645,6 +736,11 @@ impl<'db> Monomorphizer<'db> {
                 AddressSpaceKind::TransientStorage => "tstor",
             };
             base = format!("{base}_{suffix}");
+        }
+
+        let effect_suffix = effect_param_space_suffix(effect_param_space_overrides);
+        if !effect_suffix.is_empty() {
+            base = format!("{base}_{effect_suffix}");
         }
 
         if args.is_empty() {
@@ -715,6 +811,7 @@ impl<'db> Monomorphizer<'db> {
         func: Func<'db>,
         receiver_space: Option<AddressSpaceKind>,
     ) -> Option<usize> {
+        let receiver_space = canonicalize_receiver_space(receiver_space);
         let key = TemplateKey {
             origin: crate::ir::MirFunctionOrigin::Hir(func),
             receiver_space,
@@ -735,6 +832,7 @@ impl<'db> Monomorphizer<'db> {
             typed_body.clone(),
             receiver_space,
             Vec::new(),
+            Vec::new(),
         )
         .ok()?;
         let idx = self.templates.len();
@@ -744,6 +842,91 @@ impl<'db> Monomorphizer<'db> {
             self.func_defs.insert(func, def);
         }
         Some(idx)
+    }
+
+    fn call_effect_param_space_overrides(
+        &self,
+        caller: &MirFunction<'db>,
+        call: &CallOrigin<'db>,
+        target: CallTarget<'db>,
+        args: &[TyId<'db>],
+    ) -> Vec<Option<AddressSpaceKind>> {
+        let func = match target {
+            CallTarget::Template(func) | CallTarget::Decl(func) => func,
+            CallTarget::Synthetic(_) => return Vec::new(),
+        };
+
+        if call.effect_args.is_empty() {
+            return Vec::new();
+        }
+
+        let effect_count = func.effect_params(self.db).count();
+        let mut overrides = vec![None; effect_count];
+
+        let core = crate::core_lib::CoreLib::new(self.db, func.scope());
+        let provider_arg_idx_by_effect =
+            hir::analysis::ty::effects::place_effect_provider_param_index_map(self.db, func);
+
+        for (param_ord, effect) in func.effect_params(self.db).enumerate() {
+            let effect_idx = effect.index();
+            let Some(provider_arg_idx) = provider_arg_idx_by_effect
+                .get(effect_idx)
+                .copied()
+                .flatten()
+            else {
+                continue;
+            };
+            let Some(provider_ty) = args.get(provider_arg_idx).copied() else {
+                continue;
+            };
+
+            if !matches!(
+                crate::repr::repr_kind_for_ty(self.db, &core, provider_ty),
+                crate::repr::ReprKind::Ref
+            ) {
+                continue;
+            }
+
+            // Effect pointer providers (e.g. `MemPtr`/`StorPtr`/`EffectHandle`) already encode
+            // their address space in the type.
+            if crate::repr::effect_provider_space_for_ty(self.db, &core, provider_ty).is_some() {
+                continue;
+            }
+
+            let Some(&effect_arg_value) = call.effect_args.get(param_ord) else {
+                continue;
+            };
+            let Some(space) = crate::ir::try_value_address_space_in(
+                &caller.body.values,
+                &caller.body.locals,
+                effect_arg_value,
+            ) else {
+                continue;
+            };
+
+            // Only specialize when the provider is not memory-backed.
+            if !matches!(space, AddressSpaceKind::Memory) {
+                overrides[effect_idx] = Some(space);
+            }
+        }
+
+        overrides
+    }
+
+    fn normalize_effect_param_space_overrides(
+        &self,
+        func: Func<'db>,
+        overrides: &[Option<AddressSpaceKind>],
+    ) -> Vec<Option<AddressSpaceKind>> {
+        if overrides.is_empty() || overrides.iter().all(Option::is_none) {
+            return Vec::new();
+        }
+
+        let effect_count = func.effect_params(self.db).count();
+        let mut normalized = vec![None; effect_count];
+        let len = std::cmp::min(effect_count, overrides.len());
+        normalized[..len].copy_from_slice(&overrides[..len]);
+        normalized
     }
 }
 
@@ -786,4 +969,31 @@ fn sanitize_symbol_component(component: &str) -> String {
         .chars()
         .map(|ch| if ch.is_ascii_alphanumeric() { ch } else { '_' })
         .collect()
+}
+
+fn canonicalize_receiver_space(
+    receiver_space: Option<AddressSpaceKind>,
+) -> Option<AddressSpaceKind> {
+    match receiver_space {
+        None | Some(AddressSpaceKind::Memory) => None,
+        Some(space) => Some(space),
+    }
+}
+
+fn effect_param_space_suffix(spaces: &[Option<AddressSpaceKind>]) -> String {
+    spaces
+        .iter()
+        .enumerate()
+        .filter_map(|(idx, space)| space.map(|space| (idx, space)))
+        .map(|(idx, space)| {
+            let suffix = match space {
+                AddressSpaceKind::Memory => "mem",
+                AddressSpaceKind::Calldata => "calldata",
+                AddressSpaceKind::Storage => "stor",
+                AddressSpaceKind::TransientStorage => "tstor",
+            };
+            format!("eff{idx}_{suffix}")
+        })
+        .collect::<Vec<_>>()
+        .join("_")
 }

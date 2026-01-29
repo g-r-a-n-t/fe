@@ -20,6 +20,7 @@ use crate::analysis::ty::{
     canonical::Canonicalized,
     corelib::{resolve_core_range_types, resolve_core_trait, resolve_lib_type_path},
     diagnostics::{BodyDiag, FuncBodyDiag},
+    effects::EffectKeyKind,
     effects::place_effect_provider_param_index_map,
     fold::{AssocTySubst, TyFoldable as _, TyFolder},
     trait_def::TraitInstId,
@@ -669,7 +670,11 @@ impl<'db> TyChecker<'db> {
             return ExprProp::invalid(self.db);
         }
 
-        let mut callable = if let Some(existing) = self.env.callable_expr(*callee) {
+        let callable = if matches!(
+            callee.data(self.db, self.body()),
+            Partial::Present(Expr::Path(..))
+        ) && let Some(existing) = self.env.callable_expr(*callee)
+        {
             existing.clone()
         } else {
             match Callable::new(
@@ -687,24 +692,6 @@ impl<'db> TyChecker<'db> {
         };
 
         let call_span = expr.span(self.body()).into_call_expr();
-
-        if let Partial::Present(Expr::Path(Partial::Present(path))) =
-            callee.data(self.db, self.body())
-        {
-            let idx = path.segment_index(self.db);
-
-            if !callable.unify_generic_args(
-                self,
-                path.generic_args(self.db),
-                expr.span(self.body())
-                    .into_path_expr()
-                    .path()
-                    .segment(idx)
-                    .generic_args(),
-            ) {
-                return ExprProp::invalid(self.db);
-            }
-        };
 
         callable.check_args(self, args, call_span.args(), None, false);
 
@@ -747,16 +734,15 @@ impl<'db> TyChecker<'db> {
             .extend_all_bounds(self.db);
 
         let ingot = self.env.body().top_mod(self.db).ingot(self.db);
-        let Some(effect_ref_trait) =
+        let effect_ref_trait =
             resolve_core_trait(self.db, self.env.scope(), &["effect_ref", "EffectRef"])
-        else {
-            return Vec::new();
-        };
-        let Some(effect_ref_mut_trait) =
+                .expect("missing required core trait `core::effect_ref::EffectRef`");
+        let effect_ref_mut_trait =
             resolve_core_trait(self.db, self.env.scope(), &["effect_ref", "EffectRefMut"])
-        else {
-            return Vec::new();
-        };
+                .expect("missing required core trait `core::effect_ref::EffectRefMut`");
+        let effect_handle_trait =
+            resolve_core_trait(self.db, self.env.scope(), &["effect_ref", "EffectHandle"])
+                .expect("missing required core trait `core::effect_ref::EffectHandle`");
         let target_ident = IdentId::new(self.db, "Target".to_string());
 
         let callee_provider_arg_idx_by_effect =
@@ -795,10 +781,38 @@ impl<'db> TyChecker<'db> {
                                   provided_ty: TyId<'db>,
                                   required_mut: bool|
          -> Option<TyId<'db>> {
+            let effect_handle_inst = TraitInstId::new(
+                this.db,
+                effect_handle_trait,
+                vec![provided_ty],
+                IndexMap::new(),
+            );
+            let canonical_handle = Canonicalized::new(this.db, effect_handle_inst);
+            let handle_sat = is_goal_satisfiable(
+                this.db,
+                ingot,
+                canonical_handle.value,
+                this.env.assumptions(),
+            );
+
+            let target_ty = match handle_sat {
+                GoalSatisfiability::UnSat(_) | GoalSatisfiability::ContainsInvalid => provided_ty,
+                _ => {
+                    let target_assoc = effect_handle_inst.assoc_ty(this.db, target_ident)?;
+                    normalize_ty(
+                        this.db,
+                        target_assoc,
+                        this.env.scope(),
+                        this.env.assumptions(),
+                    )
+                    .fold_with(this.db, &mut this.table)
+                }
+            };
+
             let effect_ref_inst = TraitInstId::new(
                 this.db,
                 effect_ref_trait,
-                vec![provided_ty],
+                vec![provided_ty, target_ty],
                 IndexMap::new(),
             );
             let canonical_ref = Canonicalized::new(this.db, effect_ref_inst);
@@ -815,7 +829,7 @@ impl<'db> TyChecker<'db> {
                 let effect_ref_mut_inst = TraitInstId::new(
                     this.db,
                     effect_ref_mut_trait,
-                    vec![provided_ty],
+                    vec![provided_ty, target_ty],
                     IndexMap::new(),
                 );
                 let canonical_mut = Canonicalized::new(this.db, effect_ref_mut_inst);
@@ -833,14 +847,6 @@ impl<'db> TyChecker<'db> {
                 }
             }
 
-            let target_assoc = effect_ref_inst.assoc_ty(this.db, target_ident)?;
-            let target_ty = normalize_ty(
-                this.db,
-                target_assoc,
-                this.env.scope(),
-                this.env.assumptions(),
-            )
-            .fold_with(this.db, &mut this.table);
             Some(target_ty)
         };
 
@@ -863,15 +869,10 @@ impl<'db> TyChecker<'db> {
                 continue;
             }
 
-            let provider_arg_idx_for_param = match path_res {
-                PathRes::Ty(ty) | PathRes::TyAlias(_, ty) if ty.is_star_kind(self.db) => {
-                    callee_provider_arg_idx_by_effect
-                        .get(effect.index())
-                        .copied()
-                        .flatten()
-                }
-                _ => None,
-            };
+            let provider_arg_idx_for_param = callee_provider_arg_idx_by_effect
+                .get(effect.index())
+                .copied()
+                .flatten();
 
             let candidate_frames = self.env.effect_candidate_frames_in_scope(
                 key_path,
@@ -931,6 +932,13 @@ impl<'db> TyChecker<'db> {
                                 provider_target_ty(self, provided.ty, required_mut)
                                 && can_unify(self, expected, target_ty)
                             {
+                                if required_mut
+                                    && self.table.fold_ty(self.db, target_ty)
+                                        == self.table.fold_ty(self.db, provided.ty)
+                                    && !provided.is_mut
+                                {
+                                    continue;
+                                }
                                 viable.push((
                                     provided,
                                     EffectRequirement::Type(expected),
@@ -1163,11 +1171,14 @@ impl<'db> TyChecker<'db> {
                 continue;
             }
 
-            // If the caller supplies a concrete provider value (e.g. `MemPtr<T>`), unify it with
-            // the callee's hidden provider generic argument now so later stages don't have to
-            // re-infer it from expression types.
+            // If the caller supplies a concrete provider value, unify it with the callee's hidden
+            // provider generic argument now so later stages don't have to re-infer it from
+            // expression types.
             if let Some(provider_arg_idx) = provider_arg_idx_for_param
-                && matches!(satisfaction, EffectSatisfaction::Provider { .. })
+                && matches!(
+                    satisfaction,
+                    EffectSatisfaction::Provider { .. } | EffectSatisfaction::TraitByValue
+                )
                 && let Some(provider_var) = callable.generic_args().get(provider_arg_idx).copied()
             {
                 let existing_provider = self.table.fold_ty(self.db, provider_var);
@@ -1186,11 +1197,29 @@ impl<'db> TyChecker<'db> {
                 }
             }
 
+            let (key_kind, instantiated_target_ty) = match requirement {
+                EffectRequirement::Type(expected) => (
+                    EffectKeyKind::Type,
+                    Some(normalize_ty(
+                        self.db,
+                        expected.fold_with(self.db, &mut self.table),
+                        func.scope(),
+                        callee_assumptions,
+                    )),
+                ),
+                EffectRequirement::Trait(_) => (EffectKeyKind::Trait, None),
+            };
+
+            // Provider generic argument selection for direct place-effects is deferred to MIR
+            // lowering (Option B). The type checker records the effect argument form, pass mode,
+            // and (for type effects) the instantiated target type.
             resolved_args.push(super::ResolvedEffectArg {
                 param_idx,
                 key: key_path,
                 arg,
                 pass_mode,
+                key_kind,
+                instantiated_target_ty,
             });
 
             if let EffectRequirement::Type(expected) = requirement {
@@ -1231,16 +1260,13 @@ impl<'db> TyChecker<'db> {
                 Some(EffectRequirement::Type(expected))
             }
             PathRes::Trait(trait_inst) => {
-                let mut instantiation_args = Vec::with_capacity(1 + callable.generic_args().len());
-                instantiation_args.push(provided_ty);
-                instantiation_args.extend_from_slice(callable.generic_args());
-
-                let mut trait_req =
-                    Binder::bind(*trait_inst).instantiate(self.db, &instantiation_args);
-                if let Some(inst) = callable.trait_inst() {
-                    let mut subst = AssocTySubst::new(inst);
-                    trait_req = trait_req.fold_with(self.db, &mut subst);
-                }
+                let trait_req = crate::analysis::ty::effects::instantiate_trait_effect_requirement(
+                    self.db,
+                    *trait_inst,
+                    callable.generic_args(),
+                    provided_ty,
+                    callable.trait_inst(),
+                );
                 Some(EffectRequirement::Trait(trait_req))
             }
             _ => None,
@@ -1401,25 +1427,40 @@ impl<'db> TyChecker<'db> {
         let Partial::Present(path) = path else {
             return ExprProp::invalid(self.db);
         };
+        let path = *path;
 
         let path_expr_span = expr.span(self.body()).into_path_expr();
         let path_span = path_expr_span.clone().path();
 
+        let is_call_callee = self.env.parent_expr().is_some_and(|parent| {
+            matches!(
+                self.body().exprs(self.db)[parent],
+                Partial::Present(Expr::Call(callee, _)) if callee == expr
+            )
+        });
+
+        let idx = path.segment_index(self.db);
+        let generic_args = path.generic_args(self.db);
+        let generic_args_span = path_span.clone().segment(idx).generic_args();
+        let unify_generic_args = |tc: &mut Self, callable: &mut Callable<'db>| {
+            callable.unify_generic_args(tc, generic_args, generic_args_span.clone())
+        };
+
         let res = if path.is_bare_ident(self.db) {
             let ident_span: DynLazySpan<'db> = path_expr_span.clone().into();
-            resolve_ident_expr(self.db, &self.env, *path, ident_span)
+            resolve_ident_expr(self.db, &self.env, path, ident_span)
         } else {
-            match self.resolve_path(*path, true, path_span.clone()) {
+            match self.resolve_path(path, true, path_span.clone()) {
                 Ok(r) => ResolvedPathInBody::Reso(r),
                 Err(err) => {
-                    let expected_kind = if matches!(self.parent_expr(), Some(Expr::Call(..))) {
+                    let expected_kind = if is_call_callee {
                         ExpectedPathKind::Function
                     } else {
                         ExpectedPathKind::Value
                     };
 
                     if let Some(diag) =
-                        err.into_diag(self.db, *path, path_span.clone(), expected_kind)
+                        err.into_diag(self.db, path, path_span.clone(), expected_kind)
                     {
                         self.push_diag(diag)
                     }
@@ -1470,7 +1511,17 @@ impl<'db> TyChecker<'db> {
                     }
                 }
                 PathRes::Func(ty) => {
-                    ExprProp::new(self.instantiate_contract_func_item_ty(ty), true)
+                    let mut callable =
+                        Callable::new(self.db, ty, expr.span(self.body()).into(), None)
+                            .expect("function item path should resolve to callable");
+                    if !unify_generic_args(self, &mut callable) {
+                        return ExprProp::invalid(self.db);
+                    }
+
+                    ExprProp::new(
+                        self.instantiate_contract_func_item_ty(callable.ty(self.db)),
+                        true,
+                    )
                 }
                 PathRes::Trait(trait_) => {
                     let diag = BodyDiag::NotValue {
@@ -1542,17 +1593,20 @@ impl<'db> TyChecker<'db> {
                         }
                     };
 
-                    if self.env.callable_expr(expr).is_none() {
-                        let callable = Callable::new(
-                            self.db,
-                            method_ty,
-                            expr.span(self.body()).into(),
-                            trait_inst,
-                        )
-                        .expect("method path should resolve to callable");
-                        self.env.register_callable(expr, callable);
+                    let mut callable = Callable::new(
+                        self.db,
+                        method_ty,
+                        expr.span(self.body()).into(),
+                        trait_inst,
+                    )
+                    .expect("method path should resolve to callable");
+
+                    if !unify_generic_args(self, &mut callable) {
+                        return ExprProp::invalid(self.db);
                     }
 
+                    let method_ty = callable.ty(self.db);
+                    self.env.register_callable(expr, callable);
                     ExprProp::new(method_ty, true)
                 }
                 PathRes::TraitMethod(trait_inst, method) => {
@@ -1620,9 +1674,15 @@ impl<'db> TyChecker<'db> {
                         inst,
                     );
 
-                    let callable =
+                    let mut callable =
                         Callable::new(self.db, func_ty, expr.span(self.body()).into(), Some(inst))
                             .expect("trait method path should resolve to callable");
+
+                    if !unify_generic_args(self, &mut callable) {
+                        return ExprProp::invalid(self.db);
+                    }
+
+                    let func_ty = callable.ty(self.db);
                     self.env.register_callable(expr, callable);
                     ExprProp::new(func_ty, true)
                 }

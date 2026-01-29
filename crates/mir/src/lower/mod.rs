@@ -8,13 +8,10 @@ use common::ingot::IngotKind;
 use hir::analysis::{
     HirAnalysisDb,
     diagnostics::SpannedHirAnalysisDb,
-    name_resolution::{PathRes, resolve_path},
     ty::{
         adt_def::AdtRef,
-        trait_resolution::PredicateListId,
         ty_check::{
-            BodyOwner, EffectParamSite, LocalBinding, ParamSite, RecordLike, TypedBody,
-            check_func_body,
+            EffectParamSite, LocalBinding, ParamSite, RecordLike, TypedBody, check_func_body,
         },
         ty_def::{PrimTy, TyBase, TyData, TyId},
     },
@@ -162,7 +159,7 @@ pub fn lower_module<'db>(
                 diagnostics: rendered,
             });
         }
-        let lowered = lower_function(db, func, typed_body.clone(), None, Vec::new())?;
+        let lowered = lower_function(db, func, typed_body.clone(), None, Vec::new(), Vec::new())?;
         templates.push(lowered);
     }
 
@@ -192,6 +189,7 @@ pub(crate) fn lower_function<'db>(
     typed_body: TypedBody<'db>,
     receiver_space: Option<AddressSpaceKind>,
     generic_args: Vec<TyId<'db>>,
+    effect_param_space_overrides: Vec<Option<AddressSpaceKind>>,
 ) -> MirLowerResult<MirFunction<'db>> {
     let symbol_name = func
         .name(db)
@@ -206,8 +204,15 @@ pub(crate) fn lower_function<'db>(
         });
     };
 
-    let mut builder =
-        MirBuilder::new_for_func(db, func, body, &typed_body, &generic_args, receiver_space)?;
+    let mut builder = MirBuilder::new_for_func(
+        db,
+        func,
+        body,
+        &typed_body,
+        &generic_args,
+        receiver_space,
+        &effect_param_space_overrides,
+    )?;
     let entry = builder.builder.entry_block();
     builder.move_to_block(entry);
     builder.lower_root(body.expr(db));
@@ -254,7 +259,6 @@ pub(crate) fn lower_function<'db>(
 /// Stateful helper that incrementally constructs MIR while walking HIR.
 pub(super) struct MirBuilder<'db, 'a> {
     pub(super) db: &'db dyn SpannedHirAnalysisDb,
-    pub(super) owner: BodyOwner<'db>,
     pub(super) hir_func: Option<Func<'db>>,
     pub(super) body: Body<'db>,
     pub(super) typed_body: &'a TypedBody<'db>,
@@ -294,19 +298,18 @@ impl<'db, 'a> MirBuilder<'db, 'a> {
     #[allow(clippy::too_many_arguments)]
     fn new(
         db: &'db dyn SpannedHirAnalysisDb,
-        owner: BodyOwner<'db>,
         hir_func: Option<Func<'db>>,
         body: Body<'db>,
         typed_body: &'a TypedBody<'db>,
         generic_args: &'a [TyId<'db>],
         return_ty: TyId<'db>,
         receiver_space: Option<AddressSpaceKind>,
+        effect_param_space_overrides: &[Option<AddressSpaceKind>],
     ) -> Result<Self, MirLowerError> {
         let core = CoreLib::new(db, body.scope());
 
         let mut builder = Self {
             db,
-            owner,
             hir_func,
             body,
             typed_body,
@@ -324,6 +327,13 @@ impl<'db, 'a> MirBuilder<'db, 'a> {
         };
 
         builder.effect_param_spaces = builder.compute_effect_param_spaces();
+        for (idx, space) in effect_param_space_overrides.iter().enumerate() {
+            if idx < builder.effect_param_spaces.len()
+                && let Some(space) = *space
+            {
+                builder.effect_param_spaces[idx] = space;
+            }
+        }
         builder.seed_signature_locals();
 
         Ok(builder)
@@ -336,23 +346,23 @@ impl<'db, 'a> MirBuilder<'db, 'a> {
         typed_body: &'a TypedBody<'db>,
         generic_args: &'a [TyId<'db>],
         receiver_space: Option<AddressSpaceKind>,
+        effect_param_space_overrides: &[Option<AddressSpaceKind>],
     ) -> Result<Self, MirLowerError> {
         let return_ty = func.return_ty(db);
         Self::new(
             db,
-            BodyOwner::Func(func),
             Some(func),
             body,
             typed_body,
             generic_args,
             return_ty,
             receiver_space,
+            effect_param_space_overrides,
         )
     }
 
     fn new_for_body_owner(
         db: &'db dyn SpannedHirAnalysisDb,
-        owner: BodyOwner<'db>,
         body: Body<'db>,
         typed_body: &'a TypedBody<'db>,
         generic_args: &'a [TyId<'db>],
@@ -360,13 +370,13 @@ impl<'db, 'a> MirBuilder<'db, 'a> {
     ) -> Result<Self, MirLowerError> {
         Self::new(
             db,
-            owner,
             None,
             body,
             typed_body,
             generic_args,
             return_ty,
             None,
+            &[],
         )
     }
 
@@ -412,40 +422,30 @@ impl<'db, 'a> MirBuilder<'db, 'a> {
         let Some(func) = self.hir_func else {
             return Vec::new();
         };
-        let assumptions = PredicateListId::empty_list(self.db);
-        let provider_arg_positions: Vec<usize> = CallableDef::Func(func)
-            .params(self.db)
-            .iter()
-            .enumerate()
-            .filter_map(|(idx, ty)| match ty.data(self.db) {
-                TyData::TyParam(param) if param.is_effect_provider() => Some(idx),
-                _ => None,
-            })
-            .collect();
+        let provider_arg_idx_by_effect =
+            hir::analysis::ty::effects::place_effect_provider_param_index_map(self.db, func);
 
         let mut spaces = vec![AddressSpaceKind::Storage; func.effect_params(self.db).count()];
-        let mut ord = 0usize;
         for effect in func.effect_params(self.db) {
             let effect_idx = effect.index();
-            let Some(key_path) = effect.key_path(self.db) else {
-                continue;
-            };
-            if let Ok(path_res) = resolve_path(self.db, key_path, func.scope(), assumptions, false)
+            if let Some(provider_arg_idx) = provider_arg_idx_by_effect
+                .get(effect_idx)
+                .copied()
+                .flatten()
+                && let Some(provider_ty) = self.generic_args.get(provider_arg_idx).copied()
             {
-                let is_type_effect = match path_res {
-                    PathRes::Ty(ty) | PathRes::TyAlias(_, ty) => ty.is_star_kind(self.db),
-                    _ => false,
-                };
-                if is_type_effect {
-                    let provider_pos = provider_arg_positions.get(ord).copied();
-                    ord += 1;
-                    let Some(provider_pos) = provider_pos else {
-                        continue;
-                    };
-                    let provider_ty = self.generic_args.get(provider_pos).copied();
-                    spaces[effect_idx] = provider_ty
-                        .and_then(|ty| self.effect_provider_space_for_provider_ty(ty))
-                        .unwrap_or(AddressSpaceKind::Storage);
+                if let Some(space) = self.effect_provider_space_for_provider_ty(provider_ty) {
+                    spaces[effect_idx] = space;
+                    continue;
+                }
+
+                // By-ref provider values are passed as pointers; default to memory so callers and
+                // callees agree on the address space for projections.
+                if matches!(
+                    crate::repr::repr_kind_for_ty(self.db, &self.core, provider_ty),
+                    crate::repr::ReprKind::Ref
+                ) {
+                    spaces[effect_idx] = AddressSpaceKind::Memory;
                     continue;
                 }
             }

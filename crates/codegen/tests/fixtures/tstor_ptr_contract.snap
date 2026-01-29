@@ -1,5 +1,6 @@
 ---
 source: crates/codegen/tests/yul.rs
+assertion_line: 33
 expression: output
 input_file: tests/fixtures/tstor_ptr_contract.fe
 ---
@@ -7,7 +8,7 @@ object "GuardContract" {
   code {
     function $__GuardContract_init() {
       let v0 := $init_field__Evm_u256__5d0807bcb3704261(0, 0)
-      let v1 := $tstorptr_t__effectref_from_raw__bool__947c0c03c59c6f07(0)
+      let v1 := $tstorptr_t__effecthandle_from_raw__bool__947c0c03c59c6f07(0)
       let v2 := dataoffset("GuardContract_deployed")
       let v3 := datasize("GuardContract_deployed")
       let v4 := codesize()
@@ -94,15 +95,15 @@ object "GuardContract" {
       leave
     }
     function $stor_ptr__Evm_u256__5d0807bcb3704261($self, $slot) -> ret {
-      let v0 := $storptr_t__effectref_from_raw__u256__3271ca15373d4483($slot)
+      let v0 := $storptr_t__effecthandle_from_raw__u256__3271ca15373d4483($slot)
       ret := v0
       leave
     }
-    function $storptr_t__effectref_from_raw__u256__3271ca15373d4483($raw) -> ret {
+    function $storptr_t__effecthandle_from_raw__u256__3271ca15373d4483($raw) -> ret {
       ret := $raw
       leave
     }
-    function $tstorptr_t__effectref_from_raw__bool__947c0c03c59c6f07($raw) -> ret {
+    function $tstorptr_t__effecthandle_from_raw__bool__947c0c03c59c6f07($raw) -> ret {
       ret := $raw
       leave
     }
@@ -122,7 +123,7 @@ object "GuardContract" {
       }
       function $__GuardContract_runtime() {
         let v0 := $evm_contracthost_field__u256__3271ca15373d4483(0, 0)
-        let v1 := $tstorptr_t__effectref_from_raw__bool__947c0c03c59c6f07(0)
+        let v1 := $tstorptr_t__effecthandle_from_raw__bool__947c0c03c59c6f07(0)
         let v2 := $runtime_selector__Evm_Sol__2533f5c49b57a682(0)
         let v3 := $runtime_decoder__Evm_Sol__2533f5c49b57a682(0)
         switch v2
@@ -165,7 +166,7 @@ object "GuardContract" {
         ret := v0
         leave
       }
-      function $cursor_i__fork_mem__CallData__b9ab8dc8a4b2f9e($self, $pos) -> ret {
+      function $cursor_i__fork__CallData__b9ab8dc8a4b2f9e($self, $pos) -> ret {
         let v0 := mload($self)
         let v1 := mload(0x40)
         if iszero(v1) {
@@ -259,7 +260,7 @@ object "GuardContract" {
       }
       function $soldecoder_i__with_base__CallData__b9ab8dc8a4b2f9e($input, $base) -> ret {
         let v0 := $cursor_i__new__CallData__b9ab8dc8a4b2f9e($input)
-        let v1 := $cursor_i__fork_mem__CallData__b9ab8dc8a4b2f9e(v0, $base)
+        let v1 := $cursor_i__fork__CallData__b9ab8dc8a4b2f9e(v0, $base)
         let v2 := mload(0x40)
         if iszero(v2) {
           v2 := 0x80
@@ -287,7 +288,7 @@ object "GuardContract" {
         leave
       }
       function $solencoder_abiencoder_reserve_head($self, $bytes) -> ret {
-        $solencoder_ensure_init_mem($self, $bytes)
+        $solencoder_ensure_init($self, $bytes)
         let v0 := mload($self)
         ret := v0
         leave
@@ -298,7 +299,7 @@ object "GuardContract" {
         mstore(add($self, 32), add(v0, 32))
         leave
       }
-      function $solencoder_ensure_init_mem($self, $bytes) {
+      function $solencoder_ensure_init($self, $bytes) {
         let v0 := mload($self)
         let v1 := eq(v0, 0)
         if v1 {
@@ -323,15 +324,15 @@ object "GuardContract" {
         leave
       }
       function $stor_ptr__Evm_u256__5d0807bcb3704261($self, $slot) -> ret {
-        let v0 := $storptr_t__effectref_from_raw__u256__3271ca15373d4483($slot)
+        let v0 := $storptr_t__effecthandle_from_raw__u256__3271ca15373d4483($slot)
         ret := v0
         leave
       }
-      function $storptr_t__effectref_from_raw__u256__3271ca15373d4483($raw) -> ret {
+      function $storptr_t__effecthandle_from_raw__u256__3271ca15373d4483($raw) -> ret {
         ret := $raw
         leave
       }
-      function $tstorptr_t__effectref_from_raw__bool__947c0c03c59c6f07($raw) -> ret {
+      function $tstorptr_t__effecthandle_from_raw__bool__947c0c03c59c6f07($raw) -> ret {
         ret := $raw
         leave
       }

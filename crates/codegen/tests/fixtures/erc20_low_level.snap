@@ -9,12 +9,12 @@ object "Erc20Contract" {
       ret := 0
       leave
     }
-    function $do_init__StorPtr_Erc20___2745299687a147d4($erc20, $ctx, $ops) {
+    function $do_init__StorPtr_Erc20__Evm_Evm__dadfbbe3b69abecd($erc20, $ctx, $ops) {
       let v0 := caller()
-      $erc20_set_owner_once_stor($erc20, v0, $ops)
+      $erc20_set_owner_once_stor__Evm__1572a3ac6cae1070($erc20, v0, $ops)
       leave
     }
-    function $erc20_set_owner_once_stor($self, $owner, $ops) {
+    function $erc20_set_owner_once_stor__Evm__1572a3ac6cae1070($self, $owner, $ops) {
       let v0 := sload(add($self, 1))
       let v1 := $address_zero()
       let v2 := iszero(eq(v0, v1))
@@ -27,18 +27,18 @@ object "Erc20Contract" {
     function $init__StorPtr_Evm___207f35a85ac4062e() {
       let v0 := $stor_ptr__Evm_Erc20__c294a0aeae425afd(0, 0)
       let v1 := v0
-      $do_init__StorPtr_Erc20___2745299687a147d4(v1, 0, 0)
+      $do_init__StorPtr_Erc20__Evm_Evm__dadfbbe3b69abecd(v1, 0, 0)
       let v2 := datasize("Erc20Contract_deployed")
       let v3 := dataoffset("Erc20Contract_deployed")
       codecopy(0, v3, v2)
       return(0, v2)
     }
     function $stor_ptr__Evm_Erc20__c294a0aeae425afd($self, $slot) -> ret {
-      let v0 := $storptr_t__effectref_from_raw__Erc20__88e369469f2b52ef($slot)
+      let v0 := $storptr_t__effecthandle_from_raw__Erc20__88e369469f2b52ef($slot)
       ret := v0
       leave
     }
-    function $storptr_t__effectref_from_raw__Erc20__88e369469f2b52ef($raw) -> ret {
+    function $storptr_t__effecthandle_from_raw__Erc20__88e369469f2b52ef($raw) -> ret {
       ret := $raw
       leave
     }
@@ -57,13 +57,13 @@ object "Erc20Contract" {
         ret := add(v4, v5)
         leave
       }
-      function $abi_encode_string($word, $len, $ops) {
+      function $abi_encode_string__Evm__1572a3ac6cae1070($word, $len, $ops) {
         mstore(0, 32)
         mstore(32, $len)
         mstore(64, $word)
         return(0, 96)
       }
-      function $abi_encode_u256($value, $ops) {
+      function $abi_encode_u256__Evm__1572a3ac6cae1070($value, $ops) {
         mstore(0, $value)
         return(0, 32)
       }
@@ -85,7 +85,7 @@ object "Erc20Contract" {
         ret := v1
         leave
       }
-      function $approve__StorPtr_Erc20___2745299687a147d4($spender, $amount, $erc20, $ctx) -> ret {
+      function $approve__StorPtr_Erc20__Evm__d800a7d9a907da20($spender, $amount, $erc20, $ctx) -> ret {
         let v0 := caller()
         $erc20_approve_stor($erc20, v0, $spender, $amount)
         ret := 1
@@ -128,7 +128,7 @@ object "Erc20Contract" {
         ret := v0
         leave
       }
-      function $erc20_mint_stor($self, $to, $amount, $ctx, $ops) {
+      function $erc20_mint_stor__Evm_Evm__11308ad19242a97c($self, $to, $amount, $ctx, $ops) {
         let v0 := caller()
         let v1 := sload(add($self, 1))
         let v2 := iszero(eq(v0, v1))
@@ -142,14 +142,14 @@ object "Erc20Contract" {
         sstore($self, add(v4, $amount))
         leave
       }
-      function $erc20_transfer_from_stor($self, $owner, $to, $amount, $ctx, $ops) {
+      function $erc20_transfer_from_stor__Evm_Evm__11308ad19242a97c($self, $owner, $to, $amount, $ctx, $ops) {
         let v0 := caller()
         let v1 := $erc20_allowance_stor($self, $owner, v0)
         let v2 := lt(v1, $amount)
         if v2 {
           revert(0, 0)
         }
-        $erc20_transfer_stor($self, $owner, $to, $amount, $ops)
+        $erc20_transfer_stor__Evm__1572a3ac6cae1070($self, $owner, $to, $amount, $ops)
         pop($self)
         let v3 := mload(0x40)
         if iszero(v3) {
@@ -161,7 +161,7 @@ object "Erc20Contract" {
         $storagemap_k__v__const_salt__u256__set___Address__Address__u256_1__12414c27d5bfff1f(0, v3, sub(v1, $amount))
         leave
       }
-      function $erc20_transfer_stor($self, $from, $to, $amount, $ops) {
+      function $erc20_transfer_stor__Evm__1572a3ac6cae1070($self, $from, $to, $amount, $ops) {
         let v0 := $erc20_balance_of_stor($self, $from)
         let v1 := lt(v0, $amount)
         if v1 {
@@ -174,8 +174,8 @@ object "Erc20Contract" {
         $storagemap_k__v__const_salt__u256__set__Address_u256_0__b8b2f68065fe2328(0, $to, add(v2, $amount))
         leave
       }
-      function $mint__StorPtr_Erc20___2745299687a147d4($to, $amount, $erc20, $ctx, $ops) -> ret {
-        $erc20_mint_stor($erc20, $to, $amount, $ctx, $ops)
+      function $mint__StorPtr_Erc20__Evm_Evm__dadfbbe3b69abecd($to, $amount, $erc20, $ctx, $ops) -> ret {
+        $erc20_mint_stor__Evm_Evm__11308ad19242a97c($erc20, $to, $amount, $ctx, $ops)
         ret := 1
         leave
       }
@@ -189,7 +189,7 @@ object "Erc20Contract" {
             let v4 := calldataload(4)
             let v5 := v4
             let v6 := $balance_of__StorPtr_Erc20___2745299687a147d4(v5, v3)
-            $abi_encode_u256(v6, 0)
+            $abi_encode_u256__Evm__1572a3ac6cae1070(v6, 0)
           }
           case 3714247998 {
             let v7 := calldataload(4)
@@ -197,30 +197,30 @@ object "Erc20Contract" {
             let v9 := calldataload(36)
             let v10 := v9
             let v11 := $allowance__StorPtr_Erc20___2745299687a147d4(v8, v10, v3)
-            $abi_encode_u256(v11, 0)
+            $abi_encode_u256__Evm__1572a3ac6cae1070(v11, 0)
           }
           case 117300739 {
-            $abi_encode_string(31840933704928615426292613906591192052886564858731089189578963311002547912704, 7, 0)
+            $abi_encode_string__Evm__1572a3ac6cae1070(31840933704928615426292613906591192052886564858731089189578963311002547912704, 7, 0)
           }
           case 2514000705 {
-            $abi_encode_string(31784391594991486112232083260356792451358613714049171750120207607087736291328, 3, 0)
+            $abi_encode_string__Evm__1572a3ac6cae1070(31784391594991486112232083260356792451358613714049171750120207607087736291328, 3, 0)
           }
           case 826074471 {
-            $abi_encode_u256(18, 0)
+            $abi_encode_u256__Evm__1572a3ac6cae1070(18, 0)
           }
           case 2835717307 {
             let v12 := calldataload(4)
             let v13 := v12
             let v14 := calldataload(36)
-            let v15 := $transfer__StorPtr_Erc20___2745299687a147d4(v13, v14, v3, 0, 0)
-            $abi_encode_u256(v15, 0)
+            let v15 := $transfer__StorPtr_Erc20__Evm_Evm__dadfbbe3b69abecd(v13, v14, v3, 0, 0)
+            $abi_encode_u256__Evm__1572a3ac6cae1070(v15, 0)
           }
           case 157198259 {
             let v16 := calldataload(4)
             let v17 := v16
             let v18 := calldataload(36)
-            let v19 := $approve__StorPtr_Erc20___2745299687a147d4(v17, v18, v3, 0)
-            $abi_encode_u256(v19, 0)
+            let v19 := $approve__StorPtr_Erc20__Evm__d800a7d9a907da20(v17, v18, v3, 0)
+            $abi_encode_u256__Evm__1572a3ac6cae1070(v19, 0)
           }
           case 599290589 {
             let v20 := calldataload(4)
@@ -228,22 +228,22 @@ object "Erc20Contract" {
             let v22 := calldataload(36)
             let v23 := v22
             let v24 := calldataload(68)
-            let v25 := $transfer_from__StorPtr_Erc20___2745299687a147d4(v21, v23, v24, v3, 0, 0)
-            $abi_encode_u256(v25, 0)
+            let v25 := $transfer_from__StorPtr_Erc20__Evm_Evm__dadfbbe3b69abecd(v21, v23, v24, v3, 0, 0)
+            $abi_encode_u256__Evm__1572a3ac6cae1070(v25, 0)
           }
           case 1086394137 {
             let v26 := calldataload(4)
             let v27 := v26
             let v28 := calldataload(36)
-            let v29 := $mint__StorPtr_Erc20___2745299687a147d4(v27, v28, v3, 0, 0)
-            $abi_encode_u256(v29, 0)
+            let v29 := $mint__StorPtr_Erc20__Evm_Evm__dadfbbe3b69abecd(v27, v28, v3, 0, 0)
+            $abi_encode_u256__Evm__1572a3ac6cae1070(v29, 0)
           }
           default {
             revert(0, 0)
           }
       }
       function $stor_ptr__Evm_Erc20__c294a0aeae425afd($self, $slot) -> ret {
-        let v0 := $storptr_t__effectref_from_raw__Erc20__88e369469f2b52ef($slot)
+        let v0 := $storptr_t__effecthandle_from_raw__Erc20__88e369469f2b52ef($slot)
         ret := v0
         leave
       }
@@ -307,18 +307,18 @@ object "Erc20Contract" {
         ret := v2
         leave
       }
-      function $storptr_t__effectref_from_raw__Erc20__88e369469f2b52ef($raw) -> ret {
+      function $storptr_t__effecthandle_from_raw__Erc20__88e369469f2b52ef($raw) -> ret {
         ret := $raw
         leave
       }
-      function $transfer__StorPtr_Erc20___2745299687a147d4($to, $amount, $erc20, $ctx, $ops) -> ret {
+      function $transfer__StorPtr_Erc20__Evm_Evm__dadfbbe3b69abecd($to, $amount, $erc20, $ctx, $ops) -> ret {
         let v0 := caller()
-        $erc20_transfer_stor($erc20, v0, $to, $amount, $ops)
+        $erc20_transfer_stor__Evm__1572a3ac6cae1070($erc20, v0, $to, $amount, $ops)
         ret := 1
         leave
       }
-      function $transfer_from__StorPtr_Erc20___2745299687a147d4($from, $to, $amount, $erc20, $ctx, $ops) -> ret {
-        $erc20_transfer_from_stor($erc20, $from, $to, $amount, $ctx, $ops)
+      function $transfer_from__StorPtr_Erc20__Evm_Evm__dadfbbe3b69abecd($from, $to, $amount, $erc20, $ctx, $ops) -> ret {
+        $erc20_transfer_from_stor__Evm_Evm__11308ad19242a97c($erc20, $from, $to, $amount, $ctx, $ops)
         ret := 1
         leave
       }

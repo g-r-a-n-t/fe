@@ -4,9 +4,9 @@ use crate::{
     hir_def::{
         AttrListId, Body, BodyKind, Contract, ContractInit, ContractRecv, ContractRecvArm,
         ContractRecvArmListId, ContractRecvListId, Expr, FieldDef, FieldDefListId, FuncParamListId,
-        IdentId, ItemModifier, Pat, TrackedItemVariant, TypeId, Visibility,
+        IdentId, Pat, TrackedItemVariant, TypeId, Visibility,
     },
-    lower::{FileLowerCtxt, body::BodyCtxt, item::lower_uses_clause_opt},
+    lower::{FileLowerCtxt, body::BodyCtxt, item::lower_uses_clause_opt, item::lower_visibility},
     span::HirOrigin,
 };
 
@@ -60,7 +60,7 @@ impl<'db> Contract<'db> {
         ctxt.enter_item_scope(id, false);
 
         let attributes = AttrListId::lower_ast_opt(ctxt, ast.attr_list());
-        let vis = ItemModifier::lower_ast(ast.modifier()).to_visibility();
+        let vis = lower_visibility(ast.modifier());
         let fields = lower_contract_fields_opt(ctxt, ast.fields());
         // Contract-level uses clause
         let effects = lower_uses_clause_opt(ctxt, ast.uses_clause());

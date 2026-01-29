@@ -43,6 +43,7 @@ use crate::analysis::place::Place;
 use super::{
     canonical::{Canonical, Canonicalized},
     diagnostics::{BodyDiag, FuncBodyDiag, TraitConstraintDiag, TyDiagCollection, TyLowerDiag},
+    effects::EffectKeyKind,
     trait_def::TraitInstId,
     trait_resolution::{GoalSatisfiability, PredicateListId, is_goal_satisfiable},
     ty_def::{InvalidCause, Kind, TyId, TyVarSort},
@@ -717,14 +718,6 @@ impl<'db> TyChecker<'db> {
         self.env.body()
     }
 
-    fn parent_expr(&self) -> Option<&'db Expr<'db>> {
-        let id = self.env.parent_expr()?;
-        match &self.body().exprs(self.db)[id] {
-            Partial::Present(expr) => Some(expr),
-            Partial::Absent => None,
-        }
-    }
-
     fn lit_ty(&mut self, lit: &LitKind<'db>) -> TyId<'db> {
         match lit {
             LitKind::Bool(_) => TyId::bool(self.db),
@@ -1024,6 +1017,8 @@ pub struct ResolvedEffectArg<'db> {
     pub key: PathId<'db>,
     pub arg: EffectArg<'db>,
     pub pass_mode: EffectPassMode,
+    pub key_kind: EffectKeyKind,
+    pub instantiated_target_ty: Option<TyId<'db>>,
 }
 
 /// Resolved reference for a `const`-valued path expression.

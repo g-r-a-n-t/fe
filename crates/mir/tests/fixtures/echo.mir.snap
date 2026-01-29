@@ -1,5 +1,6 @@
 ---
 source: crates/mir/tests/lowering_snapshots.rs
+assertion_line: 26
 expression: mir_output
 ---
 fn __EchoContract_init_contract(v0: u256, v1: u256, v2: u256) -> ():
@@ -180,7 +181,7 @@ fn soldecoder_i__abidecoder_read_word__MemoryBytes__b48f82585f3ed728(v0: SolDeco
 
 fn stor_ptr__Evm_Foo__c3089d776807df8e(v0: Self, v1: u256) -> StorPtr<Foo>:
   bb0:
-    v2: StorPtr<Foo> = storptr_t__effectref_from_raw__Foo__668f96d7165c93b(v1)
+    v2: StorPtr<Foo> = storptr_t__effecthandle_from_raw__Foo__668f96d7165c93b(v1)
     ret v2
 
 fn evm_contracthost_input(v0: Evm) -> CallData:
@@ -214,7 +215,7 @@ fn sol_abi_encoder_new() -> SolEncoder:
 
 fn solencoder_abiencoder_reserve_head(v0: SolEncoder, v1: u256) -> u256:
   bb0:
-    eval solencoder_ensure_init_mem(v0, v1)
+    eval solencoder_ensure_init(v0, v1)
     v2: u256 = load mem[v0].0
     ret v2
 
@@ -258,7 +259,7 @@ fn memorybytes_byteinput_word_at(v0: MemoryBytes, v1: u256) -> u256:
     v3: u256 = mload((v2 + v1))
     ret v3
 
-fn storptr_t__effectref_from_raw__Foo__668f96d7165c93b(v0: u256) -> StorPtr<Foo>:
+fn storptr_t__effecthandle_from_raw__Foo__668f96d7165c93b(v0: u256) -> StorPtr<Foo>:
   bb0:
     ret v0
 
@@ -271,7 +272,7 @@ fn s_intdowncast_downcast_unchecked__u256_u32__6e3637cd3e911b35(v0: S) -> u32:
 fn soldecoder_i__with_base__CallData__b9ab8dc8a4b2f9e(v0: I, v1: u256) -> SolDecoder<CallData>:
   bb0:
     v3: Cursor<CallData> = cursor_i__new__CallData__b9ab8dc8a4b2f9e(v0)
-    v2: Cursor<CallData> = cursor_i__fork_mem__CallData__b9ab8dc8a4b2f9e(v3, v1)
+    v2: Cursor<CallData> = cursor_i__fork__CallData__b9ab8dc8a4b2f9e(v3, v1)
     v5: SolDecoder<CallData> = alloc mem
     init mem[v5] { .0 = v2, .1 = v1 }
     v4: SolDecoder<CallData> = v5
@@ -284,7 +285,7 @@ fn solencoder_new() -> SolEncoder:
     v0: SolEncoder = v1
     ret v0
 
-fn solencoder_ensure_init_mem(v0: SolEncoder, v1: u256) -> ():
+fn solencoder_ensure_init(v0: SolEncoder, v1: u256) -> ():
   bb0:
     v2: u256 = load mem[v0].0
     br (v2 == 0) bb1 bb2
@@ -336,7 +337,7 @@ fn cursor_i__new__CallData__b9ab8dc8a4b2f9e(v0: I) -> Cursor<CallData>:
     v1: Cursor<CallData> = v2
     ret v1
 
-fn cursor_i__fork_mem__CallData__b9ab8dc8a4b2f9e(v0: Cursor<I>, v1: u256) -> Cursor<CallData>:
+fn cursor_i__fork__CallData__b9ab8dc8a4b2f9e(v0: Cursor<I>, v1: u256) -> Cursor<CallData>:
   bb0:
     v3: CallData = load mem[v0].0
     v4: Cursor<CallData> = alloc mem

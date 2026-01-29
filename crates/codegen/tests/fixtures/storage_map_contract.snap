@@ -16,7 +16,7 @@ object "BalanceMap" {
 
   object "BalanceMap_deployed" {
     code {
-      function $abi_encode($value, $ops) {
+      function $abi_encode__Evm__1572a3ac6cae1070($value, $ops) {
         let v0 := 0
         mstore(v0, $value)
         return(v0, 32)
@@ -41,13 +41,13 @@ object "BalanceMap" {
             let v2 := calldataload(4)
             let v3 := $get_balance__MemPtr_StorageMap_u256__u256__0____3cd7ace0c4584833(v2, 0)
             let v4 := v3
-            $abi_encode(v4, 0)
+            $abi_encode__Evm__1572a3ac6cae1070(v4, 0)
           }
           case 1246470123 {
             let v5 := calldataload(4)
             let v6 := calldataload(36)
             $set_balance__MemPtr_StorageMap_u256__u256__0____3cd7ace0c4584833(v5, v6, 0)
-            $abi_encode(0, 0)
+            $abi_encode__Evm__1572a3ac6cae1070(0, 0)
           }
           case 2430412327 {
             let v7 := calldataload(4)
@@ -55,19 +55,19 @@ object "BalanceMap" {
             let v9 := calldataload(68)
             let v10 := $transfer__MemPtr_StorageMap_u256__u256__0____3cd7ace0c4584833(v7, v8, v9, 0)
             let v11 := v10
-            $abi_encode(v11, 0)
+            $abi_encode__Evm__1572a3ac6cae1070(v11, 0)
           }
           case 3378517838 {
             let v12 := calldataload(4)
             let v13 := $get_allowance__MemPtr_StorageMap_u256__u256__1____e8f0bd5888eece94(v12, 0)
             let v14 := v13
-            $abi_encode(v14, 0)
+            $abi_encode__Evm__1572a3ac6cae1070(v14, 0)
           }
           case 197806145 {
             let v15 := calldataload(4)
             let v16 := calldataload(36)
             $set_allowance__MemPtr_StorageMap_u256__u256__1____e8f0bd5888eece94(v15, v16, 0)
-            $abi_encode(0, 0)
+            $abi_encode__Evm__1572a3ac6cae1070(0, 0)
           }
           default {
             return(0, 0)

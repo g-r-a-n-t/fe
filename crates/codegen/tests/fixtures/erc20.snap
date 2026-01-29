@@ -1,5 +1,6 @@
 ---
 source: crates/codegen/tests/yul.rs
+assertion_line: 33
 expression: output
 input_file: tests/fixtures/erc20.fe
 ---
@@ -38,7 +39,7 @@ object "CoolCoin" {
       $accesscontrol_grant($auth, 2, $owner)
       let v0 := gt($initial_supply, 0)
       if v0 {
-        $mint__StorPtr_TokenStore___6cde5b1e4cc29186($owner, $initial_supply, $store, $log)
+        $mint__StorPtr_TokenStore__Evm__45cdd7ae43d0a12($owner, $initial_supply, $store, $log)
       }
       leave
     }
@@ -123,9 +124,6 @@ object "CoolCoin" {
       ret := v2
       leave
     }
-    function $emit__log__Log_TransferEvent__41b584f23318b0be($self, $event) {
-      leave
-    }
     function $evm_contracthost_abort($self) {
       revert(0, 0)
     }
@@ -137,6 +135,11 @@ object "CoolCoin" {
     function $evm_contracthost_field__TokenStore__cf27701b626eb0c2($self, $slot) -> ret {
       let v0 := $stor_ptr__Evm_TokenStore__f6aa99d6ecaccf30(0, $slot)
       ret := v0
+      leave
+    }
+    function $evm_log_emit__TransferEvent__3286f1804ad8a121($self, $event) {
+      let v0 := $event
+      log0(v0, 96)
       leave
     }
     function $init_field__Evm_AccessControl__9eae422fa78e0dfe($self, $slot) -> ret {
@@ -160,7 +163,7 @@ object "CoolCoin" {
       ret := v1
       leave
     }
-    function $mint__StorPtr_TokenStore___6cde5b1e4cc29186($to, $amount, $store, $log) {
+    function $mint__StorPtr_TokenStore__Evm__45cdd7ae43d0a12($to, $amount, $store, $log) {
       let v0 := $address_zero()
       $assert(iszero(eq($to, v0)))
       let v1 := sload($store)
@@ -178,7 +181,7 @@ object "CoolCoin" {
       mstore(v4, v3)
       mstore(add(v4, 32), $to)
       mstore(add(v4, 64), $amount)
-      $emit__log__Log_TransferEvent__41b584f23318b0be($log, v4)
+      $evm_log_emit__TransferEvent__3286f1804ad8a121($log, v4)
       leave
     }
     function $sol_abi_decoder_new__MemoryBytes__b48f82585f3ed728($input) -> ret {
@@ -218,12 +221,12 @@ object "CoolCoin" {
       leave
     }
     function $stor_ptr__Evm_AccessControl__9eae422fa78e0dfe($self, $slot) -> ret {
-      let v0 := $storptr_t__effectref_from_raw__TokenStore__cf27701b626eb0c2($slot)
+      let v0 := $storptr_t__effecthandle_from_raw__TokenStore__cf27701b626eb0c2($slot)
       ret := v0
       leave
     }
     function $stor_ptr__Evm_TokenStore__f6aa99d6ecaccf30($self, $slot) -> ret {
-      let v0 := $storptr_t__effectref_from_raw__TokenStore__cf27701b626eb0c2($slot)
+      let v0 := $storptr_t__effecthandle_from_raw__TokenStore__cf27701b626eb0c2($slot)
       ret := v0
       leave
     }
@@ -275,7 +278,7 @@ object "CoolCoin" {
       ret := v2
       leave
     }
-    function $storptr_t__effectref_from_raw__TokenStore__cf27701b626eb0c2($raw) -> ret {
+    function $storptr_t__effecthandle_from_raw__TokenStore__cf27701b626eb0c2($raw) -> ret {
       ret := $raw
       leave
     }
@@ -308,7 +311,7 @@ object "CoolCoin" {
         let v2 := mload(add($args, 32))
         let v3 := v2
         let v4 := caller()
-        $transfer__StorPtr_TokenStore___6cde5b1e4cc29186(v4, v1, v3, $store, $log)
+        $transfer__StorPtr_TokenStore__Evm__45cdd7ae43d0a12(v4, v1, v3, $store, $log)
         ret := 1
         leave
       }
@@ -318,7 +321,7 @@ object "CoolCoin" {
         let v2 := mload(add($args, 32))
         let v3 := v2
         let v4 := caller()
-        $approve__StorPtr_TokenStore___6cde5b1e4cc29186(v4, v1, v3, $store, $log)
+        $approve__StorPtr_TokenStore__Evm__45cdd7ae43d0a12(v4, v1, v3, $store, $log)
         ret := 1
         leave
       }
@@ -331,7 +334,7 @@ object "CoolCoin" {
         let v5 := v4
         let v6 := caller()
         $spend_allowance__StorPtr_TokenStore___6cde5b1e4cc29186(v1, v6, v5, $store)
-        $transfer__StorPtr_TokenStore___6cde5b1e4cc29186(v1, v3, v5, $store, $log)
+        $transfer__StorPtr_TokenStore__Evm__45cdd7ae43d0a12(v1, v3, v5, $store, $log)
         ret := 1
         leave
       }
@@ -381,15 +384,15 @@ object "CoolCoin" {
         let v1 := v0
         let v2 := mload(add($args, 32))
         let v3 := v2
-        $accesscontrol_require($auth, 1, $ctx)
-        $mint__StorPtr_TokenStore___6cde5b1e4cc29186(v1, v3, $store, $log)
+        $accesscontrol_require__Evm__1572a3ac6cae1070($auth, 1, $ctx)
+        $mint__StorPtr_TokenStore__Evm__45cdd7ae43d0a12(v1, v3, $store, $log)
         ret := 1
         leave
       }
       function $__CoolCoin_recv_1_1($args, $ctx, $store, $log) -> ret {
         let v0 := $args
         let v1 := caller()
-        $burn__StorPtr_TokenStore___6cde5b1e4cc29186(v1, v0, $store, $log)
+        $burn__StorPtr_TokenStore__Evm__45cdd7ae43d0a12(v1, v0, $store, $log)
         ret := 1
         leave
       }
@@ -400,7 +403,7 @@ object "CoolCoin" {
         let v3 := v2
         let v4 := caller()
         $spend_allowance__StorPtr_TokenStore___6cde5b1e4cc29186(v1, v4, v3, $store)
-        $burn__StorPtr_TokenStore___6cde5b1e4cc29186(v1, v3, $store, $log)
+        $burn__StorPtr_TokenStore__Evm__45cdd7ae43d0a12(v1, v3, $store, $log)
         ret := 1
         leave
       }
@@ -419,7 +422,7 @@ object "CoolCoin" {
         mstore(v5, v4)
         mstore(add(v5, 32), v1)
         let v6 := $storagemap_k__v__const_salt__u256__get___Address__Address__u256_1__12414c27d5bfff1f(0, v5)
-        $approve__StorPtr_TokenStore___6cde5b1e4cc29186(v4, v1, add(v6, v3), $store, $log)
+        $approve__StorPtr_TokenStore__Evm__45cdd7ae43d0a12(v4, v1, add(v6, v3), $store, $log)
         ret := 1
         leave
       }
@@ -439,7 +442,7 @@ object "CoolCoin" {
         mstore(add(v5, 32), v1)
         let v6 := $storagemap_k__v__const_salt__u256__get___Address__Address__u256_1__12414c27d5bfff1f(0, v5)
         $assert(iszero(lt(v6, v3)))
-        $approve__StorPtr_TokenStore___6cde5b1e4cc29186(v4, v1, sub(v6, v3), $store, $log)
+        $approve__StorPtr_TokenStore__Evm__45cdd7ae43d0a12(v4, v1, sub(v6, v3), $store, $log)
         ret := 1
         leave
       }
@@ -543,7 +546,7 @@ object "CoolCoin" {
         ret := add(v4, v5)
         leave
       }
-      function $accesscontrol_require($self, $role, $ctx) {
+      function $accesscontrol_require__Evm__1572a3ac6cae1070($self, $role, $ctx) {
         let v0 := caller()
         let v1 := mload(0x40)
         if iszero(v1) {
@@ -593,7 +596,7 @@ object "CoolCoin" {
         ret := v2
         leave
       }
-      function $approve__StorPtr_TokenStore___6cde5b1e4cc29186($owner, $spender, $amount, $store, $log) {
+      function $approve__StorPtr_TokenStore__Evm__45cdd7ae43d0a12($owner, $spender, $amount, $store, $log) {
         let v0 := $address_zero()
         $assert(iszero(eq($owner, v0)))
         let v1 := $address_zero()
@@ -615,7 +618,7 @@ object "CoolCoin" {
         mstore(v3, $owner)
         mstore(add(v3, 32), $spender)
         mstore(add(v3, 64), $amount)
-        $emit__log__Log_ApprovalEvent__bbf50d88fed22fda($log, v3)
+        $evm_log_emit__ApprovalEvent__6cbed5fbaac6c5ee($log, v3)
         leave
       }
       function $approve_decode_decode__SolDecoder_CallData___c1e4510fd444b966($d) -> ret {
@@ -657,7 +660,7 @@ object "CoolCoin" {
         ret := iszero(eq($word, 0))
         leave
       }
-      function $burn__StorPtr_TokenStore___6cde5b1e4cc29186($from, $amount, $store, $log) {
+      function $burn__StorPtr_TokenStore__Evm__45cdd7ae43d0a12($from, $amount, $store, $log) {
         let v0 := $address_zero()
         $assert(iszero(eq($from, v0)))
         pop($store)
@@ -676,7 +679,7 @@ object "CoolCoin" {
         mstore(v4, $from)
         mstore(add(v4, 32), v3)
         mstore(add(v4, 64), $amount)
-        $emit__log__Log_TransferEvent__41b584f23318b0be($log, v4)
+        $evm_log_emit__TransferEvent__3286f1804ad8a121($log, v4)
         leave
       }
       function $burn_decode_decode__SolDecoder_CallData___c1e4510fd444b966($d) -> ret {
@@ -707,7 +710,7 @@ object "CoolCoin" {
         ret := v0
         leave
       }
-      function $cursor_i__fork_mem__CallData__b9ab8dc8a4b2f9e($self, $pos) -> ret {
+      function $cursor_i__fork__CallData__b9ab8dc8a4b2f9e($self, $pos) -> ret {
         let v0 := mload($self)
         let v1 := mload(0x40)
         if iszero(v1) {
@@ -748,12 +751,6 @@ object "CoolCoin" {
         ret := v2
         leave
       }
-      function $emit__log__Log_ApprovalEvent__bbf50d88fed22fda($self, $event) {
-        leave
-      }
-      function $emit__log__Log_TransferEvent__41b584f23318b0be($self, $event) {
-        leave
-      }
       function $evm_contracthost_abort($self) {
         revert(0, 0)
       }
@@ -774,6 +771,16 @@ object "CoolCoin" {
       function $evm_contracthost_return_bytes($self, $ptr, $len) {
         return($ptr, $len)
       }
+      function $evm_log_emit__ApprovalEvent__6cbed5fbaac6c5ee($self, $event) {
+        let v0 := $event
+        log0(v0, 96)
+        leave
+      }
+      function $evm_log_emit__TransferEvent__3286f1804ad8a121($self, $event) {
+        let v0 := $event
+        log0(v0, 96)
+        leave
+      }
       function $increaseallowance_decode_decode__SolDecoder_CallData___c1e4510fd444b966($d) -> ret {
         let v0 := $address_decode_decode__Sol_SolDecoder_CallData___828c6f2e3bda3cab($d)
         let v1 := $u256_decode_decode__Sol_SolDecoder_CallData___828c6f2e3bda3cab($d)
@@ -787,7 +794,7 @@ object "CoolCoin" {
         ret := v2
         leave
       }
-      function $mint__StorPtr_TokenStore___6cde5b1e4cc29186($to, $amount, $store, $log) {
+      function $mint__StorPtr_TokenStore__Evm__45cdd7ae43d0a12($to, $amount, $store, $log) {
         let v0 := $address_zero()
         $assert(iszero(eq($to, v0)))
         let v1 := sload($store)
@@ -805,7 +812,7 @@ object "CoolCoin" {
         mstore(v4, v3)
         mstore(add(v4, 32), $to)
         mstore(add(v4, 64), $amount)
-        $emit__log__Log_TransferEvent__41b584f23318b0be($log, v4)
+        $evm_log_emit__TransferEvent__3286f1804ad8a121($log, v4)
         leave
       }
       function $mint_decode_decode__SolDecoder_CallData___c1e4510fd444b966($d) -> ret {
@@ -932,7 +939,7 @@ object "CoolCoin" {
       }
       function $soldecoder_i__with_base__CallData__b9ab8dc8a4b2f9e($input, $base) -> ret {
         let v0 := $cursor_i__new__CallData__b9ab8dc8a4b2f9e($input)
-        let v1 := $cursor_i__fork_mem__CallData__b9ab8dc8a4b2f9e(v0, $base)
+        let v1 := $cursor_i__fork__CallData__b9ab8dc8a4b2f9e(v0, $base)
         let v2 := mload(0x40)
         if iszero(v2) {
           v2 := 0x80
@@ -960,7 +967,7 @@ object "CoolCoin" {
         leave
       }
       function $solencoder_abiencoder_reserve_head($self, $bytes) -> ret {
-        $solencoder_ensure_init_mem($self, $bytes)
+        $solencoder_ensure_init($self, $bytes)
         let v0 := mload($self)
         ret := v0
         leave
@@ -971,7 +978,7 @@ object "CoolCoin" {
         mstore(add($self, 32), add(v0, 32))
         leave
       }
-      function $solencoder_ensure_init_mem($self, $bytes) {
+      function $solencoder_ensure_init($self, $bytes) {
         let v0 := mload($self)
         let v1 := eq(v0, 0)
         if v1 {
@@ -1018,12 +1025,12 @@ object "CoolCoin" {
         leave
       }
       function $stor_ptr__Evm_AccessControl__9eae422fa78e0dfe($self, $slot) -> ret {
-        let v0 := $storptr_t__effectref_from_raw__TokenStore__cf27701b626eb0c2($slot)
+        let v0 := $storptr_t__effecthandle_from_raw__TokenStore__cf27701b626eb0c2($slot)
         ret := v0
         leave
       }
       function $stor_ptr__Evm_TokenStore__f6aa99d6ecaccf30($self, $slot) -> ret {
-        let v0 := $storptr_t__effectref_from_raw__TokenStore__cf27701b626eb0c2($slot)
+        let v0 := $storptr_t__effecthandle_from_raw__TokenStore__cf27701b626eb0c2($slot)
         ret := v0
         leave
       }
@@ -1107,7 +1114,7 @@ object "CoolCoin" {
         ret := v2
         leave
       }
-      function $storptr_t__effectref_from_raw__TokenStore__cf27701b626eb0c2($raw) -> ret {
+      function $storptr_t__effecthandle_from_raw__TokenStore__cf27701b626eb0c2($raw) -> ret {
         ret := $raw
         leave
       }
@@ -1122,7 +1129,7 @@ object "CoolCoin" {
       function $totalsupply_decode_decode__SolDecoder_CallData___c1e4510fd444b966($d) {
         leave
       }
-      function $transfer__StorPtr_TokenStore___6cde5b1e4cc29186($from, $to, $amount, $store, $log) {
+      function $transfer__StorPtr_TokenStore__Evm__45cdd7ae43d0a12($from, $to, $amount, $store, $log) {
         let v0 := $address_zero()
         $assert(iszero(eq($from, v0)))
         let v1 := $address_zero()
@@ -1144,7 +1151,7 @@ object "CoolCoin" {
         mstore(v4, $from)
         mstore(add(v4, 32), $to)
         mstore(add(v4, 64), $amount)
-        $emit__log__Log_TransferEvent__41b584f23318b0be($log, v4)
+        $evm_log_emit__TransferEvent__3286f1804ad8a121($log, v4)
         leave
       }
       function $transfer_decode_decode__SolDecoder_CallData___c1e4510fd444b966($d) -> ret {

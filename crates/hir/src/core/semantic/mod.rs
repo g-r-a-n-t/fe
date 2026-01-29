@@ -802,7 +802,12 @@ pub struct EffectBinding<'db> {
     pub source: EffectSource,
     pub binding_site: EffectParamSite<'db>,
     pub binding_idx: u32,
-    pub binding_key_path: PathId<'db>,
+    /// The path written at the binding site (e.g. `uses (ctx)` or `uses (mut store)`).
+    ///
+    /// Note: this is not necessarily the semantic "key path" that resolves to a type/trait; for
+    /// contract-scoped named imports, this is the import name, while the resolved key is captured
+    /// by `key_kind`/`key_ty`/`key_trait`.
+    pub binding_path: PathId<'db>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Update)]
@@ -890,9 +895,8 @@ impl<'db> Contract<'db> {
         let assumptions = PredicateListId::empty_list(db);
         let ingot = self.top_mod(db).ingot(db);
 
-        let Some(effect_ref) = resolve_core_trait(db, scope, &["effect_ref", "EffectRef"]) else {
-            return IndexMap::new();
-        };
+        let effect_handle = resolve_core_trait(db, scope, &["effect_ref", "EffectHandle"])
+            .expect("missing required core trait `core::effect_ref::EffectHandle`");
         let target_ident = IdentId::new(db, "Target".to_string());
 
         let hir_fields = self.hir_fields(db).data(db);
@@ -904,7 +908,7 @@ impl<'db> Contract<'db> {
             .map(|(idx, field)| {
                 let declared_ty = lower_opt_hir_ty(db, field.type_ref(), scope, assumptions);
 
-                let inst = TraitInstId::new(db, effect_ref, vec![declared_ty], IndexMap::new());
+                let inst = TraitInstId::new(db, effect_handle, vec![declared_ty], IndexMap::new());
                 let goal = Canonicalized::new(db, inst).value;
                 let (is_provider, target_ty) =
                     match is_goal_satisfiable(db, ingot, goal, assumptions) {
@@ -987,7 +991,7 @@ impl<'db> Contract<'db> {
                     source: EffectSource::Root,
                     binding_site: contract_site,
                     binding_idx: idx as u32,
-                    binding_key_path: key_path,
+                    binding_path: key_path,
                 })
             })
             .collect()
@@ -1033,7 +1037,7 @@ impl<'db> Func<'db> {
                     source: EffectSource::Root,
                     binding_site: EffectParamSite::Func(self),
                     binding_idx: idx as u32,
-                    binding_key_path: key_path,
+                    binding_path: key_path,
                 })
             })
             .collect()
@@ -1083,7 +1087,7 @@ fn contract_scoped_effect_bindings<'db>(
                 source: EffectSource::Root,
                 binding_site: list_site,
                 binding_idx: idx as u32,
-                binding_key_path: key_path,
+                binding_path: key_path,
             });
             continue;
         }
@@ -1104,14 +1108,14 @@ fn contract_scoped_effect_bindings<'db>(
                 source: EffectSource::Field(field_idx),
                 binding_site: list_site,
                 binding_idx: idx as u32,
-                binding_key_path: key_path,
+                binding_path: key_path,
             });
             continue;
         }
 
         if key_path.len(db) == 1
             && let Some(name) = key_path.ident(db).to_opt()
-            && let Some((binding_idx, referenced_key, is_mut)) =
+            && let Some((_decl_idx, referenced_key, is_mut)) =
                 contract_named_effects.get(&name).copied()
         {
             let (key_kind, key_ty, key_trait) =
@@ -1124,9 +1128,9 @@ fn contract_scoped_effect_bindings<'db>(
                 key_trait,
                 is_mut,
                 source: EffectSource::Root,
-                binding_site: EffectParamSite::Contract(contract),
-                binding_idx,
-                binding_key_path: referenced_key,
+                binding_site: list_site,
+                binding_idx: idx as u32,
+                binding_path: key_path,
             });
             continue;
         }
@@ -1147,7 +1151,7 @@ fn contract_scoped_effect_bindings<'db>(
             source: EffectSource::Root,
             binding_site: list_site,
             binding_idx: idx as u32,
-            binding_key_path: key_path,
+            binding_path: key_path,
         });
     }
 

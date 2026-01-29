@@ -96,14 +96,15 @@ fn effect_provider_space_via_domain_trait<'db>(
     core: &CoreLib<'db>,
     ty: TyId<'db>,
 ) -> Option<AddressSpaceKind> {
-    let effect_ref = resolve_core_trait(db, core.scope, &["effect_ref", "EffectRef"])?;
+    let effect_handle = resolve_core_trait(db, core.scope, &["effect_ref", "EffectHandle"])
+        .expect("missing required core trait `core::effect_ref::EffectHandle`");
     let ingot = core.scope.top_mod(db).ingot(db);
     let assumptions = PredicateListId::empty_list(db);
 
     let address_space_ident = IdentId::new(db, "AddressSpace".to_string());
 
     // First, determine whether `ty` is an effect provider at all.
-    let inst = TraitInstId::new(db, effect_ref, vec![ty], IndexMap::new());
+    let inst = TraitInstId::new(db, effect_handle, vec![ty], IndexMap::new());
     let goal = Canonicalized::new(db, inst).value;
     match is_goal_satisfiable(db, ingot, goal, assumptions) {
         GoalSatisfiability::Satisfied(_) => {}
@@ -122,7 +123,7 @@ fn effect_provider_space_via_domain_trait<'db>(
     ] {
         let mut assoc = IndexMap::new();
         assoc.insert(address_space_ident, space_ty);
-        let inst = TraitInstId::new(db, effect_ref, vec![ty], assoc);
+        let inst = TraitInstId::new(db, effect_handle, vec![ty], assoc);
         let goal = Canonicalized::new(db, inst).value;
         match is_goal_satisfiable(db, ingot, goal, assumptions) {
             GoalSatisfiability::Satisfied(_) => return Some(space_kind),
@@ -132,7 +133,7 @@ fn effect_provider_space_via_domain_trait<'db>(
     }
 
     panic!(
-        "`{}` implements `EffectRef` but `AddressSpace` is not one of: core::effect_ref::Memory | Calldata | Storage | TransientStorage",
+        "`{}` implements `EffectHandle` but `AddressSpace` is not one of: core::effect_ref::Memory | Calldata | Storage | TransientStorage",
         ty.pretty_print(db)
     )
 }

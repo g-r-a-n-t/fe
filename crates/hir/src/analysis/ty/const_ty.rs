@@ -1,4 +1,4 @@
-use crate::core::hir_def::{Body, Const, Expr, IdentId, IntegerId, LitKind, Partial};
+use crate::core::hir_def::{Body, Const, Expr, IdentId, IntegerId, LitKind, Partial, Stmt};
 
 use super::const_expr::{ConstExpr, ConstExprId};
 use super::{
@@ -290,6 +290,25 @@ impl<'db> ConstTyId<'db> {
                     Expr::Lit(LitKind::Int(int)) => format!("{}", int.data(db)),
                     Expr::Lit(LitKind::String(string)) => format!("\"{}\"", string.data(db)),
                     Expr::Path(path) if path.is_present() => path.unwrap().pretty_print(db),
+                    Expr::Block(stmts) if stmts.len() == 1 => {
+                        let Partial::Present(Stmt::Expr(tail_expr)) = stmts[0].data(db, *body)
+                        else {
+                            return "const value".into();
+                        };
+                        let Partial::Present(expr) = tail_expr.data(db, *body) else {
+                            return "const value".into();
+                        };
+
+                        match expr {
+                            Expr::Lit(LitKind::Bool(value)) => format!("{value}"),
+                            Expr::Lit(LitKind::Int(int)) => format!("{}", int.data(db)),
+                            Expr::Lit(LitKind::String(string)) => {
+                                format!("\"{}\"", string.data(db))
+                            }
+                            Expr::Path(path) if path.is_present() => path.unwrap().pretty_print(db),
+                            _ => "const value".into(),
+                        }
+                    }
                     _ => "const value".into(),
                 }
             }

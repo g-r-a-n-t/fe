@@ -170,6 +170,44 @@ where
                 },
             )
         }
+        ConstExpr::UserConstFnCall {
+            func,
+            generic_args,
+            args,
+        } => {
+            let generic_args = generic_args
+                .iter()
+                .copied()
+                .map(|arg| folder.fold_ty(db, arg))
+                .collect();
+            let args = args
+                .iter()
+                .copied()
+                .map(|arg| folder.fold_ty(db, arg))
+                .collect();
+            ConstExprId::new(
+                db,
+                ConstExpr::UserConstFnCall {
+                    func: *func,
+                    generic_args,
+                    args,
+                },
+            )
+        }
+        ConstExpr::ArithBinOp { op, lhs, rhs } => {
+            let lhs = folder.fold_ty(db, *lhs);
+            let rhs = folder.fold_ty(db, *rhs);
+            ConstExprId::new(db, ConstExpr::ArithBinOp { op: *op, lhs, rhs })
+        }
+        ConstExpr::UnOp { op, expr } => {
+            let expr = folder.fold_ty(db, *expr);
+            ConstExprId::new(db, ConstExpr::UnOp { op: *op, expr })
+        }
+        ConstExpr::Cast { expr, to } => {
+            let expr = folder.fold_ty(db, *expr);
+            let to = folder.fold_ty(db, *to);
+            ConstExprId::new(db, ConstExpr::Cast { expr, to })
+        }
         ConstExpr::TraitConst { inst, name } => {
             let inst = inst.fold_with(db, folder);
             ConstExprId::new(db, ConstExpr::TraitConst { inst, name: *name })

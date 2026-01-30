@@ -113,6 +113,15 @@ impl<'db> CtfeInterpreter<'db> {
         &mut self.frame_mut().env
     }
 
+    fn const_depends_on_param(&self, value: ConstTyId<'db>) -> bool {
+        TyId::const_ty(self.db, value).has_param(self.db)
+    }
+
+    fn abstract_const(&self, expr: ConstExpr<'db>, ty: TyId<'db>) -> ConstTyId<'db> {
+        let expr = ConstExprId::new(self.db, expr);
+        ConstTyId::new(self.db, ConstTyData::Abstract(expr, ty))
+    }
+
     fn with_frame<T>(
         &mut self,
         body: Body<'db>,
@@ -252,11 +261,24 @@ impl<'db> CtfeInterpreter<'db> {
         let (from_bits, from_is_signed) =
             int_layout(self.db, typed.expr_ty(self.db, inner_expr), body, expr)?;
         let (to_bits, _) = int_layout(self.db, to_ty, body, expr)?;
-        let raw = const_as_int(self.db, self.eval_expr(inner_expr)?, body, expr)?;
+        let inner = self.eval_expr(inner_expr)?;
+        let raw = match inner.data(self.db) {
+            ConstTyData::Evaluated(EvaluatedConstTy::LitInt(int_id), _) => int_id.data(self.db),
+            _ if self.const_depends_on_param(inner) => {
+                return Ok(self.abstract_const(
+                    ConstExpr::Cast {
+                        expr: TyId::const_ty(self.db, inner),
+                        to: to_ty,
+                    },
+                    to_ty,
+                ));
+            }
+            _ => return Err(InvalidCause::ConstEvalUnsupported { body, expr }.into()),
+        };
         let value = if from_is_signed {
-            to_signed(from_bits, &raw)
+            to_signed(from_bits, raw)
         } else {
-            BigInt::from_biguint(Sign::Plus, raw)
+            BigInt::from_biguint(Sign::Plus, raw.clone())
         };
         Ok(lit_int(self.db, to_ty, from_signed(to_bits, value)))
     }
@@ -395,15 +417,41 @@ impl<'db> CtfeInterpreter<'db> {
         let body = self.body();
         match op {
             UnOp::Plus => Ok(inner),
-            UnOp::Not => Ok(lit_bool(
-                self.db,
-                !const_as_bool(self.db, inner, body, expr)?,
-            )),
+            UnOp::Not => match inner.data(self.db) {
+                ConstTyData::Evaluated(EvaluatedConstTy::LitBool(flag), _) => {
+                    Ok(lit_bool(self.db, !*flag))
+                }
+                _ if self.const_depends_on_param(inner) => {
+                    let ty = self.typed_body().expr_ty(self.db, expr);
+                    Ok(self.abstract_const(
+                        ConstExpr::UnOp {
+                            op,
+                            expr: TyId::const_ty(self.db, inner),
+                        },
+                        ty,
+                    ))
+                }
+                _ => Err(InvalidCause::ConstEvalUnsupported { body, expr }.into()),
+            },
 
             UnOp::Minus | UnOp::BitNot => {
                 let ty = self.typed_body().expr_ty(self.db, expr);
                 let (bits, _) = int_layout(self.db, ty, body, expr)?;
-                let v = const_as_int(self.db, inner, body, expr)?;
+                let v = match inner.data(self.db) {
+                    ConstTyData::Evaluated(EvaluatedConstTy::LitInt(int_id), _) => {
+                        int_id.data(self.db).clone()
+                    }
+                    _ if self.const_depends_on_param(inner) => {
+                        return Ok(self.abstract_const(
+                            ConstExpr::UnOp {
+                                op,
+                                expr: TyId::const_ty(self.db, inner),
+                            },
+                            ty,
+                        ));
+                    }
+                    _ => return Err(InvalidCause::ConstEvalUnsupported { body, expr }.into()),
+                };
                 let (modulus, mask) = int_modulus_mask(bits);
                 let out = match op {
                     UnOp::Minus => (modulus.clone() - (v % &modulus)) & &mask,
@@ -500,8 +548,23 @@ impl<'db> CtfeInterpreter<'db> {
         let body = self.body();
         let ty = self.typed_body().expr_ty(self.db, expr);
         let (bits, signed) = int_layout(self.db, ty, body, expr)?;
-        let lhs_u = const_as_int(self.db, lhs, body, expr)?;
-        let rhs_u = const_as_int(self.db, rhs, body, expr)?;
+        let (lhs_u, rhs_u) = match (lhs.data(self.db), rhs.data(self.db)) {
+            (
+                ConstTyData::Evaluated(EvaluatedConstTy::LitInt(lhs_int), _),
+                ConstTyData::Evaluated(EvaluatedConstTy::LitInt(rhs_int), _),
+            ) => (lhs_int.data(self.db).clone(), rhs_int.data(self.db).clone()),
+            _ if self.const_depends_on_param(lhs) || self.const_depends_on_param(rhs) => {
+                return Ok(self.abstract_const(
+                    ConstExpr::ArithBinOp {
+                        op,
+                        lhs: TyId::const_ty(self.db, lhs),
+                        rhs: TyId::const_ty(self.db, rhs),
+                    },
+                    ty,
+                ));
+            }
+            _ => return Err(InvalidCause::ConstEvalUnsupported { body, expr }),
+        };
         if matches!(op, ArithBinOp::Div | ArithBinOp::Rem) && rhs_u.is_zero() {
             return Err(InvalidCause::ConstEvalDivisionByZero { body, expr });
         }
@@ -783,7 +846,54 @@ impl<'db> CtfeInterpreter<'db> {
             ));
         }
 
-        Ok(self.eval_user_const_fn_call(expr, func, callable.generic_args(), &value_args)?)
+        let args_depend_on_params = value_args
+            .iter()
+            .copied()
+            .any(|arg| self.const_depends_on_param(arg));
+        match self.eval_user_const_fn_call(expr, func, callable.generic_args(), &value_args) {
+            Ok(value) if args_depend_on_params && self.const_depends_on_param(value) => {
+                let ret_ty = self.typed_body().expr_ty(self.db, expr);
+                let args = value_args
+                    .iter()
+                    .copied()
+                    .map(|v| TyId::const_ty(self.db, v))
+                    .collect::<Vec<_>>();
+                let expr_id = ConstExprId::new(
+                    self.db,
+                    ConstExpr::UserConstFnCall {
+                        func,
+                        generic_args: callable.generic_args().to_vec(),
+                        args,
+                    },
+                );
+                Ok(ConstTyId::new(
+                    self.db,
+                    ConstTyData::Abstract(expr_id, ret_ty),
+                ))
+            }
+            Ok(value) => Ok(value),
+            Err(InvalidCause::ConstEvalUnsupported { .. }) if args_depend_on_params => {
+                let ret_ty = self.typed_body().expr_ty(self.db, expr);
+                let args = value_args
+                    .iter()
+                    .copied()
+                    .map(|v| TyId::const_ty(self.db, v))
+                    .collect::<Vec<_>>();
+                let expr_id = ConstExprId::new(
+                    self.db,
+                    ConstExpr::UserConstFnCall {
+                        func,
+                        generic_args: callable.generic_args().to_vec(),
+                        args,
+                    },
+                );
+                Ok(ConstTyId::new(
+                    self.db,
+                    ConstTyData::Abstract(expr_id, ret_ty),
+                ))
+            }
+            Err(cause) => Err(cause.into()),
+        }
     }
 
     fn eval_method_call_expr(&mut self, expr: ExprId) -> CtfeEval<'db> {
@@ -881,7 +991,54 @@ impl<'db> CtfeInterpreter<'db> {
             ));
         }
 
-        Ok(self.eval_user_const_fn_call(expr, func, &generic_args, &value_args)?)
+        let args_depend_on_params = value_args
+            .iter()
+            .copied()
+            .any(|arg| self.const_depends_on_param(arg));
+        match self.eval_user_const_fn_call(expr, func, &generic_args, &value_args) {
+            Ok(value) if args_depend_on_params && self.const_depends_on_param(value) => {
+                let ret_ty = self.typed_body().expr_ty(self.db, expr);
+                let args = value_args
+                    .iter()
+                    .copied()
+                    .map(|v| TyId::const_ty(self.db, v))
+                    .collect::<Vec<_>>();
+                let expr_id = ConstExprId::new(
+                    self.db,
+                    ConstExpr::UserConstFnCall {
+                        func,
+                        generic_args: generic_args.clone(),
+                        args,
+                    },
+                );
+                Ok(ConstTyId::new(
+                    self.db,
+                    ConstTyData::Abstract(expr_id, ret_ty),
+                ))
+            }
+            Ok(value) => Ok(value),
+            Err(InvalidCause::ConstEvalUnsupported { .. }) if args_depend_on_params => {
+                let ret_ty = self.typed_body().expr_ty(self.db, expr);
+                let args = value_args
+                    .iter()
+                    .copied()
+                    .map(|v| TyId::const_ty(self.db, v))
+                    .collect::<Vec<_>>();
+                let expr_id = ConstExprId::new(
+                    self.db,
+                    ConstExpr::UserConstFnCall {
+                        func,
+                        generic_args: generic_args.clone(),
+                        args,
+                    },
+                );
+                Ok(ConstTyId::new(
+                    self.db,
+                    ConstTyData::Abstract(expr_id, ret_ty),
+                ))
+            }
+            Err(cause) => Err(cause.into()),
+        }
     }
 
     fn eval_user_const_fn_call(

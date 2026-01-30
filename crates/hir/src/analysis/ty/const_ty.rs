@@ -188,6 +188,16 @@ pub(crate) fn evaluate_const_ty<'db>(
         return ConstTyId::invalid(db, InvalidCause::ConstTyMismatch { expected, given });
     }
 
+    if !diags.is_empty() {
+        return ConstTyId::invalid(
+            db,
+            InvalidCause::ConstEvalUnsupported {
+                body,
+                expr: body.expr(db),
+            },
+        );
+    }
+
     let mut interp = CtfeInterpreter::new(db, CtfeConfig::default());
     let evaluated = interp
         .eval_const_body(body, typed_body)

@@ -334,6 +334,7 @@ impl<'db> CtfeInterpreter<'db> {
 
         match pat_data {
             Pat::WildCard => Ok(()),
+            Pat::Rest => Ok(()),
             Pat::Path(..) => {
                 let Some(binding) = self.typed_body().pat_binding(pat) else {
                     return Err(InvalidCause::ConstEvalUnsupported {
@@ -342,6 +343,130 @@ impl<'db> CtfeInterpreter<'db> {
                     });
                 };
                 self.env_mut().bindings.insert(binding, value);
+                Ok(())
+            }
+            Pat::Tuple(pats) => {
+                let ConstTyData::Evaluated(EvaluatedConstTy::Tuple(elems), _) = value.data(self.db)
+                else {
+                    return Err(InvalidCause::ConstEvalUnsupported {
+                        body,
+                        expr: body.expr(self.db),
+                    });
+                };
+
+                let mut rest_idx = None;
+                for (idx, &pat) in pats.iter().enumerate() {
+                    if pat.is_rest(self.db, body) {
+                        if rest_idx.is_some() {
+                            return Err(InvalidCause::ConstEvalUnsupported {
+                                body,
+                                expr: body.expr(self.db),
+                            });
+                        }
+                        rest_idx = Some(idx);
+                    }
+                }
+
+                match rest_idx {
+                    None => {
+                        if pats.len() != elems.len() {
+                            return Err(InvalidCause::ConstEvalUnsupported {
+                                body,
+                                expr: body.expr(self.db),
+                            });
+                        }
+
+                        for (&pat, &elem) in pats.iter().zip(elems.iter()) {
+                            let TyData::ConstTy(const_ty) = elem.data(self.db) else {
+                                return Err(InvalidCause::ConstEvalUnsupported {
+                                    body,
+                                    expr: body.expr(self.db),
+                                });
+                            };
+                            self.bind_pat(pat, *const_ty)?;
+                        }
+                    }
+                    Some(rest) => {
+                        let prefix_len = rest;
+                        let suffix_len = pats.len() - rest - 1;
+                        if prefix_len + suffix_len > elems.len() {
+                            return Err(InvalidCause::ConstEvalUnsupported {
+                                body,
+                                expr: body.expr(self.db),
+                            });
+                        }
+
+                        for (idx, &pat) in pats[..prefix_len].iter().enumerate() {
+                            let Some(elem) = elems.get(idx) else {
+                                return Err(InvalidCause::ConstEvalUnsupported {
+                                    body,
+                                    expr: body.expr(self.db),
+                                });
+                            };
+                            let TyData::ConstTy(const_ty) = elem.data(self.db) else {
+                                return Err(InvalidCause::ConstEvalUnsupported {
+                                    body,
+                                    expr: body.expr(self.db),
+                                });
+                            };
+                            self.bind_pat(pat, *const_ty)?;
+                        }
+
+                        let tail_start = elems.len() - suffix_len;
+                        for (pat, elem) in pats[rest + 1..].iter().zip(&elems[tail_start..]) {
+                            let TyData::ConstTy(const_ty) = elem.data(self.db) else {
+                                return Err(InvalidCause::ConstEvalUnsupported {
+                                    body,
+                                    expr: body.expr(self.db),
+                                });
+                            };
+                            self.bind_pat(*pat, *const_ty)?;
+                        }
+                    }
+                }
+
+                Ok(())
+            }
+            Pat::Record(_path, fields) => {
+                let ConstTyData::Evaluated(EvaluatedConstTy::Record(values), _) =
+                    value.data(self.db)
+                else {
+                    return Err(InvalidCause::ConstEvalUnsupported {
+                        body,
+                        expr: body.expr(self.db),
+                    });
+                };
+
+                let record_like = RecordLike::from_ty(value.ty(self.db));
+                for field in fields {
+                    let Some(label) = field.label(self.db, body) else {
+                        return Err(InvalidCause::ConstEvalUnsupported {
+                            body,
+                            expr: body.expr(self.db),
+                        });
+                    };
+                    let Some(idx) = record_like.record_field_idx(self.db, label) else {
+                        return Err(InvalidCause::ConstEvalUnsupported {
+                            body,
+                            expr: body.expr(self.db),
+                        });
+                    };
+                    let Some(value) = values.get(idx).copied() else {
+                        return Err(InvalidCause::ConstEvalUnsupported {
+                            body,
+                            expr: body.expr(self.db),
+                        });
+                    };
+                    let TyData::ConstTy(const_ty) = value.data(self.db) else {
+                        return Err(InvalidCause::ConstEvalUnsupported {
+                            body,
+                            expr: body.expr(self.db),
+                        });
+                    };
+
+                    self.bind_pat(field.pat, *const_ty)?;
+                }
+
                 Ok(())
             }
             _ => Err(InvalidCause::ConstEvalUnsupported {

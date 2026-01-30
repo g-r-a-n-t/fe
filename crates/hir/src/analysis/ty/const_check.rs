@@ -1,4 +1,5 @@
 use crate::analysis::HirAnalysisDb;
+use crate::analysis::ty::adt_def::AdtRef;
 use crate::analysis::ty::diagnostics::{BodyDiag, FuncBodyDiag};
 use crate::analysis::ty::ty_check::TypedBody;
 use crate::hir_def::{Body, CallableDef, Expr, ExprId, Func, Partial, Pat, Stmt, StmtId};
@@ -72,7 +73,7 @@ impl<'db> ConstFnChecker<'db, '_> {
 
         match stmt_data {
             Stmt::Let(pat, _ty, init) => {
-                self.check_pat_simple(*pat);
+                self.check_let_pat(*pat);
                 if let Some(init) = init {
                     self.check_expr(*init);
                 }
@@ -89,19 +90,39 @@ impl<'db> ConstFnChecker<'db, '_> {
         }
     }
 
-    fn check_pat_simple(&mut self, pat: crate::hir_def::PatId) {
+    fn check_let_pat(&mut self, pat: crate::hir_def::PatId) {
         let Partial::Present(pat_data) = pat.data(self.db, self.body) else {
             return;
         };
 
         match pat_data {
-            Pat::WildCard => {}
+            Pat::WildCard | Pat::Rest => {}
             Pat::Path(_, is_mut) => {
                 if *is_mut {
                     self.push(BodyDiag::ConstFnMutableBindingNotAllowed(
                         pat.span(self.body).into(),
                     ));
                 }
+
+                if self.typed_body.pat_binding(pat).is_none() {
+                    self.push(BodyDiag::ConstFnAggregateNotAllowed(
+                        pat.span(self.body).into(),
+                    ));
+                }
+            }
+            Pat::Tuple(elems) => elems.iter().for_each(|elem| self.check_let_pat(*elem)),
+            Pat::Record(_, fields) => {
+                let ty = self.typed_body.pat_ty(self.db, pat);
+                if !matches!(ty.adt_ref(self.db), Some(AdtRef::Struct(_))) {
+                    self.push(BodyDiag::ConstFnAggregateNotAllowed(
+                        pat.span(self.body).into(),
+                    ));
+                    return;
+                }
+
+                fields
+                    .iter()
+                    .for_each(|field| self.check_let_pat(field.pat));
             }
             _ => self.push(BodyDiag::ConstFnAggregateNotAllowed(
                 pat.span(self.body).into(),

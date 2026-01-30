@@ -413,13 +413,14 @@ impl<'db> CtfeInterpreter<'db> {
                     return Err(InvalidCause::ConstEvalUnsupported { body, expr });
                 };
 
-                let mut rest_idx = None;
-                for (idx, &pat) in pats.iter().enumerate() {
-                    if pat.is_rest(self.db, body) {
-                        if rest_idx.is_some() {
-                            return Err(InvalidCause::ConstEvalUnsupported { body, expr });
-                        }
-                        rest_idx = Some(idx);
+                let rest_idx = pats.iter().position(|pat| pat.is_rest(self.db, body));
+                if let Some(rest) = rest_idx {
+                    let has_second_rest = pats[rest + 1..]
+                        .iter()
+                        .any(|pat| pat.is_rest(self.db, body));
+                    debug_assert!(!has_second_rest, "tuple pattern contains multiple `..`");
+                    if has_second_rest {
+                        return Err(InvalidCause::ConstEvalUnsupported { body, expr });
                     }
                 }
 
@@ -547,16 +548,17 @@ impl<'db> CtfeInterpreter<'db> {
                     });
                 };
 
-                let mut rest_idx = None;
-                for (idx, &pat) in pats.iter().enumerate() {
-                    if pat.is_rest(self.db, body) {
-                        if rest_idx.is_some() {
-                            return Err(InvalidCause::ConstEvalUnsupported {
-                                body,
-                                expr: body.expr(self.db),
-                            });
-                        }
-                        rest_idx = Some(idx);
+                let rest_idx = pats.iter().position(|pat| pat.is_rest(self.db, body));
+                if let Some(rest) = rest_idx {
+                    let has_second_rest = pats[rest + 1..]
+                        .iter()
+                        .any(|pat| pat.is_rest(self.db, body));
+                    debug_assert!(!has_second_rest, "tuple pattern contains multiple `..`");
+                    if has_second_rest {
+                        return Err(InvalidCause::ConstEvalUnsupported {
+                            body,
+                            expr: body.expr(self.db),
+                        });
                     }
                 }
 
@@ -721,8 +723,15 @@ impl<'db> CtfeInterpreter<'db> {
                 ConstTyId::from_body(self.db, body, Some(expected_ty), Some(const_def))
             }
             ConstRef::TraitConst { inst, name } => {
-                crate::analysis::ty::const_ty::const_ty_from_trait_const(self.db, inst, name)
-                    .ok_or(InvalidCause::Other)?
+                if let Some(const_ty) =
+                    crate::analysis::ty::const_ty::const_ty_from_trait_const(self.db, inst, name)
+                {
+                    const_ty
+                } else {
+                    return Ok(
+                        self.abstract_const(ConstExpr::TraitConst { inst, name }, expected_ty)
+                    );
+                }
             }
         };
 
@@ -986,9 +995,11 @@ impl<'db> CtfeInterpreter<'db> {
         };
 
         let expected_len_ty = TyId::new(self.db, TyData::TyBase(TyBase::Prim(PrimTy::Usize)));
-        let typed_len_body = check_anon_const_body(self.db, len_body, expected_len_ty)
-            .1
-            .clone();
+        let (len_diags, typed_len_body) = check_anon_const_body(self.db, len_body, expected_len_ty);
+        if !len_diags.is_empty() {
+            return Err(InvalidCause::ConstEvalUnsupported { body, expr }.into());
+        }
+        let typed_len_body = typed_len_body.clone();
         let len = const_as_int(
             self.db,
             self.eval_const_body(len_body, typed_len_body)?,

@@ -334,11 +334,7 @@ impl<'db> CtfeInterpreter<'db> {
         match stmt_data {
             Stmt::Let(pat, _ty, init) => {
                 let Some(init) = init else {
-                    return Err(InvalidCause::ConstEvalUnsupported {
-                        body,
-                        expr: body.expr(self.db),
-                    }
-                    .into());
+                    return Ok(unit_const(self.db));
                 };
                 let value = self.eval_expr(*init)?;
                 self.bind_pat(*pat, value)?;

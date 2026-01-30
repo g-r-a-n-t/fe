@@ -19,8 +19,8 @@ use crate::analysis::{
     },
 };
 use crate::hir_def::{
-    Body, CallableDef, Expr, ExprId, Field, IntegerId, LitKind, Partial, Pat, PatId, PathId, Stmt,
-    StmtId, VariantKind,
+    Body, CallableDef, Expr, ExprId, Field, IntegerId, LitKind, MatchArm, Partial, Pat, PatId,
+    PathId, Stmt, StmtId, VariantKind,
     expr::{ArithBinOp, BinOp, CompBinOp, LogicalBinOp, UnOp},
 };
 
@@ -234,6 +234,8 @@ impl<'db> CtfeInterpreter<'db> {
                 }
             }
 
+            Expr::Match(scrutinee, arms) => self.eval_match(expr, *scrutinee, arms),
+
             Expr::Block(stmts) => self.eval_block(stmts),
 
             Expr::Call(_, _) => self.eval_call_expr(expr),
@@ -291,6 +293,38 @@ impl<'db> CtfeInterpreter<'db> {
         Ok(last)
     }
 
+    fn eval_match(
+        &mut self,
+        expr: ExprId,
+        scrutinee_expr: ExprId,
+        arms: &Partial<Vec<MatchArm>>,
+    ) -> CtfeEval<'db> {
+        let body = self.body();
+        let Some(arms) = arms.clone().to_opt() else {
+            return Err(InvalidCause::ParseError.into());
+        };
+
+        let scrutinee = self.eval_expr(scrutinee_expr)?;
+        if !matches!(scrutinee.data(self.db), ConstTyData::Evaluated(..)) {
+            return Err(InvalidCause::ConstEvalUnsupported { body, expr }.into());
+        }
+
+        let base_bindings = self.env().bindings.clone();
+        for arm in arms {
+            let mut arm_bindings = base_bindings.clone();
+            if !self.try_match_pat(expr, arm.pat, scrutinee, &mut arm_bindings)? {
+                continue;
+            }
+
+            let old_bindings = std::mem::replace(&mut self.env_mut().bindings, arm_bindings);
+            let result = self.eval_expr(arm.body);
+            self.env_mut().bindings = old_bindings;
+            return result;
+        }
+
+        Err(InvalidCause::ConstEvalUnsupported { body, expr }.into())
+    }
+
     fn eval_stmt(&mut self, stmt: StmtId) -> CtfeEval<'db> {
         let body = self.body();
         let Partial::Present(stmt_data) = stmt.data(self.db, body) else {
@@ -323,6 +357,169 @@ impl<'db> CtfeInterpreter<'db> {
                 expr: body.expr(self.db),
             }
             .into()),
+        }
+    }
+
+    fn try_match_pat(
+        &mut self,
+        expr: ExprId,
+        pat: PatId,
+        value: ConstTyId<'db>,
+        bindings: &mut FxHashMap<LocalBinding<'db>, ConstTyId<'db>>,
+    ) -> Result<bool, InvalidCause<'db>> {
+        let body = self.body();
+        let Partial::Present(pat_data) = pat.data(self.db, body) else {
+            return Err(InvalidCause::ParseError);
+        };
+
+        match pat_data {
+            Pat::WildCard | Pat::Rest => Ok(true),
+            Pat::Lit(lit) => {
+                let Partial::Present(lit) = lit else {
+                    return Err(InvalidCause::ParseError);
+                };
+                match (lit, value.data(self.db)) {
+                    (
+                        LitKind::Bool(expected),
+                        ConstTyData::Evaluated(EvaluatedConstTy::LitBool(actual), _),
+                    ) => Ok(*expected == *actual),
+                    (
+                        LitKind::Int(expected),
+                        ConstTyData::Evaluated(EvaluatedConstTy::LitInt(actual), _),
+                    ) => {
+                        let ty = value.ty(self.db);
+                        let expected =
+                            normalize_int(self.db, ty, expected.data(self.db).clone(), body, expr)?;
+                        let actual =
+                            normalize_int(self.db, ty, actual.data(self.db).clone(), body, expr)?;
+                        Ok(expected == actual)
+                    }
+                    (
+                        LitKind::String(expected),
+                        ConstTyData::Evaluated(EvaluatedConstTy::Bytes(actual), _),
+                    ) => Ok(expected.data(self.db).as_bytes() == actual.as_slice()),
+                    _ => Err(InvalidCause::ConstEvalUnsupported { body, expr }),
+                }
+            }
+            Pat::Path(_, is_mut) => {
+                if *is_mut {
+                    return Err(InvalidCause::ConstEvalUnsupported { body, expr });
+                }
+                let Some(binding) = self.typed_body().pat_binding(pat) else {
+                    return Err(InvalidCause::ConstEvalUnsupported { body, expr });
+                };
+                bindings.insert(binding, value);
+                Ok(true)
+            }
+            Pat::Tuple(pats) => {
+                let ConstTyData::Evaluated(EvaluatedConstTy::Tuple(elems), _) = value.data(self.db)
+                else {
+                    return Err(InvalidCause::ConstEvalUnsupported { body, expr });
+                };
+
+                let mut rest_idx = None;
+                for (idx, &pat) in pats.iter().enumerate() {
+                    if pat.is_rest(self.db, body) {
+                        if rest_idx.is_some() {
+                            return Err(InvalidCause::ConstEvalUnsupported { body, expr });
+                        }
+                        rest_idx = Some(idx);
+                    }
+                }
+
+                match rest_idx {
+                    None => {
+                        if pats.len() != elems.len() {
+                            return Err(InvalidCause::ConstEvalUnsupported { body, expr });
+                        }
+                        for (&pat, &elem) in pats.iter().zip(elems.iter()) {
+                            let TyData::ConstTy(const_ty) = elem.data(self.db) else {
+                                return Err(InvalidCause::ConstEvalUnsupported { body, expr });
+                            };
+                            if !self.try_match_pat(expr, pat, *const_ty, bindings)? {
+                                return Ok(false);
+                            }
+                        }
+                    }
+                    Some(rest) => {
+                        let prefix_len = rest;
+                        let suffix_len = pats.len() - rest - 1;
+                        if prefix_len + suffix_len > elems.len() {
+                            return Err(InvalidCause::ConstEvalUnsupported { body, expr });
+                        }
+
+                        for (idx, &pat) in pats[..prefix_len].iter().enumerate() {
+                            let Some(elem) = elems.get(idx).copied() else {
+                                return Err(InvalidCause::ConstEvalUnsupported { body, expr });
+                            };
+                            let TyData::ConstTy(const_ty) = elem.data(self.db) else {
+                                return Err(InvalidCause::ConstEvalUnsupported { body, expr });
+                            };
+                            if !self.try_match_pat(expr, pat, *const_ty, bindings)? {
+                                return Ok(false);
+                            }
+                        }
+
+                        let tail_start = elems.len() - suffix_len;
+                        for (pat, elem) in pats[rest + 1..].iter().zip(&elems[tail_start..]) {
+                            let TyData::ConstTy(const_ty) = elem.data(self.db) else {
+                                return Err(InvalidCause::ConstEvalUnsupported { body, expr });
+                            };
+                            if !self.try_match_pat(expr, *pat, *const_ty, bindings)? {
+                                return Ok(false);
+                            }
+                        }
+                    }
+                }
+
+                Ok(true)
+            }
+            Pat::Record(_path, fields) => {
+                let ConstTyData::Evaluated(EvaluatedConstTy::Record(values), _) =
+                    value.data(self.db)
+                else {
+                    return Err(InvalidCause::ConstEvalUnsupported { body, expr });
+                };
+
+                let record_like = RecordLike::from_ty(value.ty(self.db));
+                for field in fields {
+                    if field.pat.is_rest(self.db, body) {
+                        continue;
+                    }
+                    let Some(label) = field.label(self.db, body) else {
+                        return Err(InvalidCause::ConstEvalUnsupported { body, expr });
+                    };
+                    let Some(idx) = record_like.record_field_idx(self.db, label) else {
+                        return Err(InvalidCause::ConstEvalUnsupported { body, expr });
+                    };
+                    let Some(value) = values.get(idx).copied() else {
+                        return Err(InvalidCause::ConstEvalUnsupported { body, expr });
+                    };
+                    let TyData::ConstTy(const_ty) = value.data(self.db) else {
+                        return Err(InvalidCause::ConstEvalUnsupported { body, expr });
+                    };
+                    if !self.try_match_pat(expr, field.pat, *const_ty, bindings)? {
+                        return Ok(false);
+                    }
+                }
+                Ok(true)
+            }
+            Pat::Or(lhs, rhs) => {
+                let mut lhs_bindings = bindings.clone();
+                if self.try_match_pat(expr, *lhs, value, &mut lhs_bindings)? {
+                    *bindings = lhs_bindings;
+                    return Ok(true);
+                }
+
+                let mut rhs_bindings = bindings.clone();
+                if self.try_match_pat(expr, *rhs, value, &mut rhs_bindings)? {
+                    *bindings = rhs_bindings;
+                    return Ok(true);
+                }
+
+                Ok(false)
+            }
+            _ => Err(InvalidCause::ConstEvalUnsupported { body, expr }),
         }
     }
 
@@ -439,6 +636,9 @@ impl<'db> CtfeInterpreter<'db> {
 
                 let record_like = RecordLike::from_ty(value.ty(self.db));
                 for field in fields {
+                    if field.pat.is_rest(self.db, body) {
+                        continue;
+                    }
                     let Some(label) = field.label(self.db, body) else {
                         return Err(InvalidCause::ConstEvalUnsupported {
                             body,

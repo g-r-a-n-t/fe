@@ -176,11 +176,11 @@ impl<'db> ConstFnChecker<'db, '_> {
             Expr::Match(scrutinee, arms) => {
                 self.check_expr(*scrutinee);
                 if let Some(arms) = arms.clone().to_opt() {
-                    arms.iter().for_each(|arm| self.check_expr(arm.body));
+                    arms.iter().for_each(|arm| {
+                        self.check_match_pat(arm.pat);
+                        self.check_expr(arm.body);
+                    });
                 }
-                self.push(BodyDiag::ConstFnMatchNotAllowed(
-                    expr.span(self.body).into(),
-                ));
             }
             Expr::Assign(lhs, rhs) | Expr::AugAssign(lhs, rhs, _) => {
                 self.check_expr(*lhs);
@@ -199,6 +199,56 @@ impl<'db> ConstFnChecker<'db, '_> {
             Expr::Tuple(elems) | Expr::Array(elems) => {
                 elems.iter().for_each(|elem| self.check_expr(*elem));
             }
+        }
+    }
+
+    fn check_match_pat(&mut self, pat: crate::hir_def::PatId) {
+        let Partial::Present(pat_data) = pat.data(self.db, self.body) else {
+            return;
+        };
+
+        match pat_data {
+            Pat::WildCard | Pat::Rest => {}
+            Pat::Lit(Partial::Present(
+                crate::hir_def::LitKind::Int(_)
+                | crate::hir_def::LitKind::Bool(_)
+                | crate::hir_def::LitKind::String(_),
+            )) => {}
+            Pat::Lit(Partial::Absent) => {}
+            Pat::Path(_, is_mut) => {
+                if *is_mut {
+                    self.push(BodyDiag::ConstFnMutableBindingNotAllowed(
+                        pat.span(self.body).into(),
+                    ));
+                }
+
+                if self.typed_body.pat_binding(pat).is_none() {
+                    self.push(BodyDiag::ConstFnAggregateNotAllowed(
+                        pat.span(self.body).into(),
+                    ));
+                }
+            }
+            Pat::Tuple(elems) => elems.iter().for_each(|elem| self.check_match_pat(*elem)),
+            Pat::Record(_, fields) => {
+                let ty = self.typed_body.pat_ty(self.db, pat);
+                if !matches!(ty.adt_ref(self.db), Some(AdtRef::Struct(_))) {
+                    self.push(BodyDiag::ConstFnAggregateNotAllowed(
+                        pat.span(self.body).into(),
+                    ));
+                    return;
+                }
+
+                fields
+                    .iter()
+                    .for_each(|field| self.check_match_pat(field.pat));
+            }
+            Pat::Or(lhs, rhs) => {
+                self.check_match_pat(*lhs);
+                self.check_match_pat(*rhs);
+            }
+            _ => self.push(BodyDiag::ConstFnAggregateNotAllowed(
+                pat.span(self.body).into(),
+            )),
         }
     }
 }

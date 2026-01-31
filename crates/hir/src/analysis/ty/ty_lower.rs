@@ -7,9 +7,11 @@ use salsa::Update;
 use smallvec::smallvec;
 
 use super::{
+    const_expr::{ConstExpr, ConstExprId},
     const_ty::{ConstTyData, ConstTyId},
     effects::{EffectKeyKind, effect_key_kind},
     fold::{TyFoldable, TyFolder},
+    trait_def::TraitInstId,
     trait_resolution::{PredicateListId, constraint::collect_constraints},
     ty_def::{InvalidCause, Kind, TyData, TyId, TyParam},
 };
@@ -96,6 +98,36 @@ fn lower_path<'db>(
                             TyId::const_ty(db, const_ty)
                         } else {
                             TyId::invalid(db, InvalidCause::ParseError)
+                        }
+                    }
+                    PathRes::TraitConst(recv_ty, inst, name) => {
+                        let mut args = inst.args(db).clone();
+                        if let Some(self_arg) = args.first_mut() {
+                            *self_arg = recv_ty;
+                        }
+                        let inst = TraitInstId::new(
+                            db,
+                            inst.def(db),
+                            args,
+                            inst.assoc_type_bindings(db).clone(),
+                        );
+
+                        if let Some(const_ty) =
+                            super::const_ty::const_ty_from_trait_const(db, inst, name)
+                        {
+                            TyId::const_ty(db, const_ty)
+                        } else if let Some(expected_ty) = inst
+                            .def(db)
+                            .const_(db, name)
+                            .and_then(|v| v.ty_binder(db))
+                            .map(|b| b.instantiate(db, inst.args(db)))
+                        {
+                            let expr = ConstExprId::new(db, ConstExpr::TraitConst { inst, name });
+                            let const_ty =
+                                ConstTyId::new(db, ConstTyData::Abstract(expr, expected_ty));
+                            TyId::const_ty(db, const_ty)
+                        } else {
+                            TyId::invalid(db, InvalidCause::Other)
                         }
                     }
                     other => TyId::invalid(db, InvalidCause::NotAType(other)),

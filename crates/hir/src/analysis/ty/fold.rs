@@ -100,12 +100,19 @@ impl<'db> TyFoldable<'db> for TyId<'db> {
                         body,
                         ty,
                         const_def,
+                        generic_args,
                     } => {
                         let ty = ty.map(|t| folder.fold_ty(db, t));
+                        let generic_args = generic_args
+                            .iter()
+                            .copied()
+                            .map(|arg| folder.fold_ty(db, arg))
+                            .collect();
                         UnEvaluated {
                             body: *body,
                             ty,
                             const_def: *const_def,
+                            generic_args,
                         }
                     }
                 };

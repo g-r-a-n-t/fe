@@ -2,7 +2,7 @@ use crate::core::hir_def::{Body, Const, Expr, IdentId, IntegerId, LitKind, Parti
 
 use super::const_expr::{ConstExpr, ConstExprId};
 use super::{
-    ctfe::{CtfeConfig, CtfeInterpreter},
+    ctfe::{CtfeConfig, CtfeInterpreter, instantiate_typed_body},
     diagnostics::{BodyDiag, FuncBodyDiag},
     trait_def::TraitInstId,
     trait_resolution::constraint::collect_func_def_constraints,
@@ -32,12 +32,28 @@ pub(crate) fn evaluate_const_ty<'db>(
     const_ty: ConstTyId<'db>,
     expected_ty: Option<TyId<'db>>,
 ) -> ConstTyId<'db> {
-    let (body, const_ty_ty, const_def) = match const_ty.data(db) {
+    if let ConstTyData::Abstract(expr, ty) = const_ty.data(db)
+        && let ConstExpr::TraitConst { inst, name } = expr.data(db)
+        && let Some(resolved) = const_ty_from_trait_const(db, *inst, *name)
+    {
+        let evaluated = resolved.evaluate(db, expected_ty.or(Some(*ty)));
+        if matches!(
+            evaluated.ty(db).invalid_cause(db),
+            Some(InvalidCause::ConstEvalUnsupported { .. })
+        ) && expected_ty.is_some()
+        {
+            return const_ty;
+        }
+        return evaluated;
+    }
+
+    let (body, const_ty_ty, const_def, generic_args) = match const_ty.data(db) {
         ConstTyData::UnEvaluated {
             body,
             ty,
             const_def,
-        } => (*body, *ty, *const_def),
+            generic_args,
+        } => (*body, *ty, *const_def, generic_args.clone()),
         _ => {
             let const_ty_ty = const_ty.ty(db);
             return match check_const_ty(
@@ -56,6 +72,11 @@ pub(crate) fn evaluate_const_ty<'db>(
     };
 
     let expected_ty = expected_ty.or(const_ty_ty);
+    let check_ty = if generic_args.is_empty() {
+        expected_ty
+    } else {
+        const_ty_ty.or(expected_ty)
+    };
 
     let Partial::Present(expr) = body.expr(db).data(db, body) else {
         let data = ConstTyData::Evaluated(
@@ -94,6 +115,10 @@ pub(crate) fn evaluate_const_ty<'db>(
                 preds = PredicateListId::new(db, merged);
             }
             preds.extend_all_bounds(db)
+        } else if let Some(ItemKind::Trait(trait_)) = body.scope().parent_item(db) {
+            let self_pred =
+                TraitInstId::new(db, trait_, trait_.params(db).to_vec(), IndexMap::new());
+            PredicateListId::new(db, vec![self_pred]).extend_all_bounds(db)
         } else {
             PredicateListId::empty_list(db)
         };
@@ -164,9 +189,10 @@ pub(crate) fn evaluate_const_ty<'db>(
         );
     }
 
-    let Some(expected_ty) = expected_ty else {
+    let Some(check_ty) = check_ty else {
         return ConstTyId::invalid(db, InvalidCause::InvalidConstTyExpr { body });
     };
+    let expected_ty = expected_ty.expect("check_ty implies expected_ty is present");
 
     let (diags, typed_body) = match const_def {
         Some(const_def) => {
@@ -174,7 +200,7 @@ pub(crate) fn evaluate_const_ty<'db>(
             (result.0.clone(), result.1.clone())
         }
         None => {
-            let result = check_anon_const_body(db, body, expected_ty);
+            let result = check_anon_const_body(db, body, check_ty);
             (result.0.clone(), result.1.clone())
         }
     };
@@ -199,8 +225,13 @@ pub(crate) fn evaluate_const_ty<'db>(
     }
 
     let mut interp = CtfeInterpreter::new(db, CtfeConfig::default());
+    let typed_body = if generic_args.is_empty() {
+        typed_body
+    } else {
+        instantiate_typed_body(db, typed_body.clone(), &generic_args)
+    };
     let evaluated = interp
-        .eval_const_body(body, typed_body)
+        .eval_expr_in_body(body, typed_body, generic_args, body.expr(db))
         .unwrap_or_else(|cause| ConstTyId::invalid(db, cause));
 
     let mut table = UnificationTable::new(db);
@@ -220,13 +251,19 @@ pub(super) fn const_ty_from_trait_const<'db>(
         trait_.const_(db, name).and_then(|c| c.default_body(db))
     })?;
 
-    let declared_ty = inst
-        .def(db)
+    let trait_ = inst.def(db);
+    let declared_ty = trait_
         .const_(db, name)
         .and_then(|v| v.ty_binder(db))
         .map(|b| b.instantiate(db, inst.args(db)));
 
-    Some(ConstTyId::from_body(db, body, declared_ty, None))
+    Some(ConstTyId::from_body_with_generic_args(
+        db,
+        body,
+        declared_ty,
+        None,
+        inst.args(db).clone(),
+    ))
 }
 
 // FIXME: When we add type inference, we need to use the inference engine to
@@ -339,10 +376,21 @@ impl<'db> ConstTyId<'db> {
         ty: Option<TyId<'db>>,
         const_def: Option<Const<'db>>,
     ) -> Self {
+        Self::from_body_with_generic_args(db, body, ty, const_def, Vec::new())
+    }
+
+    pub(super) fn from_body_with_generic_args(
+        db: &'db dyn HirAnalysisDb,
+        body: Body<'db>,
+        ty: Option<TyId<'db>>,
+        const_def: Option<Const<'db>>,
+        generic_args: Vec<TyId<'db>>,
+    ) -> Self {
         let data = ConstTyData::UnEvaluated {
             body,
             ty,
             const_def,
+            generic_args,
         };
         Self::new(db, data)
     }
@@ -368,11 +416,15 @@ impl<'db> ConstTyId<'db> {
             ConstTyData::Evaluated(evaluated, _) => ConstTyData::Evaluated(evaluated.clone(), ty),
             ConstTyData::Abstract(expr, _) => ConstTyData::Abstract(*expr, ty),
             ConstTyData::UnEvaluated {
-                body, const_def, ..
+                body,
+                const_def,
+                generic_args,
+                ..
             } => ConstTyData::UnEvaluated {
                 body: *body,
                 ty: Some(ty),
                 const_def: *const_def,
+                generic_args: generic_args.clone(),
             },
         };
 
@@ -390,6 +442,7 @@ pub enum ConstTyData<'db> {
         body: Body<'db>,
         ty: Option<TyId<'db>>,
         const_def: Option<Const<'db>>,
+        generic_args: Vec<TyId<'db>>,
     },
 }
 

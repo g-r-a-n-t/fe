@@ -1357,7 +1357,7 @@ impl<'db> CtfeInterpreter<'db> {
     }
 }
 
-fn instantiate_typed_body<'db>(
+pub(super) fn instantiate_typed_body<'db>(
     db: &'db dyn HirAnalysisDb,
     typed_body: TypedBody<'db>,
     generic_args: &[TyId<'db>],

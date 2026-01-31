@@ -112,6 +112,12 @@ impl<'db> TyCheckEnv<'db> {
                     }
                     let assumptions = preds.extend_all_bounds(db);
                     (preds, assumptions)
+                } else if let Some(ItemKind::Trait(trait_)) = owner_scope.parent_item(db) {
+                    let self_pred =
+                        TraitInstId::new(db, trait_, trait_.params(db).to_vec(), IndexMap::new());
+                    let preds = PredicateListId::new(db, vec![self_pred]);
+                    let assumptions = preds.extend_all_bounds(db);
+                    (preds, assumptions)
                 } else {
                     let empty = PredicateListId::empty_list(db);
                     (empty, empty)

@@ -414,21 +414,14 @@ impl<'db> CtfeInterpreter<'db> {
                 };
 
                 let rest_idx = pats.iter().position(|pat| pat.is_rest(self.db, body));
-                if let Some(rest) = rest_idx {
-                    let has_second_rest = pats[rest + 1..]
-                        .iter()
-                        .any(|pat| pat.is_rest(self.db, body));
-                    debug_assert!(!has_second_rest, "tuple pattern contains multiple `..`");
-                    if has_second_rest {
-                        return Err(InvalidCause::ConstEvalUnsupported { body, expr });
-                    }
-                }
+                debug_assert!(
+                    pats.iter().filter(|pat| pat.is_rest(self.db, body)).count() <= 1,
+                    "tuple pattern contains multiple `..`"
+                );
 
                 match rest_idx {
                     None => {
-                        if pats.len() != elems.len() {
-                            return Err(InvalidCause::ConstEvalUnsupported { body, expr });
-                        }
+                        debug_assert_eq!(pats.len(), elems.len(), "tuple pattern length mismatch");
                         for (&pat, &elem) in pats.iter().zip(elems.iter()) {
                             let TyData::ConstTy(const_ty) = elem.data(self.db) else {
                                 return Err(InvalidCause::ConstEvalUnsupported { body, expr });
@@ -441,9 +434,10 @@ impl<'db> CtfeInterpreter<'db> {
                     Some(rest) => {
                         let prefix_len = rest;
                         let suffix_len = pats.len() - rest - 1;
-                        if prefix_len + suffix_len > elems.len() {
-                            return Err(InvalidCause::ConstEvalUnsupported { body, expr });
-                        }
+                        debug_assert!(
+                            prefix_len + suffix_len <= elems.len(),
+                            "tuple rest pattern is too long"
+                        );
 
                         for (idx, &pat) in pats[..prefix_len].iter().enumerate() {
                             let Some(elem) = elems.get(idx).copied() else {
@@ -457,7 +451,7 @@ impl<'db> CtfeInterpreter<'db> {
                             }
                         }
 
-                        let tail_start = elems.len() - suffix_len;
+                        let tail_start = elems.len().saturating_sub(suffix_len);
                         for (pat, elem) in pats[rest + 1..].iter().zip(&elems[tail_start..]) {
                             let TyData::ConstTy(const_ty) = elem.data(self.db) else {
                                 return Err(InvalidCause::ConstEvalUnsupported { body, expr });
@@ -549,27 +543,14 @@ impl<'db> CtfeInterpreter<'db> {
                 };
 
                 let rest_idx = pats.iter().position(|pat| pat.is_rest(self.db, body));
-                if let Some(rest) = rest_idx {
-                    let has_second_rest = pats[rest + 1..]
-                        .iter()
-                        .any(|pat| pat.is_rest(self.db, body));
-                    debug_assert!(!has_second_rest, "tuple pattern contains multiple `..`");
-                    if has_second_rest {
-                        return Err(InvalidCause::ConstEvalUnsupported {
-                            body,
-                            expr: body.expr(self.db),
-                        });
-                    }
-                }
+                debug_assert!(
+                    pats.iter().filter(|pat| pat.is_rest(self.db, body)).count() <= 1,
+                    "tuple pattern contains multiple `..`"
+                );
 
                 match rest_idx {
                     None => {
-                        if pats.len() != elems.len() {
-                            return Err(InvalidCause::ConstEvalUnsupported {
-                                body,
-                                expr: body.expr(self.db),
-                            });
-                        }
+                        debug_assert_eq!(pats.len(), elems.len(), "tuple pattern length mismatch");
 
                         for (&pat, &elem) in pats.iter().zip(elems.iter()) {
                             let TyData::ConstTy(const_ty) = elem.data(self.db) else {
@@ -584,12 +565,10 @@ impl<'db> CtfeInterpreter<'db> {
                     Some(rest) => {
                         let prefix_len = rest;
                         let suffix_len = pats.len() - rest - 1;
-                        if prefix_len + suffix_len > elems.len() {
-                            return Err(InvalidCause::ConstEvalUnsupported {
-                                body,
-                                expr: body.expr(self.db),
-                            });
-                        }
+                        debug_assert!(
+                            prefix_len + suffix_len <= elems.len(),
+                            "tuple rest pattern is too long"
+                        );
 
                         for (idx, &pat) in pats[..prefix_len].iter().enumerate() {
                             let Some(elem) = elems.get(idx) else {
@@ -607,7 +586,7 @@ impl<'db> CtfeInterpreter<'db> {
                             self.bind_pat(pat, *const_ty)?;
                         }
 
-                        let tail_start = elems.len() - suffix_len;
+                        let tail_start = elems.len().saturating_sub(suffix_len);
                         for (pat, elem) in pats[rest + 1..].iter().zip(&elems[tail_start..]) {
                             let TyData::ConstTy(const_ty) = elem.data(self.db) else {
                                 return Err(InvalidCause::ConstEvalUnsupported {

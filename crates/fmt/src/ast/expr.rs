@@ -684,6 +684,9 @@ impl ToDoc for ast::LitExpr {
 
 impl ToDoc for ast::IfExpr {
     fn to_doc<'a>(&self, ctx: &'a RewriteContext<'a>) -> Doc<'a> {
+        if let Some(doc) = snippet_doc_if_comment_tokens(ctx, self.syntax()) {
+            return doc;
+        }
         let alloc = &ctx.alloc;
 
         let cond = match self.cond() {
@@ -713,6 +716,9 @@ impl ToDoc for ast::IfExpr {
 
 impl ToDoc for ast::UsesClause {
     fn to_doc<'a>(&self, ctx: &'a RewriteContext<'a>) -> Doc<'a> {
+        if let Some(doc) = snippet_doc_if_comment_tokens(ctx, self.syntax()) {
+            return doc;
+        }
         let alloc = &ctx.alloc;
 
         if let Some(params) = self.param_list() {
@@ -769,6 +775,9 @@ impl ToDoc for ast::UsesParam {
 
 impl ToDoc for ast::MatchExpr {
     fn to_doc<'a>(&self, ctx: &'a RewriteContext<'a>) -> Doc<'a> {
+        if let Some(doc) = snippet_doc_if_comment_tokens(ctx, self.syntax()) {
+            return doc;
+        }
         let alloc = &ctx.alloc;
 
         let scrutinee = match self.scrutinee() {
@@ -873,6 +882,9 @@ impl ToDoc for ast::WithParam {
 
 impl ToDoc for ast::WithExpr {
     fn to_doc<'a>(&self, ctx: &'a RewriteContext<'a>) -> Doc<'a> {
+        if let Some(doc) = snippet_doc_if_comment_tokens(ctx, self.syntax()) {
+            return doc;
+        }
         let alloc = &ctx.alloc;
 
         let params_doc = self

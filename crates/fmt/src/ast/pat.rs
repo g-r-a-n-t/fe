@@ -7,6 +7,7 @@ use parser::ast::{self, PatKind, prelude::AstNode};
 
 use super::types::{
     Doc, ToDoc, block_list, block_list_spaced, block_list_with_comments, has_comment_tokens,
+    snippet_doc_if_comment_tokens,
 };
 
 impl ToDoc for ast::Pat {
@@ -156,6 +157,9 @@ impl ToDoc for ast::RecordPatField {
 
 impl ToDoc for ast::OrPat {
     fn to_doc<'a>(&self, ctx: &'a RewriteContext<'a>) -> Doc<'a> {
+        if let Some(doc) = snippet_doc_if_comment_tokens(ctx, self.syntax()) {
+            return doc;
+        }
         let alloc = &ctx.alloc;
 
         let lhs = match self.lhs() {

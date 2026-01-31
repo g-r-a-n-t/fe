@@ -7,7 +7,7 @@ use parser::ast::{self, ItemKind, ItemModifierOwner, TraitItemKind, prelude::Ast
 
 use super::types::{
     Doc, ToDoc, block_list, block_list_spaced, block_list_with_comments, has_comment_tokens,
-    intersperse,
+    intersperse, snippet_doc_if_comment_tokens,
 };
 
 /// Helper to build attributes document for a node.
@@ -289,6 +289,9 @@ impl ToDoc for ast::Item {
 
 impl ToDoc for ast::FuncSignature {
     fn to_doc<'a>(&self, ctx: &'a RewriteContext<'a>) -> Doc<'a> {
+        if let Some(doc) = snippet_doc_if_comment_tokens(ctx, self.syntax()) {
+            return ctx.alloc.text("fn ").append(doc);
+        }
         func_sig_to_doc(self, ctx, false)
     }
 }

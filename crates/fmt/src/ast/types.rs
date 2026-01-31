@@ -514,6 +514,9 @@ impl ToDoc for ast::TraitRef {
 
 impl ToDoc for ast::SuperTraitList {
     fn to_doc<'a>(&self, ctx: &'a RewriteContext<'a>) -> Doc<'a> {
+        if let Some(doc) = snippet_doc_if_comment_tokens(ctx, self.syntax()) {
+            return doc;
+        }
         let alloc = &ctx.alloc;
 
         let traits: Vec<_> = self.into_iter().map(|t| t.to_doc(ctx)).collect();
@@ -555,10 +558,18 @@ impl ToDoc for ast::PtrType {
 
 impl ToDoc for ast::PathType {
     fn to_doc<'a>(&self, ctx: &'a RewriteContext<'a>) -> Doc<'a> {
-        match self.path() {
+        let alloc = &ctx.alloc;
+
+        let mut doc = match self.path() {
             Some(p) => p.to_doc(ctx),
-            None => ctx.alloc.nil(),
+            None => return alloc.nil(),
+        };
+
+        if let Some(args) = self.generic_args() {
+            doc = doc.append(args.to_doc(ctx));
         }
+
+        doc
     }
 }
 

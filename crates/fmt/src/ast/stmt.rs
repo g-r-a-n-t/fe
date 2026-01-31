@@ -3,10 +3,10 @@
 use pretty::DocAllocator;
 
 use crate::RewriteContext;
-use parser::ast::{self, StmtKind};
+use parser::ast::{self, StmtKind, prelude::AstNode};
 
 use super::expr::{format_chain_with_prefix, is_chain};
-use super::types::{Doc, ToDoc};
+use super::types::{Doc, ToDoc, snippet_doc_if_comment_tokens};
 
 impl ToDoc for ast::Stmt {
     fn to_doc<'a>(&self, ctx: &'a RewriteContext<'a>) -> Doc<'a> {
@@ -59,6 +59,9 @@ impl ToDoc for ast::LetStmt {
 
 impl ToDoc for ast::ForStmt {
     fn to_doc<'a>(&self, ctx: &'a RewriteContext<'a>) -> Doc<'a> {
+        if let Some(doc) = snippet_doc_if_comment_tokens(ctx, self.syntax()) {
+            return doc;
+        }
         let alloc = &ctx.alloc;
 
         let pat = match self.pat() {
@@ -92,6 +95,9 @@ impl ToDoc for ast::ForStmt {
 
 impl ToDoc for ast::WhileStmt {
     fn to_doc<'a>(&self, ctx: &'a RewriteContext<'a>) -> Doc<'a> {
+        if let Some(doc) = snippet_doc_if_comment_tokens(ctx, self.syntax()) {
+            return doc;
+        }
         let alloc = &ctx.alloc;
 
         let cond = match self.cond() {

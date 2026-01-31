@@ -6,9 +6,99 @@ use crate::RewriteContext;
 use parser::ast::{self, ItemKind, ItemModifierOwner, TraitItemKind, prelude::AstNode};
 
 use super::types::{
-    Doc, ToDoc, block_list, block_list_spaced, block_list_with_comments, hardlines,
-    has_comment_tokens, intersperse,
+    Doc, ToDoc, TokenPiece, block_list_auto, block_list_spaced_auto, block_list_with_comments,
+    hardlines, has_comment_tokens, intersperse, newline_count, token_doc, token_doc_until_token,
 };
+
+macro_rules! token_doc_item_like_if_comments {
+    ($node:expr, $ctx:expr) => {
+        if has_comment_tokens($node.syntax()) {
+            return token_doc_item_like($ctx, $node.syntax());
+        }
+    };
+}
+
+fn token_piece_basic<'a>(
+    ctx: &'a RewriteContext<'a>,
+    token: parser::SyntaxToken,
+) -> Option<TokenPiece<'a>> {
+    use parser::syntax_kind::SyntaxKind::*;
+
+    let alloc = &ctx.alloc;
+    let text = alloc.text(token.text().to_string());
+    Some(match token.kind() {
+        FnKw => TokenPiece::new(alloc.nil()),
+        PubKw | UnsafeKw | MutKw | StructKw | ContractKw | EnumKw | TraitKw | MsgKw | ModKw
+        | UseKw | ConstKw | TypeKw | ExternKw => TokenPiece::new(text).space_after(),
+        ImplKw => TokenPiece::new(text),
+        ForKw => TokenPiece::new(text).space_before(),
+        Eq | Arrow => TokenPiece::new(text).spaces(),
+        _ => return None,
+    })
+}
+
+fn token_doc_item_like<'a>(ctx: &'a RewriteContext<'a>, syntax: &parser::SyntaxNode) -> Doc<'a> {
+    token_doc(
+        ctx,
+        syntax,
+        0,
+        |node| token_doc_item_node_piece(ctx, node),
+        |token| token_piece_basic(ctx, token),
+    )
+}
+
+fn token_doc_item_node_piece<'a>(
+    ctx: &'a RewriteContext<'a>,
+    node: parser::SyntaxNode,
+) -> Option<TokenPiece<'a>> {
+    macro_rules! piece {
+        ($ty:ty) => {
+            <$ty>::cast(node.clone()).map(|n| TokenPiece::new(n.to_doc(ctx)))
+        };
+        ($ty:ty, $m:ident) => {
+            <$ty>::cast(node.clone()).map(|n| TokenPiece::new(n.to_doc(ctx)).$m())
+        };
+    }
+    macro_rules! first_some {
+        ($($expr:expr),+ $(,)?) => {
+            None$(.or_else(|| $expr))+
+        };
+    }
+
+    first_some!(
+        piece!(ast::AttrList),
+        piece!(ast::FuncSignature),
+        piece!(ast::FuncParamList),
+        piece!(ast::GenericParamList),
+        piece!(ast::TypeBoundList),
+        piece!(ast::SuperTraitList),
+        piece!(ast::WhereClause, space_before),
+        piece!(ast::UsesClause, space_before),
+        piece!(ast::Path, space_before),
+        piece!(ast::Pat),
+        piece!(ast::TraitRef, space_before),
+        piece!(ast::Type, space_before),
+        piece!(ast::Expr),
+        piece!(ast::TupleType),
+        piece!(ast::RecordFieldDefList, space_before),
+        piece!(ast::VariantDefList, space_before),
+        piece!(ast::TraitItemList, space_before),
+        piece!(ast::ImplItemList, space_before),
+        piece!(ast::ExternItemList, space_before),
+        piece!(ast::RecvArmList, space_before),
+        piece!(ast::MsgVariantList, space_before),
+        piece!(ast::MsgVariantParams, space_before),
+        piece!(ast::BlockExpr, space_before),
+        ast::ItemList::cast(node.clone()).map(|items| {
+            TokenPiece::new(block_items_doc(items.syntax(), ast::Item::cast, ctx)).space_before()
+        }),
+        piece!(ast::UseTree, space_before),
+        piece!(ast::UsePath),
+        piece!(ast::UsePathSegment),
+        piece!(ast::UseTreeList),
+        piece!(ast::UseAlias),
+    )
+}
 
 /// Helper to build attributes document for a node.
 fn attrs_doc<'a, N: ast::AttrListOwner + AstNode>(
@@ -100,13 +190,12 @@ fn block_items_doc<'a, T: ToDoc>(
             }
             NodeOrToken::Token(token) => match token.kind() {
                 SyntaxKind::Newline => {
-                    let text = ctx.snippet(token.text_range());
-                    pending_newlines += text.chars().filter(|c| *c == '\n').count();
+                    pending_newlines += newline_count(ctx.snippet(token.text_range()));
                     None
                 }
                 SyntaxKind::WhiteSpace => None,
                 SyntaxKind::Comment | SyntaxKind::DocComment => {
-                    Some(alloc.text(ctx.snippet(token.text_range()).trim_end().to_string()))
+                    Some(alloc.text(ctx.snippet(token.text_range()).trim_end()))
                 }
                 _ => None,
             },
@@ -121,10 +210,7 @@ fn block_items_doc<'a, T: ToDoc>(
             is_first = false;
         } else {
             // Preserve whether there was a blank line (2+ newlines) between entries.
-            let newlines_to_add = if pending_newlines >= 2 { 2 } else { 1 };
-            for _ in 0..newlines_to_add {
-                inner = inner.append(alloc.hardline());
-            }
+            inner = inner.append(hardlines(alloc, pending_newlines));
         }
 
         pending_newlines = 0;
@@ -157,10 +243,7 @@ impl ToDoc for ast::Root {
                 NodeOrToken::Node(node) => {
                     if !is_first {
                         // Collapse multiple blank lines to one
-                        let newlines_to_add = if pending_newlines >= 2 { 2 } else { 1 };
-                        for _ in 0..newlines_to_add {
-                            result = result.append(alloc.hardline());
-                        }
+                        result = result.append(hardlines(alloc, pending_newlines));
                     }
                     pending_newlines = 0;
                     is_first = false;
@@ -168,15 +251,13 @@ impl ToDoc for ast::Root {
                     if let Some(item_list) = ast::ItemList::cast(node.clone()) {
                         result = result.append(item_list.to_doc(ctx));
                     } else {
-                        result =
-                            result.append(alloc.text(ctx.snippet(node.text_range()).to_string()));
+                        result = result.append(alloc.text(ctx.snippet(node.text_range())));
                     }
                 }
                 NodeOrToken::Token(token) => {
                     match token.kind() {
                         SyntaxKind::Newline => {
-                            let text = ctx.snippet(token.text_range());
-                            pending_newlines = text.chars().filter(|c| *c == '\n').count();
+                            pending_newlines = newline_count(ctx.snippet(token.text_range()));
                         }
                         SyntaxKind::WhiteSpace => {
                             // Skip stray whitespace between items/comments
@@ -185,20 +266,20 @@ impl ToDoc for ast::Root {
                         _ => {
                             if !is_first {
                                 // Collapse multiple blank lines to one
-                                let newlines_to_add = if pending_newlines >= 2 { 2 } else { 1 };
-                                for _ in 0..newlines_to_add {
-                                    result = result.append(alloc.hardline());
-                                }
+                                result = result.append(hardlines(alloc, pending_newlines));
                             }
                             pending_newlines = 0;
                             is_first = false;
 
-                            let mut text = ctx.snippet(token.text_range()).to_string();
-                            if token.kind() == SyntaxKind::Comment
-                                || token.kind() == SyntaxKind::DocComment
-                            {
-                                text = text.trim_end().to_string();
-                            }
+                            let text = ctx.snippet(token.text_range());
+                            let text = if matches!(
+                                token.kind(),
+                                SyntaxKind::Comment | SyntaxKind::DocComment
+                            ) {
+                                text.trim_end()
+                            } else {
+                                text
+                            };
                             result = result.append(alloc.text(text));
                         }
                     }
@@ -226,36 +307,27 @@ impl ToDoc for ast::ItemList {
                         // Add newlines that were accumulated from whitespace
                         if !is_first {
                             // Collapse multiple blank lines to one
-                            let newlines_to_add = if pending_newlines >= 2 { 2 } else { 1 };
-                            for _ in 0..newlines_to_add {
-                                result = result.append(alloc.hardline());
-                            }
+                            result = result.append(hardlines(alloc, pending_newlines));
                         }
                         pending_newlines = 0;
                         is_first = false;
                         result = result.append(item.to_doc(ctx));
                     } else {
-                        result =
-                            result.append(alloc.text(ctx.snippet(node.text_range()).to_string()));
+                        result = result.append(alloc.text(ctx.snippet(node.text_range())));
                     }
                 }
                 NodeOrToken::Token(token) => {
                     if token.kind() == SyntaxKind::Newline {
-                        let text = ctx.snippet(token.text_range());
-                        pending_newlines = text.chars().filter(|c| *c == '\n').count();
+                        pending_newlines = newline_count(ctx.snippet(token.text_range()));
                     } else if token.kind() == SyntaxKind::Comment {
                         // Add newlines that were accumulated from whitespace
                         if !is_first {
                             // Collapse multiple blank lines to one
-                            let newlines_to_add = if pending_newlines >= 2 { 2 } else { 1 };
-                            for _ in 0..newlines_to_add {
-                                result = result.append(alloc.hardline());
-                            }
+                            result = result.append(hardlines(alloc, pending_newlines));
                         }
                         pending_newlines = 0;
                         is_first = false;
-                        result = result
-                            .append(alloc.text(ctx.snippet(token.text_range()).trim().to_string()));
+                        result = result.append(alloc.text(ctx.token(&token)));
                     } else {
                         // Skip other tokens
                     }
@@ -462,15 +534,11 @@ fn func_sig_to_doc<'a>(
                     needs_space = true;
                 }
                 SyntaxKind::Newline => {
-                    pending_newlines += ctx
-                        .snippet(token.text_range())
-                        .chars()
-                        .filter(|c| *c == '\n')
-                        .count();
+                    pending_newlines += newline_count(ctx.snippet(token.text_range()));
                 }
                 SyntaxKind::WhiteSpace => {}
                 SyntaxKind::Comment | SyntaxKind::DocComment => {
-                    let comment = ctx.snippet(token.text_range()).trim_end().to_string();
+                    let comment = ctx.snippet(token.text_range()).trim_end();
                     let is_line_comment = comment.starts_with("//");
                     let comment_text = alloc.text(comment);
 
@@ -520,6 +588,8 @@ impl ToDoc for ast::Func {
     fn to_doc<'a>(&self, ctx: &'a RewriteContext<'a>) -> Doc<'a> {
         let alloc = &ctx.alloc;
 
+        token_doc_item_like_if_comments!(self, ctx);
+
         let attrs = attrs_doc(self, ctx);
         let modifier = modifier_doc(self, ctx);
         let const_kw = if self.const_kw().is_some() {
@@ -556,20 +626,15 @@ impl ToDoc for ast::Func {
 impl ToDoc for ast::FuncParamList {
     fn to_doc<'a>(&self, ctx: &'a RewriteContext<'a>) -> Doc<'a> {
         let indent = ctx.config.indent_width as isize;
-        if has_comment_tokens(self.syntax()) {
-            block_list_with_comments(
-                ctx,
-                self.syntax(),
-                "(",
-                ")",
-                ast::FuncParam::cast,
-                indent,
-                true,
-            )
-        } else {
-            let params: Vec<_> = self.into_iter().map(|p| p.to_doc(ctx)).collect();
-            block_list(ctx, "(", ")", params, indent, true)
-        }
+        block_list_auto(
+            ctx,
+            self.syntax(),
+            "(",
+            ")",
+            ast::FuncParam::cast,
+            indent,
+            true,
+        )
     }
 }
 
@@ -589,8 +654,7 @@ impl ToDoc for ast::FuncParam {
         }
 
         if let Some(name) = name {
-            doc =
-                doc.append(alloc.text(ctx.snippet(name.syntax().text_range()).trim().to_string()));
+            doc = doc.append(alloc.text(ctx.snippet(name.syntax().text_range()).trim()));
         }
 
         if let Some(ty) = self.ty() {
@@ -604,6 +668,8 @@ impl ToDoc for ast::FuncParam {
 impl ToDoc for ast::Struct {
     fn to_doc<'a>(&self, ctx: &'a RewriteContext<'a>) -> Doc<'a> {
         let alloc = &ctx.alloc;
+
+        token_doc_item_like_if_comments!(self, ctx);
 
         let attrs = attrs_doc(self, ctx);
         let modifier = modifier_doc(self, ctx);
@@ -633,20 +699,15 @@ impl ToDoc for ast::Struct {
 impl ToDoc for ast::RecordFieldDefList {
     fn to_doc<'a>(&self, ctx: &'a RewriteContext<'a>) -> Doc<'a> {
         let indent = ctx.config.indent_width as isize;
-        if has_comment_tokens(self.syntax()) {
-            block_list_with_comments(
-                ctx,
-                self.syntax(),
-                "{",
-                "}",
-                ast::RecordFieldDef::cast,
-                indent,
-                true,
-            )
-        } else {
-            let fields: Vec<_> = self.into_iter().map(|f| f.to_doc(ctx)).collect();
-            block_list_spaced(ctx, "{", "}", fields, indent, true)
-        }
+        block_list_spaced_auto(
+            ctx,
+            self.syntax(),
+            "{",
+            "}",
+            ast::RecordFieldDef::cast,
+            indent,
+            true,
+        )
     }
 }
 
@@ -666,16 +727,12 @@ impl ToDoc for ast::ContractFields {
                     .map(|field| field.to_doc(ctx).append(alloc.text(","))),
                 NodeOrToken::Token(token) => match token.kind() {
                     SyntaxKind::Newline => {
-                        pending_newlines += ctx
-                            .snippet(token.text_range())
-                            .chars()
-                            .filter(|c| *c == '\n')
-                            .count();
+                        pending_newlines += newline_count(ctx.snippet(token.text_range()));
                         None
                     }
                     SyntaxKind::WhiteSpace | SyntaxKind::Comma => None,
                     SyntaxKind::Comment | SyntaxKind::DocComment => {
-                        Some(alloc.text(ctx.snippet(token.text_range()).trim_end().to_string()))
+                        Some(alloc.text(ctx.snippet(token.text_range()).trim_end()))
                     }
                     _ => None,
                 },
@@ -689,10 +746,7 @@ impl ToDoc for ast::ContractFields {
                 is_first = false;
             } else {
                 // Preserve whether there was a blank line (2+ newlines) between entries.
-                let newlines_to_add = if pending_newlines >= 2 { 2 } else { 1 };
-                for _ in 0..newlines_to_add {
-                    result = result.append(alloc.hardline());
-                }
+                result = result.append(hardlines(alloc, pending_newlines));
             }
 
             pending_newlines = 0;
@@ -706,6 +760,8 @@ impl ToDoc for ast::ContractFields {
 impl ToDoc for ast::RecordFieldDef {
     fn to_doc<'a>(&self, ctx: &'a RewriteContext<'a>) -> Doc<'a> {
         let alloc = &ctx.alloc;
+
+        token_doc_item_like_if_comments!(self, ctx);
 
         let attrs = attrs_doc(self, ctx);
 
@@ -738,18 +794,7 @@ impl ToDoc for ast::Contract {
 
         let alloc = &ctx.alloc;
 
-        let attrs = attrs_doc(self, ctx);
-        let modifier = modifier_doc(self, ctx);
-
-        let name = self
-            .name()
-            .map(|n| ctx.token(&n).to_string())
-            .unwrap_or_default();
-
-        let uses_doc = self
-            .uses_clause()
-            .map(|u| alloc.text(" ").append(u.to_doc(ctx)))
-            .unwrap_or_else(|| alloc.nil());
+        let uses_doc = self.uses_clause().map(|u| u.to_doc(ctx));
 
         let mut inner = alloc.nil();
         let mut pending_newlines = 0usize;
@@ -784,10 +829,7 @@ impl ToDoc for ast::Contract {
                         inner = inner.append(alloc.hardline());
                         is_first = false;
                     } else {
-                        let newlines_to_add = if pending_newlines >= 2 { 2 } else { 1 };
-                        for _ in 0..newlines_to_add {
-                            inner = inner.append(alloc.hardline());
-                        }
+                        inner = inner.append(hardlines(alloc, pending_newlines));
                     }
 
                     pending_newlines = 0;
@@ -795,25 +837,17 @@ impl ToDoc for ast::Contract {
                 }
                 NodeOrToken::Token(token) => match token.kind() {
                     SyntaxKind::Newline => {
-                        pending_newlines += ctx
-                            .snippet(token.text_range())
-                            .chars()
-                            .filter(|c| *c == '\n')
-                            .count();
+                        pending_newlines += newline_count(ctx.snippet(token.text_range()));
                     }
                     SyntaxKind::WhiteSpace => continue,
                     SyntaxKind::Comment | SyntaxKind::DocComment => {
-                        let comment_doc =
-                            alloc.text(ctx.snippet(token.text_range()).trim_end().to_string());
+                        let comment_doc = alloc.text(ctx.snippet(token.text_range()).trim_end());
 
                         if is_first {
                             inner = inner.append(alloc.hardline());
                             is_first = false;
                         } else {
-                            let newlines_to_add = if pending_newlines >= 2 { 2 } else { 1 };
-                            for _ in 0..newlines_to_add {
-                                inner = inner.append(alloc.hardline());
-                            }
+                            inner = inner.append(hardlines(alloc, pending_newlines));
                         }
 
                         pending_newlines = 0;
@@ -825,27 +859,61 @@ impl ToDoc for ast::Contract {
         }
 
         let body_doc = if is_first {
-            alloc.text(" {}")
+            alloc.text("{}")
         } else {
             alloc
-                .text(" {")
+                .text("{")
                 .append(inner.nest(ctx.config.indent_width as isize))
                 .append(alloc.hardline())
                 .append(alloc.text("}"))
         };
 
-        attrs
-            .append(modifier)
-            .append(alloc.text("contract "))
-            .append(alloc.text(name))
-            .append(uses_doc)
-            .append(body_doc)
+        if !has_comment_tokens(self.syntax()) {
+            let attrs = attrs_doc(self, ctx);
+            let modifier = modifier_doc(self, ctx);
+
+            let name = self
+                .name()
+                .map(|n| ctx.token(&n).to_string())
+                .unwrap_or_default();
+
+            let uses_doc = uses_doc
+                .map(|u| alloc.text(" ").append(u))
+                .unwrap_or_else(|| alloc.nil());
+
+            return attrs
+                .append(modifier)
+                .append(alloc.text("contract "))
+                .append(alloc.text(name))
+                .append(uses_doc)
+                .append(alloc.text(" "))
+                .append(body_doc);
+        }
+
+        let (header_doc, ends_with_newline) = token_doc_until_token(
+            ctx,
+            self.syntax(),
+            0,
+            SyntaxKind::LBrace,
+            |node| token_doc_item_node_piece(ctx, node),
+            |token| token_piece_basic(ctx, token),
+        );
+
+        let sep = if ends_with_newline {
+            alloc.nil()
+        } else {
+            alloc.text(" ")
+        };
+
+        header_doc.append(sep).append(body_doc)
     }
 }
 
 impl ToDoc for ast::ContractInit {
     fn to_doc<'a>(&self, ctx: &'a RewriteContext<'a>) -> Doc<'a> {
         let alloc = &ctx.alloc;
+
+        token_doc_item_like_if_comments!(self, ctx);
 
         let params_doc = self
             .params()
@@ -875,6 +943,8 @@ impl ToDoc for ast::ContractRecv {
     fn to_doc<'a>(&self, ctx: &'a RewriteContext<'a>) -> Doc<'a> {
         let alloc = &ctx.alloc;
 
+        token_doc_item_like_if_comments!(self, ctx);
+
         let path_doc = self
             .path()
             .map(|p| alloc.text(" ").append(p.to_doc(ctx)))
@@ -898,6 +968,8 @@ impl ToDoc for ast::RecvArmList {
 impl ToDoc for ast::RecvArm {
     fn to_doc<'a>(&self, ctx: &'a RewriteContext<'a>) -> Doc<'a> {
         let alloc = &ctx.alloc;
+
+        token_doc_item_like_if_comments!(self, ctx);
 
         let pat_doc = self
             .pat()
@@ -956,6 +1028,8 @@ impl ToDoc for ast::Enum {
     fn to_doc<'a>(&self, ctx: &'a RewriteContext<'a>) -> Doc<'a> {
         let alloc = &ctx.alloc;
 
+        token_doc_item_like_if_comments!(self, ctx);
+
         let attrs = attrs_doc(self, ctx);
         let modifier = modifier_doc(self, ctx);
 
@@ -983,44 +1057,24 @@ impl ToDoc for ast::Enum {
 
 impl ToDoc for ast::VariantDefList {
     fn to_doc<'a>(&self, ctx: &'a RewriteContext<'a>) -> Doc<'a> {
-        let alloc = &ctx.alloc;
-
-        if has_comment_tokens(self.syntax()) {
-            let indent = ctx.config.indent_width as isize;
-            return block_list_with_comments(
-                ctx,
-                self.syntax(),
-                "{",
-                "}",
-                ast::VariantDef::cast,
-                indent,
-                true,
-            );
-        }
-
-        let variants: Vec<_> = self.into_iter().map(|v| v.to_doc(ctx)).collect();
-
-        if variants.is_empty() {
-            return alloc.text("{}");
-        }
-
-        let inner = alloc.concat(
-            variants
-                .into_iter()
-                .map(|v| alloc.hardline().append(v).append(alloc.text(","))),
-        );
-
-        alloc
-            .text("{")
-            .append(inner.nest(ctx.config.indent_width as isize))
-            .append(alloc.hardline())
-            .append(alloc.text("}"))
+        let indent = ctx.config.indent_width as isize;
+        block_list_with_comments(
+            ctx,
+            self.syntax(),
+            "{",
+            "}",
+            ast::VariantDef::cast,
+            indent,
+            true,
+        )
     }
 }
 
 impl ToDoc for ast::VariantDef {
     fn to_doc<'a>(&self, ctx: &'a RewriteContext<'a>) -> Doc<'a> {
         let alloc = &ctx.alloc;
+
+        token_doc_item_like_if_comments!(self, ctx);
 
         let attrs = attrs_doc(self, ctx);
 
@@ -1076,6 +1130,8 @@ impl ToDoc for ast::Trait {
     fn to_doc<'a>(&self, ctx: &'a RewriteContext<'a>) -> Doc<'a> {
         let alloc = &ctx.alloc;
 
+        token_doc_item_like_if_comments!(self, ctx);
+
         let attrs = attrs_doc(self, ctx);
         let modifier = modifier_doc(self, ctx);
 
@@ -1128,6 +1184,8 @@ impl ToDoc for ast::TraitTypeItem {
     fn to_doc<'a>(&self, ctx: &'a RewriteContext<'a>) -> Doc<'a> {
         let alloc = &ctx.alloc;
 
+        token_doc_item_like_if_comments!(self, ctx);
+
         let attrs = attrs_doc(self, ctx);
 
         let name = self
@@ -1157,6 +1215,8 @@ impl ToDoc for ast::TraitConstItem {
     fn to_doc<'a>(&self, ctx: &'a RewriteContext<'a>) -> Doc<'a> {
         let alloc = &ctx.alloc;
 
+        token_doc_item_like_if_comments!(self, ctx);
+
         let attrs = attrs_doc(self, ctx);
 
         let name = self
@@ -1185,6 +1245,8 @@ impl ToDoc for ast::TraitConstItem {
 impl ToDoc for ast::Impl {
     fn to_doc<'a>(&self, ctx: &'a RewriteContext<'a>) -> Doc<'a> {
         let alloc = &ctx.alloc;
+
+        token_doc_item_like_if_comments!(self, ctx);
 
         let attrs = attrs_doc(self, ctx);
         let generics = generics_doc(self, ctx);
@@ -1220,6 +1282,8 @@ impl ToDoc for ast::ImplTrait {
     fn to_doc<'a>(&self, ctx: &'a RewriteContext<'a>) -> Doc<'a> {
         let alloc = &ctx.alloc;
 
+        token_doc_item_like_if_comments!(self, ctx);
+
         let attrs = attrs_doc(self, ctx);
         let generics = generics_doc(self, ctx);
 
@@ -1254,6 +1318,8 @@ impl ToDoc for ast::Const {
     fn to_doc<'a>(&self, ctx: &'a RewriteContext<'a>) -> Doc<'a> {
         let alloc = &ctx.alloc;
 
+        token_doc_item_like_if_comments!(self, ctx);
+
         let attrs = attrs_doc(self, ctx);
         let modifier = modifier_doc(self, ctx);
 
@@ -1285,6 +1351,8 @@ impl ToDoc for ast::Use {
     fn to_doc<'a>(&self, ctx: &'a RewriteContext<'a>) -> Doc<'a> {
         let alloc = &ctx.alloc;
 
+        token_doc_item_like_if_comments!(self, ctx);
+
         let attrs = attrs_doc(self, ctx);
         let modifier = modifier_doc(self, ctx);
 
@@ -1304,6 +1372,8 @@ impl ToDoc for ast::UseTree {
     fn to_doc<'a>(&self, ctx: &'a RewriteContext<'a>) -> Doc<'a> {
         let alloc = &ctx.alloc;
         let mut doc = alloc.nil();
+
+        token_doc_item_like_if_comments!(self, ctx);
 
         if let Some(path) = self.path() {
             doc = doc.append(path.to_doc(ctx));
@@ -1326,45 +1396,25 @@ impl ToDoc for ast::UseTree {
 
 impl ToDoc for ast::UseTreeList {
     fn to_doc<'a>(&self, ctx: &'a RewriteContext<'a>) -> Doc<'a> {
-        let alloc = &ctx.alloc;
         let indent = ctx.config.indent_width as isize;
-
-        if has_comment_tokens(self.syntax()) {
-            return block_list_with_comments(
-                ctx,
-                self.syntax(),
-                "{",
-                "}",
-                ast::UseTree::cast,
-                indent,
-                true,
-            )
-            .max_width_group(ctx.config.use_tree_width);
-        }
-
-        let trees: Vec<_> = self.into_iter().map(|t| t.to_doc(ctx)).collect();
-
-        if trees.is_empty() {
-            return alloc.text("{}");
-        }
-
-        let sep = alloc.text(",").append(alloc.line());
-        let inner = intersperse(alloc, trees, sep);
-        let trailing = alloc.text(",").flat_alt(alloc.nil());
-
-        // Use line_() for no space when flat: {a, b} not { a, b }
-        alloc
-            .text("{")
-            .append(alloc.line_().append(inner).append(trailing).nest(indent))
-            .append(alloc.line_())
-            .append(alloc.text("}"))
-            .max_width_group(ctx.config.use_tree_width)
+        block_list_auto(
+            ctx,
+            self.syntax(),
+            "{",
+            "}",
+            ast::UseTree::cast,
+            indent,
+            true,
+        )
+        .max_width_group(ctx.config.use_tree_width)
     }
 }
 
 impl ToDoc for ast::UsePath {
     fn to_doc<'a>(&self, ctx: &'a RewriteContext<'a>) -> Doc<'a> {
         let alloc = &ctx.alloc;
+
+        token_doc_item_like_if_comments!(self, ctx);
 
         let segments: Vec<_> = self.into_iter().map(|seg| seg.to_doc(ctx)).collect();
 
@@ -1377,13 +1427,11 @@ impl ToDoc for ast::UsePathSegment {
     fn to_doc<'a>(&self, ctx: &'a RewriteContext<'a>) -> Doc<'a> {
         let alloc = &ctx.alloc;
 
-        use parser::ast::UsePathSegmentKind;
+        use parser::ast::UsePathSegmentKind::*;
         match self.kind() {
-            Some(UsePathSegmentKind::Ingot(token)) => alloc.text(ctx.token(&token).to_string()),
-            Some(UsePathSegmentKind::Super(token)) => alloc.text(ctx.token(&token).to_string()),
-            Some(UsePathSegmentKind::Self_(token)) => alloc.text(ctx.token(&token).to_string()),
-            Some(UsePathSegmentKind::Ident(token)) => alloc.text(ctx.token(&token).to_string()),
-            Some(UsePathSegmentKind::Glob(token)) => alloc.text(ctx.token(&token).to_string()),
+            Some(Ingot(token) | Super(token) | Self_(token) | Ident(token) | Glob(token)) => {
+                alloc.text(ctx.token(&token))
+            }
             None => alloc.nil(),
         }
     }
@@ -1394,8 +1442,7 @@ impl ToDoc for ast::UseAlias {
         let alloc = &ctx.alloc;
 
         if let Some(alias) = self.alias() {
-            let alias_text = ctx.snippet(alias.text_range()).trim().to_string();
-            alloc.text(" as ").append(alloc.text(alias_text))
+            alloc.text(" as ").append(alloc.text(ctx.token(&alias)))
         } else {
             alloc.nil()
         }
@@ -1405,6 +1452,8 @@ impl ToDoc for ast::UseAlias {
 impl ToDoc for ast::TypeAlias {
     fn to_doc<'a>(&self, ctx: &'a RewriteContext<'a>) -> Doc<'a> {
         let alloc = &ctx.alloc;
+
+        token_doc_item_like_if_comments!(self, ctx);
 
         let attrs = attrs_doc(self, ctx);
         let modifier = modifier_doc(self, ctx);
@@ -1432,6 +1481,8 @@ impl ToDoc for ast::TypeAlias {
 impl ToDoc for ast::Mod {
     fn to_doc<'a>(&self, ctx: &'a RewriteContext<'a>) -> Doc<'a> {
         let alloc = &ctx.alloc;
+
+        token_doc_item_like_if_comments!(self, ctx);
 
         let attrs = attrs_doc(self, ctx);
         let modifier = modifier_doc(self, ctx);
@@ -1462,6 +1513,8 @@ impl ToDoc for ast::Extern {
     fn to_doc<'a>(&self, ctx: &'a RewriteContext<'a>) -> Doc<'a> {
         let alloc = &ctx.alloc;
 
+        token_doc_item_like_if_comments!(self, ctx);
+
         let attrs = attrs_doc(self, ctx);
 
         let items_doc = self
@@ -1482,6 +1535,8 @@ impl ToDoc for ast::ExternItemList {
 impl ToDoc for ast::Msg {
     fn to_doc<'a>(&self, ctx: &'a RewriteContext<'a>) -> Doc<'a> {
         let alloc = &ctx.alloc;
+
+        token_doc_item_like_if_comments!(self, ctx);
 
         let attrs = attrs_doc(self, ctx);
         let modifier = modifier_doc(self, ctx);
@@ -1523,6 +1578,8 @@ impl ToDoc for ast::MsgVariant {
     fn to_doc<'a>(&self, ctx: &'a RewriteContext<'a>) -> Doc<'a> {
         let alloc = &ctx.alloc;
 
+        token_doc_item_like_if_comments!(self, ctx);
+
         let attrs = attrs_doc(self, ctx);
 
         let name = self
@@ -1550,19 +1607,14 @@ impl ToDoc for ast::MsgVariant {
 impl ToDoc for ast::MsgVariantParams {
     fn to_doc<'a>(&self, ctx: &'a RewriteContext<'a>) -> Doc<'a> {
         let indent = ctx.config.indent_width as isize;
-        if has_comment_tokens(self.syntax()) {
-            block_list_with_comments(
-                ctx,
-                self.syntax(),
-                "{",
-                "}",
-                ast::RecordFieldDef::cast,
-                indent,
-                true,
-            )
-        } else {
-            let fields: Vec<_> = self.into_iter().map(|f| f.to_doc(ctx)).collect();
-            block_list_spaced(ctx, "{", "}", fields, indent, true)
-        }
+        block_list_spaced_auto(
+            ctx,
+            self.syntax(),
+            "{",
+            "}",
+            ast::RecordFieldDef::cast,
+            indent,
+            true,
+        )
     }
 }

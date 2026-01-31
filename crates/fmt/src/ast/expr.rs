@@ -8,8 +8,8 @@ use parser::syntax_kind::SyntaxKind;
 use parser::syntax_node::NodeOrToken;
 
 use super::types::{
-    Doc, ToDoc, TokenPiece, block_list, block_list_spaced, block_list_with_comments, hardlines,
-    has_comment_tokens, token_doc,
+    Doc, ToDoc, TokenPiece, block_list_auto, block_list_spaced_auto, block_list_with_comments,
+    hardlines, has_comment_tokens, newline_count, token_doc,
 };
 
 // ============================================================================
@@ -393,12 +393,7 @@ impl ToDoc for ast::BinExpr {
             self.syntax(),
             indent,
             |node| ast::Expr::cast(node).map(|expr| TokenPiece::new(expr.to_doc(ctx))),
-            |token| {
-                Some(
-                    TokenPiece::new(alloc.text(ctx.snippet(token.text_range()).trim().to_string()))
-                        .spaces(),
-                )
-            },
+            |token| Some(TokenPiece::new(alloc.text(ctx.token(&token))).spaces()),
         )
     }
 }
@@ -408,16 +403,17 @@ impl ToDoc for ast::UnExpr {
         let alloc = &ctx.alloc;
 
         if !has_comment_tokens(self.syntax()) {
-            let op = match self.op() {
-                Some(o) => ctx.snippet(o.syntax().text_range()).trim().to_string(),
-                None => return alloc.nil(),
+            let Some(op) = self
+                .op()
+                .map(|o| ctx.snippet(o.syntax().text_range()).trim())
+            else {
+                return alloc.nil();
             };
-            let expr = match self.expr() {
-                Some(e) => e.to_doc(ctx),
-                None => return alloc.text(op),
+            let Some(expr) = self.expr() else {
+                return alloc.text(op);
             };
 
-            return alloc.text(op).append(expr);
+            return alloc.text(op).append(expr.to_doc(ctx));
         }
 
         let indent = ctx.config.indent_width as isize;
@@ -426,11 +422,7 @@ impl ToDoc for ast::UnExpr {
             self.syntax(),
             indent,
             |node| ast::Expr::cast(node).map(|expr| TokenPiece::new(expr.to_doc(ctx))),
-            |token| {
-                Some(TokenPiece::new(
-                    alloc.text(ctx.snippet(token.text_range()).trim().to_string()),
-                ))
-            },
+            |token| Some(TokenPiece::new(alloc.text(ctx.token(&token)))),
         )
     }
 }
@@ -485,8 +477,10 @@ impl ToDoc for ast::CallArg {
         };
 
         if let Some(label) = self.label() {
-            let label_text = ctx.snippet(label.text_range()).trim().to_string();
-            alloc.text(label_text).append(alloc.text(": ")).append(expr)
+            alloc
+                .text(ctx.token(&label))
+                .append(alloc.text(": "))
+                .append(expr)
         } else {
             expr
         }
@@ -589,9 +583,7 @@ fn token_doc_expr_children<'a>(
 fn token_doc_labeled_expr<'a>(ctx: &'a RewriteContext<'a>, syntax: &parser::SyntaxNode) -> Doc<'a> {
     let alloc = &ctx.alloc;
     token_doc_expr_children(ctx, syntax, |token| match token.kind() {
-        SyntaxKind::Ident => Some(TokenPiece::new(
-            alloc.text(ctx.snippet(token.text_range()).trim().to_string()),
-        )),
+        SyntaxKind::Ident => Some(TokenPiece::new(alloc.text(ctx.token(&token)))),
         SyntaxKind::Colon => Some(TokenPiece::new(alloc.text(":")).space_after()),
         _ => None,
     })
@@ -622,9 +614,7 @@ impl ToDoc for ast::MethodCallExpr {
             },
             |token| match token.kind() {
                 SyntaxKind::Dot => Some(TokenPiece::new(alloc.text("."))),
-                SyntaxKind::Ident => Some(TokenPiece::new(
-                    alloc.text(ctx.snippet(token.text_range()).trim().to_string()),
-                )),
+                SyntaxKind::Ident => Some(TokenPiece::new(alloc.text(ctx.token(&token)))),
                 _ => None,
             },
         )
@@ -641,17 +631,14 @@ impl ToDoc for ast::RecordField {
 
         match (self.label(), self.expr()) {
             // Named field with explicit value: `label: expr`
-            (Some(label), Some(expr)) => {
-                let label_str = ctx.snippet(label.text_range()).trim().to_string();
-                alloc
-                    .text(label_str)
-                    .append(alloc.text(": "))
-                    .append(expr.to_doc(ctx))
-            }
+            (Some(label), Some(expr)) => alloc
+                .text(ctx.token(&label))
+                .append(alloc.text(": "))
+                .append(expr.to_doc(ctx)),
             // Shorthand field: `from` (no colon, expr is the identifier)
             (None, Some(expr)) => expr.to_doc(ctx),
             // Just a label (shouldn't happen in practice)
-            (Some(label), None) => alloc.text(ctx.snippet(label.text_range()).trim().to_string()),
+            (Some(label), None) => alloc.text(ctx.token(&label)),
             // Empty (shouldn't happen)
             (None, None) => alloc.nil(),
         }
@@ -696,22 +683,16 @@ impl ToDoc for ast::RecordInitExpr {
 impl ToDoc for ast::FieldList {
     fn to_doc<'a>(&self, ctx: &'a RewriteContext<'a>) -> Doc<'a> {
         let indent = ctx.config.indent_width as isize;
-        let doc = if has_comment_tokens(self.syntax()) {
-            block_list_with_comments(
-                ctx,
-                self.syntax(),
-                "{",
-                "}",
-                ast::RecordField::cast,
-                indent,
-                true,
-            )
-        } else {
-            let fields: Vec<_> = self.into_iter().map(|f| f.to_doc(ctx)).collect();
-            block_list_spaced(ctx, "{", "}", fields, indent, true)
-        };
-
-        doc.max_width_group(ctx.config.struct_lit_width)
+        block_list_spaced_auto(
+            ctx,
+            self.syntax(),
+            "{",
+            "}",
+            ast::RecordField::cast,
+            indent,
+            true,
+        )
+        .max_width_group(ctx.config.struct_lit_width)
     }
 }
 
@@ -763,7 +744,7 @@ impl ToDoc for ast::AugAssignExpr {
                 None => return alloc.nil(),
             };
             let op = match self.op() {
-                Some(o) => ctx.snippet_node_or_token(&o.syntax()).to_string(),
+                Some(o) => ctx.snippet_node_or_token(&o.syntax()),
                 None => return lhs,
             };
             let rhs = match self.rhs_expr() {
@@ -786,10 +767,7 @@ impl ToDoc for ast::AugAssignExpr {
             |node| ast::Expr::cast(node).map(|expr| TokenPiece::new(expr.to_doc(ctx))),
             |token| match token.kind() {
                 SyntaxKind::Eq => Some(TokenPiece::new(alloc.text("=")).space_after()),
-                _ => Some(
-                    TokenPiece::new(alloc.text(ctx.snippet(token.text_range()).trim().to_string()))
-                        .space_before(),
-                ),
+                _ => Some(TokenPiece::new(alloc.text(ctx.token(&token))).space_before()),
             },
         )
     }
@@ -821,9 +799,9 @@ impl ToDoc for ast::FieldExpr {
             |node| ast::Expr::cast(node).map(|expr| TokenPiece::new(expr.to_doc(ctx))),
             |token| match token.kind() {
                 SyntaxKind::Dot => Some(TokenPiece::new(alloc.text("."))),
-                SyntaxKind::Ident | SyntaxKind::Int => Some(TokenPiece::new(
-                    alloc.text(ctx.snippet(token.text_range()).trim().to_string()),
-                )),
+                SyntaxKind::Ident | SyntaxKind::Int => {
+                    Some(TokenPiece::new(alloc.text(ctx.token(&token))))
+                }
                 _ => None,
             },
         )
@@ -980,11 +958,7 @@ impl ToDoc for ast::UsesClause {
                 }
                 NodeOrToken::Token(token) => match token.kind() {
                     SyntaxKind::Newline => {
-                        pending_newlines += ctx
-                            .snippet(token.text_range())
-                            .chars()
-                            .filter(|c| *c == '\n')
-                            .count();
+                        pending_newlines += newline_count(ctx.snippet(token.text_range()));
                     }
                     SyntaxKind::WhiteSpace => {}
                     SyntaxKind::UsesKw => {
@@ -992,7 +966,7 @@ impl ToDoc for ast::UsesClause {
                         needs_space = true;
                     }
                     SyntaxKind::Comment | SyntaxKind::DocComment => {
-                        let comment = ctx.snippet(token.text_range()).trim_end().to_string();
+                        let comment = ctx.snippet(token.text_range()).trim_end();
                         let is_line_comment = comment.starts_with("//");
                         let comment_text = alloc.text(comment);
 
@@ -1020,20 +994,15 @@ impl ToDoc for ast::UsesClause {
 impl ToDoc for ast::UsesParamList {
     fn to_doc<'a>(&self, ctx: &'a RewriteContext<'a>) -> Doc<'a> {
         let clause_indent = ctx.config.clause_indent as isize;
-        if has_comment_tokens(self.syntax()) {
-            block_list_with_comments(
-                ctx,
-                self.syntax(),
-                "(",
-                ")",
-                ast::UsesParam::cast,
-                clause_indent,
-                true,
-            )
-        } else {
-            let params_docs: Vec<_> = self.into_iter().map(|p| p.to_doc(ctx)).collect();
-            block_list(ctx, "(", ")", params_docs, clause_indent, true)
-        }
+        block_list_auto(
+            ctx,
+            self.syntax(),
+            "(",
+            ")",
+            ast::UsesParam::cast,
+            clause_indent,
+            true,
+        )
     }
 }
 
@@ -1047,8 +1016,9 @@ impl ToDoc for ast::UsesParam {
         }
 
         if let Some(name) = self.name() {
-            let name_text = ctx.snippet(name.syntax().text_range()).trim().to_string();
-            doc = doc.append(alloc.text(name_text)).append(alloc.text(": "));
+            doc = doc
+                .append(alloc.text(ctx.snippet(name.syntax().text_range()).trim()))
+                .append(alloc.text(": "));
         }
 
         if let Some(path) = self.path() {
@@ -1115,43 +1085,15 @@ impl ToDoc for ast::MatchExpr {
 impl ToDoc for ast::MatchArmList {
     fn to_doc<'a>(&self, ctx: &'a RewriteContext<'a>) -> Doc<'a> {
         let indent = ctx.config.indent_width as isize;
-        if has_comment_tokens(self.syntax()) {
-            block_list_with_comments(
-                ctx,
-                self.syntax(),
-                "{",
-                "}",
-                ast::MatchArm::cast,
-                indent,
-                true,
-            )
-        } else {
-            let alloc = &ctx.alloc;
-
-            let arms: Vec<_> = self
-                .into_iter()
-                .filter_map(|arm| {
-                    let pat = arm.pat()?.to_doc(ctx);
-                    let body = arm.body()?.to_doc(ctx);
-                    Some(
-                        pat.append(alloc.text(" => "))
-                            .append(body)
-                            .append(alloc.text(",")),
-                    )
-                })
-                .collect();
-
-            if arms.is_empty() {
-                return alloc.text("{}");
-            }
-
-            let inner = alloc.concat(arms.into_iter().map(|arm| alloc.hardline().append(arm)));
-            alloc
-                .text("{")
-                .append(inner.nest(indent))
-                .append(alloc.hardline())
-                .append(alloc.text("}"))
-        }
+        block_list_with_comments(
+            ctx,
+            self.syntax(),
+            "{",
+            "}",
+            ast::MatchArm::cast,
+            indent,
+            true,
+        )
     }
 }
 
@@ -1256,44 +1198,29 @@ impl ToDoc for ast::WithExpr {
 impl ToDoc for ast::WithParamList {
     fn to_doc<'a>(&self, ctx: &'a RewriteContext<'a>) -> Doc<'a> {
         let indent = ctx.config.indent_width as isize;
-        if has_comment_tokens(self.syntax()) {
-            block_list_with_comments(
-                ctx,
-                self.syntax(),
-                "(",
-                ")",
-                ast::WithParam::cast,
-                indent,
-                true,
-            )
-        } else {
-            let params: Vec<_> = self.into_iter().map(|param| param.to_doc(ctx)).collect();
-            block_list(ctx, "(", ")", params, indent, true)
-        }
+        block_list_auto(
+            ctx,
+            self.syntax(),
+            "(",
+            ")",
+            ast::WithParam::cast,
+            indent,
+            true,
+        )
     }
 }
 
 impl ToDoc for ast::TupleExpr {
     fn to_doc<'a>(&self, ctx: &'a RewriteContext<'a>) -> Doc<'a> {
         let indent = ctx.config.indent_width as isize;
-        if has_comment_tokens(self.syntax()) {
-            block_list_with_comments(ctx, self.syntax(), "(", ")", ast::Expr::cast, indent, true)
-        } else {
-            let elems: Vec<_> = self.elems().flatten().map(|e| e.to_doc(ctx)).collect();
-            block_list(ctx, "(", ")", elems, indent, true)
-        }
+        block_list_auto(ctx, self.syntax(), "(", ")", ast::Expr::cast, indent, true)
     }
 }
 
 impl ToDoc for ast::ArrayExpr {
     fn to_doc<'a>(&self, ctx: &'a RewriteContext<'a>) -> Doc<'a> {
         let indent = ctx.config.indent_width as isize;
-        if has_comment_tokens(self.syntax()) {
-            block_list_with_comments(ctx, self.syntax(), "[", "]", ast::Expr::cast, indent, true)
-        } else {
-            let elems: Vec<_> = self.elems().flatten().map(|e| e.to_doc(ctx)).collect();
-            block_list(ctx, "[", "]", elems, indent, true)
-        }
+        block_list_auto(ctx, self.syntax(), "[", "]", ast::Expr::cast, indent, true)
     }
 }
 
@@ -1414,8 +1341,7 @@ impl ToDoc for ast::BlockExpr {
                 }
                 NodeOrToken::Token(tok) => {
                     if tok.kind() == SyntaxKind::Comment {
-                        let comment_doc =
-                            alloc.text(ctx.snippet(tok.text_range()).trim().to_string());
+                        let comment_doc = alloc.text(ctx.token(&tok));
 
                         // If the comment is on the same line as the previous element, treat it
                         // as a trailing comment on that line instead of forcing a new line.
@@ -1469,18 +1395,14 @@ impl ToDoc for ast::BlockExpr {
         for elem in elements {
             // Check if there was a blank line before this element
             let needs_blank_line = if let Some(prev) = prev_end {
-                let gap = TextRange::new(prev, elem.range.start());
-                let gap_text = ctx.snippet(gap);
-                gap_text.chars().filter(|c| *c == '\n').count() >= 2
+                newline_count(ctx.snippet(TextRange::new(prev, elem.range.start()))) >= 2
             } else {
                 false
             };
 
-            if needs_blank_line {
-                // Extra hardline for blank line (will have trailing whitespace - cleaned up in post-processing)
-                inner = inner.append(alloc.hardline());
-            }
-            inner = inner.append(alloc.hardline()).append(elem.doc);
+            inner = inner
+                .append(hardlines(alloc, if needs_blank_line { 2 } else { 1 }))
+                .append(elem.doc);
             prev_end = Some(elem.range.end());
         }
 

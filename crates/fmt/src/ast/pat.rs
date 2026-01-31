@@ -7,8 +7,7 @@ use parser::ast::{self, PatKind, prelude::AstNode};
 use parser::syntax_kind::SyntaxKind;
 
 use super::types::{
-    Doc, ToDoc, TokenPiece, block_list, block_list_spaced, block_list_with_comments,
-    has_comment_tokens, token_doc,
+    Doc, ToDoc, TokenPiece, block_list_auto, block_list_spaced_auto, has_comment_tokens, token_doc,
 };
 
 impl ToDoc for ast::Pat {
@@ -58,12 +57,7 @@ impl ToDoc for ast::TuplePat {
 impl ToDoc for ast::TuplePatElemList {
     fn to_doc<'a>(&self, ctx: &'a RewriteContext<'a>) -> Doc<'a> {
         let indent = ctx.config.indent_width as isize;
-        if has_comment_tokens(self.syntax()) {
-            block_list_with_comments(ctx, self.syntax(), "(", ")", ast::Pat::cast, indent, true)
-        } else {
-            let elems: Vec<_> = self.into_iter().map(|e| e.to_doc(ctx)).collect();
-            block_list(ctx, "(", ")", elems, indent, true)
-        }
+        block_list_auto(ctx, self.syntax(), "(", ")", ast::Pat::cast, indent, true)
     }
 }
 
@@ -123,20 +117,15 @@ impl ToDoc for ast::RecordPat {
 impl ToDoc for ast::RecordPatFieldList {
     fn to_doc<'a>(&self, ctx: &'a RewriteContext<'a>) -> Doc<'a> {
         let indent = ctx.config.indent_width as isize;
-        if has_comment_tokens(self.syntax()) {
-            block_list_with_comments(
-                ctx,
-                self.syntax(),
-                "{",
-                "}",
-                ast::RecordPatField::cast,
-                indent,
-                true,
-            )
-        } else {
-            let fields: Vec<_> = self.into_iter().map(|f| f.to_doc(ctx)).collect();
-            block_list_spaced(ctx, "{", "}", fields, indent, true)
-        }
+        block_list_spaced_auto(
+            ctx,
+            self.syntax(),
+            "{",
+            "}",
+            ast::RecordPatField::cast,
+            indent,
+            true,
+        )
     }
 }
 
@@ -146,10 +135,10 @@ impl ToDoc for ast::RecordPatField {
 
         match (self.name(), self.pat()) {
             (Some(name), Some(pat)) => alloc
-                .text(ctx.token(&name).to_string())
+                .text(ctx.token(&name))
                 .append(alloc.text(": "))
                 .append(pat.to_doc(ctx)),
-            (Some(name), None) => alloc.text(ctx.token(&name).to_string()),
+            (Some(name), None) => alloc.text(ctx.token(&name)),
             (None, Some(pat)) => pat.to_doc(ctx),
             (None, None) => alloc.nil(),
         }

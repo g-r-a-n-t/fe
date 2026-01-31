@@ -87,7 +87,8 @@ fn where_doc<'a, N: ast::WhereClauseOwner + AstNode>(
     }
 }
 
-/// Format a block of items `{ ... }` preserving blank lines between items.
+/// Format a block of items `{ ... }`, preserving whether there was a blank line
+/// between entries in the source (2+ newlines => one blank line; otherwise none).
 /// Takes a syntax node and a function to cast child nodes to the item type.
 fn block_items_doc<'a, T: ToDoc>(
     syntax: &parser::SyntaxNode,
@@ -99,48 +100,51 @@ fn block_items_doc<'a, T: ToDoc>(
 
     let alloc = &ctx.alloc;
     let mut inner = alloc.nil();
-
-    #[derive(Clone, Copy)]
-    enum EntryKind {
-        Item,
-        Comment,
-    }
-
-    let mut last_emitted = None::<EntryKind>;
+    let mut pending_newlines = 0usize;
+    let mut is_first = true;
 
     for child in syntax.children_with_tokens() {
-        let (kind, doc) = match child {
+        let entry_doc = match child {
             NodeOrToken::Node(node) => {
                 let Some(item) = cast_fn(node) else {
                     continue;
                 };
-                (EntryKind::Item, item.to_doc(ctx))
+                Some(item.to_doc(ctx))
             }
-            NodeOrToken::Token(token)
-                if matches!(token.kind(), SyntaxKind::Comment | SyntaxKind::DocComment) =>
-            {
-                (
-                    EntryKind::Comment,
-                    alloc.text(ctx.snippet(token.text_range()).trim().to_string()),
-                )
-            }
-            _ => continue,
+            NodeOrToken::Token(token) => match token.kind() {
+                SyntaxKind::Newline => {
+                    let text = ctx.snippet(token.text_range());
+                    pending_newlines += text.chars().filter(|c| *c == '\n').count();
+                    None
+                }
+                SyntaxKind::WhiteSpace => None,
+                SyntaxKind::Comment | SyntaxKind::DocComment => {
+                    Some(alloc.text(ctx.snippet(token.text_range()).trim_end().to_string()))
+                }
+                _ => None,
+            },
         };
 
-        let newlines = match (last_emitted, kind) {
-            (None, _) => 1,
-            (Some(EntryKind::Item), EntryKind::Item | EntryKind::Comment) => 2,
-            (Some(EntryKind::Comment), EntryKind::Item | EntryKind::Comment) => 1,
+        let Some(entry_doc) = entry_doc else {
+            continue;
         };
-        for _ in 0..newlines {
+
+        if is_first {
             inner = inner.append(alloc.hardline());
+            is_first = false;
+        } else {
+            // Preserve whether there was a blank line (2+ newlines) between entries.
+            let newlines_to_add = if pending_newlines >= 2 { 2 } else { 1 };
+            for _ in 0..newlines_to_add {
+                inner = inner.append(alloc.hardline());
+            }
         }
 
-        inner = inner.append(doc);
-        last_emitted = Some(kind);
+        pending_newlines = 0;
+        inner = inner.append(entry_doc);
     }
 
-    if last_emitted.is_none() {
+    if is_first {
         return alloc.text("{}");
     }
 

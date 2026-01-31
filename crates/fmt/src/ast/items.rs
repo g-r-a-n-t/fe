@@ -575,21 +575,54 @@ impl ToDoc for ast::RecordFieldDefList {
 
 impl ToDoc for ast::ContractFields {
     fn to_doc<'a>(&self, ctx: &'a RewriteContext<'a>) -> Doc<'a> {
-        let indent = ctx.config.indent_width as isize;
-        if has_comment_tokens(self.syntax()) {
-            block_list_with_comments(
-                ctx,
-                self.syntax(),
-                "{",
-                "}",
-                ast::RecordFieldDef::cast,
-                indent,
-                true,
-            )
-        } else {
-            let fields: Vec<_> = self.into_iter().map(|f| f.to_doc(ctx)).collect();
-            block_list_spaced(ctx, "{", "}", fields, indent, true)
+        use parser::syntax_kind::SyntaxKind;
+        use parser::syntax_node::NodeOrToken;
+
+        let alloc = &ctx.alloc;
+        let mut result = alloc.nil();
+        let mut pending_newlines = 0usize;
+        let mut is_first = true;
+
+        for child in self.syntax().children_with_tokens() {
+            let entry_doc = match child {
+                NodeOrToken::Node(node) => ast::RecordFieldDef::cast(node)
+                    .map(|field| field.to_doc(ctx).append(alloc.text(","))),
+                NodeOrToken::Token(token) => match token.kind() {
+                    SyntaxKind::Newline => {
+                        pending_newlines += ctx
+                            .snippet(token.text_range())
+                            .chars()
+                            .filter(|c| *c == '\n')
+                            .count();
+                        None
+                    }
+                    SyntaxKind::WhiteSpace | SyntaxKind::Comma => None,
+                    SyntaxKind::Comment | SyntaxKind::DocComment => {
+                        Some(alloc.text(ctx.snippet(token.text_range()).trim_end().to_string()))
+                    }
+                    _ => None,
+                },
+            };
+
+            let Some(entry_doc) = entry_doc else {
+                continue;
+            };
+
+            if is_first {
+                is_first = false;
+            } else {
+                // Preserve whether there was a blank line (2+ newlines) between entries.
+                let newlines_to_add = if pending_newlines >= 2 { 2 } else { 1 };
+                for _ in 0..newlines_to_add {
+                    result = result.append(alloc.hardline());
+                }
+            }
+
+            pending_newlines = 0;
+            result = result.append(entry_doc);
         }
+
+        if is_first { alloc.nil() } else { result }
     }
 }
 
@@ -603,6 +636,10 @@ impl ToDoc for ast::RecordFieldDef {
 
         if self.pub_kw().is_some() {
             doc = doc.append(alloc.text("pub "));
+        }
+
+        if self.mut_kw().is_some() {
+            doc = doc.append(alloc.text("mut "));
         }
 
         if let Some(name) = self.name() {
@@ -619,6 +656,9 @@ impl ToDoc for ast::RecordFieldDef {
 
 impl ToDoc for ast::Contract {
     fn to_doc<'a>(&self, ctx: &'a RewriteContext<'a>) -> Doc<'a> {
+        use parser::syntax_kind::SyntaxKind;
+        use parser::syntax_node::NodeOrToken;
+
         let alloc = &ctx.alloc;
 
         let attrs = attrs_doc(self, ctx);
@@ -634,83 +674,95 @@ impl ToDoc for ast::Contract {
             .map(|u| alloc.text(" ").append(u.to_doc(ctx)))
             .unwrap_or_else(|| alloc.nil());
 
-        // Check if we have a body (init, recv blocks) or just fields
-        let has_body = self.init_block().is_some() || self.recvs().next().is_some();
+        let mut inner = alloc.nil();
+        let mut pending_newlines = 0usize;
+        let mut is_first = true;
+        let mut in_body = false;
 
-        if has_body {
-            // Full contract with body: contract Name uses (...) { fields, init, recv }
-            // Each section (fields, init, recv) is separated by a blank line
-            let mut sections: Vec<Doc<'a>> = Vec::new();
-
-            // Add fields as one section
-            if let Some(fields) = self.fields() {
-                let field_docs: Vec<_> = fields
-                    .into_iter()
-                    .map(|f| f.to_doc(ctx).append(alloc.text(",")))
-                    .collect();
-                if !field_docs.is_empty() {
-                    let mut fields_section = alloc.nil();
-                    for (i, field) in field_docs.into_iter().enumerate() {
-                        if i > 0 {
-                            fields_section = fields_section.append(alloc.hardline());
-                        }
-                        fields_section = fields_section.append(field);
-                    }
-                    sections.push(fields_section);
+        for child in self.syntax().children_with_tokens() {
+            match child {
+                NodeOrToken::Token(token) if token.kind() == SyntaxKind::LBrace => {
+                    in_body = true;
+                    continue;
                 }
-            }
-
-            // Add init block as one section
-            if let Some(init) = self.init_block() {
-                sections.push(init.to_doc(ctx));
-            }
-
-            // Add each recv block as its own section
-            for recv in self.recvs() {
-                sections.push(recv.to_doc(ctx));
-            }
-
-            let body_doc = if sections.is_empty() {
-                alloc.text(" {}")
-            } else {
-                let indent = ctx.config.indent_width as isize;
-                let mut inner = alloc.nil();
-                for (i, section) in sections.into_iter().enumerate() {
-                    if i > 0 {
-                        // Add blank line between sections
-                        inner = inner.append(alloc.hardline()).append(alloc.hardline());
+                NodeOrToken::Token(token) if token.kind() == SyntaxKind::RBrace && in_body => {
+                    break;
+                }
+                _ if !in_body => continue,
+                NodeOrToken::Node(node) => {
+                    let entry_doc = if let Some(fields) = ast::ContractFields::cast(node.clone()) {
+                        (fields.iter().next().is_some() || has_comment_tokens(fields.syntax()))
+                            .then(|| fields.to_doc(ctx))
+                    } else if let Some(init) = ast::ContractInit::cast(node.clone()) {
+                        Some(init.to_doc(ctx))
                     } else {
+                        ast::ContractRecv::cast(node).map(|recv| recv.to_doc(ctx))
+                    };
+
+                    let Some(entry_doc) = entry_doc else {
+                        continue;
+                    };
+
+                    if is_first {
                         inner = inner.append(alloc.hardline());
+                        is_first = false;
+                    } else {
+                        let newlines_to_add = if pending_newlines >= 2 { 2 } else { 1 };
+                        for _ in 0..newlines_to_add {
+                            inner = inner.append(alloc.hardline());
+                        }
                     }
-                    inner = inner.append(section);
+
+                    pending_newlines = 0;
+                    inner = inner.append(entry_doc);
                 }
-                alloc
-                    .text(" {")
-                    .append(inner.nest(indent))
-                    .append(alloc.hardline())
-                    .append(alloc.text("}"))
-            };
+                NodeOrToken::Token(token) => match token.kind() {
+                    SyntaxKind::Newline => {
+                        pending_newlines += ctx
+                            .snippet(token.text_range())
+                            .chars()
+                            .filter(|c| *c == '\n')
+                            .count();
+                    }
+                    SyntaxKind::WhiteSpace => continue,
+                    SyntaxKind::Comment | SyntaxKind::DocComment => {
+                        let comment_doc =
+                            alloc.text(ctx.snippet(token.text_range()).trim_end().to_string());
 
-            attrs
-                .append(modifier)
-                .append(alloc.text("contract "))
-                .append(alloc.text(name))
-                .append(uses_doc)
-                .append(body_doc)
-        } else {
-            // Simple contract with just fields: contract Name { field1, field2 }
-            let fields_doc = self
-                .fields()
-                .map(|f| alloc.text(" ").append(f.to_doc(ctx)))
-                .unwrap_or_else(|| alloc.text(" {}"));
+                        if is_first {
+                            inner = inner.append(alloc.hardline());
+                            is_first = false;
+                        } else {
+                            let newlines_to_add = if pending_newlines >= 2 { 2 } else { 1 };
+                            for _ in 0..newlines_to_add {
+                                inner = inner.append(alloc.hardline());
+                            }
+                        }
 
-            attrs
-                .append(modifier)
-                .append(alloc.text("contract "))
-                .append(alloc.text(name))
-                .append(uses_doc)
-                .append(fields_doc)
+                        pending_newlines = 0;
+                        inner = inner.append(comment_doc);
+                    }
+                    _ => continue,
+                },
+            }
         }
+
+        let body_doc = if is_first {
+            alloc.text(" {}")
+        } else {
+            alloc
+                .text(" {")
+                .append(inner.nest(ctx.config.indent_width as isize))
+                .append(alloc.hardline())
+                .append(alloc.text("}"))
+        };
+
+        attrs
+            .append(modifier)
+            .append(alloc.text("contract "))
+            .append(alloc.text(name))
+            .append(uses_doc)
+            .append(body_doc)
     }
 }
 

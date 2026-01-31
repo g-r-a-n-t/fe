@@ -8,9 +8,11 @@ const MINTER: u256 = 1
 const BURNER: u256 = 2
 
 pub contract CoolCoin uses (mut ctx: Ctx, mut log: Log) {
-    store: TokenStore,
-    auth: AccessControl,
+    // Storage fields. These act as effects within the contract.
+    mut store: TokenStore,
+    mut auth: AccessControl,
 
+    // Initialize the token with name, symbol, decimals, and initial supply
     init(initial_supply: u256, owner: Address)
     uses (mut store, mut auth, mut ctx, mut log)
     {
@@ -23,27 +25,29 @@ pub contract CoolCoin uses (mut ctx: Ctx, mut log: Log) {
     }
 
     recv Erc20 {
-        Transfer { ,  } -> bool uses (ctx, mut store, mut log) {
+        Transfer { to, amount } -> bool uses (ctx, mut store, mut log) {
             transfer(from: ctx.caller(), to, amount)
             true
         }
 
-        Approve { ,  } -> bool uses (ctx, mut store, mut log) {
+        Approve { spender, amount } -> bool uses (ctx, mut store, mut log) {
             approve(owner: ctx.caller(), spender, amount)
             true
         }
 
-        TransferFrom { , ,  } -> bool uses (ctx, mut store, mut log) {
+        TransferFrom { from, to, amount } -> bool
+        uses (ctx, mut store, mut log)
+        {
             spend_allowance(owner: from, spender: ctx.caller(), amount)
             transfer(from, to, amount)
             true
         }
 
-        BalanceOf {  } -> u256 uses store {
+        BalanceOf { account } -> u256 uses store {
             store.balances[account]
         }
 
-        Allowance { ,  } -> u256 uses (store) {
+        Allowance { owner, spender } -> u256 uses (store) {
             store.allowances[(owner, spender)]
         }
 
@@ -62,34 +66,39 @@ pub contract CoolCoin uses (mut ctx: Ctx, mut log: Log) {
         }
     }
 
+    // Extended functionality (minting and burning)
     recv Erc20Extended {
-        Mint { ,  } -> bool uses (ctx, mut store, mut log, auth) {
+        Mint { to, amount } -> bool uses (ctx, mut store, mut log, auth) {
             auth.require(role: MINTER)
             mint(to, amount)
             true
         }
 
         // Burns tokens from caller's balance
-        Burn {  } -> bool uses (ctx, mut store, mut log) {
+        Burn { amount } -> bool uses (ctx, mut store, mut log) {
             burn(from: ctx.caller(), amount)
             true
         }
 
         // Burns tokens from an account using allowance (requires BURNER or allowance)
-        BurnFrom { ,  } -> bool uses (ctx, mut store, mut log) {
+        BurnFrom { from, amount } -> bool uses (ctx, mut store, mut log) {
             spend_allowance(owner: from, spender: ctx.caller(), amount)
             burn(from, amount)
             true
         }
 
-        IncreaseAllowance { ,  } -> bool uses (ctx, mut store, mut log) {
+        IncreaseAllowance { spender, added_value } -> bool
+        uses (ctx, mut store, mut log)
+        {
             let owner = ctx.caller()
             let current = store.allowances[(owner, spender)]
             approve(owner, spender, amount: current + added_value)
             true
         }
 
-        DecreaseAllowance { ,  } -> bool uses (ctx, mut store, mut log) {
+        DecreaseAllowance { spender, subtracted_value } -> bool
+        uses (ctx, mut store, mut log)
+        {
             let owner = ctx.caller()
             let current = store.allowances[(owner, spender)]
             assert(

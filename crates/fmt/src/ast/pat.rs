@@ -142,17 +142,14 @@ impl ToDoc for ast::RecordPatField {
     fn to_doc<'a>(&self, ctx: &'a RewriteContext<'a>) -> Doc<'a> {
         let alloc = &ctx.alloc;
 
-        let name = match self.name() {
-            Some(n) => ctx.token(&n).to_string(),
-            None => return alloc.nil(),
-        };
-
-        match self.pat() {
-            Some(pat) => alloc
-                .text(name)
+        match (self.name(), self.pat()) {
+            (Some(name), Some(pat)) => alloc
+                .text(ctx.token(&name).to_string())
                 .append(alloc.text(": "))
                 .append(pat.to_doc(ctx)),
-            None => alloc.text(name),
+            (Some(name), None) => alloc.text(ctx.token(&name).to_string()),
+            (None, Some(pat)) => pat.to_doc(ctx),
+            (None, None) => alloc.nil(),
         }
     }
 }

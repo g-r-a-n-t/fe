@@ -22,25 +22,25 @@ fn test_match_with_bindings(opt: Option<i32>) -> i32 {
 
 fn test_match_record_patterns(message: Message) -> i32 {
     match message {
-        Message::Quit | Message::Move {  } => 0,
-        Message::Write {  } => 1,
-        Message::Color { , ,  } => r + g + b,
+        Message::Quit | Message::Move { .. } => 0,
+        Message::Write { text } => 1,
+        Message::Color { r, g, b } => r + g + b,
     }
 }
 
 fn test_match_named_fields(point: Point) -> i32 {
     match point {
         Point { x: 0, y: 0 } => 0,
-        Point { x: 0,  } => y,
-        Point { , y: 0 } => x,
-        Point { ,  } => x + y,
+        Point { x: 0, y } => y,
+        Point { x, y: 0 } => x,
+        Point { x, y } => x + y,
     }
 }
 
 fn test_match_nested_record(data: Data) -> i32 {
     match data {
-        Data::Named { ,  } => value,
-        Data::Complex { inner: Inner { ,  } } => a + b,
+        Data::Named { name, value } => value,
+        Data::Complex { inner: Inner { a, b } } => a + b,
     }
 }
 
@@ -87,34 +87,35 @@ fn test_match_path_patterns(color: Color) -> i32 {
         Color::Green => 2,
         Color::Blue => 3,
         Color::Rgb(r, g, b) => r + g + b,
-        Color::Custom { ,  } => value,
+        Color::Custom { name, value } => value,
     }
 }
 
 fn test_match_wildcard_fields(point: Point3D) -> i32 {
     match point {
-        Point3D { ,  } => x,
+        Point3D { x, .. } => x,
     }
 }
 
 fn test_match_long_arm(event: Event) -> i32 {
     match event {
         Event::MouseClick { x: mouse_x, y: mouse_y } => mouse_x + mouse_y,
-        Event::KeyPress { , modifiers: Modifiers { , ,  } } => 1,
+        Event::KeyPress { key, modifiers: Modifiers { ctrl, shift, alt } } => 1,
         Event::Resize { width: new_width, height: new_height } => new_width * new_height,
     }
 }
 
 fn test_match_very_long_pattern(data: ComplexData) -> i32 {
     match data {
-        ComplexData::Variant { , , ,  } => first_field + second_field,
+        ComplexData::Variant { first_field, second_field, third_field, fourth_field } => first_field
+            + second_field,
     }
 }
 
 fn test_match_mixed_patterns(input: (Point, Color)) -> i32 {
     match input {
         (Point { x: 0, y: _ }, Color::Red) => 1,
-        (Point { ,  }, Color::Rgb(r, g, b)) => x + y + r + g + b,
+        (Point { x, y }, Color::Rgb(r, g, b)) => x + y + r + g + b,
         _ => 0,
     }
 }

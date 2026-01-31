@@ -234,6 +234,56 @@ pub(crate) fn token_doc<'a>(
     builder.finish()
 }
 
+pub(crate) fn token_doc_until_token<'a>(
+    ctx: &'a RewriteContext<'a>,
+    syntax: &parser::SyntaxNode,
+    indent: isize,
+    stop_kind: SyntaxKind,
+    mut node_piece: impl FnMut(parser::SyntaxNode) -> Option<TokenPiece<'a>>,
+    mut token_piece: impl FnMut(parser::SyntaxToken) -> Option<TokenPiece<'a>>,
+) -> (Doc<'a>, bool) {
+    let mut builder = TokenDocBuilder::new(ctx, indent);
+    let alloc = &ctx.alloc;
+
+    for child in syntax.children_with_tokens() {
+        match child {
+            NodeOrToken::Node(node) => {
+                if let Some(piece) = node_piece(node) {
+                    builder.push_piece(piece);
+                }
+            }
+            NodeOrToken::Token(token) => {
+                if token.kind() == stop_kind {
+                    let ends_with_newline = builder.pending_newlines > 0;
+                    if ends_with_newline {
+                        builder.append(hardlines(alloc, builder.pending_newlines));
+                        builder.pending_newlines = 0;
+                    }
+                    return (builder.finish(), ends_with_newline);
+                }
+
+                match token.kind() {
+                    SyntaxKind::Newline => builder.bump_newlines(&token),
+                    SyntaxKind::WhiteSpace => {}
+                    SyntaxKind::Comment | SyntaxKind::DocComment => builder.push_comment(&token),
+                    _ => {
+                        if let Some(piece) = token_piece(token.clone()) {
+                            builder.push_piece(piece);
+                        } else {
+                            let text = ctx.snippet(token.text_range()).trim().to_string();
+                            if !text.is_empty() {
+                                builder.push_piece(TokenPiece::new(ctx.alloc.text(text)));
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    (builder.finish(), false)
+}
+
 fn colon_plus_list_with_comments<'a, T: ToDoc>(
     ctx: &'a RewriteContext<'a>,
     syntax: &parser::SyntaxNode,

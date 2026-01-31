@@ -475,6 +475,10 @@ impl ToDoc for ast::CallArg {
     fn to_doc<'a>(&self, ctx: &'a RewriteContext<'a>) -> Doc<'a> {
         let alloc = &ctx.alloc;
 
+        if has_comment_tokens(self.syntax()) {
+            return token_doc_labeled_expr(ctx, self.syntax());
+        }
+
         let expr = match self.expr() {
             Some(e) => e.to_doc(ctx),
             None => return alloc.nil(),
@@ -514,6 +518,23 @@ impl ToDoc for ast::CallExpr {
     fn to_doc<'a>(&self, ctx: &'a RewriteContext<'a>) -> Doc<'a> {
         let alloc = &ctx.alloc;
 
+        if has_comment_tokens(self.syntax()) {
+            let indent = ctx.config.indent_width as isize;
+            return token_doc(
+                ctx,
+                self.syntax(),
+                indent,
+                |node| {
+                    if let Some(callee) = ast::Expr::cast(node.clone()) {
+                        return Some(TokenPiece::new(callee.to_doc(ctx)).no_nest());
+                    }
+                    ast::CallArgList::cast(node)
+                        .map(|args| TokenPiece::new(args.to_doc(ctx)).no_nest())
+                },
+                |_| None,
+            );
+        }
+
         let callee = match self.callee() {
             Some(c) => c.to_doc(ctx),
             None => return alloc.nil(),
@@ -548,6 +569,32 @@ fn call_args<'a>(ctx: &'a RewriteContext<'a>, args: Vec<Doc<'a>>, indent: isize)
         .append(alloc.line_())
         .append(alloc.text(")"))
         .max_width_group(ctx.config.fn_call_width)
+}
+
+fn token_doc_expr_children<'a>(
+    ctx: &'a RewriteContext<'a>,
+    syntax: &parser::SyntaxNode,
+    token_piece: impl FnMut(parser::SyntaxToken) -> Option<TokenPiece<'a>>,
+) -> Doc<'a> {
+    let indent = ctx.config.indent_width as isize;
+    token_doc(
+        ctx,
+        syntax,
+        indent,
+        |node| ast::Expr::cast(node).map(|expr| TokenPiece::new(expr.to_doc(ctx)).no_nest()),
+        token_piece,
+    )
+}
+
+fn token_doc_labeled_expr<'a>(ctx: &'a RewriteContext<'a>, syntax: &parser::SyntaxNode) -> Doc<'a> {
+    let alloc = &ctx.alloc;
+    token_doc_expr_children(ctx, syntax, |token| match token.kind() {
+        SyntaxKind::Ident => Some(TokenPiece::new(
+            alloc.text(ctx.snippet(token.text_range()).trim().to_string()),
+        )),
+        SyntaxKind::Colon => Some(TokenPiece::new(alloc.text(":")).space_after()),
+        _ => None,
+    })
 }
 
 impl ToDoc for ast::MethodCallExpr {
@@ -588,6 +635,10 @@ impl ToDoc for ast::RecordField {
     fn to_doc<'a>(&self, ctx: &'a RewriteContext<'a>) -> Doc<'a> {
         let alloc = &ctx.alloc;
 
+        if has_comment_tokens(self.syntax()) {
+            return token_doc_labeled_expr(ctx, self.syntax());
+        }
+
         match (self.label(), self.expr()) {
             // Named field with explicit value: `label: expr`
             (Some(label), Some(expr)) => {
@@ -610,6 +661,23 @@ impl ToDoc for ast::RecordField {
 impl ToDoc for ast::RecordInitExpr {
     fn to_doc<'a>(&self, ctx: &'a RewriteContext<'a>) -> Doc<'a> {
         let alloc = &ctx.alloc;
+
+        if has_comment_tokens(self.syntax()) {
+            let indent = ctx.config.indent_width as isize;
+            return token_doc(
+                ctx,
+                self.syntax(),
+                indent,
+                |node| {
+                    if let Some(path) = ast::Path::cast(node.clone()) {
+                        return Some(TokenPiece::new(path.to_doc(ctx)).no_nest());
+                    }
+                    ast::FieldList::cast(node)
+                        .map(|fields| TokenPiece::new(fields.to_doc(ctx)).no_nest())
+                },
+                |_| None,
+            );
+        }
 
         let path = match self.path() {
             Some(p) => p.to_doc(ctx),
@@ -1109,6 +1177,25 @@ impl ToDoc for ast::WithParam {
     fn to_doc<'a>(&self, ctx: &'a RewriteContext<'a>) -> Doc<'a> {
         let alloc = &ctx.alloc;
 
+        if has_comment_tokens(self.syntax()) {
+            let indent = ctx.config.indent_width as isize;
+            return token_doc(
+                ctx,
+                self.syntax(),
+                indent,
+                |node| {
+                    if let Some(path) = ast::Path::cast(node.clone()) {
+                        return Some(TokenPiece::new(path.to_doc(ctx)).no_nest());
+                    }
+                    ast::Expr::cast(node).map(|expr| TokenPiece::new(expr.to_doc(ctx)).no_nest())
+                },
+                |token| match token.kind() {
+                    SyntaxKind::Eq => Some(TokenPiece::new(alloc.text("=")).spaces()),
+                    _ => None,
+                },
+            );
+        }
+
         let path = match self.path() {
             Some(p) => p.to_doc(ctx),
             None => return alloc.nil(),
@@ -1213,6 +1300,15 @@ impl ToDoc for ast::ArrayExpr {
 impl ToDoc for ast::ArrayRepExpr {
     fn to_doc<'a>(&self, ctx: &'a RewriteContext<'a>) -> Doc<'a> {
         let alloc = &ctx.alloc;
+
+        if has_comment_tokens(self.syntax()) {
+            return token_doc_expr_children(ctx, self.syntax(), |token| match token.kind() {
+                SyntaxKind::LBracket => Some(TokenPiece::new(alloc.text("["))),
+                SyntaxKind::SemiColon => Some(TokenPiece::new(alloc.text(";")).space_after()),
+                SyntaxKind::RBracket => Some(TokenPiece::new(alloc.text("]")).no_nest()),
+                _ => None,
+            });
+        }
 
         let val = match self.val() {
             Some(v) => v.to_doc(ctx),

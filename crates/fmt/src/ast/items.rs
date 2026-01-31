@@ -6,8 +6,8 @@ use crate::RewriteContext;
 use parser::ast::{self, ItemKind, ItemModifierOwner, TraitItemKind, prelude::AstNode};
 
 use super::types::{
-    Doc, ToDoc, block_list, block_list_spaced, block_list_with_comments, has_comment_tokens,
-    intersperse, snippet_doc_if_comment_tokens,
+    Doc, ToDoc, block_list, block_list_spaced, block_list_with_comments, hardlines,
+    has_comment_tokens, intersperse,
 };
 
 /// Helper to build attributes document for a node.
@@ -289,9 +289,6 @@ impl ToDoc for ast::Item {
 
 impl ToDoc for ast::FuncSignature {
     fn to_doc<'a>(&self, ctx: &'a RewriteContext<'a>) -> Doc<'a> {
-        if let Some(doc) = snippet_doc_if_comment_tokens(ctx, self.syntax()) {
-            return ctx.alloc.text("fn ").append(doc);
-        }
         func_sig_to_doc(self, ctx, false)
     }
 }
@@ -305,6 +302,9 @@ fn func_sig_to_doc<'a>(
     ctx: &'a RewriteContext<'a>,
     include_body_sep: bool,
 ) -> Doc<'a> {
+    use parser::syntax_kind::SyntaxKind;
+    use parser::syntax_node::NodeOrToken;
+
     let alloc = &ctx.alloc;
 
     let name = match sig.name() {
@@ -378,14 +378,122 @@ fn func_sig_to_doc<'a>(
         alloc.nil()
     };
 
+    if !has_comment_tokens(sig.syntax()) {
+        return alloc
+            .text("fn ")
+            .append(alloc.text(name))
+            .append(generics)
+            .append(params_doc)
+            .append(ret_doc)
+            .append(uses_doc)
+            .append(where_clause)
+            .append(body_sep)
+            .max_width_group(ctx.config.fn_sig_width);
+    }
+
+    let indent = ctx.config.clause_indent as isize;
+    let mut inner = alloc.text(name.clone());
+    let mut pending_newlines = 0usize;
+    let mut needs_space = false;
+
+    for child in sig.syntax().children_with_tokens() {
+        match child {
+            NodeOrToken::Node(node) => {
+                if let Some(uses) = ast::UsesClause::cast(node.clone()) {
+                    if pending_newlines > 0 {
+                        inner = inner
+                            .append(hardlines(alloc, pending_newlines))
+                            .append(uses.to_doc(ctx));
+                        pending_newlines = 0;
+                    } else {
+                        inner = inner.append(uses_doc.clone());
+                    }
+                    needs_space = false;
+                    continue;
+                }
+                if let Some(where_clause_node) = ast::WhereClause::cast(node.clone()) {
+                    if pending_newlines > 0 {
+                        inner = inner
+                            .append(hardlines(alloc, pending_newlines))
+                            .append(where_clause_node.to_doc(ctx));
+                        pending_newlines = 0;
+                    } else {
+                        inner = inner.append(where_clause.clone());
+                    }
+                    needs_space = false;
+                    continue;
+                }
+
+                let elem = if let Some(generics) = ast::GenericParamList::cast(node.clone()) {
+                    generics.to_doc(ctx)
+                } else if let Some(params) = ast::FuncParamList::cast(node.clone()) {
+                    params.to_doc(ctx)
+                } else if let Some(ty) = ast::Type::cast(node) {
+                    ty.to_doc(ctx)
+                } else {
+                    continue;
+                };
+
+                if pending_newlines > 0 {
+                    inner =
+                        inner.append(hardlines(alloc, pending_newlines).append(elem).nest(indent));
+                    pending_newlines = 0;
+                } else {
+                    if needs_space {
+                        inner = inner.append(alloc.text(" "));
+                    }
+                    inner = inner.append(elem);
+                }
+                needs_space = false;
+            }
+            NodeOrToken::Token(token) => match token.kind() {
+                SyntaxKind::Ident => {}
+                SyntaxKind::Arrow => {
+                    if pending_newlines > 0 {
+                        inner = inner.append(
+                            hardlines(alloc, pending_newlines)
+                                .append(alloc.text("->"))
+                                .nest(indent),
+                        );
+                        pending_newlines = 0;
+                    } else {
+                        inner = inner.append(alloc.text(" ->"));
+                    }
+                    needs_space = true;
+                }
+                SyntaxKind::Newline => {
+                    pending_newlines += ctx
+                        .snippet(token.text_range())
+                        .chars()
+                        .filter(|c| *c == '\n')
+                        .count();
+                }
+                SyntaxKind::WhiteSpace => {}
+                SyntaxKind::Comment | SyntaxKind::DocComment => {
+                    let comment = ctx.snippet(token.text_range()).trim_end().to_string();
+                    let is_line_comment = comment.starts_with("//");
+                    let comment_text = alloc.text(comment);
+
+                    if pending_newlines > 0 {
+                        inner = inner.append(
+                            hardlines(alloc, pending_newlines)
+                                .append(comment_text)
+                                .nest(indent),
+                        );
+                        pending_newlines = 0;
+                    } else {
+                        inner = inner.append(alloc.text(" ")).append(comment_text);
+                    }
+                    needs_space = !is_line_comment;
+                }
+                _ => {}
+            },
+        }
+    }
+
     alloc
         .text("fn ")
-        .append(alloc.text(name))
-        .append(generics)
-        .append(params_doc)
-        .append(ret_doc)
-        .append(uses_doc)
-        .append(where_clause)
+        .append(inner)
         .append(body_sep)
         .max_width_group(ctx.config.fn_sig_width)
 }

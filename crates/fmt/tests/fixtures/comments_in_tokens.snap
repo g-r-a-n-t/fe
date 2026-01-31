@@ -1,12 +1,13 @@
 ---
 source: crates/fmt/tests/format_snapshots.rs
+assertion_line: 16
 expression: output
 input_file: tests/fixtures/comments_in_tokens.fe
 ---
 // Comments in non-list/non-block token positions
 
 fn sig_comment(x: u256) // mid
--> u256 {
+    -> u256 {
     x
 }
 
@@ -32,8 +33,10 @@ fn match_comment(x: u256) -> bool {
     }
 }
 
-fn uses_comment() uses // mid
-(ctx: Ctx) {
+fn uses_comment()
+uses // mid
+    (ctx: Ctx)
+{
     true
 }
 
@@ -45,15 +48,15 @@ fn or_pat_comment(x: u256) -> u256 {
 }
 
 trait Super: A + // mid
-B {}
+    B {}
 
 fn where_comments<T, U>(x: T, y: U)
 where
     T // between type and `:`
-    : Clone,
+        : Clone,
     // between predicates
     U: Clone + // between bounds
-    Copy
+        Copy
 {
     true
 }

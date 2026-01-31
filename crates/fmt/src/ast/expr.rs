@@ -4,10 +4,12 @@ use pretty::DocAllocator;
 
 use crate::RewriteContext;
 use parser::ast::{self, BinOp, ExprKind, GenericArgsOwner, LogicalBinOp, prelude::AstNode};
+use parser::syntax_kind::SyntaxKind;
+use parser::syntax_node::NodeOrToken;
 
 use super::types::{
-    Doc, ToDoc, block_list, block_list_spaced, block_list_with_comments, has_comment_tokens,
-    snippet_doc_if_comment_tokens,
+    Doc, ToDoc, block_list, block_list_spaced, block_list_with_comments, hardlines,
+    has_comment_tokens, snippet_doc_if_comment_tokens,
 };
 
 // ============================================================================
@@ -716,18 +718,83 @@ impl ToDoc for ast::IfExpr {
 
 impl ToDoc for ast::UsesClause {
     fn to_doc<'a>(&self, ctx: &'a RewriteContext<'a>) -> Doc<'a> {
-        if let Some(doc) = snippet_doc_if_comment_tokens(ctx, self.syntax()) {
-            return doc;
-        }
         let alloc = &ctx.alloc;
 
-        if let Some(params) = self.param_list() {
-            alloc.text("uses ").append(params.to_doc(ctx))
-        } else if let Some(param) = self.param() {
-            alloc.text("uses ").append(param.to_doc(ctx))
-        } else {
-            alloc.nil()
+        if !has_comment_tokens(self.syntax()) {
+            if let Some(params) = self.param_list() {
+                return alloc.text("uses ").append(params.to_doc(ctx));
+            }
+            if let Some(param) = self.param() {
+                return alloc.text("uses ").append(param.to_doc(ctx));
+            }
+            return alloc.nil();
         }
+
+        let indent = ctx.config.clause_indent as isize;
+
+        let mut doc = alloc.nil();
+        let mut pending_newlines = 0usize;
+        let mut needs_space = false;
+
+        for child in self.syntax().children_with_tokens() {
+            match child {
+                NodeOrToken::Node(node) => {
+                    let elem = if let Some(params) = ast::UsesParamList::cast(node.clone()) {
+                        params.to_doc(ctx)
+                    } else if let Some(param) = ast::UsesParam::cast(node) {
+                        param.to_doc(ctx)
+                    } else {
+                        continue;
+                    };
+
+                    if pending_newlines > 0 {
+                        doc = doc
+                            .append(hardlines(alloc, pending_newlines).append(elem).nest(indent));
+                        pending_newlines = 0;
+                    } else {
+                        if needs_space {
+                            doc = doc.append(alloc.text(" "));
+                        }
+                        doc = doc.append(elem);
+                    }
+                    needs_space = false;
+                }
+                NodeOrToken::Token(token) => match token.kind() {
+                    SyntaxKind::Newline => {
+                        pending_newlines += ctx
+                            .snippet(token.text_range())
+                            .chars()
+                            .filter(|c| *c == '\n')
+                            .count();
+                    }
+                    SyntaxKind::WhiteSpace => {}
+                    SyntaxKind::UsesKw => {
+                        doc = doc.append(alloc.text("uses"));
+                        needs_space = true;
+                    }
+                    SyntaxKind::Comment | SyntaxKind::DocComment => {
+                        let comment = ctx.snippet(token.text_range()).trim_end().to_string();
+                        let is_line_comment = comment.starts_with("//");
+                        let comment_text = alloc.text(comment);
+
+                        if pending_newlines > 0 {
+                            doc = doc.append(
+                                hardlines(alloc, pending_newlines)
+                                    .append(comment_text)
+                                    .nest(indent),
+                            );
+                            pending_newlines = 0;
+                        } else {
+                            doc = doc.append(alloc.text(" ")).append(comment_text);
+                        }
+                        needs_space = !is_line_comment;
+                    }
+                    _ => {}
+                },
+            }
+        }
+
+        doc
     }
 }
 
@@ -990,8 +1057,6 @@ impl ToDoc for ast::ParenExpr {
 impl ToDoc for ast::BlockExpr {
     fn to_doc<'a>(&self, ctx: &'a RewriteContext<'a>) -> Doc<'a> {
         use parser::TextRange;
-        use parser::syntax_kind::SyntaxKind;
-        use parser::syntax_node::NodeOrToken;
 
         let alloc = &ctx.alloc;
 

@@ -1,0 +1,67 @@
+use core::intrinsic::{__as_bytes, __keccak256}
+use std::evm::Address
+use std::evm::effects::assert
+
+trait SolCompat {
+    const N: usize
+
+    const SOL_TYPE: String<N>
+
+    const SOL_TYPE_BYTES: [u8; Self::N] = __as_bytes(Self::SOL_TYPE)
+}
+
+impl SolCompat for u256 {
+    const N: usize = 7
+
+    const SOL_TYPE: String<7> = "uint256"
+}
+
+impl SolCompat for Address {
+    const N: usize = 7
+
+    const SOL_TYPE: String<7> = "address"
+}
+
+impl SolCompat for Transfer {
+    const N: usize = 8
+
+    const SOL_TYPE: String<8> = "Transfer"
+}
+
+trait Event {
+    const SIG: u256
+}
+
+struct Transfer { from: Address, to: Address, val: u256 }
+
+struct Foo<const N: u256> {}
+type Foo2 = Foo<{ Transfer::SIG }>
+
+impl Event for Transfer {
+    const SIG: u256 = {
+        let comma: [u8; 1] = __as_bytes(",")
+        let lparen: [u8; 1] = __as_bytes("(")
+        let rparen: [u8; 1] = __as_bytes(")")
+
+        let sig_str: [u8; 33] = __as_bytes(
+            (
+                Transfer::SOL_TYPE_BYTES,
+                lparen,
+                Address::SOL_TYPE_BYTES,
+                comma,
+                Address::SOL_TYPE_BYTES,
+                comma,
+                u256::SOL_TYPE_BYTES,
+                rparen,
+            ),
+        )
+        __keccak256(sig_str)
+    }
+}
+
+#[test]
+fn transfer_sig() {
+    assert(
+        Transfer::SIG == 0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef,
+    )
+}

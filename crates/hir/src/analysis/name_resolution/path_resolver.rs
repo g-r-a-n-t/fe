@@ -778,7 +778,7 @@ where
         Some(PathRes::Ty(ty) | PathRes::TyAlias(_, ty)) => {
             // Try to resolve as an associated const on the receiver type
             if is_tail && resolve_tail_as_value {
-                match select_assoc_const_candidate(db, ty, ident, parent_scope, assumptions) {
+                match select_assoc_const_candidate(db, ty, ident, scope, assumptions) {
                     AssocConstSelection::Found(inst) => {
                         let r = PathRes::TraitConst(ty, inst, ident);
                         observer(path, &r);

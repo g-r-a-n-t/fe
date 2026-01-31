@@ -7,6 +7,7 @@ use parser::ast::{self, BinOp, ExprKind, GenericArgsOwner, LogicalBinOp, prelude
 
 use super::types::{
     Doc, ToDoc, block_list, block_list_spaced, block_list_with_comments, has_comment_tokens,
+    snippet_doc_if_comment_tokens,
 };
 
 // ============================================================================
@@ -378,12 +379,18 @@ fn format_chain_inner<'a>(
 
 impl ToDoc for ast::BinExpr {
     fn to_doc<'a>(&self, ctx: &'a RewriteContext<'a>) -> Doc<'a> {
+        if let Some(doc) = snippet_doc_if_comment_tokens(ctx, self.syntax()) {
+            return doc;
+        }
         format_bin_expr(self, ctx)
     }
 }
 
 impl ToDoc for ast::UnExpr {
     fn to_doc<'a>(&self, ctx: &'a RewriteContext<'a>) -> Doc<'a> {
+        if let Some(doc) = snippet_doc_if_comment_tokens(ctx, self.syntax()) {
+            return doc;
+        }
         let alloc = &ctx.alloc;
 
         let op = match self.op() {
@@ -401,6 +408,9 @@ impl ToDoc for ast::UnExpr {
 
 impl ToDoc for ast::CastExpr {
     fn to_doc<'a>(&self, ctx: &'a RewriteContext<'a>) -> Doc<'a> {
+        if let Some(doc) = snippet_doc_if_comment_tokens(ctx, self.syntax()) {
+            return doc;
+        }
         let alloc = &ctx.alloc;
 
         let expr = match self.expr() {
@@ -497,6 +507,9 @@ fn call_args<'a>(ctx: &'a RewriteContext<'a>, args: Vec<Doc<'a>>, indent: isize)
 
 impl ToDoc for ast::MethodCallExpr {
     fn to_doc<'a>(&self, ctx: &'a RewriteContext<'a>) -> Doc<'a> {
+        if let Some(doc) = snippet_doc_if_comment_tokens(ctx, self.syntax()) {
+            return doc;
+        }
         // Delegate to chain formatting which handles the entire chain at once
         format_chain(&ast::Expr::cast(self.syntax().clone()).unwrap(), ctx)
     }
@@ -567,6 +580,9 @@ impl ToDoc for ast::FieldList {
 
 impl ToDoc for ast::AssignExpr {
     fn to_doc<'a>(&self, ctx: &'a RewriteContext<'a>) -> Doc<'a> {
+        if let Some(doc) = snippet_doc_if_comment_tokens(ctx, self.syntax()) {
+            return doc;
+        }
         let alloc = &ctx.alloc;
 
         let lhs = match self.lhs_expr() {
@@ -591,6 +607,9 @@ impl ToDoc for ast::AssignExpr {
 
 impl ToDoc for ast::AugAssignExpr {
     fn to_doc<'a>(&self, ctx: &'a RewriteContext<'a>) -> Doc<'a> {
+        if let Some(doc) = snippet_doc_if_comment_tokens(ctx, self.syntax()) {
+            return doc;
+        }
         let alloc = &ctx.alloc;
 
         let lhs = match self.lhs_expr() {
@@ -624,6 +643,9 @@ impl ToDoc for ast::PathExpr {
 
 impl ToDoc for ast::FieldExpr {
     fn to_doc<'a>(&self, ctx: &'a RewriteContext<'a>) -> Doc<'a> {
+        if let Some(doc) = snippet_doc_if_comment_tokens(ctx, self.syntax()) {
+            return doc;
+        }
         // Delegate to chain formatting which handles the entire chain at once
         format_chain(&ast::Expr::cast(self.syntax().clone()).unwrap(), ctx)
     }
@@ -631,6 +653,9 @@ impl ToDoc for ast::FieldExpr {
 
 impl ToDoc for ast::IndexExpr {
     fn to_doc<'a>(&self, ctx: &'a RewriteContext<'a>) -> Doc<'a> {
+        if let Some(doc) = snippet_doc_if_comment_tokens(ctx, self.syntax()) {
+            return doc;
+        }
         let alloc = &ctx.alloc;
 
         let expr = match self.expr() {
@@ -936,6 +961,9 @@ impl ToDoc for ast::ArrayRepExpr {
 
 impl ToDoc for ast::ParenExpr {
     fn to_doc<'a>(&self, ctx: &'a RewriteContext<'a>) -> Doc<'a> {
+        if let Some(doc) = snippet_doc_if_comment_tokens(ctx, self.syntax()) {
+            return doc;
+        }
         let alloc = &ctx.alloc;
 
         let expr = match self.expr() {

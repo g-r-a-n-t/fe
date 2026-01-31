@@ -58,27 +58,11 @@ fn where_doc<'a, N: ast::WhereClauseOwner + AstNode>(
     let alloc = &ctx.alloc;
 
     if let Some(where_clause) = node.where_clause() {
-        let preds: Vec<_> = where_clause
-            .into_iter()
-            .map(|pred| pred.to_doc(ctx))
-            .collect();
-
-        if preds.is_empty() {
+        if where_clause.iter().next().is_none() && !has_comment_tokens(where_clause.syntax()) {
             return alloc.nil();
         }
 
-        let sep = alloc.text(",").append(alloc.line());
-        let preds_doc = intersperse(alloc, preds, sep).group();
-
-        let where_block = alloc
-            .text("where")
-            .append(
-                alloc
-                    .line()
-                    .append(preds_doc)
-                    .nest(ctx.config.clause_indent as isize),
-            )
-            .group();
+        let where_block = where_clause.to_doc(ctx);
 
         if ctx.config.where_new_line {
             alloc.hardline().append(where_block)
@@ -411,29 +395,11 @@ fn where_doc_forced<'a, N: ast::WhereClauseOwner + AstNode>(
     let alloc = &ctx.alloc;
 
     if let Some(where_clause) = node.where_clause() {
-        let preds: Vec<_> = where_clause
-            .into_iter()
-            .map(|pred| pred.to_doc(ctx))
-            .collect();
-
-        if preds.is_empty() {
+        if where_clause.iter().next().is_none() && !has_comment_tokens(where_clause.syntax()) {
             return alloc.nil();
         }
 
-        let sep = alloc.text(",").append(alloc.line());
-        let preds_doc = intersperse(alloc, preds, sep).group();
-
-        let where_block = alloc
-            .text("where")
-            .append(
-                alloc
-                    .line()
-                    .append(preds_doc)
-                    .nest(ctx.config.clause_indent as isize),
-            )
-            .group();
-
-        alloc.hardline().append(where_block)
+        alloc.hardline().append(where_clause.to_doc(ctx))
     } else {
         alloc.nil()
     }

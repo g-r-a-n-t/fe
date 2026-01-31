@@ -1,0 +1,23 @@
+---
+source: crates/fmt/tests/format_snapshots.rs
+expression: output
+input_file: tests/fixtures/comments_in_tokens.fe
+---
+// Comments in non-list/non-block token positions
+
+fn chain_comments(x: u256) -> u256 {
+    x
+    // mid
+    .foo()
+}
+
+fn where_comments<T, U>(x: T, y: U)
+where
+    T // between type and `:`
+    : Clone,
+    // between predicates
+    U: Clone + // between bounds
+    Copy
+{
+    true
+}

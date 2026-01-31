@@ -194,7 +194,6 @@ impl<'db> CtfeInterpreter<'db> {
 
         match expr_data {
             Expr::Lit(LitKind::Bool(flag)) => Ok(lit_bool(self.db, *flag)),
-
             Expr::Lit(LitKind::Int(int_id)) => {
                 let ty = self.typed_body().expr_ty(self.db, expr);
                 let value = normalize_int(self.db, ty, int_id.data(self.db).clone(), body, expr)?;
@@ -212,16 +211,12 @@ impl<'db> CtfeInterpreter<'db> {
 
             Expr::Path(Partial::Present(path)) => self.eval_path_expr(*path, expr),
             Expr::Path(Partial::Absent) => Err(InvalidCause::ParseError.into()),
-
             Expr::Un(inner, op) => {
                 let inner = self.eval_expr(*inner)?;
                 self.eval_unary(expr, inner, *op)
             }
-
             Expr::Cast(inner, _) => self.eval_cast(expr, *inner),
-
             Expr::Bin(lhs, rhs, op) => self.eval_binary(expr, *lhs, *rhs, *op),
-
             Expr::If(cond, then, else_) => {
                 let cond = self.eval_expr(*cond)?;
                 let cond = const_as_bool(self.db, cond, body, expr)?;
@@ -235,23 +230,14 @@ impl<'db> CtfeInterpreter<'db> {
             }
 
             Expr::Match(scrutinee, arms) => self.eval_match(expr, *scrutinee, arms),
-
             Expr::Block(stmts) => self.eval_block(stmts),
-
             Expr::Call(_, _) => self.eval_call_expr(expr),
-
             Expr::MethodCall(..) => self.eval_method_call_expr(expr),
-
             Expr::Tuple(elems) => self.eval_tuple(expr, elems),
-
             Expr::Array(elems) => self.eval_array(expr, elems),
-
             Expr::ArrayRep(elem, len) => self.eval_array_rep(expr, *elem, len),
-
             Expr::RecordInit(path, fields) => self.eval_record_init(expr, path, fields),
-
             Expr::Field(lhs, field) => self.eval_field(expr, *lhs, field),
-
             _ => Err(InvalidCause::ConstEvalUnsupported { body, expr }.into()),
         }
     }
@@ -438,13 +424,7 @@ impl<'db> CtfeInterpreter<'db> {
                         );
 
                         for (idx, &pat) in pats[..prefix_len].iter().enumerate() {
-                            let Some(elem) = elems.get(idx).copied() else {
-                                debug_assert!(
-                                    false,
-                                    "ctfe invariant: tuple rest prefix index out of bounds"
-                                );
-                                return Err(InvalidCause::ConstEvalUnsupported { body, expr });
-                            };
+                            let elem = elems.get(idx).copied().unwrap();
                             let const_ty = ty_as_const_ty(self.db, body, expr, elem)?;
                             if !self.try_match_pat(expr, pat, const_ty, bindings)? {
                                 return Ok(false);
@@ -475,18 +455,9 @@ impl<'db> CtfeInterpreter<'db> {
                     if field.pat.is_rest(self.db, body) {
                         continue;
                     }
-                    let Some(label) = field.label(self.db, body) else {
-                        debug_assert!(false, "ctfe invariant: record pattern field missing label");
-                        return Err(InvalidCause::ConstEvalUnsupported { body, expr });
-                    };
-                    let Some(idx) = record_like.record_field_idx(self.db, label) else {
-                        debug_assert!(false, "ctfe invariant: record pattern field not in record");
-                        return Err(InvalidCause::ConstEvalUnsupported { body, expr });
-                    };
-                    let Some(field_value) = values.get(idx).copied() else {
-                        debug_assert!(false, "ctfe invariant: record constant missing field value");
-                        return Err(InvalidCause::ConstEvalUnsupported { body, expr });
-                    };
+                    let label = field.label(self.db, body).unwrap();
+                    let idx = record_like.record_field_idx(self.db, label).unwrap();
+                    let field_value = values.get(idx).copied().unwrap();
                     let const_ty = ty_as_const_ty(self.db, body, expr, field_value)?;
                     if !self.try_match_pat(expr, field.pat, const_ty, bindings)? {
                         return Ok(false);
@@ -524,13 +495,7 @@ impl<'db> CtfeInterpreter<'db> {
             Pat::WildCard => Ok(()),
             Pat::Rest => Ok(()),
             Pat::Path(..) => {
-                let Some(binding) = self.typed_body().pat_binding(pat) else {
-                    debug_assert!(
-                        false,
-                        "ctfe invariant: expected Pat::Path to have a local binding"
-                    );
-                    return Err(InvalidCause::ConstEvalUnsupported { body, expr });
-                };
+                let binding = self.typed_body().pat_binding(pat).unwrap();
                 self.env_mut().bindings.insert(binding, value);
                 Ok(())
             }
@@ -544,15 +509,9 @@ impl<'db> CtfeInterpreter<'db> {
                 };
 
                 let rest_idx = pats.iter().position(|pat| pat.is_rest(self.db, body));
-                debug_assert!(
-                    pats.iter().filter(|pat| pat.is_rest(self.db, body)).count() <= 1,
-                    "tuple pattern contains multiple `..`"
-                );
-
                 match rest_idx {
                     None => {
                         debug_assert_eq!(pats.len(), elems.len(), "tuple pattern length mismatch");
-
                         for (&pat, &elem) in pats.iter().zip(elems.iter()) {
                             let const_ty = ty_as_const_ty(self.db, body, expr, elem)?;
                             self.bind_pat(pat, const_ty)?;
@@ -567,13 +526,7 @@ impl<'db> CtfeInterpreter<'db> {
                         );
 
                         for (idx, &pat) in pats[..prefix_len].iter().enumerate() {
-                            let Some(elem) = elems.get(idx) else {
-                                debug_assert!(
-                                    false,
-                                    "ctfe invariant: tuple rest prefix index out of bounds"
-                                );
-                                return Err(InvalidCause::ConstEvalUnsupported { body, expr });
-                            };
+                            let elem = elems.get(idx).unwrap();
                             let const_ty = ty_as_const_ty(self.db, body, expr, *elem)?;
                             self.bind_pat(pat, const_ty)?;
                         }
@@ -585,7 +538,6 @@ impl<'db> CtfeInterpreter<'db> {
                         }
                     }
                 }
-
                 Ok(())
             }
             Pat::Record(_path, fields) => {
@@ -603,18 +555,9 @@ impl<'db> CtfeInterpreter<'db> {
                     if field.pat.is_rest(self.db, body) {
                         continue;
                     }
-                    let Some(label) = field.label(self.db, body) else {
-                        debug_assert!(false, "ctfe invariant: record pattern field missing label");
-                        return Err(InvalidCause::ConstEvalUnsupported { body, expr });
-                    };
-                    let Some(idx) = record_like.record_field_idx(self.db, label) else {
-                        debug_assert!(false, "ctfe invariant: record pattern field not in record");
-                        return Err(InvalidCause::ConstEvalUnsupported { body, expr });
-                    };
-                    let Some(field_value) = values.get(idx).copied() else {
-                        debug_assert!(false, "ctfe invariant: record constant missing field value");
-                        return Err(InvalidCause::ConstEvalUnsupported { body, expr });
-                    };
+                    let label = field.label(self.db, body).unwrap();
+                    let idx = record_like.record_field_idx(self.db, label).unwrap();
+                    let field_value = values.get(idx).copied().unwrap();
                     let const_ty = ty_as_const_ty(self.db, body, expr, field_value)?;
                     self.bind_pat(field.pat, const_ty)?;
                 }
@@ -1003,34 +946,18 @@ impl<'db> CtfeInterpreter<'db> {
             RecordLike::Type(ty) => ty.field_count(self.db),
             RecordLike::EnumVariant(variant) => match variant.kind(self.db) {
                 VariantKind::Record(fields) => fields.data(self.db).len(),
-                _ => {
-                    debug_assert!(false, "ctfe invariant: expected record enum variant");
-                    return Err(InvalidCause::ConstEvalUnsupported { body, expr }.into());
-                }
+                _ => unreachable!("ctfe invariant: expected record enum variant"),
             },
         };
 
         let mut values = vec![None; field_count];
         for field in fields {
-            let Some(label) = field.label_eagerly(self.db, body) else {
-                debug_assert!(false, "ctfe invariant: record init field missing label");
-                return Err(InvalidCause::ConstEvalUnsupported { body, expr }.into());
-            };
-            let Some(idx) = record_like.record_field_idx(self.db, label) else {
-                debug_assert!(false, "ctfe invariant: record init field not in record");
-                return Err(InvalidCause::ConstEvalUnsupported { body, expr }.into());
-            };
-            debug_assert!(
-                values[idx].is_none(),
-                "ctfe invariant: record init has duplicate field"
-            );
+            let label = field.label_eagerly(self.db, body).unwrap();
+            let idx = record_like.record_field_idx(self.db, label).unwrap();
             values[idx] = Some(TyId::const_ty(self.db, self.eval_expr(field.expr)?));
         }
 
-        let Some(values) = values.into_iter().collect::<Option<Vec<_>>>() else {
-            debug_assert!(false, "ctfe invariant: record init missing fields");
-            return Err(InvalidCause::ConstEvalUnsupported { body, expr }.into());
-        };
+        let values = values.into_iter().collect::<Option<Vec<_>>>().unwrap();
         let ty = self.typed_body().expr_ty(self.db, expr);
         Ok(ConstTyId::new(
             self.db,
@@ -1056,17 +983,8 @@ impl<'db> CtfeInterpreter<'db> {
                 ConstTyData::Evaluated(EvaluatedConstTy::Tuple(elems), _),
                 crate::hir_def::FieldIndex::Index(index),
             ) => {
-                let Some(index) = index.data(self.db).to_usize() else {
-                    debug_assert!(
-                        false,
-                        "ctfe invariant: tuple field index did not fit in usize"
-                    );
-                    return Err(InvalidCause::ConstEvalUnsupported { body, expr }.into());
-                };
-                let Some(elem) = elems.get(index).copied() else {
-                    debug_assert!(false, "ctfe invariant: tuple field index out of bounds");
-                    return Err(InvalidCause::ConstEvalUnsupported { body, expr }.into());
-                };
+                let index = index.data(self.db).to_usize().unwrap();
+                let elem = elems.get(index).copied().unwrap();
                 Ok(ty_as_const_ty(self.db, body, expr, elem)?)
             }
 
@@ -1076,14 +994,8 @@ impl<'db> CtfeInterpreter<'db> {
             ) => {
                 let lhs_ty = self.typed_body().expr_ty(self.db, lhs_expr);
                 let record_like = RecordLike::from_ty(lhs_ty);
-                let Some(idx) = record_like.record_field_idx(self.db, name) else {
-                    debug_assert!(false, "ctfe invariant: record field not in record");
-                    return Err(InvalidCause::ConstEvalUnsupported { body, expr }.into());
-                };
-                let Some(field) = fields.get(idx).copied() else {
-                    debug_assert!(false, "ctfe invariant: record constant missing field value");
-                    return Err(InvalidCause::ConstEvalUnsupported { body, expr }.into());
-                };
+                let idx = record_like.record_field_idx(self.db, name).unwrap();
+                let field = fields.get(idx).copied().unwrap();
                 Ok(ty_as_const_ty(self.db, body, expr, field)?)
             }
 
@@ -1105,11 +1017,7 @@ impl<'db> CtfeInterpreter<'db> {
         }
 
         let Partial::Present(Expr::Call(_callee, args)) = expr.data(self.db, body) else {
-            debug_assert!(
-                false,
-                "ctfe invariant: eval_call_expr called on non-call expr"
-            );
-            return Err(InvalidCause::ConstEvalUnsupported { body, expr }.into());
+            unreachable!("ctfe invariant: eval_call_expr called on non-call expr");
         };
 
         let value_args = args
@@ -1193,13 +1101,7 @@ impl<'db> CtfeInterpreter<'db> {
 
     fn eval_method_call_expr(&mut self, expr: ExprId) -> CtfeEval<'db> {
         let body = self.body();
-        let Some(callable) = self.typed_body().callable_expr(expr).cloned() else {
-            debug_assert!(
-                false,
-                "ctfe invariant: missing callable for method call expr"
-            );
-            return Err(InvalidCause::ConstEvalUnsupported { body, expr }.into());
-        };
+        let callable = self.typed_body().callable_expr(expr).cloned().unwrap();
         let CallableDef::Func(mut func) = callable.callable_def else {
             return Err(InvalidCause::ConstEvalUnsupported { body, expr }.into());
         };
@@ -1210,11 +1112,7 @@ impl<'db> CtfeInterpreter<'db> {
         let Partial::Present(Expr::MethodCall(receiver, _method, _generic_args, args)) =
             expr.data(self.db, body)
         else {
-            debug_assert!(
-                false,
-                "ctfe invariant: eval_method_call_expr called on non-call expr"
-            );
-            return Err(InvalidCause::ConstEvalUnsupported { body, expr }.into());
+            unreachable!("ctfe invariant: eval_method_call_expr called on non-call expr");
         };
 
         let receiver_value = self.eval_expr(*receiver)?;
@@ -1431,7 +1329,7 @@ impl<'db> CtfeInterpreter<'db> {
             return Err(InvalidCause::ConstEvalUnsupported { body, expr });
         };
         let bytes = const_as_bytes(self.db, *value, body, expr)?;
-        if let Some(len) = u8_array_len(self.db, ret_ty)
+        if let Some(len) = array_len(self.db, ret_ty)
             && bytes.len() != len
         {
             return Err(InvalidCause::ConstEvalUnsupported { body, expr });
@@ -1561,6 +1459,7 @@ fn const_as_bytes<'db>(
     expr: ExprId,
 ) -> Result<Vec<u8>, InvalidCause<'db>> {
     match value.data(db) {
+        ConstTyData::Evaluated(EvaluatedConstTy::LitBool(flag), _) => Ok(vec![u8::from(*flag)]),
         ConstTyData::Evaluated(EvaluatedConstTy::LitInt(int_id), _) => {
             let ty = value.ty(db);
             let (bits, _) = int_layout(db, ty, body, expr)?;
@@ -1587,13 +1486,30 @@ fn const_as_bytes<'db>(
             }
             Ok(out)
         }
-        ConstTyData::Evaluated(EvaluatedConstTy::Array(elems), _) => elems
-            .iter()
-            .map(|&elem| {
-                let const_ty = ty_as_const_ty(db, body, expr, elem)?;
-                const_as_u8(db, const_ty, body, expr)
-            })
-            .collect(),
+        ConstTyData::Evaluated(EvaluatedConstTy::Record(fields), _) => {
+            let mut out = Vec::new();
+            for &field in fields.iter() {
+                out.extend(const_as_bytes(
+                    db,
+                    ty_as_const_ty(db, body, expr, field)?,
+                    body,
+                    expr,
+                )?);
+            }
+            Ok(out)
+        }
+        ConstTyData::Evaluated(EvaluatedConstTy::Array(elems), _) => {
+            let mut out = Vec::new();
+            for &elem in elems.iter() {
+                out.extend(const_as_bytes(
+                    db,
+                    ty_as_const_ty(db, body, expr, elem)?,
+                    body,
+                    expr,
+                )?);
+            }
+            Ok(out)
+        }
         _ => Err(InvalidCause::ConstEvalUnsupported { body, expr }),
     }
 }
@@ -1732,13 +1648,6 @@ fn from_signed(bits: usize, value: BigInt) -> BigUint {
     v.to_biguint().expect("mod result should be non-negative")
 }
 
-fn is_u8_ty<'db>(db: &'db dyn HirAnalysisDb, ty: TyId<'db>) -> bool {
-    matches!(
-        ty.base_ty(db).data(db),
-        TyData::TyBase(TyBase::Prim(PrimTy::U8))
-    )
-}
-
 fn is_u8_array_ty<'db>(db: &'db dyn HirAnalysisDb, ty: TyId<'db>) -> bool {
     if !ty.is_array(db) {
         return false;
@@ -1748,13 +1657,18 @@ fn is_u8_array_ty<'db>(db: &'db dyn HirAnalysisDb, ty: TyId<'db>) -> bool {
     matches!(args.first().copied(), Some(elem) if is_u8_ty(db, elem))
 }
 
-fn u8_array_len<'db>(db: &'db dyn HirAnalysisDb, ty: TyId<'db>) -> Option<usize> {
-    if !is_u8_array_ty(db, ty) {
-        return None;
-    }
+fn is_u8_ty<'db>(db: &'db dyn HirAnalysisDb, ty: TyId<'db>) -> bool {
+    matches!(
+        ty.base_ty(db).data(db),
+        TyData::TyBase(TyBase::Prim(PrimTy::U8))
+    )
+}
+
+fn array_len<'db>(db: &'db dyn HirAnalysisDb, ty: TyId<'db>) -> Option<usize> {
+    assert!(ty.is_array(db));
 
     let (_, args) = ty.decompose_ty_app(db);
-    const_ty_to_usize(db, *args.get(1)?)
+    const_ty_to_usize(db, *args.get(1).unwrap())
 }
 
 fn const_ty_to_usize<'db>(db: &'db dyn HirAnalysisDb, ty: TyId<'db>) -> Option<usize> {

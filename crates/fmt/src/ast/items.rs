@@ -5,7 +5,10 @@ use pretty::DocAllocator;
 use crate::RewriteContext;
 use parser::ast::{self, ItemKind, ItemModifierOwner, TraitItemKind, prelude::AstNode};
 
-use super::types::{Doc, ToDoc, block_list, block_list_spaced, intersperse};
+use super::types::{
+    Doc, ToDoc, block_list, block_list_spaced, block_list_with_comments, has_comment_tokens,
+    intersperse,
+};
 
 /// Helper to build attributes document for a node.
 fn attrs_doc<'a, N: ast::AttrListOwner + AstNode>(
@@ -324,13 +327,10 @@ fn func_sig_to_doc<'a>(
 
     let generics = generics_doc(sig, ctx);
 
-    let params: Vec<_> = sig
+    let params_doc = sig
         .params()
-        .map(|p| p.into_iter().map(|param| param.to_doc(ctx)).collect())
-        .unwrap_or_default();
-
-    let indent = ctx.config.indent_width as isize;
-    let params_doc = block_list(ctx, "(", ")", params, indent, true);
+        .map(|params| params.to_doc(ctx))
+        .unwrap_or_else(|| alloc.text("()"));
 
     let ret_doc = sig
         .ret_ty()
@@ -478,10 +478,21 @@ impl ToDoc for ast::Func {
 
 impl ToDoc for ast::FuncParamList {
     fn to_doc<'a>(&self, ctx: &'a RewriteContext<'a>) -> Doc<'a> {
-        let params: Vec<_> = self.into_iter().map(|p| p.to_doc(ctx)).collect();
-
         let indent = ctx.config.indent_width as isize;
-        block_list(ctx, "(", ")", params, indent, true)
+        if has_comment_tokens(self.syntax()) {
+            block_list_with_comments(
+                ctx,
+                self.syntax(),
+                "(",
+                ")",
+                ast::FuncParam::cast,
+                indent,
+                true,
+            )
+        } else {
+            let params: Vec<_> = self.into_iter().map(|p| p.to_doc(ctx)).collect();
+            block_list(ctx, "(", ")", params, indent, true)
+        }
     }
 }
 
@@ -544,19 +555,41 @@ impl ToDoc for ast::Struct {
 
 impl ToDoc for ast::RecordFieldDefList {
     fn to_doc<'a>(&self, ctx: &'a RewriteContext<'a>) -> Doc<'a> {
-        let fields: Vec<_> = self.into_iter().map(|f| f.to_doc(ctx)).collect();
-
         let indent = ctx.config.indent_width as isize;
-        block_list_spaced(ctx, "{", "}", fields, indent, true)
+        if has_comment_tokens(self.syntax()) {
+            block_list_with_comments(
+                ctx,
+                self.syntax(),
+                "{",
+                "}",
+                ast::RecordFieldDef::cast,
+                indent,
+                true,
+            )
+        } else {
+            let fields: Vec<_> = self.into_iter().map(|f| f.to_doc(ctx)).collect();
+            block_list_spaced(ctx, "{", "}", fields, indent, true)
+        }
     }
 }
 
 impl ToDoc for ast::ContractFields {
     fn to_doc<'a>(&self, ctx: &'a RewriteContext<'a>) -> Doc<'a> {
-        let fields: Vec<_> = self.into_iter().map(|f| f.to_doc(ctx)).collect();
-
         let indent = ctx.config.indent_width as isize;
-        block_list_spaced(ctx, "{", "}", fields, indent, true)
+        if has_comment_tokens(self.syntax()) {
+            block_list_with_comments(
+                ctx,
+                self.syntax(),
+                "{",
+                "}",
+                ast::RecordFieldDef::cast,
+                indent,
+                true,
+            )
+        } else {
+            let fields: Vec<_> = self.into_iter().map(|f| f.to_doc(ctx)).collect();
+            block_list_spaced(ctx, "{", "}", fields, indent, true)
+        }
     }
 }
 
@@ -685,13 +718,10 @@ impl ToDoc for ast::ContractInit {
     fn to_doc<'a>(&self, ctx: &'a RewriteContext<'a>) -> Doc<'a> {
         let alloc = &ctx.alloc;
 
-        let params: Vec<_> = self
+        let params_doc = self
             .params()
-            .map(|p| p.into_iter().map(|param| param.to_doc(ctx)).collect())
-            .unwrap_or_default();
-
-        let indent = ctx.config.indent_width as isize;
-        let params_doc = block_list(ctx, "(", ")", params, indent, true);
+            .map(|params| params.to_doc(ctx))
+            .unwrap_or_else(|| alloc.text("()"));
 
         let uses_doc = self
             .uses_clause()
@@ -826,6 +856,19 @@ impl ToDoc for ast::VariantDefList {
     fn to_doc<'a>(&self, ctx: &'a RewriteContext<'a>) -> Doc<'a> {
         let alloc = &ctx.alloc;
 
+        if has_comment_tokens(self.syntax()) {
+            let indent = ctx.config.indent_width as isize;
+            return block_list_with_comments(
+                ctx,
+                self.syntax(),
+                "{",
+                "}",
+                ast::VariantDef::cast,
+                indent,
+                true,
+            );
+        }
+
         let variants: Vec<_> = self.into_iter().map(|v| v.to_doc(ctx)).collect();
 
         if variants.is_empty() {
@@ -861,6 +904,17 @@ impl ToDoc for ast::VariantDef {
             ast::VariantKind::Unit => alloc.nil(),
             ast::VariantKind::Tuple(tuple_type) => tuple_type.to_doc(ctx),
             ast::VariantKind::Record(fields) => {
+                if has_comment_tokens(fields.syntax()) {
+                    return attrs
+                        .append(alloc.text(name))
+                        .append(alloc.text(" "))
+                        .append(
+                            fields
+                                .to_doc(ctx)
+                                .max_width_group(ctx.config.struct_variant_width),
+                        );
+                }
+
                 // Format struct variant with max_width_group
                 let field_docs: Vec<_> = fields.into_iter().map(|f| f.to_doc(ctx)).collect();
 
@@ -1144,13 +1198,27 @@ impl ToDoc for ast::UseTree {
 impl ToDoc for ast::UseTreeList {
     fn to_doc<'a>(&self, ctx: &'a RewriteContext<'a>) -> Doc<'a> {
         let alloc = &ctx.alloc;
+        let indent = ctx.config.indent_width as isize;
+
+        if has_comment_tokens(self.syntax()) {
+            return block_list_with_comments(
+                ctx,
+                self.syntax(),
+                "{",
+                "}",
+                ast::UseTree::cast,
+                indent,
+                true,
+            )
+            .max_width_group(ctx.config.use_tree_width);
+        }
+
         let trees: Vec<_> = self.into_iter().map(|t| t.to_doc(ctx)).collect();
 
         if trees.is_empty() {
             return alloc.text("{}");
         }
 
-        let indent = ctx.config.indent_width as isize;
         let sep = alloc.text(",").append(alloc.line());
         let inner = intersperse(alloc, trees, sep);
         let trailing = alloc.text(",").flat_alt(alloc.nil());
@@ -1309,47 +1377,16 @@ impl ToDoc for ast::Msg {
 
 impl ToDoc for ast::MsgVariantList {
     fn to_doc<'a>(&self, ctx: &'a RewriteContext<'a>) -> Doc<'a> {
-        use parser::syntax_kind::SyntaxKind;
-        use parser::syntax_node::NodeOrToken;
-
-        let alloc = &ctx.alloc;
-        let mut inner = alloc.nil();
-        let mut pending_newlines = 0usize;
-        let mut is_first = true;
-
-        for child in self.syntax().children_with_tokens() {
-            match child {
-                NodeOrToken::Node(node) => {
-                    if let Some(variant) = ast::MsgVariant::cast(node) {
-                        // Always add at least one newline before each variant.
-                        // If source had 2+ newlines (blank line), add exactly 2 (one blank line).
-                        let newlines_to_add = if pending_newlines >= 2 { 2 } else { 1 };
-                        for _ in 0..newlines_to_add {
-                            inner = inner.append(alloc.hardline());
-                        }
-                        pending_newlines = 0;
-                        is_first = false;
-                        inner = inner.append(variant.to_doc(ctx)).append(alloc.text(","));
-                    }
-                }
-                NodeOrToken::Token(token) => {
-                    if token.kind() == SyntaxKind::Newline {
-                        let text = ctx.snippet(token.text_range());
-                        pending_newlines = text.chars().filter(|c| *c == '\n').count();
-                    }
-                }
-            }
-        }
-
-        if is_first {
-            return alloc.text("{}");
-        }
-
-        alloc
-            .text("{")
-            .append(inner.nest(ctx.config.indent_width as isize))
-            .append(alloc.hardline())
-            .append(alloc.text("}"))
+        let indent = ctx.config.indent_width as isize;
+        block_list_with_comments(
+            ctx,
+            self.syntax(),
+            "{",
+            "}",
+            ast::MsgVariant::cast,
+            indent,
+            true,
+        )
     }
 }
 
@@ -1383,9 +1420,20 @@ impl ToDoc for ast::MsgVariant {
 
 impl ToDoc for ast::MsgVariantParams {
     fn to_doc<'a>(&self, ctx: &'a RewriteContext<'a>) -> Doc<'a> {
-        let fields: Vec<_> = self.into_iter().map(|f| f.to_doc(ctx)).collect();
-
         let indent = ctx.config.indent_width as isize;
-        block_list_spaced(ctx, "{", "}", fields, indent, true)
+        if has_comment_tokens(self.syntax()) {
+            block_list_with_comments(
+                ctx,
+                self.syntax(),
+                "{",
+                "}",
+                ast::RecordFieldDef::cast,
+                indent,
+                true,
+            )
+        } else {
+            let fields: Vec<_> = self.into_iter().map(|f| f.to_doc(ctx)).collect();
+            block_list_spaced(ctx, "{", "}", fields, indent, true)
+        }
     }
 }

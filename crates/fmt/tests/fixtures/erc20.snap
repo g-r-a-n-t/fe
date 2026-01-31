@@ -23,29 +23,27 @@ pub contract CoolCoin uses (mut ctx: Ctx, mut log: Log) {
     }
 
     recv Erc20 {
-        Transfer { to, amount } -> bool uses (ctx, mut store, mut log) {
+        Transfer { ,  } -> bool uses (ctx, mut store, mut log) {
             transfer(from: ctx.caller(), to, amount)
             true
         }
 
-        Approve { spender, amount } -> bool uses (ctx, mut store, mut log) {
+        Approve { ,  } -> bool uses (ctx, mut store, mut log) {
             approve(owner: ctx.caller(), spender, amount)
             true
         }
 
-        TransferFrom { from, to, amount } -> bool
-        uses (ctx, mut store, mut log)
-        {
+        TransferFrom { , ,  } -> bool uses (ctx, mut store, mut log) {
             spend_allowance(owner: from, spender: ctx.caller(), amount)
             transfer(from, to, amount)
             true
         }
 
-        BalanceOf { account } -> u256 uses store {
+        BalanceOf {  } -> u256 uses store {
             store.balances[account]
         }
 
-        Allowance { owner, spender } -> u256 uses (store) {
+        Allowance { ,  } -> u256 uses (store) {
             store.allowances[(owner, spender)]
         }
 
@@ -65,37 +63,33 @@ pub contract CoolCoin uses (mut ctx: Ctx, mut log: Log) {
     }
 
     recv Erc20Extended {
-        Mint { to, amount } -> bool uses (ctx, mut store, mut log, auth) {
+        Mint { ,  } -> bool uses (ctx, mut store, mut log, auth) {
             auth.require(role: MINTER)
             mint(to, amount)
             true
         }
 
         // Burns tokens from caller's balance
-        Burn { amount } -> bool uses (ctx, mut store, mut log) {
+        Burn {  } -> bool uses (ctx, mut store, mut log) {
             burn(from: ctx.caller(), amount)
             true
         }
 
         // Burns tokens from an account using allowance (requires BURNER or allowance)
-        BurnFrom { from, amount } -> bool uses (ctx, mut store, mut log) {
+        BurnFrom { ,  } -> bool uses (ctx, mut store, mut log) {
             spend_allowance(owner: from, spender: ctx.caller(), amount)
             burn(from, amount)
             true
         }
 
-        IncreaseAllowance { spender, added_value } -> bool
-        uses (ctx, mut store, mut log)
-        {
+        IncreaseAllowance { ,  } -> bool uses (ctx, mut store, mut log) {
             let owner = ctx.caller()
             let current = store.allowances[(owner, spender)]
             approve(owner, spender, amount: current + added_value)
             true
         }
 
-        DecreaseAllowance { spender, subtracted_value } -> bool
-        uses (ctx, mut store, mut log)
-        {
+        DecreaseAllowance { ,  } -> bool uses (ctx, mut store, mut log) {
             let owner = ctx.caller()
             let current = store.allowances[(owner, spender)]
             assert(
@@ -120,11 +114,7 @@ uses (mut store: TokenStore, mut log: Log)
     store.balances[from] = from_balance - amount
     store.balances[to] += amount
 
-    log.emit(TransferEvent {
-            from,
-            to,
-            value: amount,
-        })
+    log.emit(TransferEvent { from, to, value: amount })
 }
 
 fn mint(to: Address, amount: u256) uses (mut store: TokenStore, mut log: Log) {
@@ -133,11 +123,7 @@ fn mint(to: Address, amount: u256) uses (mut store: TokenStore, mut log: Log) {
     store.total_supply += amount
     store.balances[to] += amount
 
-    log.emit(TransferEvent {
-            from: Address::zero(),
-            to,
-            value: amount,
-        })
+    log.emit(TransferEvent { from: Address::zero(), to, value: amount })
 }
 
 fn burn(from: Address, amount: u256)
@@ -151,11 +137,7 @@ uses (mut store: TokenStore, mut log: Log)
     store.balances[from] = from_balance - amount
     store.total_supply -= amount
 
-    log.emit(TransferEvent {
-            from,
-            to: Address::zero(),
-            value: amount,
-        })
+    log.emit(TransferEvent { from, to: Address::zero(), value: amount })
 }
 
 fn approve(owner: Address, spender: Address, amount: u256)
@@ -166,11 +148,7 @@ uses (mut store: TokenStore, mut log: Log)
 
     store.allowances[(owner, spender)] = amount
 
-    log.emit(ApprovalEvent {
-            owner,
-            spender,
-            value: amount,
-        })
+    log.emit(ApprovalEvent { owner, spender, value: amount })
 }
 
 // Internal function to spend allowance
@@ -194,9 +172,7 @@ pub struct AccessControl { roles: Map<(u256, Address), bool> }
 
 impl AccessControl {
     pub fn new() -> Self {
-        AccessControl {
-            roles: Map::new(),
-        }
+        AccessControl { roles: Map::new() }
     }
     pub fn has_role(self, role: u256, account: Address) -> bool {
         self.roles[(role, account)]

@@ -5,7 +5,9 @@ use pretty::DocAllocator;
 use crate::RewriteContext;
 use parser::ast::{self, BinOp, ExprKind, GenericArgsOwner, LogicalBinOp, prelude::AstNode};
 
-use super::types::{Doc, ToDoc, block_list};
+use super::types::{
+    Doc, ToDoc, block_list, block_list_spaced, block_list_with_comments, has_comment_tokens,
+};
 
 // ============================================================================
 // Binary expression formatting with precedence-aware indentation
@@ -229,7 +231,7 @@ fn collect_chain(expr: &ast::Expr) -> (ast::Expr, Vec<ChainSegment>) {
 }
 
 /// Builds a document for a single chain segment.
-fn segment_to_doc<'a>(seg: &ChainSegment, ctx: &'a RewriteContext<'a>, indent: isize) -> Doc<'a> {
+fn segment_to_doc<'a>(seg: &ChainSegment, ctx: &'a RewriteContext<'a>) -> Doc<'a> {
     let alloc = &ctx.alloc;
 
     match seg {
@@ -242,15 +244,15 @@ fn segment_to_doc<'a>(seg: &ChainSegment, ctx: &'a RewriteContext<'a>, indent: i
                 .as_ref()
                 .map(|g| g.to_doc(ctx))
                 .unwrap_or_else(|| alloc.nil());
-            let args_vec: Vec<_> = args
+            let args_doc = args
                 .as_ref()
-                .map(|a| a.clone().into_iter().map(|arg| arg.to_doc(ctx)).collect())
-                .unwrap_or_default();
+                .map(|a| a.to_doc(ctx))
+                .unwrap_or_else(|| alloc.text("()"));
             alloc
                 .text(".")
                 .append(alloc.text(name.clone()))
                 .append(generics_doc)
-                .append(call_args(ctx, args_vec, indent))
+                .append(args_doc)
         }
         ChainSegment::Field { name } => alloc.text(".").append(alloc.text(name.clone())),
     }
@@ -347,12 +349,12 @@ fn format_chain_inner<'a>(
 
     if first_segment_inline {
         // Short root: keep root.first_segment on same line, break before remaining segments
-        let first_seg_doc = segment_to_doc(&segments[0], ctx, indent);
+        let first_seg_doc = segment_to_doc(&segments[0], ctx);
         let mut chain_doc = root_doc.append(first_seg_doc);
 
         // Remaining segments each get a line break before them
         for seg in &segments[1..] {
-            let seg_doc = segment_to_doc(seg, ctx, indent);
+            let seg_doc = segment_to_doc(seg, ctx);
             chain_doc = chain_doc.append(alloc.line_().append(seg_doc).nest(indent));
         }
 
@@ -361,7 +363,7 @@ fn format_chain_inner<'a>(
         // Long root or has prefix: all segments on new lines when broken
         let mut chain_doc = root_doc;
         for seg in segments {
-            let seg_doc = segment_to_doc(seg, ctx, indent);
+            let seg_doc = segment_to_doc(seg, ctx);
             chain_doc = chain_doc.append(alloc.line_().append(seg_doc).nest(indent));
         }
 
@@ -432,6 +434,27 @@ impl ToDoc for ast::CallArg {
     }
 }
 
+impl ToDoc for ast::CallArgList {
+    fn to_doc<'a>(&self, ctx: &'a RewriteContext<'a>) -> Doc<'a> {
+        let indent = ctx.config.indent_width as isize;
+        if has_comment_tokens(self.syntax()) {
+            block_list_with_comments(
+                ctx,
+                self.syntax(),
+                "(",
+                ")",
+                ast::CallArg::cast,
+                indent,
+                true,
+            )
+            .max_width_group(ctx.config.fn_call_width)
+        } else {
+            let args: Vec<_> = self.into_iter().map(|a| a.to_doc(ctx)).collect();
+            call_args(ctx, args, indent)
+        }
+    }
+}
+
 impl ToDoc for ast::CallExpr {
     fn to_doc<'a>(&self, ctx: &'a RewriteContext<'a>) -> Doc<'a> {
         let alloc = &ctx.alloc;
@@ -441,13 +464,12 @@ impl ToDoc for ast::CallExpr {
             None => return alloc.nil(),
         };
 
-        let args: Vec<_> = self
+        let args_doc = self
             .args()
-            .map(|args| args.into_iter().map(|a| a.to_doc(ctx)).collect())
-            .unwrap_or_default();
+            .map(|args| args.to_doc(ctx))
+            .unwrap_or_else(|| alloc.text("()"));
 
-        let indent = ctx.config.indent_width as isize;
-        callee.append(call_args(ctx, args, indent))
+        callee.append(args_doc)
     }
 }
 
@@ -505,7 +527,6 @@ impl ToDoc for ast::RecordField {
 
 impl ToDoc for ast::RecordInitExpr {
     fn to_doc<'a>(&self, ctx: &'a RewriteContext<'a>) -> Doc<'a> {
-        use super::types::intersperse;
         let alloc = &ctx.alloc;
 
         let path = match self.path() {
@@ -513,37 +534,34 @@ impl ToDoc for ast::RecordInitExpr {
             None => return alloc.nil(),
         };
 
-        let fields: Vec<_> = self
+        let fields_doc = self
             .fields()
-            .map(|f| f.into_iter().map(|field| field.to_doc(ctx)).collect())
-            .unwrap_or_default();
+            .map(|fields| fields.to_doc(ctx))
+            .unwrap_or_else(|| alloc.text("{}"));
 
-        if fields.is_empty() {
-            return path.append(alloc.text(" {}"));
-        }
+        path.append(alloc.text(" ")).append(fields_doc)
+    }
+}
 
+impl ToDoc for ast::FieldList {
+    fn to_doc<'a>(&self, ctx: &'a RewriteContext<'a>) -> Doc<'a> {
         let indent = ctx.config.indent_width as isize;
-        let sep = alloc.text(",").append(alloc.line());
-        let inner = intersperse(alloc, fields, sep);
-        let trailing = alloc.text(",").flat_alt(alloc.nil());
-
-        // Use line() for spaced variant: renders as space when flat, newline when broken
-        let break_token = alloc.line();
-
-        let body = alloc
-            .text("{")
-            .append(
-                break_token
-                    .clone()
-                    .append(inner)
-                    .append(trailing)
-                    .nest(indent),
+        let doc = if has_comment_tokens(self.syntax()) {
+            block_list_with_comments(
+                ctx,
+                self.syntax(),
+                "{",
+                "}",
+                ast::RecordField::cast,
+                indent,
+                true,
             )
-            .append(break_token)
-            .append(alloc.text("}"))
-            .max_width_group(ctx.config.struct_lit_width);
+        } else {
+            let fields: Vec<_> = self.into_iter().map(|f| f.to_doc(ctx)).collect();
+            block_list_spaced(ctx, "{", "}", fields, indent, true)
+        };
 
-        path.append(alloc.text(" ")).append(body)
+        doc.max_width_group(ctx.config.struct_lit_width)
     }
 }
 
@@ -673,16 +691,31 @@ impl ToDoc for ast::UsesClause {
         let alloc = &ctx.alloc;
 
         if let Some(params) = self.param_list() {
-            let params_docs: Vec<_> = params.into_iter().map(|p| p.to_doc(ctx)).collect();
-
-            let clause_indent = ctx.config.clause_indent as isize;
-            alloc
-                .text("uses ")
-                .append(block_list(ctx, "(", ")", params_docs, clause_indent, true))
+            alloc.text("uses ").append(params.to_doc(ctx))
         } else if let Some(param) = self.param() {
             alloc.text("uses ").append(param.to_doc(ctx))
         } else {
             alloc.nil()
+        }
+    }
+}
+
+impl ToDoc for ast::UsesParamList {
+    fn to_doc<'a>(&self, ctx: &'a RewriteContext<'a>) -> Doc<'a> {
+        let clause_indent = ctx.config.clause_indent as isize;
+        if has_comment_tokens(self.syntax()) {
+            block_list_with_comments(
+                ctx,
+                self.syntax(),
+                "(",
+                ")",
+                ast::UsesParam::cast,
+                clause_indent,
+                true,
+            )
+        } else {
+            let params_docs: Vec<_> = self.into_iter().map(|p| p.to_doc(ctx)).collect();
+            block_list(ctx, "(", ")", params_docs, clause_indent, true)
         }
     }
 }
@@ -718,39 +751,81 @@ impl ToDoc for ast::MatchExpr {
             None => return alloc.nil(),
         };
 
-        let arms: Vec<_> = self
-            .arms()
-            .map(|arms| {
-                arms.into_iter()
-                    .filter_map(|arm| {
-                        let pat = arm.pat()?.to_doc(ctx);
-                        let body = arm.body()?.to_doc(ctx);
-                        Some(
-                            pat.append(alloc.text(" => "))
-                                .append(body)
-                                .append(alloc.text(",")),
-                        )
-                    })
-                    .collect()
-            })
-            .unwrap_or_default();
+        let arms_doc = self.arms().map(|arms| arms.to_doc(ctx));
 
-        if arms.is_empty() {
+        if arms_doc.is_none() {
             return alloc
                 .text("match ")
                 .append(scrutinee)
                 .append(alloc.text(" {}"));
         }
 
-        let arms_doc = alloc.concat(arms.into_iter().map(|arm| alloc.hardline().append(arm)));
-
         alloc
             .text("match ")
             .append(scrutinee)
-            .append(alloc.text(" {"))
-            .append(arms_doc.nest(ctx.config.indent_width as isize))
-            .append(alloc.hardline())
-            .append(alloc.text("}"))
+            .append(alloc.text(" "))
+            .append(arms_doc.unwrap())
+    }
+}
+
+impl ToDoc for ast::MatchArmList {
+    fn to_doc<'a>(&self, ctx: &'a RewriteContext<'a>) -> Doc<'a> {
+        let indent = ctx.config.indent_width as isize;
+        if has_comment_tokens(self.syntax()) {
+            block_list_with_comments(
+                ctx,
+                self.syntax(),
+                "{",
+                "}",
+                ast::MatchArm::cast,
+                indent,
+                true,
+            )
+        } else {
+            let alloc = &ctx.alloc;
+
+            let arms: Vec<_> = self
+                .into_iter()
+                .filter_map(|arm| {
+                    let pat = arm.pat()?.to_doc(ctx);
+                    let body = arm.body()?.to_doc(ctx);
+                    Some(
+                        pat.append(alloc.text(" => "))
+                            .append(body)
+                            .append(alloc.text(",")),
+                    )
+                })
+                .collect();
+
+            if arms.is_empty() {
+                return alloc.text("{}");
+            }
+
+            let inner = alloc.concat(arms.into_iter().map(|arm| alloc.hardline().append(arm)));
+            alloc
+                .text("{")
+                .append(inner.nest(indent))
+                .append(alloc.hardline())
+                .append(alloc.text("}"))
+        }
+    }
+}
+
+impl ToDoc for ast::MatchArm {
+    fn to_doc<'a>(&self, ctx: &'a RewriteContext<'a>) -> Doc<'a> {
+        let alloc = &ctx.alloc;
+
+        let pat = match self.pat() {
+            Some(p) => p.to_doc(ctx),
+            None => return alloc.nil(),
+        };
+
+        let body = match self.body() {
+            Some(b) => b.to_doc(ctx),
+            None => return pat,
+        };
+
+        pat.append(alloc.text(" => ")).append(body)
     }
 }
 
@@ -775,13 +850,10 @@ impl ToDoc for ast::WithExpr {
     fn to_doc<'a>(&self, ctx: &'a RewriteContext<'a>) -> Doc<'a> {
         let alloc = &ctx.alloc;
 
-        let params: Vec<_> = self
+        let params_doc = self
             .params()
-            .map(|p| p.into_iter().map(|param| param.to_doc(ctx)).collect())
-            .unwrap_or_default();
-
-        let indent = ctx.config.indent_width as isize;
-        let params_doc = block_list(ctx, "(", ")", params, indent, true);
+            .map(|params| params.to_doc(ctx))
+            .unwrap_or_else(|| alloc.text("()"));
 
         let body = match self.body() {
             Some(b) => b.to_doc(ctx),
@@ -796,21 +868,47 @@ impl ToDoc for ast::WithExpr {
     }
 }
 
+impl ToDoc for ast::WithParamList {
+    fn to_doc<'a>(&self, ctx: &'a RewriteContext<'a>) -> Doc<'a> {
+        let indent = ctx.config.indent_width as isize;
+        if has_comment_tokens(self.syntax()) {
+            block_list_with_comments(
+                ctx,
+                self.syntax(),
+                "(",
+                ")",
+                ast::WithParam::cast,
+                indent,
+                true,
+            )
+        } else {
+            let params: Vec<_> = self.into_iter().map(|param| param.to_doc(ctx)).collect();
+            block_list(ctx, "(", ")", params, indent, true)
+        }
+    }
+}
+
 impl ToDoc for ast::TupleExpr {
     fn to_doc<'a>(&self, ctx: &'a RewriteContext<'a>) -> Doc<'a> {
-        let elems: Vec<_> = self.elems().flatten().map(|e| e.to_doc(ctx)).collect();
-
         let indent = ctx.config.indent_width as isize;
-        block_list(ctx, "(", ")", elems, indent, true)
+        if has_comment_tokens(self.syntax()) {
+            block_list_with_comments(ctx, self.syntax(), "(", ")", ast::Expr::cast, indent, true)
+        } else {
+            let elems: Vec<_> = self.elems().flatten().map(|e| e.to_doc(ctx)).collect();
+            block_list(ctx, "(", ")", elems, indent, true)
+        }
     }
 }
 
 impl ToDoc for ast::ArrayExpr {
     fn to_doc<'a>(&self, ctx: &'a RewriteContext<'a>) -> Doc<'a> {
-        let elems: Vec<_> = self.elems().flatten().map(|e| e.to_doc(ctx)).collect();
-
         let indent = ctx.config.indent_width as isize;
-        block_list(ctx, "[", "]", elems, indent, true)
+        if has_comment_tokens(self.syntax()) {
+            block_list_with_comments(ctx, self.syntax(), "[", "]", ast::Expr::cast, indent, true)
+        } else {
+            let elems: Vec<_> = self.elems().flatten().map(|e| e.to_doc(ctx)).collect();
+            block_list(ctx, "[", "]", elems, indent, true)
+        }
     }
 }
 

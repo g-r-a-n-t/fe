@@ -3,7 +3,11 @@
 use pretty::{DocAllocator, DocBuilder, RcAllocator};
 
 use crate::RewriteContext;
-use parser::ast::{self, GenericArgKind, GenericArgsOwner, GenericParamKind, TypeKind};
+use parser::ast::{
+    self, GenericArgKind, GenericArgsOwner, GenericParamKind, TypeKind, prelude::AstNode,
+};
+use parser::syntax_kind::SyntaxKind;
+use parser::syntax_node::NodeOrToken;
 
 /// Type alias for the document builder type used throughout formatting.
 pub type Doc<'a> = DocBuilder<'a, RcAllocator, ()>;
@@ -60,6 +64,110 @@ pub fn block_list_spaced<'a>(
     block_list_inner(ctx, open, close, items, indent, trailing_comma, true)
 }
 
+pub fn has_comment_tokens(syntax: &parser::SyntaxNode) -> bool {
+    syntax.children_with_tokens().any(|child| {
+        matches!(
+            child,
+            NodeOrToken::Token(t) if matches!(t.kind(), SyntaxKind::Comment | SyntaxKind::DocComment)
+        )
+    })
+}
+
+pub fn block_list_with_comments<'a, T: ToDoc>(
+    ctx: &'a RewriteContext<'a>,
+    syntax: &parser::SyntaxNode,
+    open: &'a str,
+    close: &'a str,
+    cast_fn: impl Fn(parser::SyntaxNode) -> Option<T>,
+    indent: isize,
+    trailing_comma: bool,
+) -> Doc<'a> {
+    let alloc = &ctx.alloc;
+
+    #[derive(Clone)]
+    enum Entry<'a> {
+        Element(Doc<'a>),
+        Comment(String),
+    }
+
+    struct EntryWithSpacing<'a> {
+        entry: Entry<'a>,
+        blank_line_before: bool,
+    }
+
+    let mut entries: Vec<EntryWithSpacing<'a>> = Vec::new();
+    let mut pending_newlines = 0usize;
+
+    for child in syntax.children_with_tokens() {
+        match child {
+            NodeOrToken::Node(node) => {
+                let Some(elem) = cast_fn(node) else {
+                    continue;
+                };
+                entries.push(EntryWithSpacing {
+                    entry: Entry::Element(elem.to_doc(ctx)),
+                    blank_line_before: pending_newlines >= 2,
+                });
+                pending_newlines = 0;
+            }
+            NodeOrToken::Token(token) => match token.kind() {
+                SyntaxKind::Newline => {
+                    let text = ctx.snippet(token.text_range());
+                    pending_newlines += text.chars().filter(|c| *c == '\n').count();
+                }
+                SyntaxKind::WhiteSpace => {}
+                SyntaxKind::Comment | SyntaxKind::DocComment => {
+                    entries.push(EntryWithSpacing {
+                        entry: Entry::Comment(
+                            ctx.snippet(token.text_range()).trim_end().to_string(),
+                        ),
+                        blank_line_before: pending_newlines >= 2,
+                    });
+                    pending_newlines = 0;
+                }
+                _ => {}
+            },
+        }
+    }
+
+    if entries.is_empty() {
+        return alloc.text(format!("{open}{close}"));
+    }
+
+    let last_element_idx = entries
+        .iter()
+        .rposition(|e| matches!(e.entry, Entry::Element(_)));
+
+    let mut inner = alloc.nil();
+    for (idx, entry) in entries.into_iter().enumerate() {
+        let newlines_to_add = if entry.blank_line_before { 2 } else { 1 };
+        for _ in 0..newlines_to_add {
+            inner = inner.append(alloc.hardline());
+        }
+
+        match entry.entry {
+            Entry::Element(doc) => {
+                let is_last_element = last_element_idx == Some(idx);
+                let elem_doc = if trailing_comma || !is_last_element {
+                    doc.append(alloc.text(","))
+                } else {
+                    doc
+                };
+                inner = inner.append(elem_doc);
+            }
+            Entry::Comment(text) => {
+                inner = inner.append(alloc.text(text));
+            }
+        }
+    }
+
+    alloc
+        .text(open)
+        .append(inner.nest(indent))
+        .append(alloc.hardline())
+        .append(alloc.text(close))
+}
+
 fn block_list_inner<'a>(
     ctx: &'a RewriteContext<'a>,
     open: &'a str,
@@ -104,10 +212,21 @@ fn block_list_inner<'a>(
 
 impl ToDoc for ast::GenericParamList {
     fn to_doc<'a>(&self, ctx: &'a RewriteContext<'a>) -> Doc<'a> {
-        let params: Vec<_> = self.into_iter().map(|p| p.to_doc(ctx)).collect();
-
         let indent = ctx.config.indent_width as isize;
-        block_list(ctx, "<", ">", params, indent, true)
+        if has_comment_tokens(self.syntax()) {
+            block_list_with_comments(
+                ctx,
+                self.syntax(),
+                "<",
+                ">",
+                ast::GenericParam::cast,
+                indent,
+                true,
+            )
+        } else {
+            let params: Vec<_> = self.into_iter().map(|p| p.to_doc(ctx)).collect();
+            block_list(ctx, "<", ">", params, indent, true)
+        }
     }
 }
 
@@ -341,10 +460,21 @@ impl ToDoc for ast::QualifiedType {
 
 impl ToDoc for ast::GenericArgList {
     fn to_doc<'a>(&self, ctx: &'a RewriteContext<'a>) -> Doc<'a> {
-        let args: Vec<_> = self.into_iter().map(|a| a.to_doc(ctx)).collect();
-
         let indent = ctx.config.indent_width as isize;
-        block_list(ctx, "<", ">", args, indent, true)
+        if has_comment_tokens(self.syntax()) {
+            block_list_with_comments(
+                ctx,
+                self.syntax(),
+                "<",
+                ">",
+                ast::GenericArg::cast,
+                indent,
+                true,
+            )
+        } else {
+            let args: Vec<_> = self.into_iter().map(|a| a.to_doc(ctx)).collect();
+            block_list(ctx, "<", ">", args, indent, true)
+        }
     }
 }
 
@@ -395,10 +525,13 @@ impl ToDoc for ast::AssocTypeGenericArg {
 
 impl ToDoc for ast::TupleType {
     fn to_doc<'a>(&self, ctx: &'a RewriteContext<'a>) -> Doc<'a> {
-        let elems: Vec<_> = self.elem_tys().map(|e| e.to_doc(ctx)).collect();
-
         let indent = ctx.config.indent_width as isize;
-        block_list(ctx, "(", ")", elems, indent, true)
+        if has_comment_tokens(self.syntax()) {
+            block_list_with_comments(ctx, self.syntax(), "(", ")", ast::Type::cast, indent, true)
+        } else {
+            let elems: Vec<_> = self.elem_tys().map(|e| e.to_doc(ctx)).collect();
+            block_list(ctx, "(", ")", elems, indent, true)
+        }
     }
 }
 

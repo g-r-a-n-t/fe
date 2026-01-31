@@ -3,9 +3,9 @@
 use pretty::DocAllocator;
 
 use crate::RewriteContext;
-use parser::ast::{self, AttrArgValueKind, AttrKind};
+use parser::ast::{self, AttrArgValueKind, AttrKind, prelude::AstNode};
 
-use super::types::{Doc, ToDoc, block_list};
+use super::types::{Doc, ToDoc, block_list, block_list_with_comments, has_comment_tokens};
 
 impl ToDoc for ast::AttrList {
     fn to_doc<'a>(&self, ctx: &'a RewriteContext<'a>) -> Doc<'a> {
@@ -79,10 +79,21 @@ impl ToDoc for ast::DocCommentAttr {
 
 impl ToDoc for ast::AttrArgList {
     fn to_doc<'a>(&self, ctx: &'a RewriteContext<'a>) -> Doc<'a> {
-        let args: Vec<_> = self.iter().map(|arg| arg.to_doc(ctx)).collect();
-
         let indent = ctx.config.indent_width as isize;
-        block_list(ctx, "(", ")", args, indent, true)
+        if has_comment_tokens(self.syntax()) {
+            block_list_with_comments(
+                ctx,
+                self.syntax(),
+                "(",
+                ")",
+                ast::AttrArg::cast,
+                indent,
+                true,
+            )
+        } else {
+            let args: Vec<_> = self.iter().map(|arg| arg.to_doc(ctx)).collect();
+            block_list(ctx, "(", ")", args, indent, true)
+        }
     }
 }
 

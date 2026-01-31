@@ -211,6 +211,12 @@ pub(crate) fn evaluate_const_ty<'db>(
         }) => Some((*expected, *given)),
         _ => None,
     }) {
+        // If this const body belongs to a trait impl associated const, prefer
+        // reporting the mismatch at the const definition during impl checks.
+        if matches!(body.scope().parent_item(db), Some(ItemKind::ImplTrait(_))) {
+            return ConstTyId::invalid(db, InvalidCause::Other);
+        }
+
         return ConstTyId::invalid(db, InvalidCause::ConstTyMismatch { expected, given });
     }
 

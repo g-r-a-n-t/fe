@@ -2848,6 +2848,10 @@ impl<'db> ImplAssocConstView<'db> {
         self.def(db).value.to_opt().is_some()
     }
 
+    pub fn value_body(self, db: &'db dyn HirDb) -> Option<crate::core::hir_def::Body<'db>> {
+        self.def(db).value.to_opt()
+    }
+
     /// Semantic type of this associated const implementation.
     pub fn ty(self, db: &'db dyn HirAnalysisDb) -> Option<TyId<'db>> {
         let hir = self.def(db).ty.to_opt()?;

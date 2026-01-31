@@ -879,10 +879,12 @@ impl ToDoc for ast::BlockExpr {
         // Process children in source order to preserve blank lines
         let mut children = self.syntax().children_with_tokens().peekable();
 
-        // Skip leading `{` and trivia
+        // Skip leading `{` and whitespace (but not comments).
         while let Some(child) = children.peek() {
             match child {
-                NodeOrToken::Token(t) if t.kind() == SyntaxKind::LBrace || t.kind().is_trivia() => {
+                NodeOrToken::Token(t)
+                    if matches!(t.kind(), SyntaxKind::LBrace | SyntaxKind::WhiteSpace) =>
+                {
                     children.next();
                 }
                 _ => break,

@@ -4,9 +4,10 @@ use pretty::DocAllocator;
 
 use crate::RewriteContext;
 use parser::ast::{self, StmtKind, prelude::AstNode};
+use parser::syntax_kind::SyntaxKind;
 
 use super::expr::{format_chain_with_prefix, is_chain};
-use super::types::{Doc, ToDoc, snippet_doc_if_comment_tokens};
+use super::types::{Doc, ToDoc, TokenPiece, has_comment_tokens, token_doc};
 
 impl ToDoc for ast::Stmt {
     fn to_doc<'a>(&self, ctx: &'a RewriteContext<'a>) -> Doc<'a> {
@@ -59,61 +60,112 @@ impl ToDoc for ast::LetStmt {
 
 impl ToDoc for ast::ForStmt {
     fn to_doc<'a>(&self, ctx: &'a RewriteContext<'a>) -> Doc<'a> {
-        if let Some(doc) = snippet_doc_if_comment_tokens(ctx, self.syntax()) {
-            return doc;
-        }
         let alloc = &ctx.alloc;
 
-        let pat = match self.pat() {
-            Some(p) => p.to_doc(ctx),
-            None => return alloc.text("for"),
-        };
-        let iterable = match self.iterable() {
-            Some(i) => i.to_doc(ctx),
-            None => return alloc.text("for ").append(pat),
-        };
-        let body = match self.body() {
-            Some(b) => b.to_doc(ctx),
-            None => {
-                return alloc
-                    .text("for ")
-                    .append(pat)
-                    .append(alloc.text(" in "))
-                    .append(iterable);
-            }
-        };
+        if !has_comment_tokens(self.syntax()) {
+            let pat = match self.pat() {
+                Some(p) => p.to_doc(ctx),
+                None => return alloc.text("for"),
+            };
+            let iterable = match self.iterable() {
+                Some(i) => i.to_doc(ctx),
+                None => return alloc.text("for ").append(pat),
+            };
+            let body = match self.body() {
+                Some(b) => b.to_doc(ctx),
+                None => {
+                    return alloc
+                        .text("for ")
+                        .append(pat)
+                        .append(alloc.text(" in "))
+                        .append(iterable);
+                }
+            };
 
-        alloc
-            .text("for ")
-            .append(pat)
-            .append(alloc.text(" in "))
-            .append(iterable)
-            .append(alloc.text(" "))
-            .append(body)
+            return alloc
+                .text("for ")
+                .append(pat)
+                .append(alloc.text(" in "))
+                .append(iterable)
+                .append(alloc.text(" "))
+                .append(body);
+        }
+
+        let indent = ctx.config.indent_width as isize;
+        let mut seen_pat = false;
+        let mut expr_count = 0usize;
+
+        token_doc(
+            ctx,
+            self.syntax(),
+            indent,
+            |node| {
+                if !seen_pat && let Some(pat) = ast::Pat::cast(node.clone()) {
+                    seen_pat = true;
+                    return Some(TokenPiece::new(pat.to_doc(ctx)));
+                }
+
+                let expr = ast::Expr::cast(node)?;
+                expr_count += 1;
+                let piece = TokenPiece::new(expr.to_doc(ctx));
+                Some(if expr_count == 1 {
+                    piece.space_after()
+                } else {
+                    piece
+                })
+            },
+            |token| match token.kind() {
+                SyntaxKind::ForKw => Some(TokenPiece::new(alloc.text("for")).space_after()),
+                SyntaxKind::InKw => Some(TokenPiece::new(alloc.text("in")).spaces()),
+                _ => None,
+            },
+        )
     }
 }
 
 impl ToDoc for ast::WhileStmt {
     fn to_doc<'a>(&self, ctx: &'a RewriteContext<'a>) -> Doc<'a> {
-        if let Some(doc) = snippet_doc_if_comment_tokens(ctx, self.syntax()) {
-            return doc;
-        }
         let alloc = &ctx.alloc;
 
-        let cond = match self.cond() {
-            Some(c) => c.to_doc(ctx),
-            None => return alloc.text("while"),
-        };
-        let body = match self.body() {
-            Some(b) => b.to_doc(ctx),
-            None => return alloc.text("while ").append(cond),
-        };
+        if !has_comment_tokens(self.syntax()) {
+            let cond = match self.cond() {
+                Some(c) => c.to_doc(ctx),
+                None => return alloc.text("while"),
+            };
+            let body = match self.body() {
+                Some(b) => b.to_doc(ctx),
+                None => return alloc.text("while ").append(cond),
+            };
 
-        alloc
-            .text("while ")
-            .append(cond)
-            .append(alloc.text(" "))
-            .append(body)
+            return alloc
+                .text("while ")
+                .append(cond)
+                .append(alloc.text(" "))
+                .append(body);
+        }
+
+        let indent = ctx.config.indent_width as isize;
+        let mut expr_count = 0usize;
+
+        token_doc(
+            ctx,
+            self.syntax(),
+            indent,
+            |node| {
+                let expr = ast::Expr::cast(node)?;
+                expr_count += 1;
+                let piece = TokenPiece::new(expr.to_doc(ctx));
+                Some(if expr_count == 1 {
+                    piece.space_after()
+                } else {
+                    piece
+                })
+            },
+            |token| match token.kind() {
+                SyntaxKind::WhileKw => Some(TokenPiece::new(alloc.text("while")).space_after()),
+                _ => None,
+            },
+        )
     }
 }
 

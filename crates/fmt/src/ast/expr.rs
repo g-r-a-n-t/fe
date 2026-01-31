@@ -8,8 +8,8 @@ use parser::syntax_kind::SyntaxKind;
 use parser::syntax_node::NodeOrToken;
 
 use super::types::{
-    Doc, ToDoc, block_list, block_list_spaced, block_list_with_comments, hardlines,
-    has_comment_tokens, snippet_doc_if_comment_tokens,
+    Doc, ToDoc, TokenPiece, block_list, block_list_spaced, block_list_with_comments, hardlines,
+    has_comment_tokens, token_doc,
 };
 
 // ============================================================================
@@ -381,50 +381,93 @@ fn format_chain_inner<'a>(
 
 impl ToDoc for ast::BinExpr {
     fn to_doc<'a>(&self, ctx: &'a RewriteContext<'a>) -> Doc<'a> {
-        if let Some(doc) = snippet_doc_if_comment_tokens(ctx, self.syntax()) {
-            return doc;
+        let alloc = &ctx.alloc;
+
+        if !has_comment_tokens(self.syntax()) {
+            return format_bin_expr(self, ctx);
         }
-        format_bin_expr(self, ctx)
+
+        let indent = ctx.config.indent_width as isize;
+        token_doc(
+            ctx,
+            self.syntax(),
+            indent,
+            |node| ast::Expr::cast(node).map(|expr| TokenPiece::new(expr.to_doc(ctx))),
+            |token| {
+                Some(
+                    TokenPiece::new(alloc.text(ctx.snippet(token.text_range()).trim().to_string()))
+                        .spaces(),
+                )
+            },
+        )
     }
 }
 
 impl ToDoc for ast::UnExpr {
     fn to_doc<'a>(&self, ctx: &'a RewriteContext<'a>) -> Doc<'a> {
-        if let Some(doc) = snippet_doc_if_comment_tokens(ctx, self.syntax()) {
-            return doc;
-        }
         let alloc = &ctx.alloc;
 
-        let op = match self.op() {
-            Some(o) => ctx.snippet(o.syntax().text_range()).trim().to_string(),
-            None => return alloc.nil(),
-        };
-        let expr = match self.expr() {
-            Some(e) => e.to_doc(ctx),
-            None => return alloc.text(op),
-        };
+        if !has_comment_tokens(self.syntax()) {
+            let op = match self.op() {
+                Some(o) => ctx.snippet(o.syntax().text_range()).trim().to_string(),
+                None => return alloc.nil(),
+            };
+            let expr = match self.expr() {
+                Some(e) => e.to_doc(ctx),
+                None => return alloc.text(op),
+            };
 
-        alloc.text(op).append(expr)
+            return alloc.text(op).append(expr);
+        }
+
+        let indent = ctx.config.indent_width as isize;
+        token_doc(
+            ctx,
+            self.syntax(),
+            indent,
+            |node| ast::Expr::cast(node).map(|expr| TokenPiece::new(expr.to_doc(ctx))),
+            |token| {
+                Some(TokenPiece::new(
+                    alloc.text(ctx.snippet(token.text_range()).trim().to_string()),
+                ))
+            },
+        )
     }
 }
 
 impl ToDoc for ast::CastExpr {
     fn to_doc<'a>(&self, ctx: &'a RewriteContext<'a>) -> Doc<'a> {
-        if let Some(doc) = snippet_doc_if_comment_tokens(ctx, self.syntax()) {
-            return doc;
-        }
         let alloc = &ctx.alloc;
 
-        let expr = match self.expr() {
-            Some(e) => e.to_doc(ctx),
-            None => return alloc.nil(),
-        };
-        let ty = match self.ty() {
-            Some(t) => t.to_doc(ctx),
-            None => return expr,
-        };
+        if !has_comment_tokens(self.syntax()) {
+            let expr = match self.expr() {
+                Some(e) => e.to_doc(ctx),
+                None => return alloc.nil(),
+            };
+            let ty = match self.ty() {
+                Some(t) => t.to_doc(ctx),
+                None => return expr,
+            };
 
-        expr.append(alloc.text(" as ")).append(ty)
+            return expr.append(alloc.text(" as ")).append(ty);
+        }
+
+        let indent = ctx.config.indent_width as isize;
+        token_doc(
+            ctx,
+            self.syntax(),
+            indent,
+            |node| {
+                if let Some(expr) = ast::Expr::cast(node.clone()) {
+                    return Some(TokenPiece::new(expr.to_doc(ctx)));
+                }
+                ast::Type::cast(node).map(|ty| TokenPiece::new(ty.to_doc(ctx)))
+            },
+            |token| match token.kind() {
+                SyntaxKind::AsKw => Some(TokenPiece::new(alloc.text("as")).spaces()),
+                _ => None,
+            },
+        )
     }
 }
 
@@ -509,11 +552,35 @@ fn call_args<'a>(ctx: &'a RewriteContext<'a>, args: Vec<Doc<'a>>, indent: isize)
 
 impl ToDoc for ast::MethodCallExpr {
     fn to_doc<'a>(&self, ctx: &'a RewriteContext<'a>) -> Doc<'a> {
-        if let Some(doc) = snippet_doc_if_comment_tokens(ctx, self.syntax()) {
-            return doc;
+        let alloc = &ctx.alloc;
+
+        if !has_comment_tokens(self.syntax()) {
+            // Delegate to chain formatting which handles the entire chain at once
+            return format_chain(&ast::Expr::cast(self.syntax().clone()).unwrap(), ctx);
         }
-        // Delegate to chain formatting which handles the entire chain at once
-        format_chain(&ast::Expr::cast(self.syntax().clone()).unwrap(), ctx)
+
+        let indent = ctx.config.indent_width as isize;
+        token_doc(
+            ctx,
+            self.syntax(),
+            indent,
+            |node| {
+                if let Some(expr) = ast::Expr::cast(node.clone()) {
+                    return Some(TokenPiece::new(expr.to_doc(ctx)));
+                }
+                if let Some(generic_args) = ast::GenericArgList::cast(node.clone()) {
+                    return Some(TokenPiece::new(generic_args.to_doc(ctx)));
+                }
+                ast::CallArgList::cast(node).map(|args| TokenPiece::new(args.to_doc(ctx)))
+            },
+            |token| match token.kind() {
+                SyntaxKind::Dot => Some(TokenPiece::new(alloc.text("."))),
+                SyntaxKind::Ident => Some(TokenPiece::new(
+                    alloc.text(ctx.snippet(token.text_range()).trim().to_string()),
+                )),
+                _ => None,
+            },
+        )
     }
 }
 
@@ -582,55 +649,81 @@ impl ToDoc for ast::FieldList {
 
 impl ToDoc for ast::AssignExpr {
     fn to_doc<'a>(&self, ctx: &'a RewriteContext<'a>) -> Doc<'a> {
-        if let Some(doc) = snippet_doc_if_comment_tokens(ctx, self.syntax()) {
-            return doc;
-        }
         let alloc = &ctx.alloc;
 
-        let lhs = match self.lhs_expr() {
-            Some(e) => e.to_doc(ctx),
-            None => return alloc.nil(),
-        };
+        if !has_comment_tokens(self.syntax()) {
+            let lhs = match self.lhs_expr() {
+                Some(e) => e.to_doc(ctx),
+                None => return alloc.nil(),
+            };
 
-        let rhs_expr = match self.rhs_expr() {
-            Some(e) => e,
-            None => return lhs,
-        };
+            let rhs_expr = match self.rhs_expr() {
+                Some(e) => e,
+                None => return lhs,
+            };
 
-        // If RHS is a chain, use BlockDoc for intelligent breaking
-        if is_chain(&rhs_expr) {
-            let prefix = lhs.append(alloc.text(" = "));
-            format_chain_with_prefix(prefix, &rhs_expr, ctx)
-        } else {
-            lhs.append(alloc.text(" = ")).append(rhs_expr.to_doc(ctx))
+            // If RHS is a chain, use BlockDoc for intelligent breaking
+            return if is_chain(&rhs_expr) {
+                let prefix = lhs.append(alloc.text(" = "));
+                format_chain_with_prefix(prefix, &rhs_expr, ctx)
+            } else {
+                lhs.append(alloc.text(" = ")).append(rhs_expr.to_doc(ctx))
+            };
         }
+
+        let indent = ctx.config.indent_width as isize;
+        token_doc(
+            ctx,
+            self.syntax(),
+            indent,
+            |node| ast::Expr::cast(node).map(|expr| TokenPiece::new(expr.to_doc(ctx))),
+            |token| match token.kind() {
+                SyntaxKind::Eq => Some(TokenPiece::new(alloc.text("=")).spaces()),
+                _ => None,
+            },
+        )
     }
 }
 
 impl ToDoc for ast::AugAssignExpr {
     fn to_doc<'a>(&self, ctx: &'a RewriteContext<'a>) -> Doc<'a> {
-        if let Some(doc) = snippet_doc_if_comment_tokens(ctx, self.syntax()) {
-            return doc;
-        }
         let alloc = &ctx.alloc;
 
-        let lhs = match self.lhs_expr() {
-            Some(e) => e.to_doc(ctx),
-            None => return alloc.nil(),
-        };
-        let op = match self.op() {
-            Some(o) => ctx.snippet_node_or_token(&o.syntax()).to_string(),
-            None => return lhs,
-        };
-        let rhs = match self.rhs_expr() {
-            Some(e) => e.to_doc(ctx),
-            None => return lhs,
-        };
+        if !has_comment_tokens(self.syntax()) {
+            let lhs = match self.lhs_expr() {
+                Some(e) => e.to_doc(ctx),
+                None => return alloc.nil(),
+            };
+            let op = match self.op() {
+                Some(o) => ctx.snippet_node_or_token(&o.syntax()).to_string(),
+                None => return lhs,
+            };
+            let rhs = match self.rhs_expr() {
+                Some(e) => e.to_doc(ctx),
+                None => return lhs,
+            };
 
-        lhs.append(alloc.text(" "))
-            .append(alloc.text(op))
-            .append(alloc.text("= "))
-            .append(rhs)
+            return lhs
+                .append(alloc.text(" "))
+                .append(alloc.text(op))
+                .append(alloc.text("= "))
+                .append(rhs);
+        }
+
+        let indent = ctx.config.indent_width as isize;
+        token_doc(
+            ctx,
+            self.syntax(),
+            indent,
+            |node| ast::Expr::cast(node).map(|expr| TokenPiece::new(expr.to_doc(ctx))),
+            |token| match token.kind() {
+                SyntaxKind::Eq => Some(TokenPiece::new(alloc.text("=")).space_after()),
+                _ => Some(
+                    TokenPiece::new(alloc.text(ctx.snippet(token.text_range()).trim().to_string()))
+                        .space_before(),
+                ),
+            },
+        )
     }
 }
 
@@ -645,33 +738,62 @@ impl ToDoc for ast::PathExpr {
 
 impl ToDoc for ast::FieldExpr {
     fn to_doc<'a>(&self, ctx: &'a RewriteContext<'a>) -> Doc<'a> {
-        if let Some(doc) = snippet_doc_if_comment_tokens(ctx, self.syntax()) {
-            return doc;
+        let alloc = &ctx.alloc;
+
+        if !has_comment_tokens(self.syntax()) {
+            // Delegate to chain formatting which handles the entire chain at once
+            return format_chain(&ast::Expr::cast(self.syntax().clone()).unwrap(), ctx);
         }
-        // Delegate to chain formatting which handles the entire chain at once
-        format_chain(&ast::Expr::cast(self.syntax().clone()).unwrap(), ctx)
+
+        let indent = ctx.config.indent_width as isize;
+        token_doc(
+            ctx,
+            self.syntax(),
+            indent,
+            |node| ast::Expr::cast(node).map(|expr| TokenPiece::new(expr.to_doc(ctx))),
+            |token| match token.kind() {
+                SyntaxKind::Dot => Some(TokenPiece::new(alloc.text("."))),
+                SyntaxKind::Ident | SyntaxKind::Int => Some(TokenPiece::new(
+                    alloc.text(ctx.snippet(token.text_range()).trim().to_string()),
+                )),
+                _ => None,
+            },
+        )
     }
 }
 
 impl ToDoc for ast::IndexExpr {
     fn to_doc<'a>(&self, ctx: &'a RewriteContext<'a>) -> Doc<'a> {
-        if let Some(doc) = snippet_doc_if_comment_tokens(ctx, self.syntax()) {
-            return doc;
-        }
         let alloc = &ctx.alloc;
 
-        let expr = match self.expr() {
-            Some(e) => e.to_doc(ctx),
-            None => return alloc.nil(),
-        };
-        let index = match self.index() {
-            Some(i) => i.to_doc(ctx),
-            None => return expr,
-        };
+        if !has_comment_tokens(self.syntax()) {
+            let expr = match self.expr() {
+                Some(e) => e.to_doc(ctx),
+                None => return alloc.nil(),
+            };
+            let index = match self.index() {
+                Some(i) => i.to_doc(ctx),
+                None => return expr,
+            };
 
-        expr.append(alloc.text("["))
-            .append(index)
-            .append(alloc.text("]"))
+            return expr
+                .append(alloc.text("["))
+                .append(index)
+                .append(alloc.text("]"));
+        }
+
+        let indent = ctx.config.indent_width as isize;
+        token_doc(
+            ctx,
+            self.syntax(),
+            indent,
+            |node| ast::Expr::cast(node).map(|expr| TokenPiece::new(expr.to_doc(ctx))),
+            |token| match token.kind() {
+                SyntaxKind::LBracket => Some(TokenPiece::new(alloc.text("["))),
+                SyntaxKind::RBracket => Some(TokenPiece::new(alloc.text("]")).no_nest()),
+                _ => None,
+            },
+        )
     }
 }
 
@@ -686,32 +808,61 @@ impl ToDoc for ast::LitExpr {
 
 impl ToDoc for ast::IfExpr {
     fn to_doc<'a>(&self, ctx: &'a RewriteContext<'a>) -> Doc<'a> {
-        if let Some(doc) = snippet_doc_if_comment_tokens(ctx, self.syntax()) {
-            return doc;
-        }
         let alloc = &ctx.alloc;
 
-        let cond = match self.cond() {
-            Some(c) => c.to_doc(ctx),
-            None => return alloc.nil(),
-        };
-        let then = match self.then() {
-            Some(t) => t.to_doc(ctx),
-            None => return alloc.text("if ").append(cond),
-        };
+        if !has_comment_tokens(self.syntax()) {
+            let cond = match self.cond() {
+                Some(c) => c.to_doc(ctx),
+                None => return alloc.nil(),
+            };
+            let then = match self.then() {
+                Some(t) => t.to_doc(ctx),
+                None => return alloc.text("if ").append(cond),
+            };
 
-        let if_then = alloc
-            .text("if ")
-            .append(cond)
-            .append(alloc.text(" "))
-            .append(then);
+            let if_then = alloc
+                .text("if ")
+                .append(cond)
+                .append(alloc.text(" "))
+                .append(then);
 
-        match self.else_() {
-            Some(e) => if_then
-                .append(alloc.text(" else "))
-                .append(e.to_doc(ctx))
-                .max_width_group(ctx.config.single_line_if_else_max_width),
-            None => if_then.max_width_group(ctx.config.single_line_if_max_width),
+            return match self.else_() {
+                Some(e) => if_then
+                    .append(alloc.text(" else "))
+                    .append(e.to_doc(ctx))
+                    .max_width_group(ctx.config.single_line_if_else_max_width),
+                None => if_then.max_width_group(ctx.config.single_line_if_max_width),
+            };
+        }
+
+        let indent = ctx.config.indent_width as isize;
+        let mut expr_count = 0usize;
+
+        let doc = token_doc(
+            ctx,
+            self.syntax(),
+            indent,
+            |node| {
+                let expr = ast::Expr::cast(node)?;
+                expr_count += 1;
+                let piece = TokenPiece::new(expr.to_doc(ctx));
+                Some(if expr_count == 1 {
+                    piece.space_after()
+                } else {
+                    piece
+                })
+            },
+            |token| match token.kind() {
+                SyntaxKind::IfKw => Some(TokenPiece::new(alloc.text("if")).space_after()),
+                SyntaxKind::ElseKw => Some(TokenPiece::new(alloc.text("else")).spaces()),
+                _ => None,
+            },
+        );
+
+        if self.else_().is_some() {
+            doc.max_width_group(ctx.config.single_line_if_else_max_width)
+        } else {
+            doc.max_width_group(ctx.config.single_line_if_max_width)
         }
     }
 }
@@ -842,30 +993,54 @@ impl ToDoc for ast::UsesParam {
 
 impl ToDoc for ast::MatchExpr {
     fn to_doc<'a>(&self, ctx: &'a RewriteContext<'a>) -> Doc<'a> {
-        if let Some(doc) = snippet_doc_if_comment_tokens(ctx, self.syntax()) {
-            return doc;
-        }
         let alloc = &ctx.alloc;
 
-        let scrutinee = match self.scrutinee() {
-            Some(s) => s.to_doc(ctx),
-            None => return alloc.nil(),
-        };
+        if !has_comment_tokens(self.syntax()) {
+            let scrutinee = match self.scrutinee() {
+                Some(s) => s.to_doc(ctx),
+                None => return alloc.nil(),
+            };
 
-        let arms_doc = self.arms().map(|arms| arms.to_doc(ctx));
+            let arms_doc = self.arms().map(|arms| arms.to_doc(ctx));
 
-        if arms_doc.is_none() {
+            if arms_doc.is_none() {
+                return alloc
+                    .text("match ")
+                    .append(scrutinee)
+                    .append(alloc.text(" {}"));
+            }
+
             return alloc
                 .text("match ")
                 .append(scrutinee)
-                .append(alloc.text(" {}"));
+                .append(alloc.text(" "))
+                .append(arms_doc.unwrap());
         }
 
-        alloc
-            .text("match ")
-            .append(scrutinee)
-            .append(alloc.text(" "))
-            .append(arms_doc.unwrap())
+        let indent = ctx.config.indent_width as isize;
+        let mut saw_scrutinee = false;
+
+        token_doc(
+            ctx,
+            self.syntax(),
+            indent,
+            |node| {
+                if let Some(expr) = ast::Expr::cast(node.clone()) {
+                    let piece = TokenPiece::new(expr.to_doc(ctx));
+                    return Some(if !saw_scrutinee {
+                        saw_scrutinee = true;
+                        piece.space_after()
+                    } else {
+                        piece
+                    });
+                }
+                ast::MatchArmList::cast(node).map(|arms| TokenPiece::new(arms.to_doc(ctx)))
+            },
+            |token| match token.kind() {
+                SyntaxKind::MatchKw => Some(TokenPiece::new(alloc.text("match")).space_after()),
+                _ => None,
+            },
+        )
     }
 }
 
@@ -949,26 +1124,45 @@ impl ToDoc for ast::WithParam {
 
 impl ToDoc for ast::WithExpr {
     fn to_doc<'a>(&self, ctx: &'a RewriteContext<'a>) -> Doc<'a> {
-        if let Some(doc) = snippet_doc_if_comment_tokens(ctx, self.syntax()) {
-            return doc;
-        }
         let alloc = &ctx.alloc;
 
-        let params_doc = self
-            .params()
-            .map(|params| params.to_doc(ctx))
-            .unwrap_or_else(|| alloc.text("()"));
+        if !has_comment_tokens(self.syntax()) {
+            let params_doc = self
+                .params()
+                .map(|params| params.to_doc(ctx))
+                .unwrap_or_else(|| alloc.text("()"));
 
-        let body = match self.body() {
-            Some(b) => b.to_doc(ctx),
-            None => return alloc.text("with ").append(params_doc),
-        };
+            let body = match self.body() {
+                Some(b) => b.to_doc(ctx),
+                None => return alloc.text("with ").append(params_doc),
+            };
 
-        alloc
-            .text("with ")
-            .append(params_doc)
-            .append(alloc.text(" "))
-            .append(body)
+            return alloc
+                .text("with ")
+                .append(params_doc)
+                .append(alloc.text(" "))
+                .append(body);
+        }
+
+        let indent = ctx.config.indent_width as isize;
+
+        token_doc(
+            ctx,
+            self.syntax(),
+            indent,
+            |node| {
+                if let Some(params) = ast::WithParamList::cast(node.clone()) {
+                    return Some(TokenPiece::new(params.to_doc(ctx)).space_after());
+                }
+                ast::BlockExpr::cast(node).map(|body| TokenPiece::new(body.to_doc(ctx)))
+            },
+            |token| match token.kind() {
+                SyntaxKind::Ident if ctx.snippet(token.text_range()).trim() == "with" => {
+                    Some(TokenPiece::new(alloc.text("with")).space_after())
+                }
+                _ => None,
+            },
+        )
     }
 }
 
@@ -1040,17 +1234,29 @@ impl ToDoc for ast::ArrayRepExpr {
 
 impl ToDoc for ast::ParenExpr {
     fn to_doc<'a>(&self, ctx: &'a RewriteContext<'a>) -> Doc<'a> {
-        if let Some(doc) = snippet_doc_if_comment_tokens(ctx, self.syntax()) {
-            return doc;
-        }
         let alloc = &ctx.alloc;
 
-        let expr = match self.expr() {
-            Some(e) => e.to_doc(ctx),
-            None => return alloc.text("()"),
-        };
+        if !has_comment_tokens(self.syntax()) {
+            let expr = match self.expr() {
+                Some(e) => e.to_doc(ctx),
+                None => return alloc.text("()"),
+            };
 
-        alloc.text("(").append(expr).append(alloc.text(")"))
+            return alloc.text("(").append(expr).append(alloc.text(")"));
+        }
+
+        let indent = ctx.config.indent_width as isize;
+        token_doc(
+            ctx,
+            self.syntax(),
+            indent,
+            |node| ast::Expr::cast(node).map(|expr| TokenPiece::new(expr.to_doc(ctx))),
+            |token| match token.kind() {
+                SyntaxKind::LParen => Some(TokenPiece::new(alloc.text("("))),
+                SyntaxKind::RParen => Some(TokenPiece::new(alloc.text(")")).no_nest()),
+                _ => None,
+            },
+        )
     }
 }
 

@@ -13,13 +13,13 @@ fn sig_comment(x: u256) // mid
 
 fn chain_comments(x: u256) -> u256 {
     x
-    // mid
-    .foo()
+        // mid
+        .foo()
 }
 
 fn if_comment() -> bool {
     if // mid
-    true {
+        true {
         true
     } else {
         false
@@ -28,7 +28,7 @@ fn if_comment() -> bool {
 
 fn match_comment(x: u256) -> bool {
     match // mid
-    x {
+        x {
         _ => true,
     }
 }
@@ -43,7 +43,7 @@ uses // mid
 fn or_pat_comment(x: u256) -> u256 {
     match x {
         Foo | // mid
-        Bar => 0,
+            Bar => 0,
     }
 }
 

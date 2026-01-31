@@ -4,10 +4,11 @@ use pretty::DocAllocator;
 
 use crate::RewriteContext;
 use parser::ast::{self, PatKind, prelude::AstNode};
+use parser::syntax_kind::SyntaxKind;
 
 use super::types::{
-    Doc, ToDoc, block_list, block_list_spaced, block_list_with_comments, has_comment_tokens,
-    snippet_doc_if_comment_tokens,
+    Doc, ToDoc, TokenPiece, block_list, block_list_spaced, block_list_with_comments,
+    has_comment_tokens, token_doc,
 };
 
 impl ToDoc for ast::Pat {
@@ -157,20 +158,31 @@ impl ToDoc for ast::RecordPatField {
 
 impl ToDoc for ast::OrPat {
     fn to_doc<'a>(&self, ctx: &'a RewriteContext<'a>) -> Doc<'a> {
-        if let Some(doc) = snippet_doc_if_comment_tokens(ctx, self.syntax()) {
-            return doc;
-        }
         let alloc = &ctx.alloc;
 
-        let lhs = match self.lhs() {
-            Some(l) => l.to_doc(ctx),
-            None => return alloc.nil(),
-        };
-        let rhs = match self.rhs() {
-            Some(r) => r.to_doc(ctx),
-            None => return lhs,
-        };
+        if !has_comment_tokens(self.syntax()) {
+            let lhs = match self.lhs() {
+                Some(l) => l.to_doc(ctx),
+                None => return alloc.nil(),
+            };
+            let rhs = match self.rhs() {
+                Some(r) => r.to_doc(ctx),
+                None => return lhs,
+            };
 
-        lhs.append(alloc.text(" | ")).append(rhs)
+            return lhs.append(alloc.text(" | ")).append(rhs);
+        }
+
+        let indent = ctx.config.indent_width as isize;
+        token_doc(
+            ctx,
+            self.syntax(),
+            indent,
+            |node| ast::Pat::cast(node).map(|pat| TokenPiece::new(pat.to_doc(ctx))),
+            |token| match token.kind() {
+                SyntaxKind::Pipe => Some(TokenPiece::new(alloc.text("|")).spaces()),
+                _ => None,
+            },
+        )
     }
 }

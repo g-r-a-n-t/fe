@@ -219,6 +219,7 @@ where
             let inst = inst.fold_with(db, folder);
             ConstExprId::new(db, ConstExpr::TraitConst { inst, name: *name })
         }
+        ConstExpr::LocalBinding(binding) => ConstExprId::new(db, ConstExpr::LocalBinding(*binding)),
     }
 }
 

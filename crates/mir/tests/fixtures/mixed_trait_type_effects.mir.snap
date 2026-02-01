@@ -1,6 +1,5 @@
 ---
 source: crates/mir/tests/lowering_snapshots.rs
-assertion_line: 26
 expression: mir_output
 ---
 fn mockctx_he3e49fc78f7932c8_ctx_h4952b3c1f066f039_inc(v0: MockCtx) -> u256:

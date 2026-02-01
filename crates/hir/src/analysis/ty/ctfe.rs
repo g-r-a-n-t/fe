@@ -570,10 +570,14 @@ impl<'db> CtfeInterpreter<'db> {
 
     fn eval_path_expr(&mut self, path: PathId<'db>, expr: ExprId) -> CtfeEval<'db> {
         let body = self.body();
-        if let Some(binding) = self.typed_body().expr_binding(expr)
-            && let Some(value) = self.env().bindings.get(&binding).cloned()
-        {
-            return Ok(value);
+        if let Some(binding) = self.typed_body().expr_binding(expr) {
+            if let Some(value) = self.env().bindings.get(&binding).cloned() {
+                return Ok(value);
+            }
+            if matches!(binding, LocalBinding::Param { .. }) {
+                let ty = self.typed_body().expr_ty(self.db, expr);
+                return Ok(self.abstract_const(ConstExpr::LocalBinding(binding), ty));
+            }
         }
 
         if let Some(cref) = self.typed_body().expr_const_ref(expr) {
@@ -617,6 +621,32 @@ impl<'db> CtfeInterpreter<'db> {
                 ConstTyId::from_body(self.db, body, Some(expected_ty), Some(const_def))
             }
             ConstRef::TraitConst { inst, name } => {
+                let mut subst = GenericSubst {
+                    generic_args: self.generic_args(),
+                };
+                let inst = inst.fold_with(self.db, &mut subst);
+                let inst = if matches!(
+                    inst.self_ty(self.db).data(self.db),
+                    TyData::TyParam(_) | TyData::TyVar(_)
+                ) {
+                    if let Some(&self_arg) = self.generic_args().first() {
+                        let mut args = inst.args(self.db).to_vec();
+                        if let Some(arg) = args.first_mut() {
+                            *arg = self_arg;
+                        }
+                        TraitInstId::new(
+                            self.db,
+                            inst.def(self.db),
+                            args,
+                            inst.assoc_type_bindings(self.db).clone(),
+                        )
+                    } else {
+                        inst
+                    }
+                } else {
+                    inst
+                };
+
                 if let Some(const_ty) =
                     crate::analysis::ty::const_ty::const_ty_from_trait_const(self.db, inst, name)
                 {
@@ -1101,7 +1131,9 @@ impl<'db> CtfeInterpreter<'db> {
 
     fn eval_method_call_expr(&mut self, expr: ExprId) -> CtfeEval<'db> {
         let body = self.body();
-        let callable = self.typed_body().callable_expr(expr).cloned().unwrap();
+        let Some(callable) = self.typed_body().callable_expr(expr).cloned() else {
+            return Err(InvalidCause::ConstEvalUnsupported { body, expr }.into());
+        };
         let CallableDef::Func(mut func) = callable.callable_def else {
             return Err(InvalidCause::ConstEvalUnsupported { body, expr }.into());
         };
@@ -1362,30 +1394,30 @@ pub(super) fn instantiate_typed_body<'db>(
     typed_body: TypedBody<'db>,
     generic_args: &[TyId<'db>],
 ) -> TypedBody<'db> {
-    struct GenericSubst<'a, 'db> {
-        generic_args: &'a [TyId<'db>],
-    }
-
-    impl<'db> TyFolder<'db> for GenericSubst<'_, 'db> {
-        fn fold_ty(&mut self, db: &'db dyn HirAnalysisDb, ty: TyId<'db>) -> TyId<'db> {
-            match ty.data(db) {
-                TyData::TyParam(param) => self.generic_args.get(param.idx).copied().unwrap_or(ty),
-                TyData::ConstTy(const_ty) => {
-                    if let ConstTyData::TyParam(param, _) = const_ty.data(db)
-                        && let Some(rep) = self.generic_args.get(param.idx).copied()
-                    {
-                        rep
-                    } else {
-                        ty.super_fold_with(db, self)
-                    }
-                }
-                _ => ty.super_fold_with(db, self),
-            }
-        }
-    }
-
     let mut subst = GenericSubst { generic_args };
     typed_body.fold_with(db, &mut subst)
+}
+
+struct GenericSubst<'a, 'db> {
+    generic_args: &'a [TyId<'db>],
+}
+
+impl<'db> TyFolder<'db> for GenericSubst<'_, 'db> {
+    fn fold_ty(&mut self, db: &'db dyn HirAnalysisDb, ty: TyId<'db>) -> TyId<'db> {
+        match ty.data(db) {
+            TyData::TyParam(param) => self.generic_args.get(param.idx).copied().unwrap_or(ty),
+            TyData::ConstTy(const_ty) => {
+                if let ConstTyData::TyParam(param, _) = const_ty.data(db)
+                    && let Some(rep) = self.generic_args.get(param.idx).copied()
+                {
+                    rep
+                } else {
+                    ty.super_fold_with(db, self)
+                }
+            }
+            _ => ty.super_fold_with(db, self),
+        }
+    }
 }
 
 fn unit_const<'db>(db: &'db dyn HirAnalysisDb) -> ConstTyId<'db> {

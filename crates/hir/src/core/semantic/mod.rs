@@ -113,7 +113,16 @@ pub fn constraints_for<'db>(
             collect_func_def_constraints(db, f.into(), true).instantiate_identity()
         }
         ItemKind::Impl(i) => collect_constraints(db, i.into()).instantiate_identity(),
-        ItemKind::Trait(t) => collect_constraints(db, t.into()).instantiate_identity(),
+        ItemKind::Trait(t) => {
+            let mut preds = collect_constraints(db, t.into()).instantiate_identity();
+            let self_pred = TraitInstId::new(db, t, t.params(db).to_vec(), IndexMap::new());
+            if !preds.list(db).contains(&self_pred) {
+                let mut merged = preds.list(db).to_vec();
+                merged.push(self_pred);
+                preds = PredicateListId::new(db, merged);
+            }
+            preds
+        }
         ItemKind::ImplTrait(i) => collect_constraints(db, i.into()).instantiate_identity(),
         _ => PredicateListId::empty_list(db),
     }

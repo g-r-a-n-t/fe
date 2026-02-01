@@ -146,6 +146,7 @@ where
             ConstExpr::TraitConst { inst, .. } => {
                 inst.visit_with(visitor);
             }
+            ConstExpr::LocalBinding(_) => {}
         },
         ConstTyData::UnEvaluated { .. } => {}
     }

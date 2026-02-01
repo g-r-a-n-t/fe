@@ -1,6 +1,5 @@
 ---
 source: crates/mir/tests/lowering_snapshots.rs
-assertion_line: 26
 expression: mir_output
 ---
 fn pair_h956dff41e88ee341_ctx_h4952b3c1f066f039_sum(v0: Pair) -> u256:

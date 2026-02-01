@@ -5,7 +5,7 @@ use super::{
     ctfe::{CtfeConfig, CtfeInterpreter, instantiate_typed_body},
     diagnostics::{BodyDiag, FuncBodyDiag},
     trait_def::TraitInstId,
-    trait_resolution::constraint::collect_func_def_constraints,
+    trait_resolution::constraint::{collect_constraints, collect_func_def_constraints},
     ty_check::{check_anon_const_body, check_const_body},
     ty_def::{InvalidCause, TyId, TyParam, TyVar},
     unify::UnificationTable,
@@ -13,8 +13,8 @@ use super::{
 use crate::analysis::{
     HirAnalysisDb,
     name_resolution::{PathRes, resolve_path},
+    ty::trait_resolution::PredicateListId,
     ty::ty_def::TyData,
-    ty::{trait_def::assoc_const_body_for_trait_inst, trait_resolution::PredicateListId},
 };
 use crate::hir_def::ItemKind;
 use common::indexmap::IndexMap;
@@ -107,6 +107,7 @@ pub(crate) fn evaluate_const_ty<'db>(
         let assumptions = if let Some(func) = containing_func {
             let mut preds =
                 collect_func_def_constraints(db, func.into(), true).instantiate_identity();
+            // Methods inside a trait implicitly assume `Self: Trait` in their bodies.
             if let Some(ItemKind::Trait(trait_)) = func.scope().parent_item(db) {
                 let self_pred =
                     TraitInstId::new(db, trait_, trait_.params(db).to_vec(), IndexMap::new());
@@ -115,12 +116,29 @@ pub(crate) fn evaluate_const_ty<'db>(
                 preds = PredicateListId::new(db, merged);
             }
             preds.extend_all_bounds(db)
-        } else if let Some(ItemKind::Trait(trait_)) = body.scope().parent_item(db) {
-            let self_pred =
-                TraitInstId::new(db, trait_, trait_.params(db).to_vec(), IndexMap::new());
-            PredicateListId::new(db, vec![self_pred]).extend_all_bounds(db)
         } else {
-            PredicateListId::empty_list(db)
+            // Walk up through nested body scopes to find an enclosing item (trait/impl).
+            let mut enclosing = body.scope();
+            let mut parent_item = enclosing.parent_item(db);
+            while let Some(ItemKind::Body(parent)) = parent_item {
+                enclosing = parent.scope();
+                parent_item = enclosing.parent_item(db);
+            }
+
+            match parent_item {
+                Some(ItemKind::Trait(trait_)) => {
+                    let self_pred =
+                        TraitInstId::new(db, trait_, trait_.params(db).to_vec(), IndexMap::new());
+                    PredicateListId::new(db, vec![self_pred]).extend_all_bounds(db)
+                }
+                Some(ItemKind::ImplTrait(impl_trait)) => collect_constraints(db, impl_trait.into())
+                    .instantiate_identity()
+                    .extend_all_bounds(db),
+                Some(ItemKind::Impl(impl_)) => collect_constraints(db, impl_.into())
+                    .instantiate_identity()
+                    .extend_all_bounds(db),
+                _ => PredicateListId::empty_list(db),
+            }
         };
         if let Ok(resolved_path) = resolve_path(db, path, body.scope(), assumptions, true) {
             match resolved_path {
@@ -137,17 +155,18 @@ pub(crate) fn evaluate_const_ty<'db>(
                     }
                 }
                 PathRes::TraitConst(recv_ty, inst, name) => {
+                    let mut args = inst.args(db).clone();
+                    if let Some(self_arg) = args.first_mut() {
+                        *self_arg = recv_ty;
+                    }
+                    let inst = TraitInstId::new(
+                        db,
+                        inst.def(db),
+                        args,
+                        inst.assoc_type_bindings(db).clone(),
+                    );
+
                     let mk_abstract = |expected_ty: TyId<'db>| {
-                        let mut args = inst.args(db).clone();
-                        if let Some(self_arg) = args.first_mut() {
-                            *self_arg = recv_ty;
-                        }
-                        let inst = TraitInstId::new(
-                            db,
-                            inst.def(db),
-                            args,
-                            inst.assoc_type_bindings(db).clone(),
-                        );
                         let expr = ConstExprId::new(db, ConstExpr::TraitConst { inst, name });
                         ConstTyId::new(db, ConstTyData::Abstract(expr, expected_ty))
                     };
@@ -252,10 +271,17 @@ pub(super) fn const_ty_from_trait_const<'db>(
     inst: TraitInstId<'db>,
     name: IdentId<'db>,
 ) -> Option<ConstTyId<'db>> {
-    let body = assoc_const_body_for_trait_inst(db, inst, name).or_else(|| {
-        let trait_ = inst.def(db);
-        trait_.const_(db, name).and_then(|c| c.default_body(db))
-    })?;
+    let (body, generic_args) =
+        crate::analysis::ty::trait_def::assoc_const_body_and_impl_args_for_trait_inst(
+            db, inst, name,
+        )
+        .or_else(|| {
+            let trait_ = inst.def(db);
+            trait_
+                .const_(db, name)
+                .and_then(|c| c.default_body(db))
+                .map(|body| (body, inst.args(db).clone()))
+        })?;
 
     let trait_ = inst.def(db);
     let declared_ty = trait_
@@ -268,7 +294,7 @@ pub(super) fn const_ty_from_trait_const<'db>(
         body,
         declared_ty,
         None,
-        inst.args(db).clone(),
+        generic_args,
     ))
 }
 

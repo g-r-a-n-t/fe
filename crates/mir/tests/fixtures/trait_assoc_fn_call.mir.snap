@@ -1,6 +1,5 @@
 ---
 source: crates/mir/tests/lowering_snapshots.rs
-assertion_line: 26
 expression: mir_output
 ---
 fn bar_h9f829bcd60910980_t_ha4fe9660e49389ad_make() -> Bar:

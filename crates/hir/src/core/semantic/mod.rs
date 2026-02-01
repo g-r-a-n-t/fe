@@ -1336,6 +1336,7 @@ fn get_variant_selector<'db>(db: &'db dyn HirAnalysisDb, struct_: Struct<'db>) -
     match try_eval_const_body(db, body, expected_ty)? {
         ConstValue::Int(value) => value.to_u32(),
         ConstValue::Bool(_) => None,
+        ConstValue::Bytes(_) => None,
     }
 }
 

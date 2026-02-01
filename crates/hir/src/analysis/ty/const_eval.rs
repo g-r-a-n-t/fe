@@ -17,6 +17,7 @@ use crate::hir_def::ExprId;
 pub enum ConstValue {
     Int(BigUint),
     Bool(bool),
+    Bytes(Vec<u8>),
 }
 
 pub fn try_eval_const_body<'db>(
@@ -60,6 +61,9 @@ pub fn try_eval_const_expr<'db>(
             Some(ConstValue::Int(i.data(db).clone()))
         }
         ConstTyData::Evaluated(EvaluatedConstTy::LitBool(b), _) => Some(ConstValue::Bool(*b)),
+        ConstTyData::Evaluated(EvaluatedConstTy::Bytes(bytes), _) => {
+            Some(ConstValue::Bytes(bytes.clone()))
+        }
         _ => None,
     }
 }
@@ -75,6 +79,9 @@ fn try_eval_const_ty<'db>(
             Some(ConstValue::Int(i.data(db).clone()))
         }
         ConstTyData::Evaluated(EvaluatedConstTy::LitBool(b), _) => Some(ConstValue::Bool(*b)),
+        ConstTyData::Evaluated(EvaluatedConstTy::Bytes(bytes), _) => {
+            Some(ConstValue::Bytes(bytes.clone()))
+        }
         _ => None,
     }
 }

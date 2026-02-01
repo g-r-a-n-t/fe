@@ -7,7 +7,6 @@ pub mod foo {
     fn bar() -> i32 {
         1
     }
-
     pub struct Baz {}
 }
 

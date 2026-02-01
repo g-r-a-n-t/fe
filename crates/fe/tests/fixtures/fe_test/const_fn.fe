@@ -1,26 +1,27 @@
 use core::intrinsic::{__as_bytes, __keccak256}
 use core::keccak
+use core::bytes::AsBytes
 use std::evm::Address
 use std::evm::effects::assert
 
 trait SolCompat {
-    const N: usize
-    const SOL_TYPE: String<Self::N>
+    type S: AsBytes
+    const SOL_TYPE: Self::S
 }
 
 impl SolCompat for u256 {
-    const N: usize = 7
-    const SOL_TYPE: String<7> = "uint256"
+    type S = String<7>
+    const SOL_TYPE: Self::S = "uint256"
 }
 
 impl SolCompat for Address {
-    const N: usize = 7
-    const SOL_TYPE: String<7> = "address"
+    type S = String<7>
+    const SOL_TYPE: Self::S = "address"
 }
 
 impl SolCompat for Transfer {
-    const N: usize = 8
-    const SOL_TYPE: String<8> = "Transfer"
+    type S = String<8>
+    const SOL_TYPE: Self::S = "Transfer"
 }
 
 trait Event {

@@ -380,7 +380,7 @@ fn func_sig_to_doc<'a>(
     let alloc = &ctx.alloc;
 
     let name = match sig.name() {
-        Some(n) => ctx.token(&n).to_string(),
+        Some(n) => alloc.text(ctx.token(&n)),
         None => return alloc.text("fn"),
     };
 
@@ -402,7 +402,7 @@ fn func_sig_to_doc<'a>(
     // Build the core signature (before uses/where) to measure its length
     let core_sig = alloc
         .text("fn ")
-        .append(alloc.text(name.clone()))
+        .append(name.clone())
         .append(generics.clone())
         .append(params_doc.clone())
         .append(ret_doc.clone());
@@ -453,7 +453,7 @@ fn func_sig_to_doc<'a>(
     if !has_comment_tokens(sig.syntax()) {
         return alloc
             .text("fn ")
-            .append(alloc.text(name))
+            .append(name)
             .append(generics)
             .append(params_doc)
             .append(ret_doc)
@@ -464,7 +464,7 @@ fn func_sig_to_doc<'a>(
     }
 
     let indent = ctx.config.clause_indent as isize;
-    let mut inner = alloc.text(name.clone());
+    let mut inner = name.clone();
     let mut pending_newlines = 0usize;
     let mut needs_space = false;
 
@@ -676,8 +676,8 @@ impl ToDoc for ast::Struct {
 
         let name = self
             .name()
-            .map(|n| ctx.token(&n).to_string())
-            .unwrap_or_default();
+            .map(|n| alloc.text(ctx.token(&n)))
+            .unwrap_or_else(|| alloc.nil());
         let generics = generics_doc(self, ctx);
         let where_clause = where_doc(self, ctx);
 
@@ -689,7 +689,7 @@ impl ToDoc for ast::Struct {
         attrs
             .append(modifier)
             .append(alloc.text("struct "))
-            .append(alloc.text(name))
+            .append(name)
             .append(generics)
             .append(where_clause)
             .append(fields_doc)
@@ -776,7 +776,7 @@ impl ToDoc for ast::RecordFieldDef {
         }
 
         if let Some(name) = self.name() {
-            doc = doc.append(alloc.text(ctx.token(&name).to_string()));
+            doc = doc.append(alloc.text(ctx.token(&name)));
         }
 
         if let Some(ty) = self.ty() {
@@ -874,8 +874,8 @@ impl ToDoc for ast::Contract {
 
             let name = self
                 .name()
-                .map(|n| ctx.token(&n).to_string())
-                .unwrap_or_default();
+                .map(|n| alloc.text(ctx.token(&n)))
+                .unwrap_or_else(|| alloc.nil());
 
             let uses_doc = uses_doc
                 .map(|u| alloc.text(" ").append(u))
@@ -884,7 +884,7 @@ impl ToDoc for ast::Contract {
             return attrs
                 .append(modifier)
                 .append(alloc.text("contract "))
-                .append(alloc.text(name))
+                .append(name)
                 .append(uses_doc)
                 .append(alloc.text(" "))
                 .append(body_doc);
@@ -1035,8 +1035,8 @@ impl ToDoc for ast::Enum {
 
         let name = self
             .name()
-            .map(|n| ctx.token(&n).to_string())
-            .unwrap_or_default();
+            .map(|n| alloc.text(ctx.token(&n)))
+            .unwrap_or_else(|| alloc.nil());
         let generics = generics_doc(self, ctx);
         let where_clause = where_doc(self, ctx);
 
@@ -1048,7 +1048,7 @@ impl ToDoc for ast::Enum {
         attrs
             .append(modifier)
             .append(alloc.text("enum "))
-            .append(alloc.text(name))
+            .append(name)
             .append(generics)
             .append(where_clause)
             .append(variants_doc)
@@ -1080,22 +1080,19 @@ impl ToDoc for ast::VariantDef {
 
         let name = self
             .name()
-            .map(|n| ctx.token(&n).to_string())
-            .unwrap_or_default();
+            .map(|n| alloc.text(ctx.token(&n)))
+            .unwrap_or_else(|| alloc.nil());
 
         let kind_doc = match self.kind() {
             ast::VariantKind::Unit => alloc.nil(),
             ast::VariantKind::Tuple(tuple_type) => tuple_type.to_doc(ctx),
             ast::VariantKind::Record(fields) => {
                 if has_comment_tokens(fields.syntax()) {
-                    return attrs
-                        .append(alloc.text(name))
-                        .append(alloc.text(" "))
-                        .append(
-                            fields
-                                .to_doc(ctx)
-                                .max_width_group(ctx.config.struct_variant_width),
-                        );
+                    return attrs.append(name.clone()).append(alloc.text(" ")).append(
+                        fields
+                            .to_doc(ctx)
+                            .max_width_group(ctx.config.struct_variant_width),
+                    );
                 }
 
                 // Format struct variant with max_width_group
@@ -1122,7 +1119,7 @@ impl ToDoc for ast::VariantDef {
             }
         };
 
-        attrs.append(alloc.text(name)).append(kind_doc)
+        attrs.append(name).append(kind_doc)
     }
 }
 
@@ -1137,8 +1134,8 @@ impl ToDoc for ast::Trait {
 
         let name = self
             .name()
-            .map(|n| ctx.token(&n).to_string())
-            .unwrap_or_default();
+            .map(|n| alloc.text(ctx.token(&n)))
+            .unwrap_or_else(|| alloc.nil());
         let generics = generics_doc(self, ctx);
 
         let super_traits = self
@@ -1156,7 +1153,7 @@ impl ToDoc for ast::Trait {
         attrs
             .append(modifier)
             .append(alloc.text("trait "))
-            .append(alloc.text(name))
+            .append(name)
             .append(generics)
             .append(super_traits)
             .append(where_clause)
@@ -1190,8 +1187,8 @@ impl ToDoc for ast::TraitTypeItem {
 
         let name = self
             .name()
-            .map(|n| ctx.token(&n).to_string())
-            .unwrap_or_default();
+            .map(|n| alloc.text(ctx.token(&n)))
+            .unwrap_or_else(|| alloc.nil());
 
         let bounds_doc = self
             .bounds()
@@ -1205,7 +1202,7 @@ impl ToDoc for ast::TraitTypeItem {
 
         attrs
             .append(alloc.text("type "))
-            .append(alloc.text(name))
+            .append(name)
             .append(bounds_doc)
             .append(ty_doc)
     }
@@ -1221,8 +1218,8 @@ impl ToDoc for ast::TraitConstItem {
 
         let name = self
             .name()
-            .map(|n| ctx.token(&n).to_string())
-            .unwrap_or_default();
+            .map(|n| alloc.text(ctx.token(&n)))
+            .unwrap_or_else(|| alloc.nil());
 
         let ty_doc = self
             .ty()
@@ -1236,7 +1233,7 @@ impl ToDoc for ast::TraitConstItem {
 
         attrs
             .append(alloc.text("const "))
-            .append(alloc.text(name))
+            .append(name)
             .append(ty_doc)
             .append(value_doc)
     }
@@ -1325,8 +1322,8 @@ impl ToDoc for ast::Const {
 
         let name = self
             .name()
-            .map(|n| ctx.token(&n).to_string())
-            .unwrap_or_default();
+            .map(|n| alloc.text(ctx.token(&n)))
+            .unwrap_or_else(|| alloc.nil());
 
         let ty_doc = self
             .ty()
@@ -1341,7 +1338,7 @@ impl ToDoc for ast::Const {
         attrs
             .append(modifier)
             .append(alloc.text("const "))
-            .append(alloc.text(name))
+            .append(name)
             .append(ty_doc)
             .append(value_doc)
     }
@@ -1460,8 +1457,8 @@ impl ToDoc for ast::TypeAlias {
 
         let alias = self
             .alias()
-            .map(|a| ctx.token(&a).to_string())
-            .unwrap_or_default();
+            .map(|a| alloc.text(ctx.token(&a)))
+            .unwrap_or_else(|| alloc.nil());
         let generics = generics_doc(self, ctx);
 
         let ty_doc = self
@@ -1472,7 +1469,7 @@ impl ToDoc for ast::TypeAlias {
         attrs
             .append(modifier)
             .append(alloc.text("type "))
-            .append(alloc.text(alias))
+            .append(alias)
             .append(generics)
             .append(ty_doc)
     }
@@ -1489,8 +1486,8 @@ impl ToDoc for ast::Mod {
 
         let name = self
             .name()
-            .map(|n| ctx.token(&n).to_string())
-            .unwrap_or_default();
+            .map(|n| alloc.text(ctx.token(&n)))
+            .unwrap_or_else(|| alloc.nil());
 
         let items_doc = self
             .items()
@@ -1504,7 +1501,7 @@ impl ToDoc for ast::Mod {
         attrs
             .append(modifier)
             .append(alloc.text("mod "))
-            .append(alloc.text(name))
+            .append(name)
             .append(items_doc)
     }
 }
@@ -1543,8 +1540,8 @@ impl ToDoc for ast::Msg {
 
         let name = self
             .name()
-            .map(|n| ctx.token(&n).to_string())
-            .unwrap_or_default();
+            .map(|n| alloc.text(ctx.token(&n)))
+            .unwrap_or_else(|| alloc.nil());
 
         let variants_doc = self
             .variants()
@@ -1554,7 +1551,7 @@ impl ToDoc for ast::Msg {
         attrs
             .append(modifier)
             .append(alloc.text("msg "))
-            .append(alloc.text(name))
+            .append(name)
             .append(variants_doc)
     }
 }
@@ -1584,8 +1581,8 @@ impl ToDoc for ast::MsgVariant {
 
         let name = self
             .name()
-            .map(|n| ctx.token(&n).to_string())
-            .unwrap_or_default();
+            .map(|n| alloc.text(ctx.token(&n)))
+            .unwrap_or_else(|| alloc.nil());
 
         let params_doc = self
             .params()
@@ -1597,10 +1594,7 @@ impl ToDoc for ast::MsgVariant {
             .map(|ty| alloc.text(" -> ").append(ty.to_doc(ctx)))
             .unwrap_or_else(|| alloc.nil());
 
-        attrs
-            .append(alloc.text(name))
-            .append(params_doc)
-            .append(ret_ty_doc)
+        attrs.append(name).append(params_doc).append(ret_ty_doc)
     }
 }
 

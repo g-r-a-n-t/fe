@@ -73,7 +73,8 @@ use crate::analysis::ty::visitor::{TyVisitor, walk_ty};
 use crate::analysis::ty::{
     diagnostics::{TraitConstraintDiag, TyDiagCollection},
     trait_resolution::{
-        GoalSatisfiability, PredicateListId, WellFormedness, check_ty_wf, is_goal_satisfiable,
+        GoalSatisfiability, PredicateListId, TraitSolveCx, WellFormedness, check_ty_wf,
+        is_goal_satisfiable,
     },
     ty_check::EffectParamSite,
     ty_def::{InvalidCause, PrimTy, TyId},
@@ -541,9 +542,11 @@ impl<'db> FuncParamView<'db> {
         }
 
         // Well-formedness / trait-bound satisfaction for parameter type
-        if let WellFormedness::IllFormed { goal, subgoal } =
-            check_ty_wf(db, func.top_mod(db).ingot(db), ty, assumptions)
-        {
+        if let WellFormedness::IllFormed { goal, subgoal } = check_ty_wf(
+            db,
+            TraitSolveCx::new(db, func.scope()).with_assumptions(assumptions),
+            ty,
+        ) {
             out.push(
                 TraitConstraintDiag::TraitBoundNotSat {
                     span: ty_span.clone(),
@@ -902,7 +905,6 @@ impl<'db> Contract<'db> {
     ) -> IndexMap<IdentId<'db>, ContractFieldInfo<'db>> {
         let scope = self.top_mod(db).scope();
         let assumptions = PredicateListId::empty_list(db);
-        let ingot = self.top_mod(db).ingot(db);
 
         let effect_handle = resolve_core_trait(db, scope, &["effect_ref", "EffectHandle"])
             .expect("missing required core trait `core::effect_ref::EffectHandle`");
@@ -920,7 +922,7 @@ impl<'db> Contract<'db> {
                 let inst = TraitInstId::new(db, effect_handle, vec![declared_ty], IndexMap::new());
                 let goal = Canonicalized::new(db, inst).value;
                 let (is_provider, target_ty) =
-                    match is_goal_satisfiable(db, ingot, goal, assumptions) {
+                    match is_goal_satisfiable(db, TraitSolveCx::new(db, scope), goal) {
                         GoalSatisfiability::UnSat(_) | GoalSatisfiability::ContainsInvalid => {
                             (false, None)
                         }
@@ -1771,9 +1773,11 @@ impl<'db> TypeAlias<'db> {
         };
         let assumptions = constraints_for(db, self.into());
         let ty = lower_hir_ty(db, hir_ty, self.scope(), assumptions);
-        if let WellFormedness::IllFormed { goal, subgoal } =
-            check_ty_wf(db, self.top_mod(db).ingot(db), ty, assumptions)
-        {
+        if let WellFormedness::IllFormed { goal, subgoal } = check_ty_wf(
+            db,
+            TraitSolveCx::new(db, self.scope()).with_assumptions(assumptions),
+            ty,
+        ) {
             vec![
                 TraitConstraintDiag::TraitBoundNotSat {
                     span: self.span().ty().into(),
@@ -2494,9 +2498,11 @@ impl<'db> ImplAssocTypeView<'db> {
         }
 
         let ty = lower_hir_ty(db, hir, self.owner.scope(), assumptions);
-        let ingot = self.owner.top_mod(db).ingot(db);
-        if let WellFormedness::IllFormed { goal, subgoal } = check_ty_wf(db, ingot, ty, assumptions)
-        {
+        if let WellFormedness::IllFormed { goal, subgoal } = check_ty_wf(
+            db,
+            TraitSolveCx::new(db, self.owner.scope()).with_assumptions(assumptions),
+            ty,
+        ) {
             return vec![
                 TraitConstraintDiag::TraitBoundNotSat {
                     span: ty_span.into(),
@@ -3052,9 +3058,11 @@ impl<'db> FieldView<'db> {
         // Trait-bound well-formedness for field type.
         let owner_item = self.owner_item();
         let assumptions = constraints_for(db, owner_item);
-        if let WellFormedness::IllFormed { goal, subgoal } =
-            check_ty_wf(db, owner_item.top_mod(db).ingot(db), ty, assumptions)
-        {
+        if let WellFormedness::IllFormed { goal, subgoal } = check_ty_wf(
+            db,
+            TraitSolveCx::new(db, owner_item.scope()).with_assumptions(assumptions),
+            ty,
+        ) {
             out.push(
                 TraitConstraintDiag::TraitBoundNotSat {
                     span: span.clone(),

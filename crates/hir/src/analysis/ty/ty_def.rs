@@ -34,7 +34,11 @@ use super::{
 use crate::analysis::{
     HirAnalysisDb,
     name_resolution::PathRes,
-    ty::{adt_def::AdtRef, trait_resolution::check_ty_wf, ty_error::emit_invalid_ty_error},
+    ty::{
+        adt_def::AdtRef,
+        trait_resolution::{TraitSolveCx, check_ty_wf},
+        ty_error::emit_invalid_ty_error,
+    },
 };
 use crate::hir_def::CallableDef;
 
@@ -498,12 +502,12 @@ impl<'db> TyId<'db> {
     pub(super) fn emit_wf_diag(
         self,
         db: &'db dyn HirAnalysisDb,
-        ingot: Ingot<'db>,
+        solve_cx: TraitSolveCx<'db>,
         assumptions: PredicateListId<'db>,
         span: DynLazySpan<'db>,
     ) -> Option<TyDiagCollection<'db>> {
         if let WellFormedness::IllFormed { goal, subgoal } =
-            check_ty_wf(db, ingot, self, assumptions)
+            check_ty_wf(db, solve_cx.with_assumptions(assumptions), self)
         {
             Some(
                 TraitConstraintDiag::TraitBoundNotSat {

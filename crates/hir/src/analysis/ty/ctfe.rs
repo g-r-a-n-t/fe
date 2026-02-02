@@ -11,7 +11,7 @@ use crate::analysis::{
         const_ty::{ConstTyData, ConstTyId, EvaluatedConstTy},
         fold::{TyFoldable, TyFolder},
         trait_def::{TraitInstId, resolve_trait_method_instance},
-        trait_resolution::PredicateListId,
+        trait_resolution::{PredicateListId, TraitSolveCx},
         ty_check::{
             ConstRef, LocalBinding, RecordLike, TypedBody, check_anon_const_body, check_func_body,
         },
@@ -647,9 +647,12 @@ impl<'db> CtfeInterpreter<'db> {
                     inst
                 };
 
-                if let Some(const_ty) =
-                    crate::analysis::ty::const_ty::const_ty_from_trait_const(self.db, inst, name)
-                {
+                if let Some(const_ty) = crate::analysis::ty::const_ty::const_ty_from_trait_const(
+                    self.db,
+                    TraitSolveCx::new(self.db, self.body().scope()),
+                    inst,
+                    name,
+                ) {
                     const_ty
                 } else {
                     return Ok(
@@ -1184,7 +1187,9 @@ impl<'db> CtfeInterpreter<'db> {
                 return Err(InvalidCause::ConstEvalUnsupported { body, expr }.into());
             }
 
-            if let Some((impl_func, impl_args)) = resolve_trait_method_instance(self.db, inst, name)
+            let solve_cx = TraitSolveCx::new(self.db, body.scope());
+            if let Some((impl_func, impl_args)) =
+                resolve_trait_method_instance(self.db, solve_cx, inst, name)
             {
                 func = impl_func;
                 if !func.is_const(self.db) {

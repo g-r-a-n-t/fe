@@ -5,7 +5,10 @@ use super::{
     ctfe::{CtfeConfig, CtfeInterpreter, instantiate_typed_body},
     diagnostics::{BodyDiag, FuncBodyDiag},
     trait_def::TraitInstId,
-    trait_resolution::constraint::{collect_constraints, collect_func_def_constraints},
+    trait_resolution::{
+        TraitSolveCx,
+        constraint::{collect_constraints, collect_func_def_constraints},
+    },
     ty_check::{check_anon_const_body, check_const_body},
     ty_def::{InvalidCause, TyId, TyParam, TyVar},
     unify::UnificationTable,
@@ -34,7 +37,12 @@ pub(crate) fn evaluate_const_ty<'db>(
 ) -> ConstTyId<'db> {
     if let ConstTyData::Abstract(expr, ty) = const_ty.data(db)
         && let ConstExpr::TraitConst { inst, name } = expr.data(db)
-        && let Some(resolved) = const_ty_from_trait_const(db, *inst, *name)
+        && let Some(resolved) = const_ty_from_trait_const(
+            db,
+            TraitSolveCx::new(db, inst.def(db).top_mod(db).scope()),
+            *inst,
+            *name,
+        )
     {
         let evaluated = resolved.evaluate(db, expected_ty.or(Some(*ty)));
         if matches!(
@@ -171,7 +179,9 @@ pub(crate) fn evaluate_const_ty<'db>(
                         ConstTyId::new(db, ConstTyData::Abstract(expr, expected_ty))
                     };
 
-                    if let Some(const_ty) = const_ty_from_trait_const(db, inst, name) {
+                    let solve_cx =
+                        TraitSolveCx::new(db, body.scope()).with_assumptions(assumptions);
+                    if let Some(const_ty) = const_ty_from_trait_const(db, solve_cx, inst, name) {
                         let evaluated = const_ty.evaluate(db, expected_ty);
                         if matches!(
                             evaluated.ty(db).invalid_cause(db),
@@ -268,22 +278,22 @@ pub(crate) fn evaluate_const_ty<'db>(
 
 pub(super) fn const_ty_from_trait_const<'db>(
     db: &'db dyn HirAnalysisDb,
+    solve_cx: TraitSolveCx<'db>,
     inst: TraitInstId<'db>,
     name: IdentId<'db>,
 ) -> Option<ConstTyId<'db>> {
+    let trait_ = inst.def(db);
     let (body, generic_args) =
         crate::analysis::ty::trait_def::assoc_const_body_and_impl_args_for_trait_inst(
-            db, inst, name,
+            db, solve_cx, inst, name,
         )
         .or_else(|| {
-            let trait_ = inst.def(db);
             trait_
                 .const_(db, name)
                 .and_then(|c| c.default_body(db))
                 .map(|body| (body, inst.args(db).clone()))
         })?;
 
-    let trait_ = inst.def(db);
     let declared_ty = trait_
         .const_(db, name)
         .and_then(|v| v.ty_binder(db))

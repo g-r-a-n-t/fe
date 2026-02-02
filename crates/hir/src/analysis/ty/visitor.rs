@@ -5,7 +5,7 @@ use super::{
     const_expr::ConstExpr,
     const_ty::{ConstTyData, ConstTyId, EvaluatedConstTy},
     trait_def::{ImplementorId, TraitInstId},
-    trait_resolution::PredicateListId,
+    trait_resolution::{PredicateListId, TraitGoalSolution},
     ty_check::ExprProp,
     ty_def::{AssocTy, InvalidCause, PrimTy, TyBase, TyData, TyFlags, TyId, TyParam, TyVar},
 };
@@ -233,6 +233,16 @@ impl<'db> TyVisitable<'db> for PredicateListId<'db> {
         V: TyVisitor<'db> + ?Sized,
     {
         self.list(visitor.db()).visit_with(visitor)
+    }
+}
+
+impl<'db> TyVisitable<'db> for TraitGoalSolution<'db> {
+    fn visit_with<V>(&self, visitor: &mut V)
+    where
+        V: TyVisitor<'db> + ?Sized,
+    {
+        self.inst.visit_with(visitor);
+        self.implementor.visit_with(visitor);
     }
 }
 

@@ -12,7 +12,7 @@ use super::{
     effects::{EffectKeyKind, effect_key_kind},
     fold::{TyFoldable, TyFolder},
     trait_def::TraitInstId,
-    trait_resolution::{PredicateListId, constraint::collect_constraints},
+    trait_resolution::{PredicateListId, TraitSolveCx, constraint::collect_constraints},
     ty_def::{InvalidCause, Kind, TyData, TyId, TyParam},
 };
 use crate::analysis::name_resolution::{PathRes, PathResErrorKind, resolve_path};
@@ -112,8 +112,9 @@ fn lower_path<'db>(
                             inst.assoc_type_bindings(db).clone(),
                         );
 
+                        let solve_cx = TraitSolveCx::new(db, scope).with_assumptions(assumptions);
                         if let Some(const_ty) =
-                            super::const_ty::const_ty_from_trait_const(db, inst, name)
+                            super::const_ty::const_ty_from_trait_const(db, solve_cx, inst, name)
                         {
                             TyId::const_ty(db, const_ty)
                         } else if let Some(expected_ty) = inst
@@ -341,8 +342,10 @@ pub(crate) fn lower_generic_arg_list<'db>(
                                 inst.assoc_type_bindings(db).clone(),
                             );
 
+                            let solve_cx =
+                                TraitSolveCx::new(db, scope).with_assumptions(assumptions);
                             if let Some(const_ty) =
-                                super::const_ty::const_ty_from_trait_const(db, inst, name)
+                                super::const_ty::const_ty_from_trait_const(db, solve_cx, inst, name)
                             {
                                 return TyId::const_ty(db, const_ty);
                             }

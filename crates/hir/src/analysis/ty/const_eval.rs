@@ -5,6 +5,7 @@ use crate::analysis::{
     ty::{
         const_ty::{ConstTyData, ConstTyId, EvaluatedConstTy, const_ty_from_trait_const},
         ctfe::{CtfeConfig, CtfeInterpreter},
+        trait_resolution::TraitSolveCx,
         ty_check::ConstRef,
         ty_check::TypedBody,
         ty_def::{InvalidCause, TyId},
@@ -53,7 +54,8 @@ pub fn eval_const_ref<'db>(
             ConstTyId::from_body(db, body, None, Some(const_def))
         }
         ConstRef::TraitConst { inst, name } => {
-            const_ty_from_trait_const(db, inst, name).ok_or(InvalidCause::Other)?
+            let solve_cx = TraitSolveCx::new(db, inst.def(db).top_mod(db).scope());
+            const_ty_from_trait_const(db, solve_cx, inst, name).ok_or(InvalidCause::Other)?
         }
     };
     eval_const_ty(db, const_ty, Some(expected_ty))

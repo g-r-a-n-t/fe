@@ -1270,9 +1270,23 @@ fn first_unlowered_expr_used_by_mir<'db>(body: &MirBody<'db>) -> Option<ExprId> 
         }
     }
 
-    for value_id in used_values {
-        if let ValueOrigin::Expr(expr) = &body.value(value_id).origin {
-            return Some(*expr);
+    let mut worklist: Vec<ValueId> = used_values.into_iter().collect();
+    let mut visited: FxHashSet<ValueId> = FxHashSet::default();
+
+    while let Some(value_id) = worklist.pop() {
+        if !visited.insert(value_id) {
+            continue;
+        }
+
+        match &body.value(value_id).origin {
+            ValueOrigin::Expr(expr) => return Some(*expr),
+            ValueOrigin::Unary { inner, .. } => worklist.push(*inner),
+            ValueOrigin::Binary { lhs, rhs, .. } => {
+                worklist.push(*lhs);
+                worklist.push(*rhs);
+            }
+            ValueOrigin::TransparentCast { value } => worklist.push(*value),
+            _ => {}
         }
     }
 

@@ -778,12 +778,21 @@ pub(super) fn get_msg_variant_return_type<'db>(
     let msg_variant_trait = resolve_core_trait(db, scope, &["message", "MsgVariant"])?;
 
     let canonical_ty = Canonical::new(db, variant_ty);
-    let ingot = scope.ingot(db);
+    let scope_ingot = scope.ingot(db);
+    let search_ingots = [
+        Some(scope_ingot),
+        variant_ty.ingot(db).filter(|&ingot| ingot != scope_ingot),
+    ];
 
-    // Find the MsgVariant impl specifically
-    let msg_variant_impl = impls_for_ty(db, ingot, canonical_ty)
-        .iter()
-        .find(|impl_| impl_.skip_binder().trait_def(db).eq(&msg_variant_trait))?;
+    // Find the MsgVariant impl specifically, probing both:
+    // - the call-site ingot (for local traits implemented for external types), and
+    // - the receiver type's ingot (for external traits implemented in the type's ingot).
+    let msg_variant_impl = search_ingots.into_iter().flatten().find_map(|ingot| {
+        impls_for_ty(db, ingot, canonical_ty)
+            .iter()
+            .find(|impl_| impl_.skip_binder().trait_def(db).eq(&msg_variant_trait))
+            .copied()
+    })?;
 
     // Get the Return associated type from the impl
     let return_name = IdentId::new(db, "Return".to_string());

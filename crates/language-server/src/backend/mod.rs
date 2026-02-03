@@ -1,6 +1,6 @@
 use async_lsp::ClientSocket;
-use common::cache::remote_git_cache_dir;
 use common::InputDb;
+use common::cache::remote_git_cache_dir;
 use driver::DriverDataBase;
 use rustc_hash::FxHashSet;
 use std::path::{Path, PathBuf};

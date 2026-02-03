@@ -33,42 +33,24 @@ pub(crate) fn ingot_trait_env<'db>(db: &'db dyn HirAnalysisDb, ingot: Ingot<'db>
     TraitEnv::collect(db, ingot)
 }
 
-/// Returns all implementors for the given trait inst.
+/// Returns all implementors for the given trait definition.
+///
+/// Note: this intentionally does **not** pre-filter implementors by unifying with a
+/// specific goal instance. Projection-heavy goals (e.g. involving associated type
+/// projections) often only become unifiable after normalization, and unification
+/// rejects unresolved associated types. The solver normalizes before unifying
+/// candidates, so any filtering here must be an over-approximation.
 #[salsa::tracked(return_ref)]
-pub(crate) fn impls_for_trait<'db>(
+pub(crate) fn impls_for_trait_def<'db>(
     db: &'db dyn HirAnalysisDb,
     ingot: Ingot<'db>,
-    trait_: Canonical<TraitInstId<'db>>,
+    trait_def: Trait<'db>,
 ) -> Vec<Binder<ImplementorId<'db>>> {
-    let mut table = UnificationTable::new(db);
-    let trait_ = trait_.extract_identity(&mut table);
-
     let env = ingot_trait_env(db, ingot);
-    let mut out: Vec<_> = env
-        .impls
-        .get(&trait_.def(db))
-        .into_iter()
-        .flatten()
-        .filter(|impl_| {
-            let snapshot = table.snapshot();
-            let inst = table.instantiate_with_fresh_vars(**impl_);
-            let is_ok = table.unify(inst.trait_inst(db), trait_).is_ok();
-            table.rollback_to(snapshot);
-            is_ok
-        })
-        .cloned()
-        .collect();
+    let mut out = env.impls.get(&trait_def).cloned().unwrap_or_default();
 
-    if is_std_evm_contract_trait_def(db, trait_.def(db)) {
-        for impl_ in contract_virtual_impls(db, ingot).iter().copied() {
-            let snapshot = table.snapshot();
-            let inst = table.instantiate_with_fresh_vars(impl_);
-            let is_ok = table.unify(inst.trait_inst(db), trait_).is_ok();
-            table.rollback_to(snapshot);
-            if is_ok {
-                out.push(impl_);
-            }
-        }
+    if is_std_evm_contract_trait_def(db, trait_def) {
+        out.extend(contract_virtual_impls(db, ingot).iter().copied());
     }
 
     out
@@ -88,10 +70,15 @@ pub(crate) fn impls_for_trait_in_ingots<'db>(
     secondary: Option<Ingot<'db>>,
     trait_: Canonical<TraitInstId<'db>>,
 ) -> Vec<Binder<ImplementorId<'db>>> {
+    let trait_def = trait_.value.def(db);
     let mut dedup: IndexSet<Binder<ImplementorId<'db>>> = IndexSet::default();
-    dedup.extend(impls_for_trait(db, primary, trait_).iter().copied());
+    dedup.extend(impls_for_trait_def(db, primary, trait_def).iter().copied());
     if let Some(secondary) = secondary {
-        dedup.extend(impls_for_trait(db, secondary, trait_).iter().copied());
+        dedup.extend(
+            impls_for_trait_def(db, secondary, trait_def)
+                .iter()
+                .copied(),
+        );
     }
     dedup.into_iter().collect()
 }

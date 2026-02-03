@@ -2,7 +2,7 @@ use super::{
     canonical::{Canonical, Canonicalized, Solution},
     fold::{AssocTySubst, TyFoldable},
     trait_def::{ImplementorId, TraitInstId},
-    ty_def::{TyFlags, TyId},
+    ty_def::{TyData, TyFlags, TyId},
 };
 use crate::analysis::{
     HirAnalysisDb,
@@ -82,17 +82,23 @@ impl<'db> TraitSolveCx<'db> {
         inst: TraitInstId<'db>,
     ) -> (Ingot<'db>, Option<Ingot<'db>>) {
         let trait_ingot = inst.def(db).ingot(db);
-        let Some(self_ingot) = inst.self_ty(db).ingot(db) else {
-            return if self.origin_ingot == trait_ingot {
-                (self.origin_ingot, None)
-            } else {
-                (self.origin_ingot, Some(trait_ingot))
-            };
-        };
-        if self_ingot == trait_ingot {
-            (self_ingot, None)
+        let self_ty = inst.self_ty(db);
+        let self_ingot = self_ty.ingot(db).or_else(|| {
+            // For projection `Self` types that still don't yield an ingot (e.g. all-trait-param
+            // args), fall back to other trait arguments as a best-effort proxy.
+            match self_ty.data(db) {
+                TyData::AssocTy(_) | TyData::QualifiedTy(_) => {
+                    inst.args(db).iter().skip(1).find_map(|ty| ty.ingot(db))
+                }
+                _ => None,
+            }
+        });
+
+        let primary = self_ingot.unwrap_or(self.origin_ingot);
+        if primary == trait_ingot {
+            (primary, None)
         } else {
-            (self_ingot, Some(trait_ingot))
+            (primary, Some(trait_ingot))
         }
     }
 

@@ -51,13 +51,13 @@ impl RemoteProgress for LoggingProgress {
     }
 
     fn success(&mut self, _description: &GitDescription, ingot_url: &Url) {
-        tracing::info!(target: "resolver", "✅ Resolved {}", ingot_url);
+        tracing::info!(target: "resolver", "Resolved {}", ingot_url);
     }
 
     fn error(&mut self, description: &GitDescription, error: &IngotResolutionError) {
         tracing::warn!(
             target: "resolver",
-            "❌ Failed to resolve {}: {}",
+            "Failed to resolve {}: {}",
             description,
             error
         );
@@ -160,7 +160,7 @@ fn init_ingot_graph(db: &mut DriverDataBase, ingot_url: &Url) -> bool {
             tracing::warn!(target: "resolver", "{diag}");
         }
         if stdout_enabled {
-            eprintln!("❌ {diag}");
+            eprintln!("Error: {diag}");
         }
         had_diagnostics = true;
     }

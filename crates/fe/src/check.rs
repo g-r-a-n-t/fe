@@ -1,4 +1,4 @@
-use std::collections::HashSet;
+use std::{collections::HashSet, fs};
 
 use camino::Utf8PathBuf;
 use codegen::emit_module_yul;
@@ -53,7 +53,7 @@ pub fn check(path: &Utf8PathBuf, dump_mir: bool, emit_yul_min: bool) {
     let target = match resolve_check_target(&mut db, path) {
         Ok(target) => target,
         Err(message) => {
-            eprintln!("❌ Error: {message}");
+            eprintln!("Error: {message}");
             std::process::exit(1);
         }
     };
@@ -85,6 +85,22 @@ fn resolve_check_target(
 
     if path.is_file() {
         if path.extension() == Some("fe") {
+            // If the file lives under an ingot, check from that directory so imports resolve
+            // in context. For workspace roots, prefer treating the file as standalone unless
+            // the user explicitly targets the workspace.
+            if let Ok(canonical) = path.canonicalize_utf8()
+                && let Some(root) = ancestor_fe_toml_dirs(canonical.as_std_path())
+                    .first()
+                    .and_then(|root| Utf8PathBuf::from_path_buf(root.to_path_buf()).ok())
+            {
+                let config_path = root.join("fe.toml");
+                if let Ok(content) = fs::read_to_string(&config_path)
+                    && matches!(Config::parse(&content), Ok(Config::Ingot(_)))
+                {
+                    return Ok(CheckTarget::Directory(root));
+                }
+            }
+
             return Ok(CheckTarget::StandaloneFile(path.clone()));
         }
         return Err("Path must be either a .fe file or a directory containing fe.toml".into());
@@ -144,7 +160,7 @@ fn check_directory(
     let ingot_url = match dir_url(dir_path) {
         Ok(url) => url,
         Err(message) => {
-            eprintln!("{message}");
+            eprintln!("Error: {message}");
             return true;
         }
     };
@@ -157,11 +173,11 @@ fn check_directory(
     let config = match config_from_db(db, dir_path) {
         Ok(Some(config)) => config,
         Ok(None) => {
-            eprintln!("❌ Error: No fe.toml file found in the root directory");
+            eprintln!("Error: No fe.toml file found in the root directory");
             return true;
         }
         Err(err) => {
-            eprintln!("❌ Error: {err}");
+            eprintln!("Error: {err}");
             return true;
         }
     };
@@ -228,9 +244,9 @@ fn resolve_member_by_path(
         .workspace_member_records(db, &workspace_url);
     let canonical = path
         .canonicalize_utf8()
-        .map_err(|_| format!("Error: invalid or non-existent directory path: {path}"))?;
+        .map_err(|_| format!("Invalid or non-existent directory path: {path}"))?;
     let target_url = Url::from_directory_path(canonical.as_str())
-        .map_err(|_| format!("Error: invalid directory path: {path}"))?;
+        .map_err(|_| format!("Invalid directory path: {path}"))?;
 
     Ok(members
         .into_iter()
@@ -306,7 +322,7 @@ fn dir_url(path: &Utf8PathBuf) -> Result<Url, String> {
         }
     };
     Url::from_directory_path(canonical_path.as_str())
-        .map_err(|_| format!("Error: invalid or non-existent directory path: {path}"))
+        .map_err(|_| format!("Invalid or non-existent directory path: {path}"))
 }
 
 fn check_single_file(
@@ -318,7 +334,7 @@ fn check_single_file(
     let file_url = match Url::from_file_path(file_path.canonicalize_utf8().unwrap()) {
         Ok(url) => url,
         Err(_) => {
-            eprintln!("❌ Error: Invalid file path: {file_path}");
+            eprintln!("Error: Invalid file path: {file_path}");
             return true;
         }
     };
@@ -347,7 +363,7 @@ fn check_single_file(
 
     let mut resolver = resolver::files::FilesResolver::new();
     if let Err(err) = resolver.resolve(&mut StandaloneFileLoader { db }, &file_url) {
-        eprintln!("Error reading file {file_path}: {err}");
+        eprintln!("Error: Failed to read file {file_path}: {err}");
         return true;
     }
 
@@ -368,7 +384,7 @@ fn check_single_file(
             emit_yul(db, top_mod);
         }
     } else {
-        eprintln!("❌ Error: Could not process file {file_path}");
+        eprintln!("Error: Could not process file {file_path}");
         return true;
     }
 
@@ -393,7 +409,7 @@ fn check_ingot(
     let ingot_url = match Url::from_directory_path(canonical_path.as_str()) {
         Ok(url) => url,
         Err(_) => {
-            eprintln!("❌ Error: Invalid directory path: {dir_path}");
+            eprintln!("Error: Invalid directory path: {dir_path}");
             return true;
         }
     };
@@ -420,19 +436,19 @@ fn check_ingot_url(
         let config_url = match ingot_url.join("fe.toml") {
             Ok(url) => url,
             Err(_) => {
-                eprintln!("❌ Error: Invalid ingot directory path");
+                eprintln!("Error: Invalid ingot directory path");
                 return true;
             }
         };
 
         if db.workspace().get(db, &config_url).is_none() {
-            eprintln!("❌ Error: No fe.toml file found in the root directory");
+            eprintln!("Error: No fe.toml file found in the root directory");
             eprintln!("       Expected fe.toml at: {config_url}");
             eprintln!(
                 "       Make sure you're in an fe project directory or create a fe.toml file"
             );
         } else {
-            eprintln!("❌ Error: Could not resolve ingot from directory");
+            eprintln!("Error: Could not resolve ingot from directory");
         }
         return true;
     }
@@ -451,7 +467,7 @@ fn check_workspace(
     let workspace_url = match dir_url(dir_path) {
         Ok(url) => url,
         Err(message) => {
-            eprintln!("{message}");
+            eprintln!("Error: {message}");
             return true;
         }
     };
@@ -459,13 +475,13 @@ fn check_workspace(
     let members = match driver::workspace_members(&workspace_config.workspace, &workspace_url) {
         Ok(members) => members,
         Err(err) => {
-            eprintln!("❌ Error resolving workspace members: {err}");
+            eprintln!("Error: Failed to resolve workspace members: {err}");
             return true;
         }
     };
 
     if members.is_empty() {
-        eprintln!("⚠️  No workspace members found");
+        eprintln!("Warning: No workspace members found");
         return false;
     }
 
@@ -493,7 +509,7 @@ fn check_ingot_and_dependencies(
     }
 
     let Some(ingot) = db.workspace().containing_ingot(db, ingot_url.clone()) else {
-        eprintln!("❌ Error: Could not resolve ingot {ingot_url}");
+        eprintln!("Error: Could not resolve ingot {ingot_url}");
         return true;
     };
 
@@ -505,7 +521,7 @@ fn check_ingot_and_dependencies(
     }
 
     if !ingot_has_source_files(db, ingot) {
-        eprintln!("❌ Error: Could not find source files for ingot {ingot_url}");
+        eprintln!("Error: Could not find source files for ingot {ingot_url}");
         return true;
     }
 
@@ -534,7 +550,7 @@ fn check_ingot_and_dependencies(
             continue;
         };
         if !ingot_has_source_files(db, ingot) {
-            eprintln!("❌ Error: Could not find source files for ingot {dependency_url}");
+            eprintln!("Error: Could not find source files for ingot {dependency_url}");
             has_errors = true;
             continue;
         }
@@ -547,9 +563,9 @@ fn check_ingot_and_dependencies(
     if !dependency_errors.is_empty() {
         has_errors = true;
         if dependency_errors.len() == 1 {
-            eprintln!("❌ Error in downstream ingot");
+            eprintln!("Error: Downstream ingot has errors");
         } else {
-            eprintln!("❌ Errors in downstream ingots");
+            eprintln!("Error: Downstream ingots have errors");
         }
 
         for (dependency_url, diags) in dependency_errors {
@@ -576,18 +592,18 @@ fn print_dependency_info(db: &DriverDataBase, dependency_url: &Url) {
         if let Some(config) = ingot.config(db) {
             let name = config.metadata.name.as_deref().unwrap_or("unknown");
             if let Some(version) = &config.metadata.version {
-                eprintln!("➖ {name} (version: {version})");
+                eprintln!("- {name} (version: {version})");
             } else {
-                eprintln!("➖ {name}");
+                eprintln!("- {name}");
             }
         } else {
-            eprintln!("➖ Unknown dependency");
+            eprintln!("- Unknown dependency");
         }
     } else {
-        eprintln!("➖ Unknown dependency");
+        eprintln!("- Unknown dependency");
     }
 
-    eprintln!("🔗 {dependency_url}");
+    eprintln!("  {dependency_url}");
     eprintln!();
 }
 
@@ -597,7 +613,7 @@ fn emit_yul(db: &DriverDataBase, top_mod: TopLevelMod<'_>) {
             println!("=== Yul ===");
             println!("{yul}");
         }
-        Err(err) => eprintln!("⚠️  failed to emit Yul: {err}"),
+        Err(err) => eprintln!("Warning: failed to emit Yul: {err}"),
     }
 }
 

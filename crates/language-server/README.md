@@ -2,7 +2,7 @@
 ## An LSP server for the Fe programming language
 The Fe Language Server project aims to develop a robust, efficient, and feature-rich language server that enhances the development experience for Fe developers. This includes implementing a wide range of Language Server Protocol (LSP) features, improving the backend infrastructure, integrating with the VSCode extension, and thorough testing and documentation.
 
-## Current status: 🚧 experimental 🚧
+## Current status: experimental (work in progress)
 
 The language server is being developed against an ongoing Fe compiler rewrite, so it doesn't currently support the version of Fe in the main branch.
 

@@ -56,13 +56,19 @@ fn build_file(
         }
     };
 
-    // If the file lives under an ingot/workspace, build from the nearest `fe.toml` directory so
-    // imports resolve in context.
+    // If the file lives under an ingot (i.e. the nearest `fe.toml` is an `[ingot]` config),
+    // build from that directory so imports resolve in context. For workspace roots, prefer treating
+    // the file as standalone unless the user explicitly targets the workspace.
     if let Some(root) = ancestor_fe_toml_dirs(canonical.as_std_path())
         .first()
         .and_then(|root| Utf8PathBuf::from_path_buf(root.to_path_buf()).ok())
     {
-        return build_directory(db, &root, contract, optimize, out_dir);
+        let config_path = root.join("fe.toml");
+        if let Ok(content) = fs::read_to_string(&config_path)
+            && matches!(Config::parse(&content), Ok(Config::Ingot(_)))
+        {
+            return build_directory(db, &root, contract, optimize, out_dir);
+        }
     }
 
     let url = match Url::from_file_path(canonical.as_std_path()) {

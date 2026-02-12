@@ -1,5 +1,6 @@
 #![allow(clippy::print_stderr)]
 
+pub mod cli_target;
 pub mod db;
 pub mod diagnostics;
 pub mod files;

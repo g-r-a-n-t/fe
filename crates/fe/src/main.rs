@@ -31,7 +31,7 @@ pub struct Options {
 pub enum Command {
     /// Compile Fe code to EVM bytecode using solc.
     Build {
-        /// Path to an ingot/workspace directory (containing fe.toml) or a .fe file.
+        /// Path to an ingot/workspace directory (containing fe.toml), a workspace member name, or a .fe file.
         #[arg(default_value_t = default_project_path())]
         path: Utf8PathBuf,
         /// Build a specific contract by name (defaults to all contracts in the target).

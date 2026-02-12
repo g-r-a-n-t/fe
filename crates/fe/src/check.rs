@@ -7,8 +7,8 @@ use common::{
     config::{Config, WorkspaceConfig},
     file::IngotFileKind,
 };
-use driver::cli_target::{CliTarget, resolve_cli_target};
 use driver::DriverDataBase;
+use driver::cli_target::{CliTarget, resolve_cli_target};
 use hir::hir_def::{HirIngot, TopLevelMod};
 use mir::lower_module;
 use resolver::ResolutionHandler;

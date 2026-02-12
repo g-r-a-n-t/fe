@@ -7,8 +7,8 @@ use common::{
     dependencies::WorkspaceMemberRecord,
     file::IngotFileKind,
 };
-use driver::cli_target::{CliTarget, resolve_cli_target};
 use driver::DriverDataBase;
+use driver::cli_target::{CliTarget, resolve_cli_target};
 use hir::hir_def::{HirIngot, TopLevelMod};
 use mir::{analysis::build_contract_graph, lower_module};
 use smol_str::SmolStr;

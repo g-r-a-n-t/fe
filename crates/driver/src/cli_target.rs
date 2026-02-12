@@ -44,7 +44,10 @@ impl ResolutionHandler<resolver::files::FilesResolver> for ConfigProbe {
     }
 }
 
-pub fn resolve_cli_target(db: &mut DriverDataBase, path: &Utf8PathBuf) -> Result<CliTarget, String> {
+pub fn resolve_cli_target(
+    db: &mut DriverDataBase,
+    path: &Utf8PathBuf,
+) -> Result<CliTarget, String> {
     let arg = path.as_str();
     let is_name = is_name_candidate(arg);
     let path_exists = path.exists();
@@ -223,4 +226,3 @@ fn dir_url(path: &Utf8PathBuf) -> Result<Url, String> {
     Url::from_directory_path(canonical_path.as_str())
         .map_err(|_| format!("Invalid or non-existent directory path: {path}"))
 }
-

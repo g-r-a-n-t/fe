@@ -1,0 +1,14 @@
+// Minimal standalone seeds for compiler fuzzing.
+
+struct Pair {
+    a: u256,
+    b: u256,
+}
+
+pub fn add_one(x: u256) -> u256 {
+    x + 1
+}
+
+pub fn sum(p: Pair) -> u256 {
+    p.a + p.b
+}

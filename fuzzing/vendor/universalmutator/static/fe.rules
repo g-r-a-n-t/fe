@@ -1,0 +1,79 @@
+#
+# FE-specific mutation rules for type-system and contract-heavy code.
+# These are intentionally broad; validity filtering is handled by the harness.
+#
+
+(^\s*use\s+) ==> DO_NOT_MUTATE
+(^\s*mod\s+) ==> DO_NOT_MUTATE
+
+\bpub\b ==> 
+\bmut\b ==> 
+\bref\b ==> 
+\bself\b ==> Self
+\bSelf\b ==> self
+
+\btrait\b ==> struct
+\bstruct\b ==> enum
+\benum\b ==> struct
+\bcontract\b ==> struct
+\bimpl\b ==> trait
+
+\bwhere\b ==> 
+\buses\s+\(([^)]*)\) ==> 
+\buses\s+\(([^)]*)\) ==> uses ()
+\buses\s+\(([^)]*)\) ==> uses (value)
+\buses\s+\(([^)]*)\) ==> uses (mut value)
+
+:\s*([A-Za-z_][A-Za-z0-9_]*)(<[^>\n]+>)? ==> 
+:\s*([A-Za-z_][A-Za-z0-9_]*)(<[^>\n]+>)? ==> : u256
+
+->\s*([A-Za-z_][A-Za-z0-9_:<>]*) ==> 
+->\s*([A-Za-z_][A-Za-z0-9_:<>]*) ==> -> bool
+->\s*([A-Za-z_][A-Za-z0-9_:<>]*) ==> -> u256
+
+:: ==> .
+\bas\b ==> 
+\btype\b ==> const
+\bconst\b ==> 
+
+\brecv\b ==> init
+\binit\b ==> recv
+
+<([^>\n]+)> ==> 
+<([^>\n]+)> ==> <\1, u256>
+
+\bItem\b ==> IntoIter
+\bIntoIter\b ==> Item
+
+\bmatch\b ==> if
+\bif\b ==> match
+=> ==> ->
+=> ==> ,
+
+\btrue\b ==> false
+\bfalse\b ==> true
+\bpass\b ==> 
+
+# HKT / trait-projection targeted tweaks
+\bFn<([^>\n]+)> ==> Functor<\1>
+\bFunctor<([^>\n]+)> ==> Monad<\1>
+\bMonad<([^>\n]+)> ==> Applicative<\1>
+\bApplicative<([^>\n]+)> ==> Monad<\1>
+\b([A-Za-z_][A-Za-z0-9_]*)::([A-Za-z_][A-Za-z0-9_]*)::([A-Za-z_][A-Za-z0-9_]*) ==> \1::\3
+\bSelf::([A-Za-z_][A-Za-z0-9_]*)::([A-Za-z_][A-Za-z0-9_]*) ==> Self::\1
+\bwhere\s+([A-Za-z_][A-Za-z0-9_:<>]*)\s*:\s*([A-Za-z_][A-Za-z0-9_:<>]+) ==> where \1: \2 + Iterator
+\bwhere\s+([A-Za-z_][A-Za-z0-9_:<>]*)\s*:\s*([A-Za-z_][A-Za-z0-9_:<>]+) ==> where \1: \2 + IntoIterator
+
+# Effect-provider / pointer-domain focused mutations
+\bRawMem\b ==> RawStorage
+\bRawStorage\b ==> RawMem
+\bMemPtr<([^>\n]+)> ==> StorPtr<\1>
+\bStorPtr<([^>\n]+)> ==> MemPtr<\1>
+\bCalldataPtr<([^>\n]+)> ==> MemPtr<\1>
+\bCalldataPtr<([^>\n]+)> ==> StorPtr<\1>
+\bmem_ptr\b ==> stor_ptr
+\bstor_ptr\b ==> mem_ptr
+\bwith\s+\(([^=)]+)\) ==> with ()
+\bwith\s+\(([^=)]+)\s*=\s*([^)]+)\) ==> with (\1 = \2, \1 = \2)
+\buses\s+\(([^:()]+):\s*mut\s+([^)]+)\) ==> uses (\1: \2)
+\buses\s+\(([^:()]+):\s*([^)]+)\) ==> uses (\1: mut \2)

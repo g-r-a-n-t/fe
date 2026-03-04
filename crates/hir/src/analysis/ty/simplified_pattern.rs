@@ -238,6 +238,18 @@ impl<'db> SimplifiedPattern<'db> {
                     let ctor = ConstructorKind::Variant(variant.variant, expected_ty);
                     return Some((ctor, expected_ty));
                 }
+                if let Some(expected_ty) = expected_ty {
+                    let (expected_base, _) = expected_ty.decompose_ty_app(db);
+                    let (resolved_base, _) = ty_id.decompose_ty_app(db);
+                    if expected_base == resolved_base {
+                        // Preserve generic args from the scrutinee type for bare type paths.
+                        // Otherwise `Result` in a `Result<T, E>` match can lose args and panic
+                        // during constructor field instantiation.
+                        let ctor = ConstructorKind::Type(expected_ty);
+                        return Some((ctor, expected_ty));
+                    }
+                }
+
                 // Handle struct/tuple types
                 let ctor = ConstructorKind::Type(ty_id);
                 Some((ctor, ty_id))

@@ -67,7 +67,8 @@ impl<'db> SimplifiedPattern<'db> {
     ) -> Self {
         match pat {
             HirPat::Rest => {
-                unreachable!("Rest pattern is only allowed within tuple and record patterns")
+                // Keep pattern analysis resilient to malformed HIR recovered from parse errors.
+                SimplifiedPattern::error(expected_ty)
             }
             HirPat::WildCard => SimplifiedPattern::wildcard(None, expected_ty),
 

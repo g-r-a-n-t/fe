@@ -1131,8 +1131,10 @@ impl<'db> GenericParamOwner<'db> {
         };
 
         let mut out = Vec::new();
-        let owner_item = ItemKind::from(self);
-        let assumptions = constraints_for(db, owner_item);
+        // Forward-ref checking only needs parameter occurrences in default types.
+        // Full assumptions can create non-converging cycles on malformed defaults
+        // (e.g. `T = Self`) and should not panic diagnostics collection.
+        let assumptions = ty::trait_resolution::PredicateListId::empty_list(db);
         let scope = self.scope();
 
         for view in self.params(db) {
@@ -1143,6 +1145,10 @@ impl<'db> GenericParamOwner<'db> {
             let Some(default_ty) = default_ty else {
                 continue;
             };
+
+            if default_ty.is_self_ty(db) {
+                continue;
+            }
 
             let lowered = lower_hir_ty(db, default_ty, scope, assumptions);
 

@@ -84,6 +84,14 @@ fn extract_type_mismatch<'db>(
     }
 }
 
+fn cyclic_trait_ref_diag<'db>(span: DynLazySpan<'db>, context: &str) -> TyDiagCollection<'db> {
+    TraitConstraintDiag::InfiniteBoundRecursion(
+        span,
+        format!("cyclic trait reference prevented lowering this {context}"),
+    )
+    .into()
+}
+
 impl<'db> SuperTraitRefView<'db> {
     /// Diagnostics for this super-trait reference in its owner's context.
     /// Uses the trait's `Self` as subject and checks WF; kind mismatch is emitted
@@ -112,6 +120,12 @@ impl<'db> SuperTraitRefView<'db> {
                 return Some(
                     PathResDiag::ExpectedTrait(span.path().into(), ident, res.kind_name()).into(),
                 );
+            }
+            Err(TraitRefLowerError::Cycle) => {
+                return Some(cyclic_trait_ref_diag(
+                    span.path().into(),
+                    "super-trait bound",
+                ));
             }
             Err(TraitRefLowerError::Ignored) => return None,
         };
@@ -284,6 +298,9 @@ impl<'db> WherePredicateBoundView<'db> {
                             .into(),
                     );
                 }
+            }
+            Err(TraitRefLowerError::Cycle) => {
+                out.push(cyclic_trait_ref_diag(span.path().into(), "trait bound"));
             }
             Err(TraitRefLowerError::Ignored) => {}
         }
@@ -1309,6 +1326,9 @@ impl<'db> GenericParamOwner<'db> {
                                 .into(),
                             );
                         }
+                    }
+                    Err(TraitRefLowerError::Cycle) => {
+                        out.push(cyclic_trait_ref_diag(span.path().into(), "trait bound"));
                     }
                     Err(TraitRefLowerError::Ignored) => {}
                 }

@@ -76,6 +76,10 @@ pub enum PathResErrorKind<'db> {
         trait_insts: ThinVec<TraitInstId<'db>>,
     },
 
+    InfiniteBoundRecursion {
+        context: &'static str,
+    },
+
     /// The name is found, but it can't be used in the middle of a use path.
     InvalidPathSegment(PathRes<'db>),
 
@@ -162,6 +166,9 @@ impl<'db> PathResError<'db> {
                     trait_insts.len()
                 )
             }
+            PathResErrorKind::InfiniteBoundRecursion { .. } => {
+                "Infinite trait bound recursion".to_string()
+            }
             PathResErrorKind::InvalidPathSegment(_) => "Invalid path segment".to_string(),
             PathResErrorKind::QualifiedTypeType(res) => match res.as_ref() {
                 Ok(res) => format!(
@@ -211,6 +218,17 @@ impl<'db> PathResError<'db> {
                     "Receiver type must be known".to_string()
                 }
             },
+        }
+    }
+
+    fn is_infinite_bound_recursion(&self) -> bool {
+        match &self.kind {
+            PathResErrorKind::InfiniteBoundRecursion { .. } => true,
+            PathResErrorKind::QualifiedTypeType(result)
+            | PathResErrorKind::QualifiedTypeTrait(result) => {
+                matches!(result.as_ref(), Err(inner) if inner.is_infinite_bound_recursion())
+            }
+            _ => false,
         }
     }
 
@@ -320,6 +338,13 @@ impl<'db> PathResError<'db> {
                     name,
                     trait_insts,
                 }
+            }
+
+            PathResErrorKind::InfiniteBoundRecursion { context } => {
+                PathResDiag::InfiniteBoundRecursion(
+                    span,
+                    format!("cyclic trait reference prevented lowering this {context}"),
+                )
             }
 
             PathResErrorKind::QualifiedTypeType(result) => match *result {
@@ -781,6 +806,12 @@ where
                         PathResErrorKind::QualifiedTypeTrait(Box::new(Ok(res))),
                         trait_path,
                     ),
+                    TraitRefLowerError::Cycle => PathResError::new(
+                        PathResErrorKind::InfiniteBoundRecursion {
+                            context: "qualified trait reference",
+                        },
+                        path,
+                    ),
                     TraitRefLowerError::Ignored => PathResError::parse_err(trait_path),
                 };
                 return Err(err);
@@ -904,8 +935,23 @@ where
             }
 
             // Find raw associated types, then dedup by normalized result here.
-            let assoc_tys =
-                find_associated_type(db, scope, Canonicalized::new(db, ty), ident, assumptions);
+            let assoc_tys = match find_associated_type(
+                db,
+                scope,
+                Canonicalized::new(db, ty),
+                ident,
+                assumptions,
+            ) {
+                Ok(assoc_tys) => assoc_tys,
+                Err(FindAssociatedTypeError::InfiniteBoundRecursion) => {
+                    return Err(PathResError::new(
+                        PathResErrorKind::InfiniteBoundRecursion {
+                            context: "associated type",
+                        },
+                        path,
+                    ));
+                }
+            };
 
             if assoc_tys.is_empty() {
                 return Err(PathResError::new(
@@ -1022,6 +1068,11 @@ enum AssocConstSelection<'db> {
     NotFound,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum FindAssociatedTypeError {
+    InfiniteBoundRecursion,
+}
+
 fn select_assoc_const_candidate<'db>(
     db: &'db dyn HirAnalysisDb,
     receiver_ty: TyId<'db>,
@@ -1112,13 +1163,13 @@ fn select_assoc_const_candidate<'db>(
     }
 }
 
-pub fn find_associated_type<'db>(
+pub(crate) fn find_associated_type<'db>(
     db: &'db dyn HirAnalysisDb,
     scope: ScopeId<'db>,
     ty: Canonicalized<'db, TyId<'db>>,
     name: IdentId<'db>,
     assumptions: PredicateListId<'db>,
-) -> SmallVec<(TraitInstId<'db>, TyId<'db>), 4> {
+) -> Result<SmallVec<(TraitInstId<'db>, TyId<'db>), 4>, FindAssociatedTypeError> {
     let canonical_ty = ty.value;
     let original_ty = ty.decanonicalize(db, canonical_ty.value);
 
@@ -1128,7 +1179,7 @@ pub fn find_associated_type<'db>(
         let proj = TyId::assoc_ty(db, *trait_inst, name);
         let proj = ty.decanonicalize(db, proj);
         let inst = ty.decanonicalize(db, *trait_inst);
-        return smallvec![(inst, proj)];
+        return Ok(smallvec![(inst, proj)]);
     }
 
     let scope_ingot = scope.ingot(db);
@@ -1146,13 +1197,13 @@ pub fn find_associated_type<'db>(
                     let trait_inst =
                         TraitInstId::new(db, trait_, vec![original_ty], IndexMap::new());
                     let assoc_ty = TyId::assoc_ty(db, trait_inst, name);
-                    return smallvec![(trait_inst, assoc_ty)];
+                    return Ok(smallvec![(trait_inst, assoc_ty)]);
                 }
             } else if let Some(impl_trait) = param.owner.resolve_to::<ImplTrait>(db)
                 && let Some(trait_inst) = impl_trait.trait_inst(db)
                 && let Some(assoc_ty) = trait_inst.assoc_ty(db, name)
             {
-                return smallvec![(trait_inst, assoc_ty)];
+                return Ok(smallvec![(trait_inst, assoc_ty)]);
             }
         }
     }
@@ -1260,17 +1311,31 @@ pub fn find_associated_type<'db>(
             // owner_self is used to substitute `Self` in bounds like `type Assoc: Encode<Self>`
             let owner_self = assoc_ty.trait_.self_ty(db);
             for bound in &decl.bounds {
-                if let TypeBound::Trait(trait_ref) = *bound
-                    && let Ok(inst) = crate::analysis::ty::trait_lower::lower_trait_ref(
-                        db,
-                        subject,
-                        trait_ref,
-                        scope,
-                        assumptions,
-                        Some(owner_self),
-                    )
-                    && inst.def(db).assoc_ty(db, name).is_some()
-                {
+                let TypeBound::Trait(trait_ref) = *bound else {
+                    continue;
+                };
+
+                let inst = match crate::analysis::ty::trait_lower::lower_trait_ref(
+                    db,
+                    subject,
+                    trait_ref,
+                    scope,
+                    assumptions,
+                    Some(owner_self),
+                ) {
+                    Ok(inst) => inst,
+                    Err(TraitRefLowerError::Cycle) => {
+                        return Err(FindAssociatedTypeError::InfiniteBoundRecursion);
+                    }
+                    Err(TraitRefLowerError::PathResError(err))
+                        if err.is_infinite_bound_recursion() =>
+                    {
+                        return Err(FindAssociatedTypeError::InfiniteBoundRecursion);
+                    }
+                    Err(_) => continue,
+                };
+
+                if inst.def(db).assoc_ty(db, name).is_some() {
                     let assoc_ty = TyId::assoc_ty(db, inst, name);
                     let folded_inst = inst.fold_with(db, &mut assoc_table);
                     let folded_ty = assoc_ty.fold_with(db, &mut assoc_table);
@@ -1289,7 +1354,7 @@ pub fn find_associated_type<'db>(
         }
     }
 
-    candidates
+    Ok(candidates)
 }
 
 pub fn resolve_name_res<'db>(

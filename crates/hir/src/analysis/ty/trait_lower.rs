@@ -151,8 +151,7 @@ fn lower_trait_ref_cycle_initial<'db>(
     _assumptions: PredicateListId<'db>,
     _owner_self: Option<TyId<'db>>,
 ) -> Result<TraitInstId<'db>, TraitRefLowerError<'db>> {
-    // Break dependency cycles in trait-ref lowering instead of panicking in salsa.
-    Err(TraitRefLowerError::Ignored)
+    Err(TraitRefLowerError::Cycle)
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -320,6 +319,7 @@ pub(crate) fn collect_implementor_methods<'db>(
 pub(crate) enum TraitRefLowerError<'db> {
     PathResError(PathResError<'db>),
     InvalidDomain(PathRes<'db>),
+    Cycle,
     /// Error is expected to be reported elsewhere.
     Ignored,
 }
@@ -376,5 +376,34 @@ impl<'db> ImplementorCollector<'db> {
         }
 
         false
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use camino::Utf8PathBuf;
+
+    use super::*;
+    use crate::{
+        analysis::ty::ty_def::InvalidCause, core::hir_def::Partial, test_db::HirAnalysisTestDb,
+    };
+
+    #[test]
+    fn lower_trait_ref_cycle_initial_returns_cycle() {
+        let mut db = HirAnalysisTestDb::default();
+        let file = db.new_stand_alone(Utf8PathBuf::from("cycle_initial.fe"), "");
+        let (top_mod, _) = db.top_mod(file);
+        let scope = ScopeId::from_item(top_mod.into());
+
+        let result = lower_trait_ref_cycle_initial(
+            &db,
+            TyId::invalid(&db, InvalidCause::Other),
+            TraitRefId::new(&db, Partial::Absent),
+            scope,
+            PredicateListId::empty_list(&db),
+            None,
+        );
+
+        assert_eq!(result, Err(TraitRefLowerError::Cycle));
     }
 }

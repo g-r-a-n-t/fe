@@ -363,6 +363,7 @@ fn check_ingot_and_dependencies(
 
     let hir_diags = db.run_on_ingot(ingot);
     let mut has_errors = false;
+    let hir_has_errors = hir_diags.has_errors(db);
 
     if !hir_diags.is_empty() {
         hir_diags.emit(db);
@@ -373,7 +374,11 @@ fn check_ingot_and_dependencies(
         has_errors = true;
     }
 
-    let mir_diags = db.mir_diagnostics_for_ingot(ingot, MirDiagnosticsMode::CompilerParity);
+    let mir_diags = if hir_has_errors {
+        Vec::new()
+    } else {
+        db.mir_diagnostics_for_ingot(ingot, MirDiagnosticsMode::CompilerParity)
+    };
     if !mir_diags.is_empty() {
         db.emit_complete_diagnostics(&mir_diags);
         has_errors = true;
@@ -403,7 +408,11 @@ fn check_ingot_and_dependencies(
             continue;
         }
         let hir_diags = db.run_on_ingot(ingot);
-        let mir_diags = db.mir_diagnostics_for_ingot(ingot, MirDiagnosticsMode::CompilerParity);
+        let mir_diags = if hir_diags.has_errors(db) {
+            Vec::new()
+        } else {
+            db.mir_diagnostics_for_ingot(ingot, MirDiagnosticsMode::CompilerParity)
+        };
         if !hir_diags.is_empty() || !mir_diags.is_empty() {
             dependency_errors.push((dependency_url, hir_diags, mir_diags));
         }
@@ -496,6 +505,7 @@ fn check_single_file(
         let top_mod = db.top_mod(file);
         let hir_diags = db.run_on_top_mod(top_mod);
         let mut has_errors = false;
+        let hir_has_errors = hir_diags.has_errors(db);
 
         if !hir_diags.is_empty() {
             eprintln!("errors in {file_url}");
@@ -508,7 +518,11 @@ fn check_single_file(
             has_errors = true;
         }
 
-        let mir_diags = db.mir_diagnostics_for_top_mod(top_mod, MirDiagnosticsMode::CompilerParity);
+        let mir_diags = if hir_has_errors {
+            Vec::new()
+        } else {
+            db.mir_diagnostics_for_top_mod(top_mod, MirDiagnosticsMode::CompilerParity)
+        };
         if !mir_diags.is_empty() {
             if !has_errors {
                 eprintln!("errors in {file_url}");

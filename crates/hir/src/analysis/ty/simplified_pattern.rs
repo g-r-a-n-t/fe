@@ -242,9 +242,13 @@ impl<'db> SimplifiedPattern<'db> {
                     let (expected_base, _) = expected_ty.decompose_ty_app(db);
                     let (resolved_base, _) = ty_id.decompose_ty_app(db);
                     if expected_base == resolved_base {
-                        // Preserve generic args from the scrutinee type for bare type paths.
-                        // Otherwise `Result` in a `Result<T, E>` match can lose args and panic
-                        // during constructor field instantiation.
+                        // Preserve generic args from the scrutinee type for bare struct/tuple
+                        // type paths. Bare enum type paths are not constructors in patterns, so
+                        // keep them invalid instead of mixing enum variants with a synthetic type
+                        // constructor during exhaustiveness analysis.
+                        if expected_ty.as_enum(db).is_some() {
+                            return None;
+                        }
                         let ctor = ConstructorKind::Type(expected_ty);
                         return Some((ctor, expected_ty));
                     }

@@ -211,6 +211,12 @@ pub trait Contract {
     fn init_code_len() -> u256
 }
 
+fn encode_sol<T>(value: own T, e: mut SolEncoder)
+    where T: Encode<Sol>
+{
+    value.encode(mut e)
+}
+
 pub trait Create {
     /// Low-level `CREATE` opcode.
     fn create_raw(mut self, value: u256, offset: u256, len: u256) -> Address {
@@ -234,7 +240,7 @@ pub trait Create {
         ops::codecopy(dest: init_ptr, offset: init_off, len: init_len)
         let args_ptr = init_ptr + init_len
         let mut enc = SolEncoder { start: args_ptr, pos: args_ptr, end: args_ptr + args_len }
-        args.encode(mut enc)
+        encode_sol(args, mut enc)
 
         let addr = self.create_raw(value, init_ptr, total_len)
 
@@ -261,7 +267,7 @@ pub trait Create {
         ops::codecopy(dest: init_ptr, offset: init_off, len: init_len)
         let args_ptr = init_ptr + init_len
         let mut enc = SolEncoder { start: args_ptr, pos: args_ptr, end: args_ptr + args_len }
-        args.encode(mut enc)
+        encode_sol(args, mut enc)
 
         let addr = self.create2_raw(value, init_ptr, total_len, salt)
 
@@ -412,7 +418,7 @@ fn encode_calldata<M>(selector: u32, message: own M) -> (u256, u256)
     ops::mstore(base, selector_word)
 
     enc.set_pos(base + selector_size)
-    message.encode(mut enc)
+    encode_sol(message, mut enc)
     enc.finish()
 }
 

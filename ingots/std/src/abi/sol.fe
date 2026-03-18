@@ -111,8 +111,7 @@ impl Abi for Sol {
     }
 
     fn decode_i64_word(_ word: u256) -> i64 {
-        let signed_word: i256 =
-            canonical_signed_word(word, 0xffffffffffffffff, 0x8000000000000000).downcast_unchecked()
+        let signed_word: i256 = canonical_signed_word(word, 0xffffffffffffffff, 0x8000000000000000).downcast_unchecked()
         signed_word.downcast_unchecked()
     }
 
@@ -319,6 +318,10 @@ pub trait SolCompat {
     const SOL_TYPE: Self::S
 }
 
+pub const fn sol_type<T: SolCompat>() -> T::S {
+    T::SOL_TYPE
+}
+
 // Primitive unsigned integer implementations
 impl SolCompat for u8 {
     type S = String<5>
@@ -386,6 +389,10 @@ impl SolCompat for bool {
 // ---------------------------------------------------------------------------
 // TopicValue – converts indexed event field values to u256 log topics
 // ---------------------------------------------------------------------------
+
+pub fn topic_value<T: TopicValue>(value: T) -> u256 {
+    value.as_topic()
+}
 
 impl TopicValue for u8 {
     fn as_topic(self) -> u256 { self.downcast_unchecked() }

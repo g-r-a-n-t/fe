@@ -72,6 +72,40 @@ pub trait EffectHandle {
 }
 
 #[test]
+fn analyze_custom_core_parse_broken_effect_ref_reports_missing_traits_without_panicking() {
+    let temp = TempDir::new().unwrap();
+    write_file(
+        &temp.path().join("fe.toml"),
+        "[ingot]\nname = \"core\"\nversion = \"0.1.0\"\n",
+    );
+    write_file(
+        &temp.path().join("src/lib.fe"),
+        r#"
+pub struct Ctx {}
+
+fn exercise() uses (ctx: Ctx) {}
+"#,
+    );
+    write_file(
+        &temp.path().join("src/effect_ref.fe"),
+        r#"
+pub trait EffectRef<Targrevert();et> {}
+pub trait EffectRefMut<T>: EffectRef<T> {}
+"#,
+    );
+
+    let diags = analyze_ingot_diags(temp.path());
+    assert!(
+        diags.contains("unexpected syntax while parsing generic parameter list"),
+        "expected parse diagnostic for malformed EffectRef, got:\n{diags}",
+    );
+    assert!(
+        diags.contains("missing required core trait `core::effect_ref::EffectHandle`"),
+        "expected missing EffectHandle diagnostic, got:\n{diags}",
+    );
+}
+
+#[test]
 fn analyze_custom_core_reports_invalid_div_signature_without_panicking() {
     let temp = TempDir::new().unwrap();
     write_file(

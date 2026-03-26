@@ -5,10 +5,12 @@ use common::ingot::IngotKind;
 use crate::{
     analysis::{
         HirAnalysisDb,
+        analysis_pass::ModuleAnalysisPass,
+        diagnostics::DiagnosticVoucher,
         name_resolution::{NameDomain, PathRes, resolve_ident_to_bucket, resolve_path},
         ty::trait_resolution::PredicateListId,
     },
-    hir_def::{IdentId, PathId, Trait, scope_graph::ScopeId},
+    hir_def::{HirIngot, IdentId, PathId, TopLevelMod, Trait, scope_graph::ScopeId},
 };
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -19,27 +21,30 @@ pub enum CoreRequirementKind {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct CoreRequirement {
-    pub path: &'static str,
-    pub kind: CoreRequirementKind,
-    pub method: Option<&'static str>,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct MissingCoreRequirement {
+pub struct CoreRequirementViolation {
     pub path: String,
     pub kind: CoreRequirementKind,
-    pub detail: Option<String>,
+    pub method: Option<String>,
 }
 
-impl std::fmt::Display for MissingCoreRequirement {
+impl CoreRequirementViolation {
+    pub fn local_code(&self) -> u16 {
+        match self.kind {
+            CoreRequirementKind::Trait => 101,
+            CoreRequirementKind::TraitMethod => 102,
+            CoreRequirementKind::Type => 103,
+        }
+    }
+}
+
+impl std::fmt::Display for CoreRequirementViolation {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self.kind {
             CoreRequirementKind::Trait => {
                 write!(f, "missing required core trait `{}`", self.path)
             }
             CoreRequirementKind::TraitMethod => {
-                let method = self.detail.as_deref().unwrap_or("unknown");
+                let method = self.method.as_deref().unwrap_or("unknown");
                 write!(
                     f,
                     "missing required core trait method `{}` on `{}`",
@@ -90,6 +95,7 @@ const CORE_OP_REQUIREMENTS: &[(&str, &str)] = &[
 const CORE_TRAIT_REQUIREMENTS: &[&str] = &[
     "core::effect_ref::EffectRef",
     "core::effect_ref::EffectRefMut",
+    "core::effect_ref::EffectHandle",
     "core::message::MsgVariant",
     "core::abi::Decode",
 ];
@@ -100,20 +106,62 @@ const STD_TYPE_REQUIREMENTS: &[&str] = &[
     "std::evm::effects::CalldataPtr",
 ];
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct CoreRequirementDiag<'db> {
+    pub top_mod: TopLevelMod<'db>,
+    pub violation: CoreRequirementViolation,
+}
+
+pub struct CoreRequirementsAnalysisPass;
+
+impl ModuleAnalysisPass for CoreRequirementsAnalysisPass {
+    fn run_on_module<'db>(
+        &mut self,
+        db: &'db dyn HirAnalysisDb,
+        top_mod: TopLevelMod<'db>,
+    ) -> Vec<Box<dyn DiagnosticVoucher + 'db>> {
+        if top_mod != top_mod.ingot(db).root_mod(db) {
+            return Vec::new();
+        }
+
+        check_ingot_requirements(db, top_mod)
+            .into_iter()
+            .map(|diag| Box::new(diag) as _)
+            .collect()
+    }
+}
+
+pub fn check_ingot_requirements<'db>(
+    db: &'db dyn HirAnalysisDb,
+    top_mod: TopLevelMod<'db>,
+) -> Vec<CoreRequirementDiag<'db>> {
+    let ingot = top_mod.ingot(db);
+    let violations = match ingot.kind(db) {
+        IngotKind::Core => check_core_requirements(db, top_mod.scope(), ingot.kind(db)),
+        IngotKind::Std => check_std_type_requirements(db, top_mod.scope(), ingot.kind(db)),
+        _ => Vec::new(),
+    };
+
+    violations
+        .into_iter()
+        .map(|violation| CoreRequirementDiag { top_mod, violation })
+        .collect()
+}
+
 pub fn check_core_requirements<'db>(
     db: &'db dyn HirAnalysisDb,
     scope: ScopeId<'db>,
     ingot_kind: IngotKind,
-) -> Vec<MissingCoreRequirement> {
-    let mut missing = Vec::new();
+) -> Vec<CoreRequirementViolation> {
+    let mut violations = Vec::new();
     let mut missing_traits = HashSet::new();
 
     for &path in CORE_TRAIT_REQUIREMENTS {
         if resolve_trait_in_scope(db, scope, ingot_kind, path).is_none() {
-            missing.push(MissingCoreRequirement {
+            violations.push(CoreRequirementViolation {
                 path: path.to_string(),
                 kind: CoreRequirementKind::Trait,
-                detail: None,
+                method: None,
             });
         }
     }
@@ -123,46 +171,46 @@ pub fn check_core_requirements<'db>(
             Some(trait_def) => {
                 let method_ident = IdentId::new(db, method.to_string());
                 if !trait_def.method_defs(db).contains_key(&method_ident) {
-                    missing.push(MissingCoreRequirement {
+                    violations.push(CoreRequirementViolation {
                         path: path.to_string(),
                         kind: CoreRequirementKind::TraitMethod,
-                        detail: Some(method.to_string()),
+                        method: Some(method.to_string()),
                     });
                 }
             }
             None => {
                 if missing_traits.insert(path) {
-                    missing.push(MissingCoreRequirement {
+                    violations.push(CoreRequirementViolation {
                         path: path.to_string(),
                         kind: CoreRequirementKind::Trait,
-                        detail: None,
+                        method: None,
                     });
                 }
             }
         }
     }
 
-    missing
+    violations
 }
 
 pub fn check_std_type_requirements<'db>(
     db: &'db dyn HirAnalysisDb,
     scope: ScopeId<'db>,
     ingot_kind: IngotKind,
-) -> Vec<MissingCoreRequirement> {
-    let mut missing = Vec::new();
+) -> Vec<CoreRequirementViolation> {
+    let mut violations = Vec::new();
 
     for &path in STD_TYPE_REQUIREMENTS {
         if resolve_type_in_scope(db, scope, ingot_kind, path).is_none() {
-            missing.push(MissingCoreRequirement {
+            violations.push(CoreRequirementViolation {
                 path: path.to_string(),
                 kind: CoreRequirementKind::Type,
-                detail: None,
+                method: None,
             });
         }
     }
 
-    missing
+    violations
 }
 
 fn resolve_trait_in_scope<'db>(

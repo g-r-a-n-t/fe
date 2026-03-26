@@ -2091,14 +2091,23 @@ impl<'db> TyChecker<'db> {
             return Some(ProviderTargetResolution::direct(inner_ty));
         }
 
-        let effect_ref_trait = resolve_core_trait(self.db, scope, &["effect_ref", "EffectRef"])
-            .expect("missing required core trait `core::effect_ref::EffectRef`");
-        let effect_ref_mut_trait =
+        let Some(effect_ref_trait) =
+            resolve_core_trait(self.db, scope, &["effect_ref", "EffectRef"])
+        else {
+            // The malformed core/std state is diagnosed earlier by the core-requirements pass.
+            // Recover here instead of panicking during body checking.
+            return None;
+        };
+        let Some(effect_ref_mut_trait) =
             resolve_core_trait(self.db, scope, &["effect_ref", "EffectRefMut"])
-                .expect("missing required core trait `core::effect_ref::EffectRefMut`");
-        let effect_handle_trait =
+        else {
+            return None;
+        };
+        let Some(effect_handle_trait) =
             resolve_core_trait(self.db, scope, &["effect_ref", "EffectHandle"])
-                .expect("missing required core trait `core::effect_ref::EffectHandle`");
+        else {
+            return None;
+        };
         let target_ident = IdentId::new(self.db, "Target".to_string());
         let effect_handle_inst = TraitInstId::new(
             self.db,

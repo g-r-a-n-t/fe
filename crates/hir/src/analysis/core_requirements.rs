@@ -17,6 +17,7 @@ use crate::{
 pub enum CoreRequirementKind {
     Trait,
     TraitMethod,
+    TraitMethodArgCount,
     Type,
 }
 
@@ -25,6 +26,8 @@ pub struct CoreRequirementViolation {
     pub path: String,
     pub kind: CoreRequirementKind,
     pub method: Option<String>,
+    pub expected_arg_count: Option<usize>,
+    pub given_arg_count: Option<usize>,
 }
 
 impl CoreRequirementViolation {
@@ -32,7 +35,8 @@ impl CoreRequirementViolation {
         match self.kind {
             CoreRequirementKind::Trait => 101,
             CoreRequirementKind::TraitMethod => 102,
-            CoreRequirementKind::Type => 103,
+            CoreRequirementKind::TraitMethodArgCount => 103,
+            CoreRequirementKind::Type => 104,
         }
     }
 }
@@ -51,6 +55,16 @@ impl std::fmt::Display for CoreRequirementViolation {
                     method, self.path
                 )
             }
+            CoreRequirementKind::TraitMethodArgCount => {
+                let method = self.method.as_deref().unwrap_or("unknown");
+                let expected = self.expected_arg_count.unwrap_or_default();
+                let given = self.given_arg_count.unwrap_or_default();
+                write!(
+                    f,
+                    "invalid required core trait method signature `{}` on `{}`: expected {} arguments, but {} given",
+                    method, self.path, expected, given
+                )
+            }
             CoreRequirementKind::Type => {
                 write!(f, "missing required core type `{}`", self.path)
             }
@@ -58,38 +72,169 @@ impl std::fmt::Display for CoreRequirementViolation {
     }
 }
 
-const CORE_OP_REQUIREMENTS: &[(&str, &str)] = &[
-    ("core::ops::Neg", "neg"),
-    ("core::ops::Not", "not"),
-    ("core::ops::BitNot", "bit_not"),
-    ("core::ops::Add", "add"),
-    ("core::ops::Sub", "sub"),
-    ("core::ops::Mul", "mul"),
-    ("core::ops::Div", "div"),
-    ("core::ops::Rem", "rem"),
-    ("core::ops::Pow", "pow"),
-    ("core::ops::Shl", "shl"),
-    ("core::ops::Shr", "shr"),
-    ("core::ops::BitAnd", "bitand"),
-    ("core::ops::BitOr", "bitor"),
-    ("core::ops::BitXor", "bitxor"),
-    ("core::ops::Eq", "eq"),
-    ("core::ops::Ord", "lt"),
-    ("core::ops::Ord", "le"),
-    ("core::ops::Ord", "gt"),
-    ("core::ops::Ord", "ge"),
-    ("core::ops::Index", "index"),
-    ("core::ops::AddAssign", "add_assign"),
-    ("core::ops::SubAssign", "sub_assign"),
-    ("core::ops::MulAssign", "mul_assign"),
-    ("core::ops::DivAssign", "div_assign"),
-    ("core::ops::RemAssign", "rem_assign"),
-    ("core::ops::PowAssign", "pow_assign"),
-    ("core::ops::ShlAssign", "shl_assign"),
-    ("core::ops::ShrAssign", "shr_assign"),
-    ("core::ops::BitAndAssign", "bitand_assign"),
-    ("core::ops::BitOrAssign", "bitor_assign"),
-    ("core::ops::BitXorAssign", "bitxor_assign"),
+#[derive(Debug, Clone, Copy)]
+struct RequiredTraitMethod {
+    path: &'static str,
+    method: &'static str,
+    arg_count: usize,
+}
+
+const CORE_OP_REQUIREMENTS: &[RequiredTraitMethod] = &[
+    RequiredTraitMethod {
+        path: "core::ops::Neg",
+        method: "neg",
+        arg_count: 1,
+    },
+    RequiredTraitMethod {
+        path: "core::ops::Not",
+        method: "not",
+        arg_count: 1,
+    },
+    RequiredTraitMethod {
+        path: "core::ops::BitNot",
+        method: "bit_not",
+        arg_count: 1,
+    },
+    RequiredTraitMethod {
+        path: "core::ops::Add",
+        method: "add",
+        arg_count: 2,
+    },
+    RequiredTraitMethod {
+        path: "core::ops::Sub",
+        method: "sub",
+        arg_count: 2,
+    },
+    RequiredTraitMethod {
+        path: "core::ops::Mul",
+        method: "mul",
+        arg_count: 2,
+    },
+    RequiredTraitMethod {
+        path: "core::ops::Div",
+        method: "div",
+        arg_count: 2,
+    },
+    RequiredTraitMethod {
+        path: "core::ops::Rem",
+        method: "rem",
+        arg_count: 2,
+    },
+    RequiredTraitMethod {
+        path: "core::ops::Pow",
+        method: "pow",
+        arg_count: 2,
+    },
+    RequiredTraitMethod {
+        path: "core::ops::Shl",
+        method: "shl",
+        arg_count: 2,
+    },
+    RequiredTraitMethod {
+        path: "core::ops::Shr",
+        method: "shr",
+        arg_count: 2,
+    },
+    RequiredTraitMethod {
+        path: "core::ops::BitAnd",
+        method: "bitand",
+        arg_count: 2,
+    },
+    RequiredTraitMethod {
+        path: "core::ops::BitOr",
+        method: "bitor",
+        arg_count: 2,
+    },
+    RequiredTraitMethod {
+        path: "core::ops::BitXor",
+        method: "bitxor",
+        arg_count: 2,
+    },
+    RequiredTraitMethod {
+        path: "core::ops::Eq",
+        method: "eq",
+        arg_count: 2,
+    },
+    RequiredTraitMethod {
+        path: "core::ops::Ord",
+        method: "lt",
+        arg_count: 2,
+    },
+    RequiredTraitMethod {
+        path: "core::ops::Ord",
+        method: "le",
+        arg_count: 2,
+    },
+    RequiredTraitMethod {
+        path: "core::ops::Ord",
+        method: "gt",
+        arg_count: 2,
+    },
+    RequiredTraitMethod {
+        path: "core::ops::Ord",
+        method: "ge",
+        arg_count: 2,
+    },
+    RequiredTraitMethod {
+        path: "core::ops::Index",
+        method: "index",
+        arg_count: 2,
+    },
+    RequiredTraitMethod {
+        path: "core::ops::AddAssign",
+        method: "add_assign",
+        arg_count: 2,
+    },
+    RequiredTraitMethod {
+        path: "core::ops::SubAssign",
+        method: "sub_assign",
+        arg_count: 2,
+    },
+    RequiredTraitMethod {
+        path: "core::ops::MulAssign",
+        method: "mul_assign",
+        arg_count: 2,
+    },
+    RequiredTraitMethod {
+        path: "core::ops::DivAssign",
+        method: "div_assign",
+        arg_count: 2,
+    },
+    RequiredTraitMethod {
+        path: "core::ops::RemAssign",
+        method: "rem_assign",
+        arg_count: 2,
+    },
+    RequiredTraitMethod {
+        path: "core::ops::PowAssign",
+        method: "pow_assign",
+        arg_count: 2,
+    },
+    RequiredTraitMethod {
+        path: "core::ops::ShlAssign",
+        method: "shl_assign",
+        arg_count: 2,
+    },
+    RequiredTraitMethod {
+        path: "core::ops::ShrAssign",
+        method: "shr_assign",
+        arg_count: 2,
+    },
+    RequiredTraitMethod {
+        path: "core::ops::BitAndAssign",
+        method: "bitand_assign",
+        arg_count: 2,
+    },
+    RequiredTraitMethod {
+        path: "core::ops::BitOrAssign",
+        method: "bitor_assign",
+        arg_count: 2,
+    },
+    RequiredTraitMethod {
+        path: "core::ops::BitXorAssign",
+        method: "bitxor_assign",
+        arg_count: 2,
+    },
 ];
 
 const CORE_TRAIT_REQUIREMENTS: &[&str] = &[
@@ -162,28 +307,46 @@ pub fn check_core_requirements<'db>(
                 path: path.to_string(),
                 kind: CoreRequirementKind::Trait,
                 method: None,
+                expected_arg_count: None,
+                given_arg_count: None,
             });
         }
     }
 
-    for &(path, method) in CORE_OP_REQUIREMENTS {
-        match resolve_trait_in_scope(db, scope, ingot_kind, path) {
+    for req in CORE_OP_REQUIREMENTS {
+        match resolve_trait_in_scope(db, scope, ingot_kind, req.path) {
             Some(trait_def) => {
-                let method_ident = IdentId::new(db, method.to_string());
-                if !trait_def.method_defs(db).contains_key(&method_ident) {
+                let method_ident = IdentId::new(db, req.method.to_string());
+                let Some(method) = trait_def.method_defs(db).get(&method_ident).copied() else {
                     violations.push(CoreRequirementViolation {
-                        path: path.to_string(),
+                        path: req.path.to_string(),
                         kind: CoreRequirementKind::TraitMethod,
-                        method: Some(method.to_string()),
+                        method: Some(req.method.to_string()),
+                        expected_arg_count: None,
+                        given_arg_count: None,
+                    });
+                    continue;
+                };
+
+                let given_arg_count = method.arg_tys(db).len();
+                if given_arg_count != req.arg_count {
+                    violations.push(CoreRequirementViolation {
+                        path: req.path.to_string(),
+                        kind: CoreRequirementKind::TraitMethodArgCount,
+                        method: Some(req.method.to_string()),
+                        expected_arg_count: Some(req.arg_count),
+                        given_arg_count: Some(given_arg_count),
                     });
                 }
             }
             None => {
-                if missing_traits.insert(path) {
+                if missing_traits.insert(req.path) {
                     violations.push(CoreRequirementViolation {
-                        path: path.to_string(),
+                        path: req.path.to_string(),
                         kind: CoreRequirementKind::Trait,
                         method: None,
+                        expected_arg_count: None,
+                        given_arg_count: None,
                     });
                 }
             }
@@ -206,6 +369,8 @@ pub fn check_std_type_requirements<'db>(
                 path: path.to_string(),
                 kind: CoreRequirementKind::Type,
                 method: None,
+                expected_arg_count: None,
+                given_arg_count: None,
             });
         }
     }

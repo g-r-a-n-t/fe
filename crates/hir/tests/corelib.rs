@@ -71,6 +71,92 @@ pub trait EffectHandle {
     );
 }
 
+#[test]
+fn analyze_custom_core_reports_invalid_div_signature_without_panicking() {
+    let temp = TempDir::new().unwrap();
+    write_file(
+        &temp.path().join("fe.toml"),
+        "[ingot]\nname = \"core\"\nversion = \"0.1.0\"\n",
+    );
+    write_file(
+        &temp.path().join("src/lib.fe"),
+        r#"
+fn exercise(x: u8, y: u8) -> u8 {
+    x / y
+}
+"#,
+    );
+    write_file(
+        &temp.path().join("src/ops.fe"),
+        r#"
+pub trait Div<T = Self> {
+    type Output = Self
+
+    fn div(own self) -> Self::Output
+}
+
+impl Div for u8 {
+    type Output = u8
+
+    fn div(own self, _ other: own u8) -> Self::Output {
+        self
+    }
+}
+"#,
+    );
+
+    let diags = analyze_ingot_diags(temp.path());
+    assert!(
+        diags.contains(
+            "invalid required core trait method signature `div` on `core::ops::Div`: expected 2 arguments, but 1 given"
+        ),
+        "expected invalid Div::div signature diagnostic, got:\n{diags}",
+    );
+}
+
+#[test]
+fn analyze_custom_core_reports_invalid_bitor_signature_without_panicking() {
+    let temp = TempDir::new().unwrap();
+    write_file(
+        &temp.path().join("fe.toml"),
+        "[ingot]\nname = \"core\"\nversion = \"0.1.0\"\n",
+    );
+    write_file(
+        &temp.path().join("src/lib.fe"),
+        r#"
+fn exercise(x: bool, y: bool) -> bool {
+    x | y
+}
+"#,
+    );
+    write_file(
+        &temp.path().join("src/ops.fe"),
+        r#"
+pub trait BitOr<T = Self> {
+    type Output = Self
+
+    fn bitor(own self) -> Self::Output
+}
+
+impl BitOr for bool {
+    type Output = bool
+
+    fn bitor(own self, _ other: own bool) -> Self::Output {
+        self
+    }
+}
+"#,
+    );
+
+    let diags = analyze_ingot_diags(temp.path());
+    assert!(
+        diags.contains(
+            "invalid required core trait method signature `bitor` on `core::ops::BitOr`: expected 2 arguments, but 1 given"
+        ),
+        "expected invalid BitOr::bitor signature diagnostic, got:\n{diags}",
+    );
+}
+
 fn analyze_ingot_diags(root: &Path) -> String {
     let mut db = DriverDataBase::default();
     let root_url = Url::from_directory_path(root).expect("root url");

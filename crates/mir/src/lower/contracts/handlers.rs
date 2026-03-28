@@ -1,4 +1,4 @@
-use hir::hir_def::params::FuncParamMode;
+use hir::hir_def::{InlineHint, params::FuncParamMode};
 use hir::{
     analysis::{
         HirAnalysisDb,
@@ -222,7 +222,7 @@ fn finish_handler<'db>(
         runtime_abi,
         runtime_return_shape: spec.runtime_return_shape,
         contract_function: None,
-        inline_hint: None,
+        inline_hint: Some(InlineHint::Never),
         symbol_name: spec.symbol_name,
         symbol_source: SymbolSource::Internal,
         receiver_space: None,

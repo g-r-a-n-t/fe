@@ -1220,7 +1220,11 @@ fn lower_arith_op<'db, C: sonatina_ir::func_cursor::FuncCursor>(
         ArithBinOp::LShift => fb.insert_inst(Shl::new(is, rhs, lhs), op_ty),
         ArithBinOp::RShift => {
             if signed {
-                fb.insert_inst(Sar::new(is, rhs, lhs), op_ty)
+                if op_ty == Type::I256 {
+                    fb.insert_inst(Sar::new(is, rhs, lhs), op_ty)
+                } else {
+                    lower_signed_subword_rshift(fb, is, lhs, rhs, op_ty)
+                }
             } else {
                 fb.insert_inst(Shr::new(is, rhs, lhs), op_ty)
             }
@@ -1671,6 +1675,25 @@ fn coerce_scalar_value<C: sonatina_ir::func_cursor::FuncCursor>(
     } else {
         cast_int_value(fb, is, value, target_ty, signed)
     }
+}
+
+fn lower_signed_subword_rshift<C: sonatina_ir::func_cursor::FuncCursor>(
+    fb: &mut sonatina_ir::builder::FunctionBuilder<C>,
+    is: &sonatina_ir::inst::evm::inst_set::EvmInstSet,
+    lhs: ValueId,
+    rhs: ValueId,
+    op_ty: Type,
+) -> ValueId {
+    debug_assert_ne!(op_ty, Type::I256);
+
+    // Sonatina's known-bits analysis currently mis-handles sub-word `sar`.
+    // Widen through i256, perform the shift there, then truncate back.
+    let lhs = cast_int_value(fb, is, lhs, op_ty, true);
+    let rhs = cast_int_value(fb, is, rhs, op_ty, false);
+    let lhs = cast_int_value(fb, is, lhs, Type::I256, true);
+    let rhs = cast_int_value(fb, is, rhs, Type::I256, false);
+    let shifted = fb.insert_inst(Sar::new(is, rhs, lhs), Type::I256);
+    cast_int_value(fb, is, shifted, op_ty, true)
 }
 
 fn coerce_runtime_value<'db, C: sonatina_ir::func_cursor::FuncCursor>(
@@ -4998,7 +5021,11 @@ fn try_lower_numeric_intrinsic<C: sonatina_ir::func_cursor::FuncCursor>(
             let lhs = lower_intrinsic_operand(ctx.fb, ctx.is, lhs_word, prim, op_ty);
             let rhs = lower_intrinsic_operand(ctx.fb, ctx.is, rhs_word, prim, op_ty);
             let raw = if signed {
-                ctx.fb.insert_inst(Sar::new(ctx.is, rhs, lhs), op_ty)
+                if op_ty == Type::I256 {
+                    ctx.fb.insert_inst(Sar::new(ctx.is, rhs, lhs), op_ty)
+                } else {
+                    lower_signed_subword_rshift(ctx.fb, ctx.is, lhs, rhs, op_ty)
+                }
             } else {
                 ctx.fb.insert_inst(Shr::new(ctx.is, rhs, lhs), op_ty)
             };

@@ -56,6 +56,9 @@ Current generated coverage includes:
 - tuple-shaped inputs/returns covering mixed static/dynamic layouts:
   `(string,uint64)`, `(bool,address)`, `(uint24,int40)`,
   `(bool,address,uint256)`, `(string,bool,uint64)`
+- nested tuples (tuple-of-tuples) covering wrapper-required inner tuples:
+  `((bool,address),uint256)`, `(bool,(address,uint256))`, `((string,uint64),bool)`,
+  `((string,uint64),(bytes,bool))`
 - static tuple arrays for:
   `(bool,address)[4]`, `(uint24,int40)[4]`, `(bool,address,uint256)[4]`
 - fixed arrays with dynamic elements for:

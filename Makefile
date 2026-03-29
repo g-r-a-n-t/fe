@@ -103,6 +103,10 @@ foundry-abi-build-fe-fixed:
 foundry-abi-build-fe-ceiling:
 	cargo run -q -p fe -- build --backend sonatina --contract FixedArrayCeilingSuite --out-dir benchmarks/foundry-abi/fe-out benchmarks/foundry-abi/fe/FixedArrayCeilingSuite.fe
 
+.PHONY: foundry-abi-build-fe-nested
+foundry-abi-build-fe-nested:
+	cargo run -q -p fe -- build --backend sonatina --contract NestedTupleSuite --out-dir benchmarks/foundry-abi/fe-out benchmarks/foundry-abi/fe/NestedTupleSuite.fe
+
 .PHONY: foundry-abi-test-deep
 foundry-abi-test-deep: foundry-abi-build-fe-deep
 	forge test --root benchmarks/foundry-abi --offline --match-path test/DeepDynamicSuiteEquivalence.t.sol
@@ -115,6 +119,10 @@ foundry-abi-test-fixed: foundry-abi-build-fe-fixed
 foundry-abi-test-ceiling: foundry-abi-build-fe-ceiling
 	forge test --root benchmarks/foundry-abi --offline --match-path test/FixedArrayCeilingSuiteEquivalence.t.sol
 
+.PHONY: foundry-abi-test-nested
+foundry-abi-test-nested: foundry-abi-build-fe-nested
+	forge test --root benchmarks/foundry-abi --offline --match-path test/NestedTupleSuiteEquivalence.t.sol
+
 .PHONY: foundry-abi-gas-deep
 foundry-abi-gas-deep: foundry-abi-build-fe-deep
 	forge test --root benchmarks/foundry-abi --offline --match-path test/DeepDynamicSuiteEquivalence.t.sol --gas-report
@@ -126,6 +134,10 @@ foundry-abi-gas-fixed: foundry-abi-build-fe-fixed
 .PHONY: foundry-abi-gas-ceiling
 foundry-abi-gas-ceiling: foundry-abi-build-fe-ceiling
 	forge test --root benchmarks/foundry-abi --offline --match-path test/FixedArrayCeilingSuiteEquivalence.t.sol --gas-report
+
+.PHONY: foundry-abi-gas-nested
+foundry-abi-gas-nested: foundry-abi-build-fe-nested
+	forge test --root benchmarks/foundry-abi --offline --match-path test/NestedTupleSuiteEquivalence.t.sol --gas-report
 
 .PHONY: foundry-abi-stress-dyn
 foundry-abi-stress-dyn: foundry-abi-build-fe-dyn
@@ -146,6 +158,10 @@ foundry-abi-stress-fixed: foundry-abi-build-fe-fixed
 .PHONY: foundry-abi-stress-ceiling
 foundry-abi-stress-ceiling: foundry-abi-build-fe-ceiling
 	forge test --root benchmarks/foundry-abi --offline --threads 0 --fuzz-runs $${FUZZ_RUNS:-2000} --match-path test/FixedArrayCeilingSuiteEquivalence.t.sol
+
+.PHONY: foundry-abi-stress-nested
+foundry-abi-stress-nested: foundry-abi-build-fe-nested
+	forge test --root benchmarks/foundry-abi --offline --threads 0 --fuzz-runs $${FUZZ_RUNS:-5000} --match-path test/NestedTupleSuiteEquivalence.t.sol
 
 README.md: src/main.rs
 	cargo readme --no-title --no-indent-headings > README.md

@@ -173,12 +173,68 @@ run_case \
   --solver z3 --smttimeout 10 --max-iterations 8 --max-buf-size 8
 
 run_case \
-  "AbiRoundtrip tuple parser" \
+  "AbiRoundtrip tuples" \
   "$ROOT_DIR/benchmarks/foundry-abi/fe-out/AbiRoundtripFe.runtime.bin" \
   "$ROOT_DIR/benchmarks/foundry-abi/out/AbiRoundtripSol.sol/AbiRoundtripSol.json" \
-  'echoBoolAddressPair((bool,address))' \
+  'echoBoolAddressPair((bool,address) memory)' \
   15 \
   --solver z3 --smttimeout 10 --max-iterations 8
+
+run_case \
+  "AbiRoundtrip tuples" \
+  "$ROOT_DIR/benchmarks/foundry-abi/fe-out/AbiRoundtripFe.runtime.bin" \
+  "$ROOT_DIR/benchmarks/foundry-abi/out/AbiRoundtripSol.sol/AbiRoundtripSol.json" \
+  'echoUint24Int40Pair((uint24,int40) memory)' \
+  15 \
+  --solver z3 --smttimeout 10 --max-iterations 8
+
+run_case \
+  "AbiRoundtrip tuples" \
+  "$ROOT_DIR/benchmarks/foundry-abi/fe-out/AbiRoundtripFe.runtime.bin" \
+  "$ROOT_DIR/benchmarks/foundry-abi/out/AbiRoundtripSol.sol/AbiRoundtripSol.json" \
+  'echoBoolAddressU256Triple((bool,address,uint256) memory)' \
+  15 \
+  --solver z3 --smttimeout 10 --max-iterations 8
+
+run_case \
+  "AbiRoundtrip tuple arrays" \
+  "$ROOT_DIR/benchmarks/foundry-abi/fe-out/AbiRoundtripFe.runtime.bin" \
+  "$ROOT_DIR/benchmarks/foundry-abi/out/AbiRoundtripSol.sol/AbiRoundtripSol.json" \
+  'echoBoolAddressPairArray4((bool,address)[4] calldata)' \
+  30 \
+  --solver z3 --smttimeout 20 --max-iterations 16
+
+run_case \
+  "AbiRoundtrip tuple arrays" \
+  "$ROOT_DIR/benchmarks/foundry-abi/fe-out/AbiRoundtripFe.runtime.bin" \
+  "$ROOT_DIR/benchmarks/foundry-abi/out/AbiRoundtripSol.sol/AbiRoundtripSol.json" \
+  'echoUint24Int40PairArray4((uint24,int40)[4] calldata)' \
+  30 \
+  --solver z3 --smttimeout 20 --max-iterations 16
+
+run_case \
+  "AbiRoundtrip tuple arrays" \
+  "$ROOT_DIR/benchmarks/foundry-abi/fe-out/AbiRoundtripFe.runtime.bin" \
+  "$ROOT_DIR/benchmarks/foundry-abi/out/AbiRoundtripSol.sol/AbiRoundtripSol.json" \
+  'echoBoolAddressU256TripleArray4((bool,address,uint256)[4] calldata)' \
+  30 \
+  --solver z3 --smttimeout 20 --max-iterations 16
+
+run_case \
+  "NestedTupleSuite tuples" \
+  "$ROOT_DIR/benchmarks/foundry-abi/fe-out/NestedTupleSuite.runtime.bin" \
+  "$ROOT_DIR/benchmarks/foundry-abi/out/NestedTupleSuiteSol.sol/NestedTupleSuiteSol.json" \
+  'echoNestedStatic(((bool,address),uint256) memory)' \
+  30 \
+  --solver z3 --smttimeout 20 --max-iterations 16
+
+run_case \
+  "NestedTupleSuite tuples" \
+  "$ROOT_DIR/benchmarks/foundry-abi/fe-out/NestedTupleSuite.runtime.bin" \
+  "$ROOT_DIR/benchmarks/foundry-abi/out/NestedTupleSuiteSol.sol/NestedTupleSuiteSol.json" \
+  'echoNestedStaticFlipped((bool,(address,uint256)) memory)' \
+  30 \
+  --solver z3 --smttimeout 20 --max-iterations 16
 
 {
   printf '# hevm Equivalence Status\n\n'

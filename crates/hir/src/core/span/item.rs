@@ -912,7 +912,7 @@ pub contract Counter {
             "#,
         ];
 
-        for (i, text) in cases.iter().enumerate() {
+        for text in cases {
             let file = db.standalone_file(text);
             let top_mod = map_file_to_mod(&db, file);
             let sg = scope_graph(&db, top_mod);
@@ -922,7 +922,6 @@ pub contract Counter {
                     let _ = reference.span().resolve(&db);
                 }
             }
-            eprintln!("case {i} ok");
         }
     }
 }

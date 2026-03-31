@@ -1,0 +1,7 @@
+struct Foo<const N: usize> {
+    a: [u256; N + 1],
+}
+
+fn make() -> Foo<1> {
+    Foo { a: [1, 2] }
+}

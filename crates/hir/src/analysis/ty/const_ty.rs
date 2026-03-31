@@ -2,8 +2,9 @@ use num_bigint::{BigInt, BigUint, Sign};
 use num_traits::{One, Zero};
 
 use crate::core::hir_def::{
-    BinOp, Body, Const, EnumVariant, Expr, Func, GenericArgListId, GenericParamOwner, IdentId,
-    IntegerId, LitKind, Partial, PathId, Stmt, TypeAlias as HirTypeAlias, TypeId as HirTypeId,
+    ArithBinOp, BinOp, Body, Const, EnumVariant, Expr, Func, GenericArgListId, GenericParamOwner,
+    IdentId, IntegerId, LitKind, Partial, PathId, Stmt, TypeAlias as HirTypeAlias,
+    TypeId as HirTypeId, UnOp,
 };
 use salsa::Update;
 
@@ -402,15 +403,31 @@ pub(crate) fn normalize_const_tys_for_comparison<'db>(
             let TyData::ConstTy(const_ty) = ty.data(db) else {
                 return ty.super_fold_with(db, self);
             };
-            let ConstTyData::UnEvaluated {
-                ty: Some(expected_ty),
-                ..
-            } = const_ty.data(db)
-            else {
-                return ty.super_fold_with(db, self);
+
+            let expected_ty = match const_ty.data(db) {
+                ConstTyData::UnEvaluated {
+                    ty: Some(expected_ty),
+                    ..
+                } => Some(*expected_ty),
+                ConstTyData::Abstract(expr, ty)
+                    if matches!(
+                        expr.data(db),
+                        ConstExpr::ArithBinOp { .. } | ConstExpr::UnOp { .. }
+                    ) && !TyId::const_ty(db, *const_ty).has_param(db) =>
+                {
+                    Some(*ty)
+                }
+                // The evaluation of a trait-const can become concrete during normalization,
+                // even though it is abstract when first lowered.
+                ConstTyData::Abstract(expr, ty)
+                    if matches!(expr.data(db), ConstExpr::TraitConst(..)) =>
+                {
+                    Some(*ty)
+                }
+                _ => return ty.super_fold_with(db, self),
             };
 
-            let normalized = const_ty.evaluate(db, Some(*expected_ty));
+            let normalized = const_ty.evaluate(db, expected_ty);
             if normalized.ty(db).invalid_cause(db).is_none()
                 && matches!(
                     normalized.data(db),
@@ -542,6 +559,14 @@ pub(crate) fn evaluate_const_ty<'db>(
             return const_ty;
         }
         return evaluated;
+    }
+
+    if let ConstTyData::Abstract(expr, ty) = const_ty.data(db)
+        && !TyId::const_ty(db, const_ty).has_param(db)
+        && let Some(expected_ty) = expected_ty.or(Some(*ty))
+        && let Some(reduced) = reduce_concrete_abstract_const_expr(db, *expr, expected_ty)
+    {
+        return reduced;
     }
 
     let (body, const_ty_ty, generic_args) = match const_ty.data(db) {
@@ -727,6 +752,130 @@ pub(crate) fn evaluate_const_ty<'db>(
         /// The expression is not a pure integer expression (e.g. contains
         /// function calls). Fall through to CTFE instead of reporting an error.
         NotIntExpr,
+    }
+
+    fn reduce_concrete_abstract_const_expr<'db>(
+        db: &'db dyn HirAnalysisDb,
+        expr: ConstExprId<'db>,
+        expected_ty: TyId<'db>,
+    ) -> Option<ConstTyId<'db>> {
+        fn eval_term<'db>(
+            db: &'db dyn HirAnalysisDb,
+            term: TyId<'db>,
+            expected_int: CheckedIntTy,
+        ) -> Option<BigInt> {
+            let TyData::ConstTy(const_ty) = term.data(db) else {
+                return None;
+            };
+            let evaluated = const_ty.evaluate(db, Some(const_ty.ty(db)));
+            match evaluated.data(db) {
+                ConstTyData::Evaluated(EvaluatedConstTy::LitInt(i), _) => {
+                    Some(u256_word_to_bigint(i.data(db), expected_int))
+                }
+                _ => None,
+            }
+        }
+
+        fn eval_expr<'db>(
+            db: &'db dyn HirAnalysisDb,
+            expr: ConstExprId<'db>,
+            expected_int: CheckedIntTy,
+        ) -> Option<BigInt> {
+            match expr.data(db) {
+                ConstExpr::ArithBinOp { op, lhs, rhs } => {
+                    let lhs = eval_term(db, *lhs, expected_int)?;
+                    let rhs = eval_term(db, *rhs, expected_int)?;
+
+                    match op {
+                        ArithBinOp::Add => {
+                            let result = lhs + rhs;
+                            in_range(&result, expected_int).then_some(result)
+                        }
+                        ArithBinOp::Sub => {
+                            let result = lhs - rhs;
+                            in_range(&result, expected_int).then_some(result)
+                        }
+                        ArithBinOp::Mul => {
+                            let result = lhs * rhs;
+                            in_range(&result, expected_int).then_some(result)
+                        }
+                        ArithBinOp::Div => {
+                            if rhs.is_zero() {
+                                return None;
+                            }
+                            if expected_int.signed {
+                                let (min, _) = signed_bounds(expected_int);
+                                if lhs == min && rhs == -BigInt::one() {
+                                    return None;
+                                }
+                            }
+                            let result = lhs / rhs;
+                            in_range(&result, expected_int).then_some(result)
+                        }
+                        ArithBinOp::Rem => {
+                            if rhs.is_zero() {
+                                return None;
+                            }
+                            let result = lhs % rhs;
+                            in_range(&result, expected_int).then_some(result)
+                        }
+                        ArithBinOp::Pow => {
+                            if rhs.sign() == Sign::Minus {
+                                return None;
+                            }
+                            let exp = rhs.to_biguint()?;
+                            let mut acc = BigInt::one();
+                            let mut base = lhs;
+                            let mut exp = exp;
+                            while !exp.is_zero() {
+                                if (&exp & BigUint::one()) == BigUint::one() {
+                                    acc *= base.clone();
+                                    if !in_range(&acc, expected_int) {
+                                        return None;
+                                    }
+                                }
+                                exp >>= 1usize;
+                                if exp.is_zero() {
+                                    break;
+                                }
+                                base = base.clone() * base;
+                                if !in_range(&base, expected_int) {
+                                    return None;
+                                }
+                            }
+                            Some(acc)
+                        }
+                        _ => None,
+                    }
+                }
+                ConstExpr::UnOp { op, expr } => {
+                    let value = eval_term(db, *expr, expected_int)?;
+                    match op {
+                        UnOp::Minus => {
+                            let neg = -value;
+                            in_range(&neg, expected_int).then_some(neg)
+                        }
+                        UnOp::Plus => Some(value),
+                        _ => None,
+                    }
+                }
+                _ => None,
+            }
+        }
+
+        let expected_int = checked_int_ty_from_ty(db, Some(expected_ty))?;
+        let value = eval_expr(db, expr, expected_int)?;
+        if !in_range(&value, expected_int) {
+            return None;
+        }
+        let word = bigint_to_u256_word(&value)?;
+        Some(ConstTyId::new(
+            db,
+            ConstTyData::Evaluated(
+                EvaluatedConstTy::LitInt(IntegerId::new(db, word)),
+                expected_ty,
+            ),
+        ))
     }
 
     fn eval_int_expr<'db>(

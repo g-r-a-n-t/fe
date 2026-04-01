@@ -1,5 +1,6 @@
 ---
 source: crates/codegen/tests/sonatina_ir.rs
+assertion_line: 64
 expression: output
 input_file: crates/codegen/tests/fixtures/aug_assign.fe
 ---
@@ -11,18 +12,32 @@ func private %aug_assign(v0.i64, v1.i64) -> i64 {
         br v3 block1 block2;
 
     block1:
-        evm_revert 0.i256 0.i256;
+        v5.*i8 = evm_malloc 36.i256;
+        v6.i256 = ptr_to_int v5 i256;
+        mstore v6 35408467139433450592217433187231851964531694900788300625387963629091585785856.i256 i256;
+        v9.i256 = add v6 4.i256;
+        mstore v9 17.i256 i256;
+        evm_revert v6 36.i256;
 
     block2:
-        (v6.i64, v7.i1) = umulo v2 2.i64;
-        br v7 block1 block3;
+        (v12.i64, v13.i1) = umulo v2 2.i64;
+        br v13 block1 block3;
 
     block3:
-        (v8.i64, v9.i1) = evm_udivo v6 2.i64;
-        br v9 block1 block4;
+        (v14.i64, v15.i1) = evm_udivo v12 2.i64;
+        v17.i1 = eq 2.i64 0.i64;
+        br v17 block4 block5;
 
     block4:
-        return v8;
+        v18.*i8 = evm_malloc 36.i256;
+        v19.i256 = ptr_to_int v18 i256;
+        mstore v19 35408467139433450592217433187231851964531694900788300625387963629091585785856.i256 i256;
+        v20.i256 = add v19 4.i256;
+        mstore v20 18.i256 i256;
+        evm_revert v19 36.i256;
+
+    block5:
+        return v14;
 }
 
 func private %__fe_sonatina_entry() {

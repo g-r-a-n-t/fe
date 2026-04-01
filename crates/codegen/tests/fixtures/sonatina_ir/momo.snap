@@ -1,5 +1,6 @@
 ---
 source: crates/codegen/tests/sonatina_ir.rs
+assertion_line: 64
 expression: output
 input_file: crates/codegen/tests/fixtures/momo.fe
 ---
@@ -17,7 +18,12 @@ func private %read_x(v0.objref<@__fe_obj_MyStruct_0>) -> i8 {
         br v8 block1 block2;
 
     block1:
-        evm_revert 0.i256 0.i256;
+        v10.*i8 = evm_malloc 36.i256;
+        v11.i256 = ptr_to_int v10 i256;
+        mstore v11 35408467139433450592217433187231851964531694900788300625387963629091585785856.i256 i256;
+        v14.i256 = add v11 4.i256;
+        mstore v14 17.i256 i256;
+        evm_revert v11 36.i256;
 
     block2:
         return v7;

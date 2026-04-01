@@ -3834,7 +3834,7 @@ fn lower_place_address_gep<'db, C: sonatina_ir::func_cursor::FuncCursor>(
                         if let Some(len) = arr_len
                             && *idx >= len
                         {
-                            let revert_block = ensure_overflow_revert_block(ctx)?;
+                            let revert_block = ensure_panic_revert_block(ctx, PANIC_ARRAY_OOB)?;
                             ctx.fb
                                 .insert_inst_no_result(Jump::new(ctx.is, revert_block));
                             let unreachable_block = ctx.fb.append_block();
@@ -3849,7 +3849,7 @@ fn lower_place_address_gep<'db, C: sonatina_ir::func_cursor::FuncCursor>(
                             let in_bounds =
                                 ctx.fb.insert_inst(Lt::new(ctx.is, val, len_val), Type::I1);
                             let oob = ctx.fb.insert_inst(IsZero::new(ctx.is, in_bounds), Type::I1);
-                            emit_overflow_revert(ctx, oob)?;
+                            emit_panic_revert(ctx, oob, PANIC_ARRAY_OOB)?;
                         }
                         val
                     }
@@ -3952,7 +3952,7 @@ fn lower_array_index_with_bounds_check<'db, C: sonatina_ir::func_cursor::FuncCur
     match idx_source {
         IndexSource::Constant(idx) => {
             if *idx >= arr_len {
-                let revert_block = ensure_overflow_revert_block(ctx)?;
+                let revert_block = ensure_panic_revert_block(ctx, PANIC_ARRAY_OOB)?;
                 ctx.fb
                     .insert_inst_no_result(Jump::new(ctx.is, revert_block));
                 let unreachable_block = ctx.fb.append_block();
@@ -3965,7 +3965,7 @@ fn lower_array_index_with_bounds_check<'db, C: sonatina_ir::func_cursor::FuncCur
             let len_val = ctx.fb.make_imm_value(I256::from(arr_len as u64));
             let in_bounds = ctx.fb.insert_inst(Lt::new(ctx.is, idx, len_val), Type::I1);
             let oob = ctx.fb.insert_inst(IsZero::new(ctx.is, in_bounds), Type::I1);
-            emit_overflow_revert(ctx, oob)?;
+            emit_panic_revert(ctx, oob, PANIC_ARRAY_OOB)?;
             Ok(idx)
         }
     }
@@ -4047,7 +4047,7 @@ fn lower_place_address_arithmetic<'db, C: sonatina_ir::func_cursor::FuncCursor>(
                         if let Some(len) = arr_len
                             && *idx >= len
                         {
-                            let revert_block = ensure_overflow_revert_block(ctx)?;
+                            let revert_block = ensure_panic_revert_block(ctx, PANIC_ARRAY_OOB)?;
                             ctx.fb
                                 .insert_inst_no_result(Jump::new(ctx.is, revert_block));
                             let unreachable_block = ctx.fb.append_block();
@@ -4075,7 +4075,7 @@ fn lower_place_address_arithmetic<'db, C: sonatina_ir::func_cursor::FuncCursor>(
                                 .fb
                                 .insert_inst(Lt::new(ctx.is, idx_val, len_val), Type::I1);
                             let oob = ctx.fb.insert_inst(IsZero::new(ctx.is, in_bounds), Type::I1);
-                            emit_overflow_revert(ctx, oob)?;
+                            emit_panic_revert(ctx, oob, PANIC_ARRAY_OOB)?;
                         }
 
                         // Compute dynamic index offset: idx * stride
@@ -5068,10 +5068,16 @@ fn bitcast_ptr<'db, C: sonatina_ir::func_cursor::FuncCursor>(
         .insert_inst(Bitcast::new(ctx.is, ptr, ptr_ty), ptr_ty)
 }
 
-fn ensure_overflow_revert_block<'db, C: sonatina_ir::func_cursor::FuncCursor>(
+const PANIC_SELECTOR: u32 = 0x4e487b71;
+const PANIC_ARITH_OVERFLOW: u64 = 0x11;
+const PANIC_DIV_BY_ZERO: u64 = 0x12;
+const PANIC_ARRAY_OOB: u64 = 0x32;
+
+fn ensure_panic_revert_block<'db, C: sonatina_ir::func_cursor::FuncCursor>(
     ctx: &mut LowerCtx<'_, 'db, C>,
+    code: u64,
 ) -> Result<BlockId, LowerError> {
-    if let Some(block) = *ctx.overflow_revert_block {
+    if let Some(block) = ctx.panic_revert_blocks.get(&code).copied() {
         return Ok(block);
     }
 
@@ -5081,23 +5087,42 @@ fn ensure_overflow_revert_block<'db, C: sonatina_ir::func_cursor::FuncCursor>(
         .ok_or_else(|| LowerError::Internal("missing current block".to_string()))?;
     let revert_block = ctx.fb.append_block();
     ctx.fb.switch_to_block(revert_block);
-    let zero = ctx.fb.make_imm_value(I256::zero());
+
+    // Solidity ABI encoding for `Panic(uint256)`:
+    // - 4-byte selector
+    // - 32-byte panic code
+    let len_val = ctx.fb.make_imm_value(I256::from(36u64));
+    let addr = emit_evm_malloc_word_addr(ctx.fb, len_val, ctx.is);
+
+    let selector_word = biguint_to_i256(&(BigUint::from(PANIC_SELECTOR) << 224));
+    let selector_val = ctx.fb.make_imm_value(selector_word);
     ctx.fb
-        .insert_inst_no_result(EvmRevert::new(ctx.is, zero, zero));
+        .insert_inst_no_result(Mstore::new(ctx.is, addr, selector_val, Type::I256));
+
+    let four = ctx.fb.make_imm_value(I256::from(4u64));
+    let code_addr = ctx.fb.insert_inst(Add::new(ctx.is, addr, four), Type::I256);
+    let code_val = ctx.fb.make_imm_value(I256::from(code));
+    ctx.fb
+        .insert_inst_no_result(Mstore::new(ctx.is, code_addr, code_val, Type::I256));
+
+    ctx.fb
+        .insert_inst_no_result(EvmRevert::new(ctx.is, addr, len_val));
+
     ctx.fb.switch_to_block(origin_block);
-    *ctx.overflow_revert_block = Some(revert_block);
+    ctx.panic_revert_blocks.insert(code, revert_block);
     Ok(revert_block)
 }
 
-/// Emit a conditional branch to the shared overflow revert block if `overflow_flag` (I1) is true.
-fn emit_overflow_revert<'db, C: sonatina_ir::func_cursor::FuncCursor>(
+/// Emit a conditional branch to the shared revert block for `code` if `cond` (I1) is true.
+fn emit_panic_revert<'db, C: sonatina_ir::func_cursor::FuncCursor>(
     ctx: &mut LowerCtx<'_, 'db, C>,
-    overflow_flag: ValueId,
+    cond: ValueId,
+    code: u64,
 ) -> Result<(), LowerError> {
-    let revert_block = ensure_overflow_revert_block(ctx)?;
+    let revert_block = ensure_panic_revert_block(ctx, code)?;
     let continue_block = ctx.fb.append_block();
     ctx.fb
-        .insert_inst_no_result(Br::new(ctx.is, overflow_flag, revert_block, continue_block));
+        .insert_inst_no_result(Br::new(ctx.is, cond, revert_block, continue_block));
     ctx.fb.switch_to_block(continue_block);
     Ok(())
 }
@@ -5244,7 +5269,7 @@ fn lower_checked_intrinsic<'db, C: sonatina_ir::func_cursor::FuncCursor>(
             } else {
                 ctx.fb.insert_uaddo(lhs, rhs)
             };
-            emit_overflow_revert(ctx, overflow)?;
+            emit_panic_revert(ctx, overflow, PANIC_ARITH_OVERFLOW)?;
             Ok(raw)
         }
         CheckedArithmeticOp::Sub => {
@@ -5263,7 +5288,7 @@ fn lower_checked_intrinsic<'db, C: sonatina_ir::func_cursor::FuncCursor>(
             } else {
                 ctx.fb.insert_usubo(lhs, rhs)
             };
-            emit_overflow_revert(ctx, overflow)?;
+            emit_panic_revert(ctx, overflow, PANIC_ARITH_OVERFLOW)?;
             Ok(raw)
         }
         CheckedArithmeticOp::Mul => {
@@ -5282,7 +5307,7 @@ fn lower_checked_intrinsic<'db, C: sonatina_ir::func_cursor::FuncCursor>(
             } else {
                 ctx.fb.insert_umulo(lhs, rhs)
             };
-            emit_overflow_revert(ctx, overflow)?;
+            emit_panic_revert(ctx, overflow, PANIC_ARITH_OVERFLOW)?;
             Ok(raw)
         }
         CheckedArithmeticOp::Div => {
@@ -5301,7 +5326,18 @@ fn lower_checked_intrinsic<'db, C: sonatina_ir::func_cursor::FuncCursor>(
             } else {
                 ctx.fb.insert_evm_udivo(lhs, rhs)
             };
-            emit_overflow_revert(ctx, overflow)?;
+            let zero = types::zero_value(ctx.fb, op_ty);
+            let div_by_zero = ctx.fb.insert_inst(Eq::new(ctx.is, rhs, zero), Type::I1);
+            emit_panic_revert(ctx, div_by_zero, PANIC_DIV_BY_ZERO)?;
+            if signed {
+                let not_div_by_zero = ctx
+                    .fb
+                    .insert_inst(IsZero::new(ctx.is, div_by_zero), Type::I1);
+                let overflow_without_div0 = ctx
+                    .fb
+                    .insert_inst(And::new(ctx.is, overflow, not_div_by_zero), Type::I1);
+                emit_panic_revert(ctx, overflow_without_div0, PANIC_ARITH_OVERFLOW)?;
+            }
             Ok(raw)
         }
         CheckedArithmeticOp::Rem => {
@@ -5320,7 +5356,7 @@ fn lower_checked_intrinsic<'db, C: sonatina_ir::func_cursor::FuncCursor>(
             } else {
                 ctx.fb.insert_evm_umodo(lhs, rhs)
             };
-            emit_overflow_revert(ctx, overflow)?;
+            emit_panic_revert(ctx, overflow, PANIC_DIV_BY_ZERO)?;
             Ok(raw)
         }
         CheckedArithmeticOp::Neg => {
@@ -5339,7 +5375,7 @@ fn lower_checked_intrinsic<'db, C: sonatina_ir::func_cursor::FuncCursor>(
             let val_word = lower_value(ctx, *arg)?;
             let val = lower_checked_operand(ctx.fb, ctx.is, val_word, op_ty, true);
             let [raw, overflow] = ctx.fb.insert_snego(val);
-            emit_overflow_revert(ctx, overflow)?;
+            emit_panic_revert(ctx, overflow, PANIC_ARITH_OVERFLOW)?;
             Ok(raw)
         }
     }

@@ -22,14 +22,27 @@ func private %get_sum() -> i256 {
         br v11 block1 block2;
 
     block1:
-        evm_revert 0.i256 0.i256;
+        v13.*i8 = evm_malloc 36.i256;
+        v14.i256 = ptr_to_int v13 i256;
+        mstore v14 35408467139433450592217433187231851964531694900788300625387963629091585785856.i256 i256;
+        v17.i256 = add v14 4.i256;
+        mstore v17 17.i256 i256;
+        evm_revert v14 36.i256;
 
     block2:
-        (v13.i256, v14.i1) = evm_umodo v10 100.i256;
-        br v14 block1 block3;
+        (v20.i256, v21.i1) = evm_umodo v10 100.i256;
+        br v21 block3 block4;
 
     block3:
-        return v13;
+        v22.*i8 = evm_malloc 36.i256;
+        v23.i256 = ptr_to_int v22 i256;
+        mstore v23 35408467139433450592217433187231851964531694900788300625387963629091585785856.i256 i256;
+        v24.i256 = add v23 4.i256;
+        mstore v24 18.i256 i256;
+        evm_revert v23 36.i256;
+
+    block4:
+        return v20;
 }
 
 func private %__fe_sonatina_entry() {

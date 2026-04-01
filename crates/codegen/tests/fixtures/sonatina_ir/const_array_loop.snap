@@ -1,5 +1,6 @@
 ---
 source: crates/codegen/tests/sonatina_ir.rs
+assertion_line: 64
 expression: output
 input_file: crates/codegen/tests/fixtures/const_array_loop.fe
 ---
@@ -12,8 +13,8 @@ func private %sum_loop(v0.i256) -> i256 {
         jump block1;
 
     block1:
-        v28.i256 = phi (0.i256 block0) (v20 block8);
-        v2.i256 = phi (0.i256 block0) (v24 block8);
+        v43.i256 = phi (0.i256 block0) (v31 block10);
+        v2.i256 = phi (0.i256 block0) (v39 block10);
         v4.i1 = call %usize_ha12462c6d36e68b0_ord_h264f6d6d75097a_lt v2 v0;
         br v4 block2 block3;
 
@@ -22,33 +23,54 @@ func private %sum_loop(v0.i256) -> i256 {
         br v8 block4 block5;
 
     block3:
-        return v28;
+        return v43;
 
     block4:
-        evm_revert 0.i256 0.i256;
+        v10.*i8 = evm_malloc 36.i256;
+        v11.i256 = ptr_to_int v10 i256;
+        mstore v11 35408467139433450592217433187231851964531694900788300625387963629091585785856.i256 i256;
+        v14.i256 = add v11 4.i256;
+        mstore v14 18.i256 i256;
+        evm_revert v11 36.i256;
 
     block5:
-        v9.i256 = sym_addr $__fe_const_data_0;
-        v10.*[i256; 3] = int_to_ptr v9 *[i256; 3];
-        v11.i1 = lt v7 3.i256;
-        v12.i1 = is_zero v11;
-        br v12 block4 block6;
+        v16.i256 = sym_addr $__fe_const_data_0;
+        v17.*[i256; 3] = int_to_ptr v16 *[i256; 3];
+        v18.i1 = lt v7 3.i256;
+        v19.i1 = is_zero v18;
+        br v19 block6 block7;
 
     block6:
-        v13.*i256 = gep v10 0.i256 v7;
-        v14.i256 = ptr_to_int v13 i256;
-        v16.*i256 = alloca i256;
-        v17.i256 = ptr_to_int v16 i256;
-        evm_code_copy v17 v14 32.i256;
-        v18.i256 = mload v17 i256;
-        (v20.i256, v21.i1) = uaddo v28 v18;
-        br v21 block4 block7;
+        v20.*i8 = evm_malloc 36.i256;
+        v21.i256 = ptr_to_int v20 i256;
+        mstore v21 35408467139433450592217433187231851964531694900788300625387963629091585785856.i256 i256;
+        v22.i256 = add v21 4.i256;
+        mstore v22 50.i256 i256;
+        evm_revert v21 36.i256;
 
     block7:
-        (v24.i256, v25.i1) = uaddo v2 1.i256;
-        br v25 block4 block8;
+        v24.*i256 = gep v17 0.i256 v7;
+        v25.i256 = ptr_to_int v24 i256;
+        v27.*i256 = alloca i256;
+        v28.i256 = ptr_to_int v27 i256;
+        evm_code_copy v28 v25 32.i256;
+        v29.i256 = mload v28 i256;
+        (v31.i256, v32.i1) = uaddo v43 v29;
+        br v32 block8 block9;
 
     block8:
+        v33.*i8 = evm_malloc 36.i256;
+        v34.i256 = ptr_to_int v33 i256;
+        mstore v34 35408467139433450592217433187231851964531694900788300625387963629091585785856.i256 i256;
+        v35.i256 = add v34 4.i256;
+        mstore v35 17.i256 i256;
+        evm_revert v34 36.i256;
+
+    block9:
+        (v39.i256, v40.i1) = uaddo v2 1.i256;
+        br v40 block8 block10;
+
+    block10:
         jump block1;
 }
 

@@ -1,5 +1,6 @@
 ---
 source: crates/codegen/tests/sonatina_ir.rs
+assertion_line: 64
 expression: output
 input_file: crates/codegen/tests/fixtures/while.fe
 ---
@@ -22,7 +23,12 @@ func private %do_while() -> i64 {
         return v1;
 
     block4:
-        evm_revert 0.i256 0.i256;
+        v9.*i8 = evm_malloc 36.i256;
+        v10.i256 = ptr_to_int v9 i256;
+        mstore v10 35408467139433450592217433187231851964531694900788300625387963629091585785856.i256 i256;
+        v13.i256 = add v10 4.i256;
+        mstore v13 17.i256 i256;
+        evm_revert v10 36.i256;
 
     block5:
         jump block1;

@@ -1,5 +1,6 @@
 ---
 source: crates/codegen/tests/sonatina_ir.rs
+assertion_line: 64
 expression: output
 input_file: crates/codegen/tests/fixtures/if_else.fe
 ---
@@ -28,7 +29,12 @@ func private %helper(v0.i64) -> i64 {
         br v3 block1 block2;
 
     block1:
-        evm_revert 0.i256 0.i256;
+        v5.*i8 = evm_malloc 36.i256;
+        v6.i256 = ptr_to_int v5 i256;
+        mstore v6 35408467139433450592217433187231851964531694900788300625387963629091585785856.i256 i256;
+        v9.i256 = add v6 4.i256;
+        mstore v9 17.i256 i256;
+        evm_revert v6 36.i256;
 
     block2:
         return v2;

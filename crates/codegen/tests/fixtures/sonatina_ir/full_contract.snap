@@ -1,5 +1,6 @@
 ---
 source: crates/codegen/tests/sonatina_ir.rs
+assertion_line: 64
 expression: output
 input_file: crates/codegen/tests/fixtures/full_contract.fe
 ---
@@ -42,38 +43,43 @@ func private %dispatch__Evm_hef0af3106e109414__3af54274b2985741() {
         br v18 block5 block6;
 
     block2:
-        v31.i1 = call %u256_h3271ca15373d4483_eq_he50383edd273619f_eq v4 2066295049.i256;
-        br v31 block3 block4;
+        v36.i1 = call %u256_h3271ca15373d4483_eq_he50383edd273619f_eq v4 2066295049.i256;
+        br v36 block3 block4;
 
     block3:
-        v32.i256 = evm_calldata_load 4.i256;
-        (v34.i256, v35.i1) = uaddo v32 3.i256;
-        br v35 block5 block8;
+        v37.i256 = evm_calldata_load 4.i256;
+        (v39.i256, v40.i1) = uaddo v37 3.i256;
+        br v40 block5 block8;
 
     block4:
         evm_return 0.i256 0.i256;
 
     block5:
-        evm_revert 0.i256 0.i256;
+        v19.*i8 = evm_malloc 36.i256;
+        v20.i256 = ptr_to_int v19 i256;
+        mstore v20 35408467139433450592217433187231851964531694900788300625387963629091585785856.i256 i256;
+        v22.i256 = add v20 4.i256;
+        mstore v22 17.i256 i256;
+        evm_revert v20 36.i256;
 
     block6:
-        v20.objref<i256> = obj.proj v11 0.i256;
-        obj.store v20 v17;
-        v21.objref<i256> = obj.proj v11 1.i256;
-        v22.i256 = obj.load v21;
-        (v24.i256, v25.i1) = uaddo v22 2.i256;
-        br v25 block5 block7;
+        v25.objref<i256> = obj.proj v11 0.i256;
+        obj.store v25 v17;
+        v26.objref<i256> = obj.proj v11 1.i256;
+        v27.i256 = obj.load v26;
+        (v29.i256, v30.i1) = uaddo v27 2.i256;
+        br v30 block5 block7;
 
     block7:
-        v27.objref<i256> = obj.proj v11 1.i256;
-        obj.store v27 v24;
-        v28.i256 = call %point_hac92469562809d28_area v11;
-        call %abi_encode__Evm_hef0af3106e109414__3af54274b2985741 v28;
+        v32.objref<i256> = obj.proj v11 1.i256;
+        obj.store v32 v29;
+        v33.i256 = call %point_hac92469562809d28_area v11;
+        call %abi_encode__Evm_hef0af3106e109414__3af54274b2985741 v33;
         evm_invalid;
 
     block8:
-        v36.i256 = call %square_h97afaa872b6ea17e_area v34;
-        call %abi_encode__Evm_hef0af3106e109414__3af54274b2985741 v36;
+        v41.i256 = call %square_h97afaa872b6ea17e_area v39;
+        call %abi_encode__Evm_hef0af3106e109414__3af54274b2985741 v41;
         evm_invalid;
 }
 
@@ -93,7 +99,12 @@ func private %point_hac92469562809d28_area(v0.objref<@__fe_obj_Point_0>) -> i256
         br v8 block1 block2;
 
     block1:
-        evm_revert 0.i256 0.i256;
+        v10.*i8 = evm_malloc 36.i256;
+        v11.i256 = ptr_to_int v10 i256;
+        mstore v11 35408467139433450592217433187231851964531694900788300625387963629091585785856.i256 i256;
+        v14.i256 = add v11 4.i256;
+        mstore v14 17.i256 i256;
+        evm_revert v11 36.i256;
 
     block2:
         return v7;
@@ -105,7 +116,12 @@ func private %square_h97afaa872b6ea17e_area(v0.i256) -> i256 {
         br v2 block1 block2;
 
     block1:
-        evm_revert 0.i256 0.i256;
+        v4.*i8 = evm_malloc 36.i256;
+        v5.i256 = ptr_to_int v4 i256;
+        mstore v5 35408467139433450592217433187231851964531694900788300625387963629091585785856.i256 i256;
+        v8.i256 = add v5 4.i256;
+        mstore v8 17.i256 i256;
+        evm_revert v5 36.i256;
 
     block2:
         return v1;

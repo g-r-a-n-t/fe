@@ -1,5 +1,6 @@
 ---
 source: crates/codegen/tests/sonatina_ir.rs
+assertion_line: 64
 expression: output
 input_file: crates/codegen/tests/fixtures/match_struct.fe
 ---
@@ -37,22 +38,27 @@ func private %match_struct_fields(v0.objref<@__fe_obj_Point_0>) -> i8 {
         br v17 block9 block10;
 
     block6:
-        v19.objref<i8> = obj.proj v0 1.i256;
-        v20.i8 = obj.load v19;
-        br_table v20 block8 (0.i8 block7);
+        v26.objref<i8> = obj.proj v0 1.i256;
+        v27.i8 = obj.load v26;
+        br_table v27 block8 (0.i8 block7);
 
     block7:
-        v22.objref<i8> = obj.proj v0 0.i256;
-        v23.i8 = obj.load v22;
-        br_table v23 block4 (0.i8 block1);
+        v29.objref<i8> = obj.proj v0 0.i256;
+        v30.i8 = obj.load v29;
+        br_table v30 block4 (0.i8 block1);
 
     block8:
-        v25.objref<i8> = obj.proj v0 0.i256;
-        v26.i8 = obj.load v25;
-        br_table v26 block5 (0.i8 block3);
+        v32.objref<i8> = obj.proj v0 0.i256;
+        v33.i8 = obj.load v32;
+        br_table v33 block5 (0.i8 block3);
 
     block9:
-        evm_revert 0.i256 0.i256;
+        v19.*i8 = evm_malloc 36.i256;
+        v20.i256 = ptr_to_int v19 i256;
+        mstore v20 35408467139433450592217433187231851964531694900788300625387963629091585785856.i256 i256;
+        v23.i256 = add v20 4.i256;
+        mstore v23 17.i256 i256;
+        evm_revert v20 36.i256;
 
     block10:
         jump block2;

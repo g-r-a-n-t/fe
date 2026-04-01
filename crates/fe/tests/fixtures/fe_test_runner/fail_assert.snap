@@ -1,12 +1,12 @@
 ---
 source: crates/fe/tests/cli_output.rs
-assertion_line: 838
+assertion_line: 1253
 expression: output
 input_file: tests/fixtures/fe_test_runner/fail_assert.fe
 ---
 === STDOUT ===
 FAIL  [<time>] test_assert
-    Test reverted: 0x
+    Test reverted: Error("assertion failed") (data: 0x08c379a000000000000000000000000000000000000000000000000000000000000000200000000000000000000000000000000000000000000000000000000000000010617373657274696f6e206661696c656400000000000000000000000000000000)
 
 test result: FAILED. 0 passed; 1 failed
 

@@ -1,5 +1,6 @@
 ---
 source: crates/codegen/tests/sonatina_ir.rs
+assertion_line: 64
 expression: output
 input_file: crates/codegen/tests/fixtures/internal_helper_shadowing.fe
 ---
@@ -35,16 +36,21 @@ func private %call_internal_helpers(v0.i64, v1.i64) -> objref<@__fe_obj_tuple_0>
         br v3 block1 block2;
 
     block1:
-        evm_revert 0.i256 0.i256;
+        v5.*i8 = evm_malloc 36.i256;
+        v6.i256 = ptr_to_int v5 i256;
+        mstore v6 35408467139433450592217433187231851964531694900788300625387963629091585785856.i256 i256;
+        v9.i256 = add v6 4.i256;
+        mstore v9 17.i256 i256;
+        evm_revert v6 36.i256;
 
     block2:
-        v7.i64 = call %u64_haee7f05a097ffa16_saturatingadd_h7ca6e43aca8f23bb_saturating_add v0 v1;
-        v8.objref<@__fe_obj_tuple_0> = obj.alloc @__fe_obj_tuple_0;
-        v9.objref<i64> = obj.proj v8 0.i256;
-        obj.store v9 v2;
-        v11.objref<i64> = obj.proj v8 1.i256;
-        obj.store v11 v7;
-        return v8;
+        v13.i64 = call %u64_haee7f05a097ffa16_saturatingadd_h7ca6e43aca8f23bb_saturating_add v0 v1;
+        v14.objref<@__fe_obj_tuple_0> = obj.alloc @__fe_obj_tuple_0;
+        v16.objref<i64> = obj.proj v14 0.i256;
+        obj.store v16 v2;
+        v18.objref<i64> = obj.proj v14 1.i256;
+        obj.store v18 v13;
+        return v14;
 }
 
 func private %u64_haee7f05a097ffa16_saturatingadd_h7ca6e43aca8f23bb_saturating_add(v0.i64, v1.i64) -> i64 {

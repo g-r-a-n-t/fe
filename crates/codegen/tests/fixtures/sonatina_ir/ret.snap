@@ -1,5 +1,6 @@
 ---
 source: crates/codegen/tests/sonatina_ir.rs
+assertion_line: 64
 expression: output
 input_file: crates/codegen/tests/fixtures/ret.fe
 ---
@@ -27,18 +28,23 @@ func private %retfoo(v0.i1, v1.i64) -> i64 {
         return 2.i64;
 
     block6:
-        (v15.i64, v16.i1) = uaddo v8 1.i64;
-        br v16 block7 block9;
+        (v21.i64, v22.i1) = uaddo v8 1.i64;
+        br v22 block7 block9;
 
     block7:
-        evm_revert 0.i256 0.i256;
+        v11.*i8 = evm_malloc 36.i256;
+        v12.i256 = ptr_to_int v11 i256;
+        mstore v12 35408467139433450592217433187231851964531694900788300625387963629091585785856.i256 i256;
+        v15.i256 = add v12 4.i256;
+        mstore v15 17.i256 i256;
+        evm_revert v12 36.i256;
 
     block8:
-        v12.i1 = call %u64_haee7f05a097ffa16_eq_he50383edd273619f_eq v8 42.i64;
-        br v12 block5 block6;
+        v18.i1 = call %u64_haee7f05a097ffa16_eq_he50383edd273619f_eq v8 42.i64;
+        br v18 block5 block6;
 
     block9:
-        return v15;
+        return v21;
 }
 
 func private %u64_haee7f05a097ffa16_ord_h264f6d6d75097a_lt(v0.i64, v1.i64) -> i1 {

@@ -3167,12 +3167,98 @@ fn execute_test(
 /// Formats a harness error into a human-readable message.
 fn format_harness_error(err: contract_harness::HarnessError) -> String {
     match err {
-        contract_harness::HarnessError::Revert(data) => format!("Test reverted: {data}"),
+        contract_harness::HarnessError::Revert(data) => format_revert_data(&data),
         contract_harness::HarnessError::Halted { reason, gas_used } => {
             format!("Test halted: {reason:?} (gas: {gas_used})")
         }
         other => format!("Test execution error: {other}"),
     }
+}
+
+fn format_revert_data(data: &contract_harness::RevertData) -> String {
+    if data.0.is_empty() {
+        return "Test reverted (empty revert data)".to_string();
+    }
+
+    if let Some(decoded) = decode_revert_payload(&data.0) {
+        return format!("Test reverted: {decoded} (data: {data})");
+    }
+
+    if let Some(decoded) = try_decode_abi_string_payload(&data.0) {
+        return format!("Test reverted: {:?} (data: {data})", decoded);
+    }
+
+    format!("Test reverted: {data}")
+}
+
+fn decode_revert_payload(data: &[u8]) -> Option<String> {
+    const ERROR_SELECTOR: [u8; 4] = [0x08, 0xc3, 0x79, 0xa0];
+    const PANIC_SELECTOR: [u8; 4] = [0x4e, 0x48, 0x7b, 0x71];
+
+    let selector = data.get(..4)?.try_into().ok()?;
+    let args = data.get(4..)?;
+
+    match selector {
+        ERROR_SELECTOR => {
+            let reason = try_decode_abi_string_payload(args)?;
+            Some(format!("Error({:?})", reason))
+        }
+        PANIC_SELECTOR => {
+            let code = decode_u256_as_u64(args.get(..32)?)?;
+            let description = panic_code_description(code);
+            if let Some(description) = description {
+                Some(format!("Panic({code:#x}) {description}"))
+            } else {
+                Some(format!("Panic({code:#x})"))
+            }
+        }
+        _ => None,
+    }
+}
+
+fn panic_code_description(code: u64) -> Option<&'static str> {
+    match code {
+        0x01 => Some("assertion failed"),
+        0x11 => Some("arithmetic overflow/underflow"),
+        0x12 => Some("division or modulo by zero"),
+        0x21 => Some("invalid enum value"),
+        0x22 => Some("storage byte array incorrectly encoded"),
+        0x31 => Some("pop() on empty array"),
+        0x32 => Some("array out of bounds"),
+        0x41 => Some("memory allocation overflow"),
+        0x51 => Some("invalid internal function"),
+        _ => None,
+    }
+}
+
+fn try_decode_abi_string_payload(payload: &[u8]) -> Option<String> {
+    if payload.len() < 64 {
+        return None;
+    }
+
+    let offset = decode_u256_as_usize(payload.get(..32)?)?;
+    let len_word = payload.get(offset..offset.checked_add(32)?)?;
+    let len = decode_u256_as_usize(len_word)?;
+    let start = offset + 32;
+    let end = start.checked_add(len)?;
+    let data = payload.get(start..end)?;
+
+    std::str::from_utf8(data).ok().map(str::to_owned)
+}
+
+fn decode_u256_as_usize(word: &[u8]) -> Option<usize> {
+    let value = decode_u256_as_u64(word)?;
+    usize::try_from(value).ok()
+}
+
+fn decode_u256_as_u64(word: &[u8]) -> Option<u64> {
+    let word: &[u8; 32] = word.try_into().ok()?;
+    if word[..24].iter().any(|byte| *byte != 0) {
+        return None;
+    }
+
+    let bytes: [u8; 8] = word[24..].try_into().ok()?;
+    Some(u64::from_be_bytes(bytes))
 }
 
 fn harness_error_gas_used(err: &contract_harness::HarnessError) -> Option<u64> {

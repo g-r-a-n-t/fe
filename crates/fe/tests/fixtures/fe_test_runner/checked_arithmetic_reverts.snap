@@ -1,26 +1,26 @@
 ---
 source: crates/fe/tests/cli_output.rs
-assertion_line: 922
+assertion_line: 1253
 expression: output
 input_file: tests/fixtures/fe_test_runner/checked_arithmetic_reverts.fe
 ---
 === STDOUT ===
 FAIL  [<time>] test_add_overflow_u8
-    Test reverted: 0x
+    Test reverted: Panic(0x11) arithmetic overflow/underflow (data: 0x4e487b710000000000000000000000000000000000000000000000000000000000000011)
 FAIL  [<time>] test_aug_assign_overflow_u8
-    Test reverted: 0x
+    Test reverted: Panic(0x11) arithmetic overflow/underflow (data: 0x4e487b710000000000000000000000000000000000000000000000000000000000000011)
 FAIL  [<time>] test_div_by_zero_u8
-    Test reverted: 0x
+    Test reverted: Panic(0x12) division or modulo by zero (data: 0x4e487b710000000000000000000000000000000000000000000000000000000000000012)
 FAIL  [<time>] test_rem_by_zero_u8
-    Test reverted: 0x
+    Test reverted: Panic(0x12) division or modulo by zero (data: 0x4e487b710000000000000000000000000000000000000000000000000000000000000012)
 FAIL  [<time>] test_pow_overflow_u8
-    Test reverted: 0x
+    Test reverted: Panic(0x11) arithmetic overflow/underflow (data: 0x4e487b710000000000000000000000000000000000000000000000000000000000000011)
 FAIL  [<time>] test_neg_overflow_i8
-    Test reverted: 0x
+    Test reverted: Panic(0x11) arithmetic overflow/underflow (data: 0x4e487b710000000000000000000000000000000000000000000000000000000000000011)
 FAIL  [<time>] test_div_overflow_i8
-    Test reverted: 0x
+    Test reverted: Panic(0x11) arithmetic overflow/underflow (data: 0x4e487b710000000000000000000000000000000000000000000000000000000000000011)
 FAIL  [<time>] test_pow_negative_exp_i8
-    Test reverted: 0x
+    Test reverted (empty revert data)
 
 test result: FAILED. 0 passed; 8 failed
 

@@ -1,5 +1,6 @@
 ---
 source: crates/codegen/tests/sonatina_ir.rs
+assertion_line: 64
 expression: output
 input_file: crates/codegen/tests/fixtures/ref_is_not_a_copy.fe
 ---
@@ -7,6 +8,7 @@ target = "evm-ethereum-osaka"
 
 type @__fe_obj_Data_0 = {i256, i256};
 type @__fe_obj_LiveView_1 = {objref<i256>, objref<i256>};
+type @__fe_obj_DynString_2 = {i256, i256, i256};
 
 func private %live_view(v0.objref<@__fe_obj_Data_0>) -> objref<@__fe_obj_LiveView_1> {
     block0:
@@ -57,10 +59,112 @@ func private %assert(v0.i1) {
         br v1 block1 block2;
 
     block1:
-        evm_revert 0.i256 0.i256;
+        v3.*i8 = evm_malloc 64.i256;
+        v4.i256 = ptr_to_int v3 i256;
+        mstore v4 16.i256 i256;
+        v7.i256 = add v4 32.i256;
+        mstore v7 0.i256 i256;
+        v9.i256 = add v4 32.i256;
+        mstore v9 44078330160864338477495766538115890133131935856799378716444573188104078229504.i256 i256;
+        v11.objref<@__fe_obj_DynString_2> = obj.alloc @__fe_obj_DynString_2;
+        v12.objref<i256> = obj.proj v11 0.i256;
+        obj.store v12 v4;
+        v14.objref<i256> = obj.proj v11 1.i256;
+        obj.store v14 16.i256;
+        v16.objref<i256> = obj.proj v11 2.i256;
+        obj.store v16 64.i256;
+        call %revert_error v11;
+        evm_invalid;
 
     block2:
         return;
+}
+
+func private %revert_error(v0.objref<@__fe_obj_DynString_2>) {
+    block0:
+        (v3.i256, v4.i1) = uaddo 4.i256 32.i256;
+        br v4 block7 block8;
+
+    block1:
+        v37.objref<i256> = obj.proj v0 1.i256;
+        v38.i256 = obj.load v37;
+        mstore v28 v38 i256;
+        jump block2;
+
+    block2:
+        evm_revert v18 v15;
+
+    block3:
+        jump block4;
+
+    block4:
+        v45.i256 = phi (0.i256 block3) (v60 block14);
+        v43.objref<i256> = obj.proj v0 2.i256;
+        v44.i256 = obj.load v43;
+        v46.i1 = call %u256_h3271ca15373d4483_ord_h264f6d6d75097a_lt v45 v44;
+        br v46 block5 block6;
+
+    block5:
+        (v49.i256, v50.i1) = uaddo v28 v45;
+        br v50 block7 block12;
+
+    block6:
+        jump block2;
+
+    block7:
+        v6.*i8 = evm_malloc 36.i256;
+        v7.i256 = ptr_to_int v6 i256;
+        mstore v7 35408467139433450592217433187231851964531694900788300625387963629091585785856.i256 i256;
+        v9.i256 = add v7 4.i256;
+        mstore v9 17.i256 i256;
+        evm_revert v7 36.i256;
+
+    block8:
+        v13.objref<i256> = obj.proj v0 2.i256;
+        v14.i256 = obj.load v13;
+        (v15.i256, v16.i1) = uaddo v3 v14;
+        br v16 block7 block9;
+
+    block9:
+        v17.*i8 = evm_malloc v15;
+        v18.i256 = ptr_to_int v17 i256;
+        v20.i256 = zext 147028384.i32 i256;
+        v22.i256 = shl 224.i256 v20;
+        mstore v18 v22 i256;
+        (v24.i256, v25.i1) = uaddo v18 4.i256;
+        br v25 block7 block10;
+
+    block10:
+        mstore v24 32.i256 i256;
+        (v28.i256, v29.i1) = uaddo v18 v3;
+        br v29 block7 block11;
+
+    block11:
+        v32.objref<i256> = obj.proj v0 0.i256;
+        v33.i256 = obj.load v32;
+        v34.i1 = call %u256_h3271ca15373d4483_eq_he50383edd273619f_eq v33 0.i256;
+        br v34 block1 block3;
+
+    block12:
+        v52.objref<i256> = obj.proj v0 0.i256;
+        v53.i256 = obj.load v52;
+        (v55.i256, v56.i1) = uaddo v53 v45;
+        br v56 block7 block13;
+
+    block13:
+        v57.i256 = mload v55 i256;
+        mstore v49 v57 i256;
+        (v60.i256, v61.i1) = uaddo v45 32.i256;
+        br v61 block7 block14;
+
+    block14:
+        jump block4;
+}
+
+func private %u256_h3271ca15373d4483_ord_h264f6d6d75097a_lt(v0.i256, v1.i256) -> i1 {
+    block0:
+        v2.i1 = lt v0 v1;
+        return v2;
 }
 
 func private %__fe_sonatina_entry() {

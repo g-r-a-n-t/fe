@@ -1,5 +1,6 @@
 ---
 source: crates/codegen/tests/sonatina_ir.rs
+assertion_line: 64
 expression: output
 input_file: crates/codegen/tests/fixtures/borrow_storage_field_handle.fe
 ---
@@ -12,12 +13,17 @@ func private %borrow_storage_field_handle__StorPtr_CoinStore___ba1c0d0726e89ba2(
         br v4 block1 block2;
 
     block1:
-        evm_revert 0.i256 0.i256;
+        v6.*i8 = evm_malloc 36.i256;
+        v7.i256 = ptr_to_int v6 i256;
+        mstore v7 35408467139433450592217433187231851964531694900788300625387963629091585785856.i256 i256;
+        v10.i256 = add v7 4.i256;
+        mstore v10 17.i256 i256;
+        evm_revert v7 36.i256;
 
     block2:
         evm_sstore v0 v3;
-        v8.i256 = evm_sload v0;
-        return v8;
+        v14.i256 = evm_sload v0;
+        return v14;
 }
 
 func private %__fe_sonatina_entry() {

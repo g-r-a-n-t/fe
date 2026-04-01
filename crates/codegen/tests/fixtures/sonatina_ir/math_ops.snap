@@ -1,5 +1,6 @@
 ---
 source: crates/codegen/tests/sonatina_ir.rs
+assertion_line: 64
 expression: output
 input_file: crates/codegen/tests/fixtures/math_ops.fe
 ---
@@ -11,22 +12,36 @@ func private %math_ops() -> i64 {
         br v3 block1 block2;
 
     block1:
-        evm_revert 0.i256 0.i256;
+        v5.*i8 = evm_malloc 36.i256;
+        v6.i256 = ptr_to_int v5 i256;
+        mstore v6 35408467139433450592217433187231851964531694900788300625387963629091585785856.i256 i256;
+        v9.i256 = add v6 4.i256;
+        mstore v9 17.i256 i256;
+        evm_revert v6 36.i256;
 
     block2:
-        (v6.i64, v7.i1) = umulo v2 2.i64;
-        br v7 block1 block3;
+        (v12.i64, v13.i1) = umulo v2 2.i64;
+        br v13 block1 block3;
 
     block3:
-        (v9.i64, v10.i1) = evm_udivo v6 7.i64;
-        br v10 block1 block4;
+        (v15.i64, v16.i1) = evm_udivo v12 7.i64;
+        v18.i1 = eq 7.i64 0.i64;
+        br v18 block4 block5;
 
     block4:
-        (v11.i64, v12.i1) = evm_umodo v9 3.i64;
-        br v12 block1 block5;
+        v19.*i8 = evm_malloc 36.i256;
+        v20.i256 = ptr_to_int v19 i256;
+        mstore v20 35408467139433450592217433187231851964531694900788300625387963629091585785856.i256 i256;
+        v21.i256 = add v20 4.i256;
+        mstore v21 18.i256 i256;
+        evm_revert v20 36.i256;
 
     block5:
-        return v11;
+        (v23.i64, v24.i1) = evm_umodo v15 3.i64;
+        br v24 block4 block6;
+
+    block6:
+        return v23;
 }
 
 func private %__fe_sonatina_entry() {

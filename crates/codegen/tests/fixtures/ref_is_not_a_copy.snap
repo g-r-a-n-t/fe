@@ -1,5 +1,6 @@
 ---
 source: crates/codegen/tests/yul.rs
+assertion_line: 33
 expression: output
 input_file: tests/fixtures/ref_is_not_a_copy.fe
 ---
@@ -8,8 +9,41 @@ object "code_region_test_ref_is_not_a_copy" {
     function $assert($b) {
       let v0 := iszero($b)
       if v0 {
+        let v1 := mload(64)
+        if iszero(v1) {
+          v1 := 0x80
+        }
+        mstore(64, add(v1, 64))
+        mstore(v1, 16)
+        mstore(add(v1, 32), 0)
+        mstore(add(v1, 32), 44078330160864338477495766538115890133131935856799378716444573188104078229504)
+        let v2 := mload(0x40)
+        if iszero(v2) {
+          v2 := 0x80
+        }
+        mstore(0x40, add(v2, 96))
+        mstore(v2, v1)
+        mstore(add(v2, 32), 16)
+        mstore(add(v2, 64), 64)
+        $revert_error(v2)
+      }
+      leave
+    }
+    function $checked_add_u256($a, $b) -> ret {
+      let v0 := $checked_add_unsigned_impl__u256__3271ca15373d4483($a, $b)
+      ret := v0
+      leave
+    }
+    function $checked_add_unsigned_impl__u256__3271ca15373d4483($a, $b) -> ret {
+      let v0 := $u256_h3271ca15373d4483_wrappingadd_h14afa79b3047617f_wrapping_add($a, $b)
+      let v1 := $u256_h3271ca15373d4483_intword_h9a147c8c32b1323c_to_word(v0)
+      let v2 := $u256_h3271ca15373d4483_intword_h9a147c8c32b1323c_to_word($a)
+      let v3 := $u256_h3271ca15373d4483_ord_h264f6d6d75097a_lt(v1, v2)
+      let v4 := v3
+      if v4 {
         revert(0, 0)
       }
+      ret := v0
       leave
     }
     function $live_view($d) -> ret {
@@ -22,6 +56,51 @@ object "code_region_test_ref_is_not_a_copy" {
       mstore(add(v0, 32), add($d, 32))
       ret := v0
       leave
+    }
+    function $revert_error($message) {
+      let v0 := 4
+      let v1 := $checked_add_u256(v0, 32)
+      let v2 := v1
+      let v3 := mload(add($message, 64))
+      let v4 := $checked_add_u256(v2, v3)
+      let v5 := v4
+      let v6 := mload(64)
+      if iszero(v6) {
+        v6 := 0x80
+      }
+      mstore(64, add(v6, v5))
+      let v7 := shl(224, 147028384)
+      mstore(v6, v7)
+      let v8 := $checked_add_u256(v6, v0)
+      mstore(v8, 32)
+      let v9 := $checked_add_u256(v6, v2)
+      let v10 := v9
+      let v11 := mload($message)
+      let v12 := $u256_h3271ca15373d4483_eq_he50383edd273619f_eq(v11, 0)
+      let v13 := v12
+      if v13 {
+        let v14 := mload(add($message, 32))
+        mstore(v10, v14)
+        revert(v6, v5)
+      }
+      if iszero(v13) {
+        let v15 := 0
+        for { } 1 { } {
+          let v16 := mload(add($message, 64))
+          let v17 := $u256_h3271ca15373d4483_ord_h264f6d6d75097a_lt(v15, v16)
+          if iszero(v17) {
+            break
+          }
+          let v18 := $checked_add_u256(v10, v15)
+          let v19 := mload($message)
+          let v20 := $checked_add_u256(v19, v15)
+          let v21 := mload(v20)
+          mstore(v18, v21)
+          let v22 := $checked_add_u256(v15, 32)
+          v15 := v22
+        }
+        revert(v6, v5)
+      }
     }
     function $test_ref_is_not_a_copy() {
       let v0 := mload(0x40)
@@ -49,6 +128,20 @@ object "code_region_test_ref_is_not_a_copy" {
     }
     function $u256_h3271ca15373d4483_eq_he50383edd273619f_eq($self, $other) -> ret {
       let v0 := eq($self, $other)
+      ret := v0
+      leave
+    }
+    function $u256_h3271ca15373d4483_intword_h9a147c8c32b1323c_to_word($self) -> ret {
+      ret := $self
+      leave
+    }
+    function $u256_h3271ca15373d4483_ord_h264f6d6d75097a_lt($self, $other) -> ret {
+      let v0 := lt($self, $other)
+      ret := v0
+      leave
+    }
+    function $u256_h3271ca15373d4483_wrappingadd_h14afa79b3047617f_wrapping_add($self, $other) -> ret {
+      let v0 := add($self, $other)
       ret := v0
       leave
     }

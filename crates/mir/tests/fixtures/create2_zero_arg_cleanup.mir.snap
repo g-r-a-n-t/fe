@@ -1,5 +1,6 @@
 ---
 source: crates/mir/tests/lowering_snapshots.rs
+assertion_line: 26
 expression: mir_output
 ---
 fn create2_zero_arg_cleanup__Evm_hef0af3106e109414__3af54274b2985741(v0: u256) -> ():
@@ -81,7 +82,13 @@ fn assert(v0: bool) -> ():
   bb0:
     br (!v0) bb1 bb2
   bb1:
-    terminate revert(0, 0)
+    v1: u256 = alloc(64)
+    eval mstore(v1, 16)
+    eval mstore((v1 + 32), 0)
+    eval mstore((v1 + 32), 44078330160864338477495766538115890133131935856799378716444573188104078229504)
+    v2: DynString = alloc mem
+    init mem[v2] { .0 = v1, .1 = 16, .2 = 64 }
+    terminate revert_error(v2)
   bb2:
     ret
 
@@ -147,6 +154,49 @@ fn copy_words(v0: u256, v1: u256, v2: u256) -> ():
     jmp bb1
   bb3:
     ret
+
+fn revert_error(v0: DynString) -> !:
+  bb0:
+    v1: u256 = 4
+    v3: u256 = checked_add<u256>(v1, 32)
+    v2: u256 = v3
+    v5: u256 = load mem[v0].2
+    v6: u256 = checked_add<u256>(v2, v5)
+    v4: u256 = v6
+    v7: u256 = alloc(v4)
+    v8: u256 = (147028384 << 224)
+    eval mstore(v7, v8)
+    v9: u256 = checked_add<u256>(v7, v1)
+    eval mstore(v9, 32)
+    v11: u256 = checked_add<u256>(v7, v2)
+    v10: u256 = v11
+    v12: u256 = load mem[v0].0
+    v13: bool = u256_h3271ca15373d4483_eq_he50383edd273619f_eq(v12, 0)
+    br v13 bb1 bb3
+  bb1:
+    v14: u256 = load mem[v0].1
+    eval mstore(v10, v14)
+    jmp bb2
+  bb2:
+    terminate revert(v7, v4)
+  bb3:
+    v15: u256 = 0
+    jmp bb4
+  bb4:
+    v16: u256 = load mem[v0].2
+    v17: bool = u256_h3271ca15373d4483_ord_h264f6d6d75097a_lt(v15, v16)
+    br v17 bb5 bb6
+  bb5:
+    v18: u256 = checked_add<u256>(v10, v15)
+    v19: u256 = load mem[v0].0
+    v20: u256 = checked_add<u256>(v19, v15)
+    v21: u256 = mload(v20)
+    eval mstore(v18, v21)
+    v22: u256 = checked_add<u256>(v15, 32)
+    v15 = v22
+    jmp bb4
+  bb6:
+    jmp bb2
 
 fn encoded_size______2439715d39cd513() -> u256:
   bb0:

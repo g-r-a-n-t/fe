@@ -9,6 +9,7 @@ use ingot::evm::intrinsic::{
     code_region_offset as intrinsic_code_region_offset,
 }
 use ingot::abi::Sol
+use ingot::abi::Text
 use ingot::abi::sol::{decode_input_at, decode_output, encoded_size, SolEncoder}
 use super::calldata::CallData
 use super::contract_field_slot
@@ -659,7 +660,11 @@ impl Call for Evm {
 }
 
 pub fn assert(_ b: own bool) {
-    if !b { ops::revert(offset: 0, len: 0) }
+    if !b { revert_error("assertion failed") }
+}
+
+pub fn assert_msg(_ b: own bool, _ message: own Text) {
+    if !b { revert_error(message) }
 }
 
 /// Revert the current transaction with ABI-encoded data.
@@ -674,6 +679,40 @@ pub fn revert<T>(_ value: own T) -> !
     encode_root<Sol, T, SolEncoder>(value, mut enc)
     let (result_ptr, result_len) = enc.finish()
     ops::revert(offset: result_ptr, len: result_len)
+}
+
+const ERROR_STRING_SELECTOR: u32 = 0x08c379a0
+
+fn revert_error(_ message: own Text) -> ! {
+    // Revert with canonical `Error(string)` encoding so the revert payload is
+    // ABI-compatible and backend-consistent.
+    let selector_size = size_of<Sol::Selector>()
+    let head_size = selector_size + 32
+    let total_size = head_size + message.size
+
+    let ptr = mem::alloc(total_size)
+    let selector_word = (ERROR_STRING_SELECTOR as u256) << 224
+
+    // Selector (4 bytes) + head (offset word)
+    ops::mstore(addr: ptr, value: selector_word)
+    ops::mstore(addr: ptr + selector_size, value: 32)
+
+    // Tail: `DynString` is stored as `[len (32)] + [data (padded)]`.
+    let dst = ptr + head_size
+    if message.data == 0 {
+        ops::mstore(addr: dst, value: message.len)
+    } else {
+        let mut offset: u256 = 0
+        while offset < message.size {
+            ops::mstore(
+                addr: dst + offset,
+                value: ops::mload(message.data + offset),
+            )
+            offset += 32
+        }
+    }
+
+    ops::revert(offset: ptr, len: total_size)
 }
 
 /// EVM-specific extension methods for `Result`.

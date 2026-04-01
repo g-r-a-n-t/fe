@@ -1,5 +1,6 @@
 ---
 source: crates/codegen/tests/sonatina_ir.rs
+assertion_line: 64
 expression: output
 input_file: crates/codegen/tests/fixtures/code_region.fe
 ---
@@ -71,7 +72,12 @@ func private %allocate__Evm_hef0af3106e109414__3af54274b2985741(v0.i256) -> i256
         br v10 block3 block4;
 
     block3:
-        evm_revert 0.i256 0.i256;
+        v12.*i8 = evm_malloc 36.i256;
+        v13.i256 = ptr_to_int v12 i256;
+        mstore v13 35408467139433450592217433187231851964531694900788300625387963629091585785856.i256 i256;
+        v16.i256 = add v13 4.i256;
+        mstore v16 17.i256 i256;
+        evm_revert v13 36.i256;
 
     block4:
         mstore 64.i256 v9 i256;

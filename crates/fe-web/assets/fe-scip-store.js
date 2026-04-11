@@ -80,6 +80,40 @@ function feClearDefaultHighlight() {
   feUnhighlight();
 }
 
+// ============================================================================
+// Schema migration — normalizes old docs.json to the current format.
+// When SCHEMA_VERSION is bumped in model.rs, add a migration case here
+// and update FE_CURRENT_SCHEMA to match.
+// ============================================================================
+var FE_CURRENT_SCHEMA = %%SCHEMA_VERSION%%;
+
+function feMigrate(data) {
+  if (!data) return data;
+  var v = (data.schema_version != null) ? data.schema_version : 0;
+
+  // Bare DocIndex (no envelope) — wrap it
+  if (v === 0 && !data.index && data.items) {
+    data = { schema_version: 0, index: data, scip: null };
+  }
+
+  if (v > FE_CURRENT_SCHEMA) {
+    console.warn("[fe-web] docs.json schema v" + v + " > viewer v" + FE_CURRENT_SCHEMA);
+    return data;
+  }
+  if (v === FE_CURRENT_SCHEMA) return data;
+
+  if (v < 1) {
+    // v0 → v1: envelope normalization only, no field changes
+    data.schema_version = 1;
+  }
+
+  return data;
+}
+
+// ============================================================================
+// ScipStore
+// ============================================================================
+
 function ScipStore(data) {
   this._symbols = data.symbols || {};
   this._files = data.files || {};
@@ -367,16 +401,22 @@ var _feSrcCache = {};
 function feLoadSrc(url) {
   if (_feSrcCache[url]) return _feSrcCache[url];
   _feSrcCache[url] = fetch(url)
-    .then(function (r) { return r.json(); })
+    .then(function (r) {
+      if (!r.ok) throw new Error("HTTP " + r.status + " loading " + url);
+      return r.json();
+    })
     .then(function (data) {
+      // Migrate old docs.json formats to current schema
+      data = feMigrate(data);
+
       var result = { index: null, scip: null };
-      if (data.index) {
+      if (data && data.index) {
         result.index = data.index;
         if (data.scip) {
           result.scip = new ScipStore(data.scip);
         }
-      } else {
-        // Plain DocIndex without SCIP wrapper
+      } else if (data) {
+        // Should not happen after migration, but fallback
         result.index = data;
       }
       // Also populate globals if not already set (first component to load wins)
@@ -388,6 +428,12 @@ function feLoadSrc(url) {
         document.dispatchEvent(new CustomEvent("fe-web-ready"));
       }
       return result;
+    })
+    .catch(function (err) {
+      console.error("[fe-web] Failed to load", url, err);
+      // Evict from cache so a retry can succeed
+      delete _feSrcCache[url];
+      return { index: null, scip: null };
     });
   return _feSrcCache[url];
 }
@@ -402,6 +448,7 @@ window.feFindItem = feFindItem;
 window.feWhenReady = feWhenReady;
 window.feEnrichLink = feEnrichLink;
 window.feLoadSrc = feLoadSrc;
+window.feMigrate = feMigrate;
 
 // ============================================================================
 // LSP WebSocket Client (for `fe doc serve` live mode)

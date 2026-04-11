@@ -82,10 +82,11 @@ impl StaticSiteGenerator {
             std::fs::write(output_dir.join("index.html"), html)?;
         } else {
             // Write separate files
+            let sv = crate::model::SCHEMA_VERSION;
             let merged = if let Some(scip) = scip_json {
-                format!(r#"{{"index":{json},"scip":{scip}}}"#)
+                format!(r#"{{"schema_version":{sv},"index":{json},"scip":{scip}}}"#)
             } else {
-                json.clone()
+                format!(r#"{{"schema_version":{sv},"index":{json}}}"#)
             };
             std::fs::write(output_dir.join("docs.json"), &merged)?;
             std::fs::write(output_dir.join("fe-web.js"), assets::web_component_bundle())?;

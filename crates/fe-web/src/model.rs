@@ -6,6 +6,15 @@
 
 use serde::{Deserialize, Serialize};
 
+/// Current schema version for the docs.json envelope.
+///
+/// SERIALIZATION CONTRACT: Bump this number whenever you change the
+/// serialization shape of DocIndex, DocItem, DocChild, DocModuleTree, or
+/// any type reachable from them. When you bump it, you MUST also:
+///   1. Update the snapshot test in this module (cargo test, accept new snap).
+///   2. Add a migration case in fe-scip-store.js feMigrate().
+pub const SCHEMA_VERSION: u32 = 1;
+
 // ============================================================================
 // Rich Signature Types (for rendering signatures with embedded links)
 // ============================================================================
@@ -1135,5 +1144,18 @@ mod tests {
             2,
             "both x::Result and y::Result should be separate implementors"
         );
+    }
+
+    /// Snapshot test for DocIndex serialization shape.
+    ///
+    /// If this test fails, the JSON shape of docs.json has changed.
+    /// Before accepting the new snapshot:
+    ///   1. Bump SCHEMA_VERSION in this file.
+    ///   2. Add a migration case in fe-scip-store.js feMigrate().
+    #[test]
+    fn doc_index_schema_snapshot() {
+        let index = sample_index();
+        let value = serde_json::to_value(&index).expect("serialize DocIndex");
+        insta::assert_json_snapshot!("doc_index_schema", value);
     }
 }

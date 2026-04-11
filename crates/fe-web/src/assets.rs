@@ -71,6 +71,15 @@ fn build_highlighter_js() -> String {
         )
 }
 
+/// Build the ScipStore JS with the schema version placeholder injected.
+fn scip_store_js() -> String {
+    FE_SCIP_STORE_JS.replacen(
+        "%%SCHEMA_VERSION%%",
+        &crate::model::SCHEMA_VERSION.to_string(),
+        1,
+    )
+}
+
 /// Escape a string for embedding in a JS string literal (double-quoted).
 fn js_escape_string(s: &str) -> String {
     let mut out = String::with_capacity(s.len() + 32);
@@ -124,7 +133,7 @@ pub fn html_shell_full(
         let safe_scip = escape_script_content(json);
         format!(
             "\n  <script>{scip_store_js}</script>\n  <script>try {{ window.FE_SCIP_DATA = {scip_data};\nwindow.FE_SCIP = new ScipStore(window.FE_SCIP_DATA); }} catch(e) {{ console.error('[fe-scip] init failed:', e); }}</script>",
-            scip_store_js = FE_SCIP_STORE_JS,
+            scip_store_js = scip_store_js(),
             scip_data = safe_scip,
         )
     } else {
@@ -226,9 +235,13 @@ pub fn web_component_bundle() -> String {
 
   if (dataSrc) {{
     fetch(dataSrc)
-      .then(function(r) {{ return r.json(); }})
+      .then(function(r) {{
+        if (!r.ok) throw new Error("HTTP " + r.status + " loading " + dataSrc);
+        return r.json();
+      }})
       .then(function(data) {{
-        if (data.index) {{
+        data = feMigrate(data);
+        if (data && data.index) {{
           window.FE_DOC_INDEX = data.index;
           if (data.scip) {{
             window.FE_SCIP_DATA = data.scip;
@@ -238,8 +251,8 @@ pub fn web_component_bundle() -> String {
               }}
             }}
           }}
-        }} else {{
-          // Plain DocIndex without SCIP wrapper
+        }} else if (data) {{
+          // Fallback — should not happen after migration
           window.FE_DOC_INDEX = data;
         }}
         window._feWebResolve();
@@ -287,7 +300,7 @@ pub fn web_component_bundle() -> String {
 
 {doc_viewer_js}
 "#,
-        scip_store_js = FE_SCIP_STORE_JS,
+        scip_store_js = scip_store_js(),
         tree_sitter_js = TREE_SITTER_JS,
         highlighter_js = highlighter_js,
         code_block_js = FE_CODE_BLOCK_JS,

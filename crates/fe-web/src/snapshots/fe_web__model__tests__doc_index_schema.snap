@@ -1,0 +1,93 @@
+---
+source: crates/fe-web/src/model.rs
+expression: value
+---
+{
+  "items": [
+    {
+      "children": [
+        {
+          "docs": {
+            "body": "The x coordinate",
+            "sections": [],
+            "summary": "The x coordinate"
+          },
+          "kind": "field",
+          "name": "x",
+          "signature": "x: u256",
+          "visibility": "public"
+        }
+      ],
+      "docs": {
+        "body": "A 2D point.\n\nUsed for coordinates.",
+        "sections": [],
+        "summary": "A 2D point."
+      },
+      "generics": [
+        {
+          "bounds": [],
+          "default": null,
+          "name": "T"
+        }
+      ],
+      "kind": "struct",
+      "name": "Point",
+      "path": "mylib::Point",
+      "signature": "pub struct Point",
+      "source": {
+        "column": 0,
+        "display_file": "lib.fe",
+        "line": 1
+      },
+      "trait_impls": [],
+      "visibility": "public",
+      "where_bounds": []
+    },
+    {
+      "children": [
+        {
+          "docs": null,
+          "kind": "variant",
+          "name": "Red",
+          "signature": "Red",
+          "visibility": "public"
+        },
+        {
+          "docs": null,
+          "kind": "variant",
+          "name": "Green",
+          "signature": "Green",
+          "visibility": "public"
+        }
+      ],
+      "docs": null,
+      "generics": [],
+      "kind": "enum",
+      "name": "Color",
+      "path": "mylib::Color",
+      "signature": "pub enum Color",
+      "source": null,
+      "trait_impls": [],
+      "visibility": "public",
+      "where_bounds": []
+    },
+    {
+      "children": [],
+      "docs": {
+        "body": "Add two numbers.",
+        "sections": [],
+        "summary": "Add two numbers."
+      },
+      "generics": [],
+      "kind": "function",
+      "name": "add",
+      "path": "mylib::add",
+      "signature": "pub fn add(a: u256, b: u256) -> u256",
+      "source": null,
+      "trait_impls": [],
+      "visibility": "public",
+      "where_bounds": []
+    }
+  ],
+  "modules": []
+}

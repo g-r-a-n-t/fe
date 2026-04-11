@@ -794,13 +794,14 @@ fn detect_source_link_base(working_dir: &std::path::Path) -> Option<String> {
 /// Build a merged JSON string containing both the DocIndex and SCIP data.
 ///
 /// This is the single data file that web components consume via `data-src`.
-/// The structure is: `{ "index": <DocIndex>, "scip": <SCIP data or null> }`
+/// The structure is: `{ "schema_version": N, "index": <DocIndex>, "scip": <SCIP data or null> }`
 fn build_merged_json(index: &DocIndex, scip_json: Option<&str>) -> String {
     let index_value = serde_json::to_value(index).unwrap();
     let scip_value = scip_json
         .and_then(|s| serde_json::from_str::<serde_json::Value>(s).ok())
         .unwrap_or(serde_json::Value::Null);
     let merged = serde_json::json!({
+        "schema_version": fe_web::model::SCHEMA_VERSION,
         "index": index_value,
         "scip": scip_value,
     });

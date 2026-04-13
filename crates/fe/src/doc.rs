@@ -802,6 +802,7 @@ fn build_merged_json(index: &DocIndex, scip_json: Option<&str>) -> String {
         .unwrap_or(serde_json::Value::Null);
     let merged = serde_json::json!({
         "schema_version": fe_web::model::SCHEMA_VERSION,
+        "compiler_version": env!("CARGO_PKG_VERSION"),
         "index": index_value,
         "scip": scip_value,
     });

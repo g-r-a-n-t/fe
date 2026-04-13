@@ -63,12 +63,10 @@ jobs:
           ref: gh-pages
 
       - name: Deploy docs
-        env:
-          VERSION: ${{ steps.version.outputs.version }}
         run: |
           cd fe-doc
           chmod +x deploy.sh
-          ./deploy.sh "$VERSION" /tmp/docs-out/docs.json /tmp/bundle-out/
+          ./deploy.sh /tmp/docs-out/docs.json /tmp/bundle-out/
 
       - name: Commit and push
         env:

@@ -16,58 +16,33 @@
 //   data-line-offset — 0-based line offset for source excerpts (maps local line 0 to file line N)
 //   data-scope   — SCIP scope path for signature code blocks (set by server)
 
-// Shared stylesheet adopted by all <fe-code-block> shadow roots.
-// Only includes fe-highlight.css (syntax + layout), NOT the full page styles,
-// so that CSS custom properties from the host page inherit through the
-// shadow boundary without being overridden by a copied :root block.
+// Shared CSSStyleSheet adopted by all <fe-code-block> shadow roots.
+//
+// In bundled mode (fe-web.js), the CSS is available as _FE_HIGHLIGHT_CSS
+// (injected at build time). In standalone mode (external <link>), we
+// extract rules from the loaded stylesheet. Either way, the sheet is
+// constructed once and shared.
 var _codeBlockSheet = null;
+
+// Injected at bundle build time. When loaded standalone (not via the
+// bundle), this is undefined and we fall back to reading page styles.
+var _FE_HIGHLIGHT_CSS = (typeof __FE_HIGHLIGHT_CSS_INJECTED__ !== "undefined")
+    ? __FE_HIGHLIGHT_CSS_INJECTED__ : null;
 
 function _getCodeBlockSheet() {
   if (_codeBlockSheet) return _codeBlockSheet;
+
+  var css = _FE_HIGHLIGHT_CSS;
+
+  // Not bundled — try to read from page <style> or <link> stylesheets
+  if (!css) {
+    css = _extractHighlightCSS();
+  }
+
+  if (!css) return null;
+
   try {
     _codeBlockSheet = new CSSStyleSheet();
-    // Look for the highlight-specific <style> tag first (static site injects
-    // it separately). Fall back to scanning for fe-highlight content.
-    var css = "";
-    var styles = document.querySelectorAll("style");
-    for (var i = 0; i < styles.length; i++) {
-      var text = styles[i].textContent || "";
-      if (text.indexOf(".hl-keyword") !== -1 && text.indexOf(".fe-code-block-wrapper") !== -1) {
-        css = text;
-        break;
-      }
-    }
-    // Also check linked stylesheets (e.g. <link rel="stylesheet" href="fe-highlight.css">)
-    if (!css) {
-      try {
-        var sheets = document.styleSheets;
-        for (var s = 0; s < sheets.length; s++) {
-          try {
-            var rules = sheets[s].cssRules || sheets[s].rules;
-            if (!rules) continue;
-            var sheetText = "";
-            var hasHighlight = false;
-            for (var r = 0; r < rules.length; r++) {
-              var ruleText = rules[r].cssText || "";
-              sheetText += ruleText + "\n";
-              if (ruleText.indexOf(".hl-keyword") !== -1) hasHighlight = true;
-            }
-            if (hasHighlight) {
-              css = sheetText;
-              break;
-            }
-          } catch (_) {
-            // CORS: can't read cross-origin stylesheet rules
-          }
-        }
-      } catch (_) {}
-    }
-    // If no highlight stylesheet found, use all page styles as fallback
-    if (!css) {
-      for (var j = 0; j < styles.length; j++) {
-        css += styles[j].textContent + "\n";
-      }
-    }
     _codeBlockSheet.replaceSync(css);
   } catch (e) {
     _codeBlockSheet = null;
@@ -75,9 +50,68 @@ function _getCodeBlockSheet() {
   return _codeBlockSheet;
 }
 
-// Invalidate cached sheet (e.g. after live reload rebuilds styles).
+// Extract highlight CSS from page stylesheets (for non-bundled usage).
+function _extractHighlightCSS() {
+  // Check inline <style> tags
+  var styles = document.querySelectorAll("style");
+  for (var i = 0; i < styles.length; i++) {
+    var text = styles[i].textContent || "";
+    if (text.indexOf(".hl-keyword") !== -1 && text.indexOf(".fe-code-block-wrapper") !== -1) {
+      return text;
+    }
+  }
+  // Check loaded <link> stylesheets
+  try {
+    for (var s = 0; s < document.styleSheets.length; s++) {
+      try {
+        var rules = document.styleSheets[s].cssRules;
+        if (!rules) continue;
+        var sheetText = "";
+        var found = false;
+        for (var r = 0; r < rules.length; r++) {
+          var rt = rules[r].cssText || "";
+          sheetText += rt + "\n";
+          if (rt.indexOf(".hl-keyword") !== -1) found = true;
+        }
+        if (found) return sheetText;
+      } catch (_) { /* CORS */ }
+    }
+  } catch (_) {}
+  return null;
+}
+
+// Invalidate cached sheet (e.g. after live reload or stylesheet load).
 function _invalidateCodeBlockSheet() {
   _codeBlockSheet = null;
+}
+
+// Shared queue for code blocks waiting on a <link> stylesheet to load.
+// One load listener serves all pending blocks — no per-instance scanning.
+var _pendingStyleBlocks = [];
+var _stylesheetWatchActive = false;
+
+function _startStylesheetWatch() {
+  if (_stylesheetWatchActive) return;
+  _stylesheetWatchActive = true;
+  var links = document.querySelectorAll('link[rel="stylesheet"]');
+  for (var i = 0; i < links.length; i++) {
+    if ((links[i].getAttribute("href") || "").indexOf("highlight") !== -1) {
+      links[i].addEventListener("load", function onLoad() {
+        this.removeEventListener("load", onLoad);
+        _invalidateCodeBlockSheet();
+        var pending = _pendingStyleBlocks;
+        _pendingStyleBlocks = [];
+        _stylesheetWatchActive = false;
+        for (var j = 0; j < pending.length; j++) {
+          pending[j]._adoptStyles();
+          pending[j]._render();
+        }
+      });
+      return;
+    }
+  }
+  // No highlight <link> found — nothing to wait for
+  _stylesheetWatchActive = false;
 }
 
 /**
@@ -161,16 +195,7 @@ class FeCodeBlock extends HTMLElement {
     // Create shadow root once
     if (!this.shadowRoot) {
       this.attachShadow({ mode: "open" });
-      var sheet = _getCodeBlockSheet();
-      if (sheet) {
-        this.shadowRoot.adoptedStyleSheets = [sheet];
-      } else {
-        // Fallback: clone page styles into shadow root
-        var pageStyles = document.querySelectorAll("style");
-        for (var i = 0; i < pageStyles.length; i++) {
-          this.shadowRoot.appendChild(pageStyles[i].cloneNode(true));
-        }
-      }
+      this._adoptStyles();
     }
 
     this._render();
@@ -199,6 +224,19 @@ class FeCodeBlock extends HTMLElement {
       self._resolveSymbol();
       self._render();
     });
+  }
+
+  /** Adopt highlight stylesheet into shadow root. */
+  _adoptStyles() {
+    var sheet = _getCodeBlockSheet();
+    if (sheet) {
+      this.shadowRoot.adoptedStyleSheets = [sheet];
+      return;
+    }
+    // Stylesheet not available yet (non-bundled, <link> still loading).
+    // Wait for it via the shared pending queue.
+    _pendingStyleBlocks.push(this);
+    _startStylesheetWatch();
   }
 
   /** Look up an item by path in per-component or global index. */

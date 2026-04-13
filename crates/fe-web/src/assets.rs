@@ -284,6 +284,11 @@ pub fn web_component_bundle() -> String {
 {highlighter_js}
 
 // ============================================================================
+// Highlight CSS (injected for shadow DOM adoption — no DOM scanning needed)
+// ============================================================================
+var __FE_HIGHLIGHT_CSS_INJECTED__ = {highlight_css_js};
+
+// ============================================================================
 // Custom elements
 // ============================================================================
 {code_block_js}
@@ -303,6 +308,7 @@ pub fn web_component_bundle() -> String {
         scip_store_js = scip_store_js(),
         tree_sitter_js = TREE_SITTER_JS,
         highlighter_js = highlighter_js,
+        highlight_css_js = format!("\"{}\"", js_escape_string(FE_HIGHLIGHT_CSS)),
         code_block_js = FE_CODE_BLOCK_JS,
         signature_js = FE_SIGNATURE_JS,
         doc_item_js = FE_DOC_ITEM_JS,

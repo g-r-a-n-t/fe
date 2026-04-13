@@ -230,20 +230,20 @@ jobs:
       - name: Deploy to doc site
         uses: actions/checkout@v5
         with:
-          repository: fe-lang/fe-doc
+          repository: fe-lang/fe-docs
           token: ${{ secrets.DOC_DEPLOY_TOKEN }}
-          path: fe-doc
+          path: fe-docs
           ref: gh-pages
 
       - name: Run deploy script
         run: |
-          cd fe-doc
+          cd fe-docs
           chmod +x deploy.sh
           ./deploy.sh /tmp/docs-out/docs.json /tmp/docs-out/
 
       - name: Push doc site
         run: |
-          cd fe-doc
+          cd fe-docs
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
           git add -A

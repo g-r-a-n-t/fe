@@ -249,7 +249,16 @@ jobs:
           git add -A
           if git diff-index --quiet HEAD; then
             echo "No changes to deploy"
-          else
-            git commit -m "Deploy docs for $GITHUB_REF_NAME"
-            git push
+            exit 0
           fi
+          git commit -m "Deploy docs for $GITHUB_REF_NAME"
+          # Retry with rebase if another deploy raced us
+          for attempt in 1 2 3; do
+            if git push; then
+              exit 0
+            fi
+            echo "Push failed (attempt $attempt), rebasing..."
+            git pull --rebase
+          done
+          echo "ERROR: Failed to push after 3 attempts" >&2
+          exit 1

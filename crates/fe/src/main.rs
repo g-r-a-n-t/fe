@@ -183,6 +183,10 @@ pub enum Command {
         /// Include builtin ingots (core, std) in generated docs
         #[arg(long)]
         builtins: bool,
+        /// Load core/std from a directory on disk instead of the embedded version.
+        /// The directory should contain `core/` and `std/` subdirectories.
+        #[arg(long)]
+        stdlib_path: Option<Utf8PathBuf>,
         #[command(subcommand)]
         action: Option<DocAction>,
     },
@@ -530,6 +534,7 @@ pub fn run(opts: &Options) {
             path,
             output,
             builtins,
+            stdlib_path,
             action,
         } => {
             if let Some(DocAction::Bundle { with_css }) = action {
@@ -537,9 +542,16 @@ pub fn run(opts: &Options) {
                 doc::write_bundle(&output_dir.join("fe-web.js"));
                 if *with_css {
                     doc::write_highlight_css(&output_dir.join("fe-highlight.css"));
+                    doc::write_styles_css(&output_dir.join("styles.css"));
                 }
             } else {
-                doc::generate_docs(path, output.as_ref(), *builtins, action.as_ref());
+                doc::generate_docs(
+                    path,
+                    output.as_ref(),
+                    *builtins,
+                    stdlib_path.as_ref(),
+                    action.as_ref(),
+                );
             }
         }
         #[cfg(not(target_arch = "wasm32"))]

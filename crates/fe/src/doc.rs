@@ -160,6 +160,7 @@ pub fn generate_docs(
     path: &Utf8PathBuf,
     output: Option<&Utf8PathBuf>,
     builtins: bool,
+    stdlib_path: Option<&Utf8PathBuf>,
     action: Option<&crate::DocAction>,
 ) {
     // First, check if there's a running LSP with docs server
@@ -198,6 +199,17 @@ pub fn generate_docs(
     }
 
     let mut db = DriverDataBase::default();
+
+    // Override embedded stdlib with on-disk version if --stdlib-path is given.
+    // This allows generating docs for older stdlib versions using the latest fe binary.
+    if let Some(stdlib_dir) = stdlib_path {
+        if let Err(e) = common::stdlib::load_library_from_path(&mut db, stdlib_dir) {
+            eprintln!("Failed to load stdlib from {stdlib_dir}: {e}");
+            std::process::exit(1);
+        }
+        println!("  Loaded stdlib from {stdlib_dir}");
+    }
+
     let git_root = detect_git_root(path.as_std_path());
 
     let index = if path.is_file() && path.extension() == Some("fe") {
@@ -937,6 +949,23 @@ pub fn write_highlight_css(path: &Utf8PathBuf) {
         std::process::exit(1);
     });
     println!("Wrote fe-highlight.css to {path}");
+}
+
+/// Write the styles.css layout theme to a file path.
+pub fn write_styles_css(path: &Utf8PathBuf) {
+    if let Some(parent) = path.parent()
+        && !parent.as_str().is_empty()
+    {
+        std::fs::create_dir_all(parent).unwrap_or_else(|e| {
+            eprintln!("Error creating directory {parent}: {e}");
+            std::process::exit(1);
+        });
+    }
+    std::fs::write(path, fe_web::assets::STYLES_CSS).unwrap_or_else(|e| {
+        eprintln!("Error writing CSS to {path}: {e}");
+        std::process::exit(1);
+    });
+    println!("Wrote styles.css to {path}");
 }
 
 fn print_doc_summary(index: &DocIndex) {

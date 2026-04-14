@@ -12,7 +12,7 @@ use hir::{
         Trait, VariantKind, Visibility, scope_graph::ScopeId,
     },
     semantic::{FieldView, qualify_path_with_ingot_name},
-    span::LazySpan,
+    span::{self, DesugaredOrigin, HirOrigin, LazySpan},
 };
 
 use fe_web::model::{
@@ -280,9 +280,28 @@ impl<'db> DocExtractor<'db> {
 
     fn item_kind_to_doc_kind(&self, item: ItemKind<'db>) -> Option<DocItemKind> {
         match item {
-            ItemKind::TopMod(_) | ItemKind::Mod(_) => Some(DocItemKind::Module),
+            ItemKind::TopMod(_) => Some(DocItemKind::Module),
+            ItemKind::Mod(m) => {
+                if matches!(
+                    span::mod_ast(self.db, m),
+                    HirOrigin::Desugared(DesugaredOrigin::Msg(_))
+                ) {
+                    Some(DocItemKind::Msg)
+                } else {
+                    Some(DocItemKind::Module)
+                }
+            }
             ItemKind::Func(_) => Some(DocItemKind::Function),
-            ItemKind::Struct(_) => Some(DocItemKind::Struct),
+            ItemKind::Struct(s) => {
+                if matches!(
+                    span::struct_ast(self.db, s),
+                    HirOrigin::Desugared(DesugaredOrigin::Msg(m)) if m.variant_idx.is_some()
+                ) {
+                    Some(DocItemKind::MsgVariant)
+                } else {
+                    Some(DocItemKind::Struct)
+                }
+            }
             ItemKind::Enum(_) => Some(DocItemKind::Enum),
             ItemKind::Trait(_) => Some(DocItemKind::Trait),
             ItemKind::Contract(_) => Some(DocItemKind::Contract),

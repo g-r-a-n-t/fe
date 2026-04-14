@@ -128,6 +128,8 @@ fn kind_badge(kind: DocItemKind) -> (&'static str, &'static str) {
         DocItemKind::Const => ("const", "note"),
         DocItemKind::Module => ("mod", "note"),
         DocItemKind::Impl | DocItemKind::ImplTrait => ("impl", "note"),
+        DocItemKind::Msg => ("msg", "note"),
+        DocItemKind::MsgVariant => ("msg variant", "note"),
     }
 }
 

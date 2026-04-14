@@ -310,6 +310,8 @@ body {
 .kind-badge.contract { background: #fed7aa; color: #9a3412; }
 .kind-badge.type { background: #ccfbf1; color: #115e59; }
 .kind-badge.const { background: #ede9fe; color: #5b21b6; }
+.kind-badge.msg { background: #fce7f3; color: #9d174d; }
+.kind-badge.msg_variant { background: #fce7f3; color: #9d174d; }
 
 @media (prefers-color-scheme: dark) {
     :root:not([data-theme="light"]) .kind-badge.struct { background: #2d4a3e; color: #7ee787; }
@@ -322,6 +324,8 @@ body {
     :root:not([data-theme="light"]) .kind-badge.contract { background: #4a3d2d; color: #e7b87e; }
     :root:not([data-theme="light"]) .kind-badge.type { background: #2d4a4a; color: #7ee7e7; }
     :root:not([data-theme="light"]) .kind-badge.const { background: #3a2d4a; color: #b87ee7; }
+    :root:not([data-theme="light"]) .kind-badge.msg,
+    :root:not([data-theme="light"]) .kind-badge.msg_variant { background: #4a2d3a; color: #e77eae; }
 }
 :root[data-theme="dark"] .kind-badge.struct { background: #2d4a3e; color: #7ee787; }
 :root[data-theme="dark"] .kind-badge.enum { background: #3d3a2d; color: #e7c77e; }
@@ -333,6 +337,8 @@ body {
 :root[data-theme="dark"] .kind-badge.contract { background: #4a3d2d; color: #e7b87e; }
 :root[data-theme="dark"] .kind-badge.type { background: #2d4a4a; color: #7ee7e7; }
 :root[data-theme="dark"] .kind-badge.const { background: #3a2d4a; color: #b87ee7; }
+:root[data-theme="dark"] .kind-badge.msg,
+:root[data-theme="dark"] .kind-badge.msg_variant { background: #4a2d3a; color: #e77eae; }
 
 /* Main item signature at top of page. The wrapper provides the visual
    box; the inner fe-code-block border is suppressed to avoid doubling. */

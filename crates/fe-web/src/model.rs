@@ -13,7 +13,7 @@ use serde::{Deserialize, Serialize};
 /// any type reachable from them. When you bump it, you MUST also:
 ///   1. Update the snapshot test in this module (cargo test, accept new snap).
 ///   2. Add a migration case in fe-scip-store.js feMigrate().
-pub const SCHEMA_VERSION: u32 = 1;
+pub const SCHEMA_VERSION: u32 = 2;
 
 // ============================================================================
 // Rich Signature Types (for rendering signatures with embedded links)
@@ -161,6 +161,10 @@ pub enum DocItemKind {
     Const,
     Impl,
     ImplTrait,
+    /// A `msg` block (desugared to module internally).
+    Msg,
+    /// A variant of a `msg` block (desugared to struct internally).
+    MsgVariant,
 }
 
 impl DocItemKind {
@@ -176,6 +180,8 @@ impl DocItemKind {
             DocItemKind::Const => "const",
             DocItemKind::Impl => "impl",
             DocItemKind::ImplTrait => "impl",
+            DocItemKind::Msg => "msg",
+            DocItemKind::MsgVariant => "msg_variant",
         }
     }
 
@@ -191,6 +197,8 @@ impl DocItemKind {
             "type" => Some(DocItemKind::TypeAlias),
             "const" => Some(DocItemKind::Const),
             "impl" => Some(DocItemKind::Impl),
+            "msg" => Some(DocItemKind::Msg),
+            "msg_variant" => Some(DocItemKind::MsgVariant),
             _ => None,
         }
     }
@@ -207,6 +215,8 @@ impl DocItemKind {
             DocItemKind::Const => "Constant",
             DocItemKind::Impl => "Implementation",
             DocItemKind::ImplTrait => "Trait Implementation",
+            DocItemKind::Msg => "Message",
+            DocItemKind::MsgVariant => "Message Variant",
         }
     }
 
@@ -223,6 +233,8 @@ impl DocItemKind {
             DocItemKind::Const => "Constants",
             DocItemKind::Impl => "Implementations",
             DocItemKind::ImplTrait => "Trait Implementations",
+            DocItemKind::Msg => "Messages",
+            DocItemKind::MsgVariant => "Message Variants",
         }
     }
 
@@ -230,15 +242,17 @@ impl DocItemKind {
     pub fn display_order(&self) -> u8 {
         match self {
             DocItemKind::Module => 0,
-            DocItemKind::Trait => 1,
-            DocItemKind::Contract => 2,
-            DocItemKind::Struct => 3,
-            DocItemKind::Enum => 4,
-            DocItemKind::TypeAlias => 5,
-            DocItemKind::Function => 6,
-            DocItemKind::Const => 7,
-            DocItemKind::Impl => 8,
-            DocItemKind::ImplTrait => 9,
+            DocItemKind::Msg => 1,
+            DocItemKind::Trait => 2,
+            DocItemKind::Contract => 3,
+            DocItemKind::Struct => 4,
+            DocItemKind::Enum => 5,
+            DocItemKind::TypeAlias => 6,
+            DocItemKind::Function => 7,
+            DocItemKind::Const => 8,
+            DocItemKind::Impl => 9,
+            DocItemKind::ImplTrait => 10,
+            DocItemKind::MsgVariant => 11,
         }
     }
 }

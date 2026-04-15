@@ -21,6 +21,7 @@ pub const SCHEMA_VERSION: u32 = 2;
 
 /// A part of a signature - either plain text or a linkable reference
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[cfg_attr(test, derive(schemars::JsonSchema))]
 pub struct SignaturePart {
     /// The display text
     pub text: String,
@@ -76,6 +77,7 @@ pub struct SignatureSpanData {
 
 /// A documented item in the Fe codebase
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[cfg_attr(test, derive(schemars::JsonSchema))]
 pub struct DocItem {
     /// Unique path identifier (e.g., "std::option::Option")
     pub path: String,
@@ -119,6 +121,7 @@ pub struct DocItem {
 
 /// A type that implements a trait
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[cfg_attr(test, derive(schemars::JsonSchema))]
 pub struct DocImplementor {
     /// The implementing type name
     pub type_name: String,
@@ -149,6 +152,7 @@ impl DocItem {
 
 /// The kind of documented item
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[cfg_attr(test, derive(schemars::JsonSchema))]
 #[serde(rename_all = "snake_case")]
 pub enum DocItemKind {
     Module,
@@ -259,6 +263,7 @@ impl DocItemKind {
 
 /// Visibility of a documented item
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[cfg_attr(test, derive(schemars::JsonSchema))]
 #[serde(rename_all = "snake_case")]
 pub enum DocVisibility {
     Public,
@@ -267,6 +272,7 @@ pub enum DocVisibility {
 
 /// Parsed documentation content with sections
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[cfg_attr(test, derive(schemars::JsonSchema))]
 pub struct DocContent {
     /// The main summary (first paragraph)
     pub summary: String,
@@ -333,6 +339,7 @@ impl DocContent {
 
 /// A named section within documentation (e.g., "Examples", "Panics")
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[cfg_attr(test, derive(schemars::JsonSchema))]
 pub struct DocSection {
     pub name: String,
     pub content: String,
@@ -340,6 +347,7 @@ pub struct DocSection {
 
 /// A generic parameter with its bounds
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[cfg_attr(test, derive(schemars::JsonSchema))]
 pub struct DocGenericParam {
     pub name: String,
     pub bounds: Vec<String>,
@@ -348,6 +356,7 @@ pub struct DocGenericParam {
 
 /// A child of a documented item
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[cfg_attr(test, derive(schemars::JsonSchema))]
 pub struct DocChild {
     pub kind: DocChildKind,
     pub name: String,
@@ -367,6 +376,7 @@ pub struct DocChild {
 
 /// Kind of child item
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[cfg_attr(test, derive(schemars::JsonSchema))]
 #[serde(rename_all = "snake_case")]
 pub enum DocChildKind {
     Field,
@@ -423,6 +433,7 @@ impl DocChildKind {
 
 /// Source location for linking to source code
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[cfg_attr(test, derive(schemars::JsonSchema))]
 pub struct DocSourceLoc {
     /// Absolute file path — used only in-memory by LSP for "goto source".
     /// Never serialized to JSON (avoids leaking machine paths into static output).
@@ -436,6 +447,7 @@ pub struct DocSourceLoc {
 
 /// A trait implementation reference (shown on type pages)
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[cfg_attr(test, derive(schemars::JsonSchema))]
 pub struct DocTraitImpl {
     /// The name of the trait being implemented (e.g., "Clone"). Empty for inherent impls.
     pub trait_name: String,
@@ -459,6 +471,7 @@ pub struct DocTraitImpl {
 
 /// A method in an impl block (for inline display on type pages)
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[cfg_attr(test, derive(schemars::JsonSchema))]
 pub struct DocImplMethod {
     /// Method name
     pub name: String,
@@ -479,6 +492,7 @@ pub struct DocImplMethod {
 
 /// A collection of documented items forming a documentation index
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[cfg_attr(test, derive(schemars::JsonSchema))]
 pub struct DocIndex {
     /// All documented items, keyed by path
     pub items: Vec<DocItem>,
@@ -747,6 +761,7 @@ fn extract_simple_type_name(type_str: &str) -> String {
 
 /// Module tree for navigation sidebar
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[cfg_attr(test, derive(schemars::JsonSchema))]
 pub struct DocModuleTree {
     pub name: String,
     pub path: String,
@@ -764,6 +779,7 @@ impl DocModuleTree {
 
 /// A reference to an item within a module
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[cfg_attr(test, derive(schemars::JsonSchema))]
 pub struct DocModuleItem {
     pub name: String,
     pub path: String,
@@ -879,6 +895,42 @@ mod tests {
             trait_impls: vec![],
             implementors: vec![],
         });
+        index.add_item(DocItem {
+            path: "mylib::TokenMsg".into(),
+            name: "TokenMsg".into(),
+            kind: DocItemKind::Msg,
+            visibility: DocVisibility::Public,
+            docs: None,
+            signature: "pub msg TokenMsg".into(),
+            rich_signature: vec![],
+            signature_span: None,
+            sig_scope: None,
+            generics: vec![],
+            where_bounds: vec![],
+            children: vec![],
+            source: None,
+            source_text: None,
+            trait_impls: vec![],
+            implementors: vec![],
+        });
+        index.add_item(DocItem {
+            path: "mylib::TokenMsg::Transfer".into(),
+            name: "Transfer".into(),
+            kind: DocItemKind::MsgVariant,
+            visibility: DocVisibility::Public,
+            docs: None,
+            signature: "Transfer { to: Address } -> bool".into(),
+            rich_signature: vec![],
+            signature_span: None,
+            sig_scope: None,
+            generics: vec![],
+            where_bounds: vec![],
+            children: vec![],
+            source: None,
+            source_text: None,
+            trait_impls: vec![],
+            implementors: vec![],
+        });
         index
     }
 
@@ -955,7 +1007,7 @@ mod tests {
     fn search_by_path() {
         let index = sample_index();
         let results = index.search("mylib");
-        assert_eq!(results.len(), 3);
+        assert_eq!(results.len(), 5);
     }
 
     #[test]
@@ -1160,7 +1212,11 @@ mod tests {
         );
     }
 
-    /// Snapshot test for DocIndex serialization shape.
+    /// Snapshot test for the DocIndex JSON Schema.
+    ///
+    /// This derives the schema directly from the Rust type definitions.
+    /// Any structural change — new fields, removed fields, new enum variants,
+    /// type changes — will produce a diff.
     ///
     /// If this test fails, the JSON shape of docs.json has changed.
     /// Before accepting the new snapshot:
@@ -1168,8 +1224,8 @@ mod tests {
     ///   2. Add a migration case in fe-scip-store.js feMigrate().
     #[test]
     fn doc_index_schema_snapshot() {
-        let index = sample_index();
-        let value = serde_json::to_value(&index).expect("serialize DocIndex");
+        let schema = schemars::schema_for!(DocIndex);
+        let value = serde_json::to_value(&schema).expect("serialize schema");
         insta::assert_json_snapshot!("doc_index_schema", value);
     }
 }

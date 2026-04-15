@@ -808,7 +808,8 @@ fn detect_source_link_base(working_dir: &std::path::Path) -> Option<String> {
 /// This is the single data file that web components consume via `data-src`.
 /// The structure is: `{ "schema_version": N, "index": <DocIndex>, "scip": <SCIP data or null> }`
 fn build_merged_json(index: &DocIndex, scip_json: Option<&str>) -> String {
-    let index_value = serde_json::to_value(index).unwrap();
+    let mut index_value = serde_json::to_value(index).unwrap();
+    fe_web::static_site::inject_html_bodies(&mut index_value);
     let scip_value = scip_json
         .and_then(|s| serde_json::from_str::<serde_json::Value>(s).ok())
         .unwrap_or(serde_json::Value::Null);

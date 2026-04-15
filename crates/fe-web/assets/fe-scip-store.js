@@ -398,13 +398,33 @@ function feEnrichLink(anchor, docUrl) {
 // ============================================================================
 var _feSrcCache = {};
 
-function feLoadSrc(url) {
-  if (_feSrcCache[url]) return _feSrcCache[url];
-  _feSrcCache[url] = fetch(url)
-    .then(function (r) {
+// Fetch JSON, trying .gz compressed version first.
+// Falls back to uncompressed if .gz is not found or DecompressionStream is unavailable.
+function feFetchJson(url) {
+  var canDecompress = typeof DecompressionStream !== "undefined";
+  var gzUrl = url + ".gz";
+
+  var tryGz = canDecompress
+    ? fetch(gzUrl).then(function (r) {
+        if (!r.ok) return null; // fall back to uncompressed
+        var ds = new DecompressionStream("gzip");
+        var decompressed = r.body.pipeThrough(ds);
+        return new Response(decompressed).json();
+      }).catch(function () { return null; })
+    : Promise.resolve(null);
+
+  return tryGz.then(function (data) {
+    if (data) return data;
+    return fetch(url).then(function (r) {
       if (!r.ok) throw new Error("HTTP " + r.status + " loading " + url);
       return r.json();
-    })
+    });
+  });
+}
+
+function feLoadSrc(url) {
+  if (_feSrcCache[url]) return _feSrcCache[url];
+  _feSrcCache[url] = feFetchJson(url)
     .then(function (data) {
       // Migrate old docs.json formats to current schema
       data = feMigrate(data);

@@ -234,11 +234,11 @@ pub fn web_component_bundle() -> String {
   }});
 
   if (dataSrc) {{
-    fetch(dataSrc)
-      .then(function(r) {{
+    (typeof feFetchJson === 'function' ? feFetchJson(dataSrc) :
+      fetch(dataSrc).then(function(r) {{
         if (!r.ok) throw new Error("HTTP " + r.status + " loading " + dataSrc);
         return r.json();
-      }})
+      }}))
       .then(function(data) {{
         data = feMigrate(data);
         if (data && data.index) {{

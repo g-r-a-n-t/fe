@@ -219,18 +219,17 @@ jobs:
           path: fe-docs
           ref: gh-pages
 
-      - name: Run deploy script
+      - name: Deploy docs
         run: |
           cd fe-docs
-          chmod +x deploy.sh
-          ./deploy.sh /tmp/docs-out/docs.json /tmp/docs-out/
+          make deploy VERSION="${GITHUB_REF_NAME#v}" OUTDIR=/tmp/docs-out
 
       - name: Push doc site
         run: |
           cd fe-docs
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add -A
+          git add versions.json fe-web.js fe-highlight.css styles.css "${GITHUB_REF_NAME#v}/"
           if git diff-index --quiet HEAD; then
             echo "No changes to deploy"
             exit 0

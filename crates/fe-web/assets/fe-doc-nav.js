@@ -218,6 +218,8 @@ var _FE_KIND_INFO = {
   contract: { str: "contract", plural: "Contracts", order: 2 },
   type_alias: { str: "type", plural: "Type Aliases", order: 5 },
   "const": { str: "const", plural: "Constants", order: 7 },
+  msg: { str: "msg", plural: "Messages", order: 1 },
+  msg_variant: { str: "msg_variant", plural: "Message Variants", order: 3 },
 };
 
 function _feKindStr(kind) {

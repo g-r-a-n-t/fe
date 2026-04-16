@@ -107,6 +107,11 @@ function feMigrate(data) {
     data.schema_version = 1;
   }
 
+  if (v < 2) {
+    // v1 → v2: added msg/msg_variant item kinds, no structural changes
+    data.schema_version = 2;
+  }
+
   return data;
 }
 

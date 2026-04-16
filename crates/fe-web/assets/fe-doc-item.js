@@ -57,7 +57,7 @@ function _diEsc(s) {
 }
 
 function _diKindBadge(kind) {
-  return '<span class="kind-badge ' + _diEsc(kind) + '">' + _diEsc(kind) + "</span>";
+  return '<span class="kind-badge ' + _diEsc(_diKindStr(kind)) + '">' + _diEsc(_diKindStr(kind)) + "</span>";
 }
 
 function _diGroupByKind(items, kindFn) {

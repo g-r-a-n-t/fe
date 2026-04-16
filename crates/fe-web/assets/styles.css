@@ -1333,6 +1333,8 @@ fe-doc-viewer, .fe-doc-viewer {
 .fe-nav-badge.contract { background: #fed7aa; color: #9a3412; }
 .fe-nav-badge.type { background: #ccfbf1; color: #115e59; }
 .fe-nav-badge.const { background: #ede9fe; color: #5b21b6; }
+.fe-nav-badge.msg,
+.fe-nav-badge.msg_variant { background: #fce7f3; color: #9d174d; }
 
 @media (prefers-color-scheme: dark) {
     :root:not([data-theme="light"]) .fe-nav-badge.struct { background: #2d4a3e; color: #7ee787; }
@@ -1343,6 +1345,8 @@ fe-doc-viewer, .fe-doc-viewer {
     :root:not([data-theme="light"]) .fe-nav-badge.contract { background: #4a3d2d; color: #e7b87e; }
     :root:not([data-theme="light"]) .fe-nav-badge.type { background: #2d4a4a; color: #7ee7e7; }
     :root:not([data-theme="light"]) .fe-nav-badge.const { background: #3a2d4a; color: #b87ee7; }
+    :root:not([data-theme="light"]) .fe-nav-badge.msg,
+    :root:not([data-theme="light"]) .fe-nav-badge.msg_variant { background: #4a2d3a; color: #e77eae; }
 }
 :root[data-theme="dark"] .fe-nav-badge.struct { background: #2d4a3e; color: #7ee787; }
 :root[data-theme="dark"] .fe-nav-badge.enum { background: #3d3a2d; color: #e7c77e; }
@@ -1352,6 +1356,8 @@ fe-doc-viewer, .fe-doc-viewer {
 :root[data-theme="dark"] .fe-nav-badge.contract { background: #4a3d2d; color: #e7b87e; }
 :root[data-theme="dark"] .fe-nav-badge.type { background: #2d4a4a; color: #7ee7e7; }
 :root[data-theme="dark"] .fe-nav-badge.const { background: #3a2d4a; color: #b87ee7; }
+:root[data-theme="dark"] .fe-nav-badge.msg,
+:root[data-theme="dark"] .fe-nav-badge.msg_variant { background: #4a2d3a; color: #e77eae; }
 
 /* Scroll offset for anchored elements (clears sticky headers) */
 .member-item[id], .impl-block[id], .method-item[id], .children-section h2[id],

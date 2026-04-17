@@ -1,13 +1,15 @@
 ---
 source: crates/hir/tests/ty_check.rs
+assertion_line: 41
 expression: res
 input_file: test_files/ty_check/recv_fallback.fe
 ---
 note: 
-  ┌─ recv_fallback.fe:5:5
-  │
-5 │     Count -> u256,
-  │     ^^^^^ () | Count | invalid(Other)
+  ┌─ recv_fallback.fe:4:5
+  │  
+4 │ ╭     #[selector = sol("count()")]
+5 │ │     Count -> u256,
+  │ ╰─────────────────^ () | Count | invalid(Other)
 
 note: 
    ┌─ recv_fallback.fe:12:9

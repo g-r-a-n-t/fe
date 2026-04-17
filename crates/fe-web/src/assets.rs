@@ -208,6 +208,7 @@ pub fn html_shell_full(
 /// embedded WASM, and all custom element definitions.
 pub fn web_component_bundle() -> String {
     let highlighter_js = build_highlighter_js();
+    let highlight_css_literal = format!("\"{}\"", js_escape_string(FE_HIGHLIGHT_CSS));
 
     format!(
         r#"// fe-web.js — Fe documentation web components bundle
@@ -308,7 +309,7 @@ var __FE_HIGHLIGHT_CSS_INJECTED__ = {highlight_css_js};
         scip_store_js = scip_store_js(),
         tree_sitter_js = TREE_SITTER_JS,
         highlighter_js = highlighter_js,
-        highlight_css_js = format!("\"{}\"", js_escape_string(FE_HIGHLIGHT_CSS)),
+        highlight_css_js = highlight_css_literal,
         code_block_js = FE_CODE_BLOCK_JS,
         signature_js = FE_SIGNATURE_JS,
         doc_item_js = FE_DOC_ITEM_JS,

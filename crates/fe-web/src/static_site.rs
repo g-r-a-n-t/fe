@@ -85,7 +85,9 @@ impl StaticSiteGenerator {
             let sv = crate::model::SCHEMA_VERSION;
             let cv = env!("CARGO_PKG_VERSION");
             let merged = if let Some(scip) = scip_json {
-                format!(r#"{{"schema_version":{sv},"compiler_version":"{cv}","index":{json},"scip":{scip}}}"#)
+                format!(
+                    r#"{{"schema_version":{sv},"compiler_version":"{cv}","index":{json},"scip":{scip}}}"#
+                )
             } else {
                 format!(r#"{{"schema_version":{sv},"compiler_version":"{cv}","index":{json}}}"#)
             };

@@ -233,10 +233,28 @@ class FeCodeBlock extends HTMLElement {
       this.shadowRoot.adoptedStyleSheets = [sheet];
       return;
     }
-    // Stylesheet not available yet (non-bundled, <link> still loading).
-    // Wait for it via the shared pending queue.
-    _pendingStyleBlocks.push(this);
-    _startStylesheetWatch();
+    // No constructed sheet available. If there's a <link> stylesheet still
+    // loading, wait for it. Otherwise inject CSS directly as a fallback.
+    var hasHighlightLink = false;
+    var links = document.querySelectorAll('link[rel="stylesheet"]');
+    for (var i = 0; i < links.length; i++) {
+      if ((links[i].getAttribute("href") || "").indexOf("highlight") !== -1) {
+        hasHighlightLink = true;
+        break;
+      }
+    }
+    if (hasHighlightLink) {
+      _pendingStyleBlocks.push(this);
+      _startStylesheetWatch();
+    } else {
+      // Last resort: inject CSS text into shadow root directly
+      var css = _FE_HIGHLIGHT_CSS || _extractHighlightCSS();
+      if (css) {
+        var style = document.createElement("style");
+        style.textContent = css;
+        this.shadowRoot.prepend(style);
+      }
+    }
   }
 
   /** Look up an item by path in per-component or global index. */

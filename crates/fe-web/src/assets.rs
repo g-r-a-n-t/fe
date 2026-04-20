@@ -71,6 +71,15 @@ fn build_highlighter_js() -> String {
         )
 }
 
+/// Build the ScipStore JS with the schema version placeholder injected.
+fn scip_store_js() -> String {
+    FE_SCIP_STORE_JS.replacen(
+        "%%SCHEMA_VERSION%%",
+        &crate::model::SCHEMA_VERSION.to_string(),
+        1,
+    )
+}
+
 /// Escape a string for embedding in a JS string literal (double-quoted).
 fn js_escape_string(s: &str) -> String {
     let mut out = String::with_capacity(s.len() + 32);
@@ -124,7 +133,7 @@ pub fn html_shell_full(
         let safe_scip = escape_script_content(json);
         format!(
             "\n  <script>{scip_store_js}</script>\n  <script>try {{ window.FE_SCIP_DATA = {scip_data};\nwindow.FE_SCIP = new ScipStore(window.FE_SCIP_DATA); }} catch(e) {{ console.error('[fe-scip] init failed:', e); }}</script>",
-            scip_store_js = FE_SCIP_STORE_JS,
+            scip_store_js = scip_store_js(),
             scip_data = safe_scip,
         )
     } else {
@@ -199,6 +208,7 @@ pub fn html_shell_full(
 /// embedded WASM, and all custom element definitions.
 pub fn web_component_bundle() -> String {
     let highlighter_js = build_highlighter_js();
+    let highlight_css_literal = format!("\"{}\"", js_escape_string(FE_HIGHLIGHT_CSS));
 
     format!(
         r#"// fe-web.js — Fe documentation web components bundle
@@ -225,10 +235,14 @@ pub fn web_component_bundle() -> String {
   }});
 
   if (dataSrc) {{
-    fetch(dataSrc)
-      .then(function(r) {{ return r.json(); }})
+    (typeof feFetchJson === 'function' ? feFetchJson(dataSrc) :
+      fetch(dataSrc).then(function(r) {{
+        if (!r.ok) throw new Error("HTTP " + r.status + " loading " + dataSrc);
+        return r.json();
+      }}))
       .then(function(data) {{
-        if (data.index) {{
+        data = feMigrate(data);
+        if (data && data.index) {{
           window.FE_DOC_INDEX = data.index;
           if (data.scip) {{
             window.FE_SCIP_DATA = data.scip;
@@ -238,8 +252,8 @@ pub fn web_component_bundle() -> String {
               }}
             }}
           }}
-        }} else {{
-          // Plain DocIndex without SCIP wrapper
+        }} else if (data) {{
+          // Fallback — should not happen after migration
           window.FE_DOC_INDEX = data;
         }}
         window._feWebResolve();
@@ -271,6 +285,11 @@ pub fn web_component_bundle() -> String {
 {highlighter_js}
 
 // ============================================================================
+// Highlight CSS (injected for shadow DOM adoption — no DOM scanning needed)
+// ============================================================================
+var __FE_HIGHLIGHT_CSS_INJECTED__ = {highlight_css_js};
+
+// ============================================================================
 // Custom elements
 // ============================================================================
 {code_block_js}
@@ -287,9 +306,10 @@ pub fn web_component_bundle() -> String {
 
 {doc_viewer_js}
 "#,
-        scip_store_js = FE_SCIP_STORE_JS,
+        scip_store_js = scip_store_js(),
         tree_sitter_js = TREE_SITTER_JS,
         highlighter_js = highlighter_js,
+        highlight_css_js = highlight_css_literal,
         code_block_js = FE_CODE_BLOCK_JS,
         signature_js = FE_SIGNATURE_JS,
         doc_item_js = FE_DOC_ITEM_JS,

@@ -1,0 +1,564 @@
+---
+source: crates/fe-web/src/model.rs
+assertion_line: 1229
+expression: value
+---
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "definitions": {
+    "DocChild": {
+      "description": "A child of a documented item",
+      "properties": {
+        "docs": {
+          "anyOf": [
+            {
+              "$ref": "#/definitions/DocContent"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "kind": {
+          "$ref": "#/definitions/DocChildKind"
+        },
+        "name": {
+          "type": "string"
+        },
+        "rich_signature": {
+          "description": "Rich signature with embedded links",
+          "items": {
+            "$ref": "#/definitions/SignaturePart"
+          },
+          "type": "array"
+        },
+        "sig_scope": {
+          "description": "SCIP scope path for this signature",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "signature": {
+          "type": "string"
+        },
+        "visibility": {
+          "$ref": "#/definitions/DocVisibility"
+        }
+      },
+      "required": [
+        "kind",
+        "name",
+        "signature",
+        "visibility"
+      ],
+      "type": "object"
+    },
+    "DocChildKind": {
+      "description": "Kind of child item",
+      "enum": [
+        "field",
+        "variant",
+        "method",
+        "assoc_type",
+        "assoc_const"
+      ],
+      "type": "string"
+    },
+    "DocContent": {
+      "description": "Parsed documentation content with sections",
+      "properties": {
+        "body": {
+          "description": "Full documentation body (markdown)",
+          "type": "string"
+        },
+        "sections": {
+          "description": "Extracted sections like # Examples, # Panics, etc.",
+          "items": {
+            "$ref": "#/definitions/DocSection"
+          },
+          "type": "array"
+        },
+        "summary": {
+          "description": "The main summary (first paragraph)",
+          "type": "string"
+        }
+      },
+      "required": [
+        "body",
+        "sections",
+        "summary"
+      ],
+      "type": "object"
+    },
+    "DocGenericParam": {
+      "description": "A generic parameter with its bounds",
+      "properties": {
+        "bounds": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "default": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "name": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "bounds",
+        "name"
+      ],
+      "type": "object"
+    },
+    "DocImplMethod": {
+      "description": "A method in an impl block (for inline display on type pages)",
+      "properties": {
+        "docs": {
+          "anyOf": [
+            {
+              "$ref": "#/definitions/DocContent"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Parsed documentation content"
+        },
+        "name": {
+          "description": "Method name",
+          "type": "string"
+        },
+        "rich_signature": {
+          "description": "Rich signature with embedded links",
+          "items": {
+            "$ref": "#/definitions/SignaturePart"
+          },
+          "type": "array"
+        },
+        "sig_scope": {
+          "description": "SCIP scope path for this method signature",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "signature": {
+          "description": "Method signature (e.g., \"pub fn foo(&self) -> u32\")",
+          "type": "string"
+        }
+      },
+      "required": [
+        "name",
+        "signature"
+      ],
+      "type": "object"
+    },
+    "DocImplementor": {
+      "description": "A type that implements a trait",
+      "properties": {
+        "rich_signature": {
+          "description": "Rich signature with embedded links",
+          "items": {
+            "$ref": "#/definitions/SignaturePart"
+          },
+          "type": "array"
+        },
+        "sig_scope": {
+          "description": "SCIP scope path for this implementor signature",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "signature": {
+          "description": "The full impl signature (plain text)",
+          "type": "string"
+        },
+        "trait_name": {
+          "description": "The trait name (for linking to the impl block)",
+          "type": "string"
+        },
+        "type_name": {
+          "description": "The implementing type name",
+          "type": "string"
+        },
+        "type_url": {
+          "description": "Path to the type's documentation",
+          "type": "string"
+        }
+      },
+      "required": [
+        "signature",
+        "trait_name",
+        "type_name",
+        "type_url"
+      ],
+      "type": "object"
+    },
+    "DocItem": {
+      "description": "A documented item in the Fe codebase",
+      "properties": {
+        "children": {
+          "description": "Child items (methods, fields, variants, etc.)",
+          "items": {
+            "$ref": "#/definitions/DocChild"
+          },
+          "type": "array"
+        },
+        "docs": {
+          "anyOf": [
+            {
+              "$ref": "#/definitions/DocContent"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Parsed documentation content"
+        },
+        "generics": {
+          "description": "Generic parameters, if any",
+          "items": {
+            "$ref": "#/definitions/DocGenericParam"
+          },
+          "type": "array"
+        },
+        "implementors": {
+          "description": "Types that implement this trait (for trait pages)",
+          "items": {
+            "$ref": "#/definitions/DocImplementor"
+          },
+          "type": "array"
+        },
+        "kind": {
+          "allOf": [
+            {
+              "$ref": "#/definitions/DocItemKind"
+            }
+          ],
+          "description": "What kind of item this is"
+        },
+        "name": {
+          "description": "Short name of the item",
+          "type": "string"
+        },
+        "path": {
+          "description": "Unique path identifier (e.g., \"std::option::Option\")",
+          "type": "string"
+        },
+        "rich_signature": {
+          "description": "Rich signature with embedded links (for rendering)",
+          "items": {
+            "$ref": "#/definitions/SignaturePart"
+          },
+          "type": "array"
+        },
+        "sig_scope": {
+          "description": "SCIP scope path for this signature (set during enrich_signatures)",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "signature": {
+          "description": "The item's signature/definition (plain text for backward compat)",
+          "type": "string"
+        },
+        "source": {
+          "anyOf": [
+            {
+              "$ref": "#/definitions/DocSourceLoc"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Source location for \"view source\" links"
+        },
+        "source_text": {
+          "description": "Full source text of the item definition (for inline \"view source\")",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "trait_impls": {
+          "default": [],
+          "description": "Trait implementations for this type (structs, enums, contracts)",
+          "items": {
+            "$ref": "#/definitions/DocTraitImpl"
+          },
+          "type": "array"
+        },
+        "visibility": {
+          "allOf": [
+            {
+              "$ref": "#/definitions/DocVisibility"
+            }
+          ],
+          "description": "The item's visibility"
+        },
+        "where_bounds": {
+          "description": "Where clause bounds, if any",
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        }
+      },
+      "required": [
+        "children",
+        "generics",
+        "kind",
+        "name",
+        "path",
+        "signature",
+        "visibility",
+        "where_bounds"
+      ],
+      "type": "object"
+    },
+    "DocItemKind": {
+      "description": "The kind of documented item",
+      "oneOf": [
+        {
+          "enum": [
+            "module",
+            "function",
+            "struct",
+            "enum",
+            "trait",
+            "contract",
+            "type_alias",
+            "const",
+            "impl",
+            "impl_trait"
+          ],
+          "type": "string"
+        },
+        {
+          "description": "A `msg` block (desugared to module internally).",
+          "enum": [
+            "msg"
+          ],
+          "type": "string"
+        },
+        {
+          "description": "A variant of a `msg` block (desugared to struct internally).",
+          "enum": [
+            "msg_variant"
+          ],
+          "type": "string"
+        }
+      ]
+    },
+    "DocModuleItem": {
+      "description": "A reference to an item within a module",
+      "properties": {
+        "kind": {
+          "$ref": "#/definitions/DocItemKind"
+        },
+        "name": {
+          "type": "string"
+        },
+        "path": {
+          "type": "string"
+        },
+        "summary": {
+          "description": "Brief summary (first sentence of docs)",
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "kind",
+        "name",
+        "path"
+      ],
+      "type": "object"
+    },
+    "DocModuleTree": {
+      "description": "Module tree for navigation sidebar",
+      "properties": {
+        "children": {
+          "items": {
+            "$ref": "#/definitions/DocModuleTree"
+          },
+          "type": "array"
+        },
+        "items": {
+          "description": "Direct items in this module (non-module children)",
+          "items": {
+            "$ref": "#/definitions/DocModuleItem"
+          },
+          "type": "array"
+        },
+        "name": {
+          "type": "string"
+        },
+        "path": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "children",
+        "items",
+        "name",
+        "path"
+      ],
+      "type": "object"
+    },
+    "DocSection": {
+      "description": "A named section within documentation (e.g., \"Examples\", \"Panics\")",
+      "properties": {
+        "content": {
+          "type": "string"
+        },
+        "name": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "content",
+        "name"
+      ],
+      "type": "object"
+    },
+    "DocSourceLoc": {
+      "description": "Source location for linking to source code",
+      "properties": {
+        "column": {
+          "format": "uint32",
+          "minimum": 0.0,
+          "type": "integer"
+        },
+        "display_file": {
+          "description": "Relative display path (shown in UI)",
+          "type": "string"
+        },
+        "line": {
+          "format": "uint32",
+          "minimum": 0.0,
+          "type": "integer"
+        }
+      },
+      "required": [
+        "column",
+        "display_file",
+        "line"
+      ],
+      "type": "object"
+    },
+    "DocTraitImpl": {
+      "description": "A trait implementation reference (shown on type pages)",
+      "properties": {
+        "impl_url": {
+          "description": "URL path to the impl item's documentation",
+          "type": "string"
+        },
+        "methods": {
+          "default": [],
+          "description": "Methods defined in this impl block (displayed inline on type pages)",
+          "items": {
+            "$ref": "#/definitions/DocImplMethod"
+          },
+          "type": "array"
+        },
+        "rich_signature": {
+          "description": "Rich signature with embedded links",
+          "items": {
+            "$ref": "#/definitions/SignaturePart"
+          },
+          "type": "array"
+        },
+        "sig_scope": {
+          "description": "SCIP scope path for this impl signature",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "signature": {
+          "description": "The full signature of the impl (e.g., \"impl Clone for MyStruct\")",
+          "type": "string"
+        },
+        "trait_name": {
+          "description": "The name of the trait being implemented (e.g., \"Clone\"). Empty for inherent impls.",
+          "type": "string"
+        }
+      },
+      "required": [
+        "impl_url",
+        "signature",
+        "trait_name"
+      ],
+      "type": "object"
+    },
+    "DocVisibility": {
+      "description": "Visibility of a documented item",
+      "enum": [
+        "public",
+        "private"
+      ],
+      "type": "string"
+    },
+    "SignaturePart": {
+      "description": "A part of a signature - either plain text or a linkable reference",
+      "properties": {
+        "link": {
+          "description": "If Some, render as a link to this doc path (e.g., \"hoverable::Numbers/struct\")",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "text": {
+          "description": "The display text",
+          "type": "string"
+        }
+      },
+      "required": [
+        "text"
+      ],
+      "type": "object"
+    }
+  },
+  "description": "A collection of documented items forming a documentation index",
+  "properties": {
+    "builtin_modules": {
+      "description": "Builtin library modules (core, std), rendered separately in sidebar",
+      "items": {
+        "$ref": "#/definitions/DocModuleTree"
+      },
+      "type": "array"
+    },
+    "items": {
+      "description": "All documented items, keyed by path",
+      "items": {
+        "$ref": "#/definitions/DocItem"
+      },
+      "type": "array"
+    },
+    "modules": {
+      "description": "Module hierarchy for navigation",
+      "items": {
+        "$ref": "#/definitions/DocModuleTree"
+      },
+      "type": "array"
+    }
+  },
+  "required": [
+    "items",
+    "modules"
+  ],
+  "title": "DocIndex",
+  "type": "object"
+}

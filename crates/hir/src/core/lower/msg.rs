@@ -74,7 +74,7 @@ fn lower_msg_variant<'db>(
     let mut builder = builder.with_desugared(MsgDesugared {
         msg: parser::ast::AstPtr::new(msg_ast),
         variant_idx: Some(variant_idx),
-        focus: MsgDesugaredFocus::VariantName,
+        focus: MsgDesugaredFocus::Block,
     });
 
     // Create the struct for this variant

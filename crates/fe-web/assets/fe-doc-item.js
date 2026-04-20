@@ -33,6 +33,8 @@ var _ITEM_KIND = {
   "const":    { str: "const",   plural: "Constants",      display: "Constant",     order: 7 },
   impl:       { str: "impl",    plural: "Implementations", display: "Implementation", order: 8 },
   impl_trait: { str: "impl",    plural: "Trait Implementations", display: "Trait Implementation", order: 9 },
+  msg:         { str: "msg",    plural: "Messages",       display: "Message",      order: 1 },
+  msg_variant: { str: "msg_variant", plural: "Message Variants", display: "Message Variant", order: 3 },
 };
 
 var _CHILD_KIND = {
@@ -55,7 +57,7 @@ function _diEsc(s) {
 }
 
 function _diKindBadge(kind) {
-  return '<span class="kind-badge ' + _diEsc(kind) + '">' + _diEsc(kind) + "</span>";
+  return '<span class="kind-badge ' + _diEsc(_diKindStr(kind)) + '">' + _diEsc(_diKindStr(kind)) + "</span>";
 }
 
 function _diGroupByKind(items, kindFn) {

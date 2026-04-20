@@ -160,6 +160,7 @@ pub fn generate_docs(
     path: &Utf8PathBuf,
     output: Option<&Utf8PathBuf>,
     builtins: bool,
+    stdlib_path: Option<&Utf8PathBuf>,
     action: Option<&crate::DocAction>,
 ) {
     // First, check if there's a running LSP with docs server
@@ -198,6 +199,17 @@ pub fn generate_docs(
     }
 
     let mut db = DriverDataBase::default();
+
+    // Override embedded stdlib with on-disk version if --stdlib-path is given.
+    // This allows generating docs for older stdlib versions using the latest fe binary.
+    if let Some(stdlib_dir) = stdlib_path {
+        if let Err(e) = common::stdlib::load_library_from_path(&mut db, stdlib_dir) {
+            eprintln!("Failed to load stdlib from {stdlib_dir}: {e}");
+            std::process::exit(1);
+        }
+        println!("  Loaded stdlib from {stdlib_dir}");
+    }
+
     let git_root = detect_git_root(path.as_std_path());
 
     let index = if path.is_file() && path.extension() == Some("fe") {
@@ -794,13 +806,16 @@ fn detect_source_link_base(working_dir: &std::path::Path) -> Option<String> {
 /// Build a merged JSON string containing both the DocIndex and SCIP data.
 ///
 /// This is the single data file that web components consume via `data-src`.
-/// The structure is: `{ "index": <DocIndex>, "scip": <SCIP data or null> }`
+/// The structure is: `{ "schema_version": N, "index": <DocIndex>, "scip": <SCIP data or null> }`
 fn build_merged_json(index: &DocIndex, scip_json: Option<&str>) -> String {
-    let index_value = serde_json::to_value(index).unwrap();
+    let mut index_value = serde_json::to_value(index).unwrap();
+    fe_web::static_site::inject_html_bodies(&mut index_value);
     let scip_value = scip_json
         .and_then(|s| serde_json::from_str::<serde_json::Value>(s).ok())
         .unwrap_or(serde_json::Value::Null);
     let merged = serde_json::json!({
+        "schema_version": fe_web::model::SCHEMA_VERSION,
+        "compiler_version": env!("CARGO_PKG_VERSION"),
         "index": index_value,
         "scip": scip_value,
     });
@@ -935,6 +950,23 @@ pub fn write_highlight_css(path: &Utf8PathBuf) {
         std::process::exit(1);
     });
     println!("Wrote fe-highlight.css to {path}");
+}
+
+/// Write the styles.css layout theme to a file path.
+pub fn write_styles_css(path: &Utf8PathBuf) {
+    if let Some(parent) = path.parent()
+        && !parent.as_str().is_empty()
+    {
+        std::fs::create_dir_all(parent).unwrap_or_else(|e| {
+            eprintln!("Error creating directory {parent}: {e}");
+            std::process::exit(1);
+        });
+    }
+    std::fs::write(path, fe_web::assets::STYLES_CSS).unwrap_or_else(|e| {
+        eprintln!("Error writing CSS to {path}: {e}");
+        std::process::exit(1);
+    });
+    println!("Wrote styles.css to {path}");
 }
 
 fn print_doc_summary(index: &DocIndex) {

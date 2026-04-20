@@ -75,9 +75,27 @@ pub fn load_library_from_path(db: &mut dyn InputDb, library_root: &Utf8Path) -> 
     let core_root = library_root.join("core");
     let std_root = library_root.join("std");
 
+    // Clear embedded builtins first so stale files from the embedded version
+    // don't leak into the index when the on-disk version has fewer files.
+    clear_library(db, BUILTIN_CORE_BASE_URL);
+    clear_library(db, BUILTIN_STD_BASE_URL);
+
     load_library_dir(db, BUILTIN_CORE_BASE_URL, &core_root)?;
     load_library_dir(db, BUILTIN_STD_BASE_URL, &std_root)?;
     Ok(())
+}
+
+fn clear_library(db: &mut dyn InputDb, base_url: &str) {
+    let base = Url::parse(base_url).unwrap();
+    let workspace = db.workspace();
+    let urls: Vec<Url> = workspace
+        .items_at_base(db, base)
+        .iter()
+        .map(|(url, _)| url.clone())
+        .collect();
+    for url in urls {
+        workspace.remove(db, &url);
+    }
 }
 
 #[derive(Embed)]

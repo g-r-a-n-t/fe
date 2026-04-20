@@ -10,7 +10,7 @@ use crate::SpannedHirDb;
 use crate::analysis::HirAnalysisDb;
 use crate::hir_def::scope_graph::ScopeId;
 use crate::hir_def::{Attr, EnumVariant, FieldParent, HirIngot, ItemKind, TopLevelMod, Visibility};
-use crate::span::{DynLazySpan, LazySpan};
+use crate::span::{DesugaredOrigin, DynLazySpan, HirOrigin, LazySpan};
 use common::diagnostics::Span;
 use common::file::File;
 use common::ingot::Ingot;
@@ -362,10 +362,26 @@ fn get_item_signature_with_span<'db>(
     let mut sig = text[start..end].to_string();
     let mut sig_end = end;
 
-    // For items with bodies (impl, trait, struct, enum, contract),
-    // truncate at opening brace so the signature doesn't include
-    // body contents (methods, fields, doc comments, etc.)
-    if matches!(
+    // Check if this is a msg variant struct — those use `{ ... }` for
+    // parameters, not a body block, so we must not trim at the brace.
+    let is_msg_variant = matches!(
+        item,
+        ItemKind::Struct(s) if matches!(
+            s.origin(db),
+            HirOrigin::Desugared(DesugaredOrigin::Msg(m)) if m.variant_idx.is_some()
+        )
+    );
+
+    if is_msg_variant {
+        // Trim trailing comma and whitespace from msg variant signatures
+        while sig_end > start
+            && (text.as_bytes()[sig_end - 1] == b','
+                || text.as_bytes()[sig_end - 1].is_ascii_whitespace())
+        {
+            sig_end -= 1;
+        }
+        sig = text[start..sig_end].to_string();
+    } else if matches!(
         item,
         ItemKind::Impl(_)
             | ItemKind::ImplTrait(_)
@@ -375,6 +391,9 @@ fn get_item_signature_with_span<'db>(
             | ItemKind::Contract(_)
     ) && let Some(brace_pos) = sig.find('{')
     {
+        // For items with bodies (impl, trait, struct, enum, contract),
+        // truncate at opening brace so the signature doesn't include
+        // body contents (methods, fields, doc comments, etc.)
         sig_end = start + brace_pos;
         // Trim trailing whitespace before the brace
         while sig_end > start && text.as_bytes()[sig_end - 1].is_ascii_whitespace() {

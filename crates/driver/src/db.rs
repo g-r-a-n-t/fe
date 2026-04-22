@@ -20,8 +20,6 @@ use hir::{
     lower::{map_file_to_mod, module_tree},
 };
 
-use crate::MirDiagnosticsMode;
-
 use crate::diagnostics::ToCsDiag;
 
 define_input_db!(DriverDataBase);
@@ -60,7 +58,6 @@ impl DriverDataBase {
     pub fn mir_diagnostics_for_top_mod<'db>(
         &'db self,
         top_mod: TopLevelMod<'db>,
-        _mode: MirDiagnosticsMode,
     ) -> Vec<CompleteDiagnostic> {
         let mut pass_manager = initialize_mir_diagnostics_pass();
         let mut diagnostics: Vec<_> = pass_manager
@@ -72,11 +69,7 @@ impl DriverDataBase {
         diagnostics
     }
 
-    pub fn mir_diagnostics_for_ingot<'db>(
-        &'db self,
-        ingot: Ingot<'db>,
-        _mode: MirDiagnosticsMode,
-    ) -> Vec<CompleteDiagnostic> {
+    pub fn mir_diagnostics_for_ingot<'db>(&'db self, ingot: Ingot<'db>) -> Vec<CompleteDiagnostic> {
         // Empty ingots (e.g. deleted during incremental workspace changes)
         // have no root module to analyze.
         if ingot.module_tree(self).root_data().is_none() {

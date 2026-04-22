@@ -6,7 +6,7 @@ use common::{
     file::{File, IngotFileKind},
     ingot::IngotKind,
 };
-use driver::{DriverDataBase, MirDiagnosticsMode};
+use driver::DriverDataBase;
 use hir::Ingot;
 use hir::analysis::initialize_analysis_pass;
 use hir::hir_def::HirIngot;
@@ -94,7 +94,7 @@ impl LspDiagnostics for DriverDataBase {
         // sound and panics on broken input. Also skip for ingots with no modules.
         let mut mir_diags = if !hir_has_errors && ingot.module_tree(self).root_data().is_some() {
             match std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-                self.mir_diagnostics_for_ingot(ingot, MirDiagnosticsMode::TemplatesOnly)
+                self.mir_diagnostics_for_ingot(ingot)
             })) {
                 Ok(diags) => diags,
                 Err(panic_info) => {

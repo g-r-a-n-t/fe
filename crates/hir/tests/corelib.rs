@@ -1,7 +1,7 @@
 use common::InputDb;
 use common::indexmap::IndexMap;
 use common::stdlib::{HasBuiltinCore, HasBuiltinStd};
-use driver::{DriverDataBase, MirDiagnosticsMode, db::DiagnosticsCollection};
+use driver::{DriverDataBase, db::DiagnosticsCollection};
 use fe_hir::analysis::ty::ty_check::ReturnProvenance;
 use fe_hir::analysis::ty::{
     corelib::{resolve_core_trait, resolve_lib_func_path, resolve_lib_type_path},
@@ -304,7 +304,7 @@ pub fn root() {
         hir_diags.format_diags(&db)
     );
 
-    let mir_diags = db.mir_diagnostics_for_top_mod(top_mod, MirDiagnosticsMode::CompilerParity);
+    let mir_diags = db.mir_diagnostics_for_top_mod(top_mod);
     assert!(
         mir_diags.is_empty(),
         "unexpected MIR diagnostics: {}",

@@ -1,5 +1,5 @@
 use common::InputDb;
-use driver::{DriverDataBase, MirDiagnosticsMode};
+use driver::DriverDataBase;
 use hir::{
     analysis::semantic::{
         check_semantic_borrows, get_or_build_semantic_instance, identity_semantic_instance_key,
@@ -24,7 +24,7 @@ fn code_region_fixture_has_no_semantic_borrow_diagnostics() {
         .get(&db, &file_url)
         .expect("file should be loaded");
     let top_mod = db.top_mod(file);
-    let diags = db.mir_diagnostics_for_top_mod(top_mod, MirDiagnosticsMode::CompilerParity);
+    let diags = db.mir_diagnostics_for_top_mod(top_mod);
     assert!(
         diags
             .iter()
@@ -141,7 +141,7 @@ fn erc20_low_level_fixture_has_no_semantic_borrow_diagnostics() {
         .get(&db, &file_url)
         .expect("file should be loaded");
     let top_mod = db.top_mod(file);
-    let diags = db.mir_diagnostics_for_top_mod(top_mod, MirDiagnosticsMode::CompilerParity);
+    let diags = db.mir_diagnostics_for_top_mod(top_mod);
     assert!(
         diags
             .iter()

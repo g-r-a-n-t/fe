@@ -1,6 +1,6 @@
 use common::InputDb;
 use dir_test::{Fixture, dir_test};
-use driver::{DriverDataBase, MirDiagnosticsMode};
+use driver::DriverDataBase;
 use test_utils::snap_test;
 use url::Url;
 
@@ -20,7 +20,7 @@ fn run_semantic_borrowck(fixture: Fixture<&str>) {
     );
 
     let top_mod = db.top_mod(file);
-    let diags = db.mir_diagnostics_for_top_mod(top_mod, MirDiagnosticsMode::CompilerParity);
+    let diags = db.mir_diagnostics_for_top_mod(top_mod);
     let diags = db.format_complete_diagnostics(&diags);
     snap_test!(diags, fixture.path());
 }
@@ -48,6 +48,6 @@ mod wasm {
         );
 
         let top_mod = db.top_mod(file);
-        db.mir_diagnostics_for_top_mod(top_mod, MirDiagnosticsMode::CompilerParity);
+        db.mir_diagnostics_for_top_mod(top_mod);
     }
 }

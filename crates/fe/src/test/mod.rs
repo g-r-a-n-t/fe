@@ -27,7 +27,7 @@ use common::{
 };
 use contract_harness::{CallGasProfile, EvmTraceOptions, ExecutionOptions, RuntimeInstance, U256};
 use crossbeam_channel::{Receiver, Sender, TryRecvError};
-use driver::{DriverDataBase, MirDiagnosticsMode};
+use driver::DriverDataBase;
 use hir::hir_def::{HirIngot, TopLevelMod, item::ItemKind};
 use mir::{build_runtime_package, build_test_runtime_package, format_runtime_package};
 use rustc_hash::{FxHashMap, FxHashSet};
@@ -2058,7 +2058,7 @@ fn prepare_tests_single_file(
     let mir_diags = if hir_has_errors {
         Vec::new()
     } else {
-        db.mir_diagnostics_for_top_mod(top_mod, MirDiagnosticsMode::CompilerParity)
+        db.mir_diagnostics_for_top_mod(top_mod)
     };
     if !mir_diags.is_empty() {
         formatted.push_str(&db.format_complete_diagnostics(&mir_diags));
@@ -2232,7 +2232,7 @@ fn prepare_tests_ingot(
     let mir_diags = if hir_has_errors {
         Vec::new()
     } else {
-        db.mir_diagnostics_for_ingot(ingot, MirDiagnosticsMode::CompilerParity)
+        db.mir_diagnostics_for_ingot(ingot)
     };
     if !mir_diags.is_empty() {
         formatted.push_str(&db.format_complete_diagnostics(&mir_diags));

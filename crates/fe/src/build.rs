@@ -6,8 +6,8 @@ use std::{
 use camino::{Utf8Path, Utf8PathBuf};
 use codegen::{BackendKind, OptLevel, SonatinaContractBytecode};
 use common::{InputDb, config::Config, dependencies::WorkspaceMemberRecord, file::IngotFileKind};
+use driver::DriverDataBase;
 use driver::cli_target::{CliTarget, resolve_cli_target};
-use driver::{DriverDataBase, MirDiagnosticsMode};
 use hir::hir_def::{HirIngot, ManualContractRootAttr, TopLevelMod};
 use mir::build_runtime_package;
 use salsa::Setter;
@@ -367,7 +367,7 @@ fn build_file(
     let mir_diags = if hir_has_errors {
         Vec::new()
     } else {
-        db.mir_diagnostics_for_top_mod(top_mod, MirDiagnosticsMode::CompilerParity)
+        db.mir_diagnostics_for_top_mod(top_mod)
     };
     if !mir_diags.is_empty() {
         db.emit_complete_diagnostics(&mir_diags);
@@ -723,7 +723,7 @@ fn analyze_ingot_build_artifacts(
     let mir_diags = if hir_has_errors {
         Vec::new()
     } else {
-        db.mir_diagnostics_for_ingot(ingot, MirDiagnosticsMode::CompilerParity)
+        db.mir_diagnostics_for_ingot(ingot)
     };
     if !mir_diags.is_empty() {
         db.emit_complete_diagnostics(&mir_diags);
@@ -908,7 +908,7 @@ fn build_ingot_url(
     let mir_diags = if hir_has_errors {
         Vec::new()
     } else {
-        db.mir_diagnostics_for_ingot(ingot, MirDiagnosticsMode::CompilerParity)
+        db.mir_diagnostics_for_ingot(ingot)
     };
     if !mir_diags.is_empty() {
         db.emit_complete_diagnostics(&mir_diags);

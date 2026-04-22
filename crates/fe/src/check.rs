@@ -6,8 +6,8 @@ use common::{
     config::{Config, WorkspaceConfig},
     file::IngotFileKind,
 };
+use driver::DriverDataBase;
 use driver::cli_target::{CliTarget, resolve_cli_target};
-use driver::{DriverDataBase, MirDiagnosticsMode};
 use hir::hir_def::{HirIngot, TopLevelMod};
 use mir::build_runtime_package;
 use salsa::Setter;
@@ -386,7 +386,7 @@ fn check_ingot_and_dependencies(
     let mir_diags = if hir_has_errors {
         Vec::new()
     } else {
-        db.mir_diagnostics_for_ingot(ingot, MirDiagnosticsMode::CompilerParity)
+        db.mir_diagnostics_for_ingot(ingot)
     };
     if !mir_diags.is_empty() {
         db.emit_complete_diagnostics(&mir_diags);
@@ -420,7 +420,7 @@ fn check_ingot_and_dependencies(
         let mir_diags = if hir_diags.has_errors(db) {
             Vec::new()
         } else {
-            db.mir_diagnostics_for_ingot(ingot, MirDiagnosticsMode::CompilerParity)
+            db.mir_diagnostics_for_ingot(ingot)
         };
         if !hir_diags.is_empty() || !mir_diags.is_empty() {
             dependency_errors.push((dependency_url, hir_diags, mir_diags));
@@ -530,7 +530,7 @@ fn check_single_file(
         let mir_diags = if hir_has_errors {
             Vec::new()
         } else {
-            db.mir_diagnostics_for_top_mod(top_mod, MirDiagnosticsMode::CompilerParity)
+            db.mir_diagnostics_for_top_mod(top_mod)
         };
         if !mir_diags.is_empty() {
             if !has_errors {

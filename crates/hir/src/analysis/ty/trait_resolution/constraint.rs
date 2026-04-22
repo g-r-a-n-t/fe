@@ -12,7 +12,10 @@ use crate::analysis::{
         adt_def::AdtDef,
         binder::Binder,
         corelib::resolve_core_trait,
-        effects::{EffectKeyKind, place_effect_provider_param_index_map},
+        effects::{
+            EffectKeyCanonMode, EffectKeyKind, canonical_effect_identity_for_binding,
+            place_effect_provider_param_index_map,
+        },
         layout_holes::{collect_layout_hole_tys_in_order, ty_contains_const_hole},
         trait_def::TraitInstId,
         trait_lower::{lower_impl_trait, lower_trait_ref},
@@ -29,23 +32,18 @@ pub(crate) fn collect_effect_constraints_for_func<'db>(
 ) -> Vec<TraitInstId<'db>> {
     let provider_map = place_effect_provider_param_index_map(db, func);
     let provider_params = CallableDef::Func(func).params(db);
-
-    let Some(effect_ref_trait) = resolve_core_trait(db, func.scope(), &["effect_ref", "EffectRef"])
-    else {
-        // EffectRef is a required stdlib trait. If it can't be resolved the
-        // stdlib is broken — returning empty constraints here would silently
-        // skip effect-bound checking and allow incorrect code to compile.
-        panic!("missing required core trait EffectRef — stdlib is broken");
-    };
-    let Some(effect_ref_mut_trait) =
-        resolve_core_trait(db, func.scope(), &["effect_ref", "EffectRefMut"])
-    else {
-        panic!("missing required core trait EffectRefMut — stdlib is broken");
-    };
+    let scope = func.scope();
+    let assumptions = collect_func_decl_constraints(db, func.into(), true)
+        .instantiate_identity()
+        .extend_all_bounds(db);
 
     let mut out = Vec::new();
-    for binding in func.effect_bindings(db) {
-        if !matches!(binding.key_kind, EffectKeyKind::Type | EffectKeyKind::Trait) {
+    let mut effect_ref_traits = None;
+    for binding in func.effect_requirements(db) {
+        if !matches!(
+            binding.key.kind(),
+            EffectKeyKind::Type | EffectKeyKind::Trait
+        ) {
             continue;
         }
 
@@ -60,7 +58,16 @@ pub(crate) fn collect_effect_constraints_for_func<'db>(
             continue;
         };
 
-        match (binding.key_ty, binding.key_trait) {
+        let identity = canonical_effect_identity_for_binding(
+            db,
+            binding,
+            scope,
+            assumptions,
+            None,
+            EffectKeyCanonMode::Solver,
+        );
+
+        match (identity.key_ty, identity.key_trait) {
             (_, Some(inst)) => {
                 debug_assert!(
                     collect_layout_hole_tys_in_order(db, inst).is_empty(),
@@ -87,6 +94,22 @@ pub(crate) fn collect_effect_constraints_for_func<'db>(
                     !ty_contains_const_hole(db, target_ty) || target_ty.has_invalid(db),
                     "effect constraint type key still contains unresolved layout holes"
                 );
+                let (effect_ref_trait, effect_ref_mut_trait) =
+                    effect_ref_traits.unwrap_or_else(|| {
+                        let Some(effect_ref_trait) =
+                            resolve_core_trait(db, func.scope(), &["EffectRef"])
+                        else {
+                            panic!("missing required core trait EffectRef — stdlib is broken");
+                        };
+                        let Some(effect_ref_mut_trait) =
+                            resolve_core_trait(db, func.scope(), &["EffectRefMut"])
+                        else {
+                            panic!("missing required core trait EffectRefMut — stdlib is broken");
+                        };
+                        let traits = (effect_ref_trait, effect_ref_mut_trait);
+                        effect_ref_traits = Some(traits);
+                        traits
+                    });
 
                 out.push(TraitInstId::new(
                     db,
@@ -95,7 +118,7 @@ pub(crate) fn collect_effect_constraints_for_func<'db>(
                     IndexMap::new(),
                 ));
 
-                if binding.is_mut {
+                if identity.is_mut {
                     out.push(TraitInstId::new(
                         db,
                         effect_ref_mut_trait,
@@ -435,7 +458,9 @@ mod tests {
     use camino::Utf8PathBuf;
 
     use super::*;
-    use crate::analysis::ty::layout_holes::ty_contains_const_hole;
+    use crate::analysis::ty::{
+        GoalSatisfiability, TraitSolveCx, is_goal_satisfiable, layout_holes::ty_contains_const_hole,
+    };
     use crate::test_db::HirAnalysisTestDb;
 
     fn find_func<'db>(
@@ -494,8 +519,7 @@ fn f() uses (slots: Distinct) {}
         let (top_mod, _) = db.top_mod(file);
         db.assert_no_diags(top_mod);
         let func = find_func(&db, top_mod, "f");
-        let effect_ref_trait =
-            resolve_core_trait(&db, func.scope(), &["effect_ref", "EffectRef"]).unwrap();
+        let effect_ref_trait = resolve_core_trait(&db, func.scope(), &["EffectRef"]).unwrap();
         let constraints = collect_effect_constraints_for_func(&db, func);
         let effect_ref = constraints
             .into_iter()
@@ -525,8 +549,7 @@ fn f() uses (slots: Repeated) {}
         let (top_mod, _) = db.top_mod(file);
         db.assert_no_diags(top_mod);
         let func = find_func(&db, top_mod, "f");
-        let effect_ref_trait =
-            resolve_core_trait(&db, func.scope(), &["effect_ref", "EffectRef"]).unwrap();
+        let effect_ref_trait = resolve_core_trait(&db, func.scope(), &["EffectRef"]).unwrap();
         let constraints = collect_effect_constraints_for_func(&db, func);
         let effect_ref = constraints
             .into_iter()
@@ -539,6 +562,36 @@ fn f() uses (slots: Repeated) {}
         let left = fields[0].generic_args(&db)[0];
         let right = fields[1].generic_args(&db)[0];
         assert_eq!(left, right);
+    }
+
+    #[test]
+    fn effect_constraints_canonicalize_omitted_const_expr_defaults() {
+        let mut db = HirAnalysisTestDb::default();
+        let file = db.new_stand_alone(
+            Utf8PathBuf::from("effect_constraints_canonicalize_omitted_const_expr_defaults.fe"),
+            r#"
+const fn plus1(x: usize) -> usize {
+    x + 1
+}
+
+trait Cap<T> {}
+
+struct Slot<const N: usize, const M: usize = plus1(N)> {}
+
+fn f() uses (cap: Cap<Slot<4>>) {}
+"#,
+        );
+        let (top_mod, _) = db.top_mod(file);
+        db.assert_no_diags(top_mod);
+        let func = find_func(&db, top_mod, "f");
+        let cap_trait = find_trait(&db, top_mod, "Cap");
+        let constraints = collect_effect_constraints_for_func(&db, func);
+        let cap_inst = constraints
+            .into_iter()
+            .find(|inst| inst.def(&db) == cap_trait)
+            .expect("missing Cap constraint");
+        let key_ty = cap_inst.args(&db)[1];
+        assert_eq!(key_ty.pretty_print(&db).to_string(), "Slot<4, 5>");
     }
 
     #[test]
@@ -598,20 +651,19 @@ where
         let slot_provider_idx = provider_map[1].expect("missing provider slot for slot");
         assert!(cap_provider_idx < slot_provider_idx);
 
-        let effect_bindings = func.effect_bindings(&db);
+        let effect_bindings = func.effect_requirements(&db);
         let slot_binding = effect_bindings
             .iter()
             .find(|binding| binding.binding_name.data(&db) == "slot")
             .expect("missing slot binding");
-        let key_ty = slot_binding.key_ty.expect("missing type effect key");
+        let key_ty = slot_binding.key.key_ty().expect("missing type effect key");
         assert!(!ty_contains_const_hole(&db, key_ty));
         let args = key_ty.generic_args(&db);
         assert_eq!(args.len(), 2);
         assert_eq!(args[0], TyId::u256(&db));
         assert!(matches!(args[1].data(&db), TyData::ConstTy(_)));
 
-        let effect_ref_trait =
-            resolve_core_trait(&db, func.scope(), &["effect_ref", "EffectRef"]).unwrap();
+        let effect_ref_trait = resolve_core_trait(&db, func.scope(), &["EffectRef"]).unwrap();
         let constraints = collect_constraints(&db, func.into()).instantiate_identity();
         let effect_ref = constraints
             .list(&db)
@@ -632,5 +684,42 @@ where
             })
             .collect();
         assert_eq!(provider_names, vec!["cap".to_string(), "slot".to_string()]);
+    }
+
+    #[test]
+    fn function_decl_constraints_instantiate_concrete_abi_trait_args() {
+        let mut db = HirAnalysisTestDb::default();
+        let file = db.new_stand_alone(
+            Utf8PathBuf::from("function_decl_constraints_instantiate_concrete_abi_trait_args.fe"),
+            r#"
+use core::abi::{Decode, Encode}
+use std::abi::Sol
+
+fn require_encode<T>() where T: Encode<Sol> {}
+fn require_decode<T>() where T: Decode<Sol> {}
+"#,
+        );
+        let (top_mod, _) = db.top_mod(file);
+        db.assert_no_diags(top_mod);
+        let require_encode = find_func(&db, top_mod, "require_encode");
+        let require_decode = find_func(&db, top_mod, "require_decode");
+        let u256_ty = TyId::u256(&db);
+
+        for (label, func) in [("encode", require_encode), ("decode", require_decode)] {
+            let constraints =
+                collect_func_decl_constraints(&db, func.into(), true).instantiate(&db, &[u256_ty]);
+            let goal = *constraints
+                .list(&db)
+                .first()
+                .unwrap_or_else(|| panic!("missing {label} constraint"));
+            let solve_cx = TraitSolveCx::new(&db, func.scope());
+            match is_goal_satisfiable(&db, solve_cx, goal) {
+                GoalSatisfiability::Satisfied(_) => {}
+                other => panic!(
+                    "expected instantiated `{label}` goal `{}` to be satisfiable, got {other:?}",
+                    goal.pretty_print(&db, true)
+                ),
+            }
+        }
     }
 }

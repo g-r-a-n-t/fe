@@ -6,15 +6,21 @@ use codespan_reporting::term::{
 use common::file::File;
 use common::{
     define_input_db,
-    diagnostics::{CompleteDiagnostic, Severity, cmp_complete_diagnostics},
+    diagnostics::{
+        CompleteDiagnostic, Severity, cmp_complete_diagnostics, trim_trailing_line_whitespace,
+    },
 };
-use hir::analysis::{diagnostics::DiagnosticVoucher, initialize_analysis_pass};
+use hir::analysis::{
+    diagnostics::DiagnosticVoucher, initialize_analysis_pass,
+    semantic::collect_semantic_borrow_diagnostics,
+};
 use hir::{
     Ingot,
     hir_def::{HirIngot, TopLevelMod},
     lower::{map_file_to_mod, module_tree},
 };
-use mir::{MirDiagnosticsMode, collect_mir_diagnostics};
+
+use crate::MirDiagnosticsMode;
 
 use crate::diagnostics::ToCsDiag;
 
@@ -54,14 +60,9 @@ impl DriverDataBase {
     pub fn mir_diagnostics_for_top_mod<'db>(
         &'db self,
         top_mod: TopLevelMod<'db>,
-        mode: MirDiagnosticsMode,
+        _mode: MirDiagnosticsMode,
     ) -> Vec<CompleteDiagnostic> {
-        let mut output = collect_mir_diagnostics(self, top_mod, mode);
-        for err in output.internal_errors {
-            tracing::debug!(target: "lsp", "MIR diagnostics internal error: {err}");
-        }
-        sort_and_dedup_complete_diagnostics(&mut output.diagnostics);
-        output.diagnostics
+        collect_semantic_borrow_diagnostics(self, top_mod)
     }
 
     pub fn mir_diagnostics_for_ingot<'db>(
@@ -94,6 +95,20 @@ impl DriverDataBase {
         writer
             .print(&buffer)
             .expect("Failed to write diagnostics to stderr");
+    }
+
+    pub fn format_complete_diagnostics(&self, diagnostics: &[CompleteDiagnostic]) -> String {
+        let writer = BufferWriter::stderr(ColorChoice::Never);
+        let mut buffer = writer.buffer();
+        let config = term::Config::default();
+        let mut diagnostics = diagnostics.to_vec();
+        sort_and_dedup_complete_diagnostics(&mut diagnostics);
+
+        for diag in diagnostics {
+            term::emit(&mut buffer, &config, &CsDbWrapper(self), &diag.to_cs(self)).unwrap();
+        }
+
+        trim_trailing_line_whitespace(std::str::from_utf8(buffer.as_slice()).unwrap())
     }
 }
 
@@ -133,12 +148,12 @@ impl DiagnosticsCollection<'_> {
             term::emit(&mut buffer, &config, &CsDbWrapper(db), &diag.to_cs(db)).unwrap();
         }
 
-        std::str::from_utf8(buffer.as_slice()).unwrap().to_string()
+        trim_trailing_line_whitespace(std::str::from_utf8(buffer.as_slice()).unwrap())
     }
 
     fn finalize(&self, db: &DriverDataBase) -> Vec<CompleteDiagnostic> {
         let mut diags: Vec<_> = self.0.iter().map(|d| d.as_ref().to_complete(db)).collect();
-        sort_complete_diagnostics(&mut diags);
+        sort_and_dedup_complete_diagnostics(&mut diags);
         diags
     }
 }

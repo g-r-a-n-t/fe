@@ -10,13 +10,17 @@ use crate::{
 use crate::hir_def::CallableDef;
 use crate::hir_def::params::FuncParamMode;
 use common::indexmap::IndexMap;
+use cranelift_entity::{PrimaryMap, SecondaryMap};
 use rustc_hash::{FxHashMap, FxHashSet};
 use salsa::Update;
 use thin_vec::ThinVec;
 
 use super::effect_env as keyed_effect_env;
 use super::owner::BodyOwner;
-use super::{Callable, ConstRef, TyChecker, TypedBody, stmt::ForLoopSeq};
+use super::{
+    Callable, ConstIntrinsicKind, ConstRef, SemanticExprLowering, TyChecker, TypedBody,
+    ValuePathRef, stmt::ForLoopSeq,
+};
 use crate::analysis::ty::pattern_ir::{
     PatternAnalysisStatus, PatternStore, ValidatedPat, ValidatedPatId,
 };
@@ -28,16 +32,13 @@ use crate::analysis::{
             EffectKeyKind,
             elaborate::{build_pattern_from_requirement_decl, seed_forwarder_from_requirement},
             model::EffectRequirementDecl,
-            place_effect_provider_param_index_map,
         },
         fold::{TyFoldable, TyFolder},
+        provider::ProviderAddressSpace,
         trait_def::TraitInstId,
         trait_resolution::{
             PredicateListId,
-            constraint::{
-                collect_constraints, collect_effect_constraints_for_func,
-                collect_func_decl_constraints,
-            },
+            constraint::{collect_constraints, collect_func_decl_constraints},
         },
         ty_contains_const_hole,
         ty_def::{InvalidCause, StringFallback, TyData, TyId, TyVarSort},
@@ -45,7 +46,9 @@ use crate::analysis::{
         unify::UnificationTable,
     },
 };
-use crate::core::semantic::{EffectEnvView, EffectSource};
+use crate::core::semantic::{
+    EffectEnvView, EffectRequirement, ProviderBinding, ResolvedEffectBindingInfo,
+};
 
 pub(crate) struct TyCheckEnv<'db> {
     db: &'db dyn HirAnalysisDb,
@@ -53,11 +56,15 @@ pub(crate) struct TyCheckEnv<'db> {
     owner_scope: ScopeId<'db>,
     body: Body<'db>,
 
-    pat_ty: FxHashMap<PatId, TyId<'db>>,
-    expr_ty: FxHashMap<ExprId, ExprProp<'db>>,
+    pat_ty: SecondaryMap<PatId, Option<TyId<'db>>>,
+    expr_ty: SecondaryMap<ExprId, Option<ExprProp<'db>>>,
     implicit_moves: FxHashSet<ExprId>,
-    const_refs: FxHashMap<ExprId, ConstRef<'db>>,
-    callables: FxHashMap<ExprId, Callable<'db>>,
+    const_refs: SecondaryMap<ExprId, Option<ConstRef<'db>>>,
+    value_path_refs: SecondaryMap<ExprId, Option<ValuePathRef<'db>>>,
+    callables: SecondaryMap<ExprId, Option<Callable<'db>>>,
+    semantic_expr_lowering: SecondaryMap<ExprId, Option<SemanticExprLowering<'db>>>,
+    record_init_lowering: SecondaryMap<ExprId, Option<super::RecordInitLowering<'db>>>,
+    resolved_field_index: SecondaryMap<ExprId, Option<u16>>,
 
     deferred: Vec<DeferredTask<'db>>,
 
@@ -73,18 +80,18 @@ pub(crate) struct TyCheckEnv<'db> {
     /// Param bindings for transfer to TypedBody
     param_bindings: Vec<LocalBinding<'db>>,
     /// Pat bindings for transfer to TypedBody
-    pat_bindings: FxHashMap<PatId, LocalBinding<'db>>,
-    local_borrow_providers: FxHashMap<PatId, ConcreteBorrowProvider>,
+    pat_bindings: SecondaryMap<PatId, Option<LocalBinding<'db>>>,
+    local_borrow_providers: SecondaryMap<PatId, Option<ProviderAddressSpace>>,
     /// Binding capture mode for local variables (keyed by the pattern that introduces them)
-    pat_binding_modes: FxHashMap<PatId, PatBindingMode>,
+    pat_binding_modes: SecondaryMap<PatId, Option<PatBindingMode>>,
     pattern_store: PatternStore<'db>,
-    pattern_status: FxHashMap<PatId, PatternAnalysisStatus>,
+    pattern_status: SecondaryMap<PatId, PatternAnalysisStatus>,
 
     /// Resolved effect arguments at call sites, keyed by the call expression.
-    call_effect_args: FxHashMap<ExprId, Vec<super::ResolvedEffectArg<'db>>>,
+    call_effect_args: SecondaryMap<ExprId, Option<Vec<super::ResolvedEffectArg<'db>>>>,
 
     /// Resolved Seq trait methods for for-loops, keyed by the for statement.
-    for_loop_seq: FxHashMap<StmtId, ForLoopSeq<'db>>,
+    for_loop_seq: SecondaryMap<StmtId, Option<ForLoopSeq<'db>>>,
 }
 
 impl<'db> TyCheckEnv<'db> {
@@ -184,11 +191,15 @@ impl<'db> TyCheckEnv<'db> {
             owner,
             owner_scope,
             body,
-            pat_ty: FxHashMap::default(),
-            expr_ty: FxHashMap::default(),
+            pat_ty: SecondaryMap::new(),
+            expr_ty: SecondaryMap::new(),
             implicit_moves: FxHashSet::default(),
-            const_refs: FxHashMap::default(),
-            callables: FxHashMap::default(),
+            const_refs: SecondaryMap::new(),
+            value_path_refs: SecondaryMap::new(),
+            callables: SecondaryMap::new(),
+            semantic_expr_lowering: SecondaryMap::new(),
+            record_init_lowering: SecondaryMap::new(),
+            resolved_field_index: SecondaryMap::new(),
             deferred: Vec::new(),
             effect_env: keyed_effect_env::EffectEnv::new(),
             effect_bounds: ThinVec::new(),
@@ -199,13 +210,13 @@ impl<'db> TyCheckEnv<'db> {
             loop_stack: Vec::new(),
             expr_stack: Vec::new(),
             param_bindings: Vec::new(),
-            pat_bindings: FxHashMap::default(),
-            local_borrow_providers: FxHashMap::default(),
-            pat_binding_modes: FxHashMap::default(),
+            pat_bindings: SecondaryMap::new(),
+            local_borrow_providers: SecondaryMap::new(),
+            pat_binding_modes: SecondaryMap::new(),
             pattern_store: PatternStore::default(),
-            pattern_status: FxHashMap::default(),
-            call_effect_args: FxHashMap::default(),
-            for_loop_seq: FxHashMap::default(),
+            pattern_status: SecondaryMap::with_default(PatternAnalysisStatus::Invalid),
+            call_effect_args: SecondaryMap::new(),
+            for_loop_seq: SecondaryMap::new(),
         };
 
         env.enter_scope(body.expr(db));
@@ -301,25 +312,42 @@ impl<'db> TyCheckEnv<'db> {
     }
 
     fn register_func_effect_bindings(&mut self, func: Func<'db>) {
-        self.effect_bounds
-            .extend(collect_effect_constraints_for_func(self.db, func));
-        for binding in func.effect_bindings(self.db) {
-            if !matches!(binding.key_kind, EffectKeyKind::Type | EffectKeyKind::Trait) {
+        let effect_bounds = func
+            .effect_requirements(self.db)
+            .iter()
+            .filter_map(|binding| {
+                let trait_inst = binding.key.key_trait()?;
+                self.resolved_provider_binding(binding.binding_site, binding.binding_idx as usize)
+                    .map_or(Some(trait_inst), |provider| {
+                        Some(super::super::instantiate_trait_self(
+                            self.db,
+                            trait_inst,
+                            provider.provider_ty,
+                        ))
+                    })
+            })
+            .collect::<Vec<_>>();
+        self.effect_bounds.extend(effect_bounds);
+        for binding in func.effect_requirements(self.db) {
+            if !matches!(
+                binding.key.kind(),
+                EffectKeyKind::Type | EffectKeyKind::Trait
+            ) {
                 continue;
             }
             let idx = binding.binding_idx as usize;
-            let local_binding = LocalBinding::EffectParam {
-                site: EffectParamSite::Func(func),
-                idx,
-                key_path: binding.binding_path,
-                is_mut: binding.is_mut,
+            let Some(resolved_binding) =
+                self.resolved_effect_binding(EffectParamSite::Func(func), idx)
+            else {
+                continue;
             };
-            if let Some(ident) = Some(binding.binding_name) {
-                self.var_env
-                    .last_mut()
-                    .expect("function scope exists")
-                    .register_var(ident, local_binding);
-            }
+            self.var_env
+                .last_mut()
+                .expect("function scope exists")
+                .register_var(
+                    resolved_binding.requirement.binding_name,
+                    LocalBinding::effect_param(&resolved_binding),
+                );
         }
     }
 
@@ -350,16 +378,41 @@ impl<'db> TyCheckEnv<'db> {
             .map(|(contract, site)| (contract, EffectEnvView::new(site)))
     }
 
-    pub(super) fn semantic_effect_binding(
+    pub(super) fn semantic_effect_requirement(
         &self,
         site: EffectParamSite<'db>,
         idx: usize,
-    ) -> Option<crate::core::semantic::EffectBinding<'db>> {
+    ) -> Option<EffectRequirement<'db>> {
+        self.resolved_effect_binding(site, idx)
+            .map(|binding| binding.requirement)
+    }
+
+    pub(super) fn resolved_effect_binding(
+        &self,
+        site: EffectParamSite<'db>,
+        idx: usize,
+    ) -> Option<ResolvedEffectBindingInfo<'db>> {
+        EffectEnvView::new(site).resolved_binding(self.db, idx)
+    }
+
+    pub(super) fn provider_binding(
+        &self,
+        site: EffectParamSite<'db>,
+        provider_idx: u32,
+    ) -> Option<ProviderBinding<'db>> {
         EffectEnvView::new(site)
-            .bindings(self.db)
-            .iter()
-            .find(|binding| binding.binding_idx as usize == idx)
-            .cloned()
+            .providers(self.db)
+            .into_iter()
+            .find(|provider| provider.provider_idx == provider_idx)
+    }
+
+    pub(super) fn resolved_provider_binding(
+        &self,
+        site: EffectParamSite<'db>,
+        idx: usize,
+    ) -> Option<ProviderBinding<'db>> {
+        self.resolved_effect_binding(site, idx)
+            .map(|binding| binding.provider)
     }
 
     fn effect_binding_scope(&self, site: EffectParamSite<'db>) -> ScopeId<'db> {
@@ -371,111 +424,163 @@ impl<'db> TyCheckEnv<'db> {
         }
     }
 
-    fn fallback_effect_param_ty(
+    fn resolved_effect_param_ty(
         &self,
         site: EffectParamSite<'db>,
         idx: usize,
     ) -> Option<TyId<'db>> {
-        let binding = self.semantic_effect_binding(site, idx)?;
-        match binding.source {
-            EffectSource::Root => match binding.key_kind {
-                EffectKeyKind::Trait => {
-                    let (contract, _) = self.contract_effect_site()?;
-                    super::super::resolve_default_root_effect_ty(
-                        self.db,
-                        contract.scope(),
-                        self.base_assumptions(),
-                    )
-                }
-                EffectKeyKind::Type => binding.key_ty,
-                EffectKeyKind::Other => None,
-            },
-            EffectSource::Field(_) => binding.key_ty,
-        }
+        EffectEnvView::new(site).resolved_binding_ty(self.db, idx)
     }
 
-    fn register_contract_effect_bindings(&mut self, base_assumptions: PredicateListId<'db>) {
-        let Some((contract, view)) = self.contract_effect_env_view() else {
+    fn register_contract_effect_bindings(&mut self, _base_assumptions: PredicateListId<'db>) {
+        let Some((_contract, view)) = self.contract_effect_env_view() else {
             return;
         };
-        let root_effect_ty = super::super::resolve_default_root_effect_ty(
-            self.db,
-            contract.scope(),
-            base_assumptions,
-        );
-
-        for binding in view.bindings(self.db) {
-            if !matches!(binding.key_kind, EffectKeyKind::Type | EffectKeyKind::Trait) {
+        for binding in view.requirements(self.db) {
+            if !matches!(
+                binding.key.kind(),
+                EffectKeyKind::Type | EffectKeyKind::Trait
+            ) {
                 continue;
             }
 
-            if matches!(binding.source, EffectSource::Root)
-                && let (Some(root_effect_ty), Some(trait_inst)) =
-                    (root_effect_ty, binding.key_trait)
-            {
+            if let (Some(provider), Some(trait_inst)) = (
+                self.resolved_provider_binding(binding.binding_site, binding.binding_idx as usize),
+                binding.key.key_trait(),
+            ) {
                 self.effect_bounds
                     .push(super::super::instantiate_trait_self(
                         self.db,
                         trait_inst,
-                        root_effect_ty,
+                        provider.provider_ty,
                     ));
             }
 
             let idx = binding.binding_idx as usize;
-            let local_binding = match binding.source {
-                EffectSource::Root => LocalBinding::EffectParam {
-                    site: binding.binding_site,
-                    idx,
-                    key_path: binding.binding_path,
-                    is_mut: binding.is_mut,
-                },
-                EffectSource::Field(_) => LocalBinding::Param {
-                    site: ParamSite::EffectField(binding.binding_site),
-                    idx,
-                    mode: FuncParamMode::View,
-                    ty: binding
-                        .key_ty
-                        .unwrap_or_else(|| TyId::invalid(self.db, InvalidCause::Other)),
-                    is_mut: binding.is_mut,
-                },
+            let Some(resolved_binding) = self.resolved_effect_binding(binding.binding_site, idx)
+            else {
+                continue;
             };
-            self.var_env
-                .last_mut()
-                .expect("scope exists")
-                .register_var(binding.binding_name, local_binding);
+            self.var_env.last_mut().expect("scope exists").register_var(
+                resolved_binding.requirement.binding_name,
+                LocalBinding::effect_param(&resolved_binding),
+            );
         }
     }
 
     pub(super) fn typed_expr(&self, expr: ExprId) -> Option<ExprProp<'db>> {
-        self.expr_ty.get(&expr).cloned()
+        self.expr_ty[expr].clone()
     }
 
     pub(super) fn expr_place(&self, expr: ExprId) -> Option<Place<'db>> {
-        Place::from_expr_in_body(self.db, self.body, expr, |expr| {
-            self.typed_expr(expr).and_then(|p| p.binding)
-        })
+        Place::from_expr_in_body(
+            self.db,
+            self.body,
+            expr,
+            |expr| self.typed_expr(expr).and_then(|p| p.binding),
+            |expr| {
+                self.typed_expr(expr).map_or_else(
+                    || TyId::invalid(self.db, InvalidCause::Other),
+                    |prop| prop.ty,
+                )
+            },
+        )
     }
 
     pub(super) fn register_callable(&mut self, expr: ExprId, callable: Callable<'db>) {
-        if self.callables.insert(expr, callable).is_some() {
+        if self.callables[expr].replace(callable).is_some() {
             panic!("callable is already registered for the given expr")
         }
     }
 
     pub(super) fn register_const_ref(&mut self, expr: ExprId, const_ref: ConstRef<'db>) {
-        if self.const_refs.insert(expr, const_ref).is_some() {
+        if self.const_refs[expr].replace(const_ref).is_some() {
             panic!("const ref is already registered for the given expr")
         }
     }
 
+    pub(super) fn register_value_path_ref(&mut self, expr: ExprId, value_path: ValuePathRef<'db>) {
+        if self.value_path_refs[expr].replace(value_path).is_some() {
+            panic!("value path ref is already registered for the given expr")
+        }
+    }
+
     pub(super) fn register_for_loop_seq(&mut self, stmt: StmtId, seq: ForLoopSeq<'db>) {
-        if self.for_loop_seq.insert(stmt, seq).is_some() {
+        if self.for_loop_seq[stmt].replace(seq).is_some() {
             panic!("for loop seq is already registered for the given stmt")
         }
     }
 
     pub(super) fn callable_expr(&self, expr: ExprId) -> Option<&Callable<'db>> {
-        self.callables.get(&expr)
+        self.callables[expr].as_ref()
+    }
+
+    pub(super) fn register_semantic_expr_lowering(
+        &mut self,
+        expr: ExprId,
+        lowering: SemanticExprLowering<'db>,
+    ) {
+        if self.semantic_expr_lowering[expr]
+            .replace(lowering)
+            .is_some()
+        {
+            panic!("semantic expr lowering is already registered for the given expr")
+        }
+    }
+
+    pub(super) fn register_record_init_lowering(
+        &mut self,
+        expr: ExprId,
+        lowering: super::RecordInitLowering<'db>,
+    ) {
+        if self.record_init_lowering[expr].replace(lowering).is_some() {
+            panic!("record init lowering is already registered for the given expr")
+        }
+    }
+
+    pub(super) fn register_resolved_field_index(&mut self, expr: ExprId, field_index: u16) {
+        if self.resolved_field_index[expr]
+            .replace(field_index)
+            .is_some()
+        {
+            panic!("resolved field index is already registered for the given expr")
+        }
+    }
+
+    pub(super) fn register_semantic_call(&mut self, expr: ExprId, callable: Callable<'db>) {
+        self.register_callable(expr, callable.clone());
+        self.register_semantic_expr_lowering(expr, SemanticExprLowering::Call { callable });
+    }
+
+    pub(super) fn register_code_region_intrinsic(
+        &mut self,
+        expr: ExprId,
+        callable: Callable<'db>,
+        region_arg: ExprId,
+        kind: super::CodeRegionIntrinsicKind,
+    ) {
+        self.register_callable(expr, callable.clone());
+        self.register_semantic_expr_lowering(
+            expr,
+            SemanticExprLowering::CodeRegionIntrinsic {
+                callable,
+                region_arg,
+                kind,
+            },
+        );
+    }
+
+    pub(super) fn register_const_intrinsic(
+        &mut self,
+        expr: ExprId,
+        callable: Callable<'db>,
+        kind: ConstIntrinsicKind,
+    ) {
+        self.register_callable(expr, callable.clone());
+        self.register_semantic_expr_lowering(
+            expr,
+            SemanticExprLowering::ConstIntrinsic { callable, kind },
+        );
     }
 
     pub(super) fn pattern_store(&self) -> &PatternStore<'db> {
@@ -560,53 +665,47 @@ impl<'db> TyCheckEnv<'db> {
         match binding {
             LocalBinding::Local { pat, .. } => self
                 .pat_ty
-                .get(pat)
+                .get(*pat)
                 .copied()
+                .flatten()
                 .unwrap_or_else(|| TyId::invalid(self.db, InvalidCause::Other)),
 
             LocalBinding::Param { ty, .. } => *ty,
 
             LocalBinding::EffectParam { site, idx, .. } => self
-                .effect_env
-                .lookup_by_binding(*binding)
-                .map(|binding| binding.ty)
-                .or_else(|| self.fallback_effect_param_ty(*site, *idx))
+                .resolved_effect_param_ty(*site, *idx)
                 .unwrap_or_else(|| TyId::invalid(self.db, InvalidCause::Other)),
         }
     }
 
     pub(super) fn pat_binding(&self, pat: PatId) -> Option<LocalBinding<'db>> {
-        self.pat_bindings.get(&pat).copied()
+        self.pat_bindings[pat]
     }
 
-    pub(super) fn local_borrow_provider(&self, pat: PatId) -> Option<ConcreteBorrowProvider> {
-        self.local_borrow_providers.get(&pat).copied()
+    pub(super) fn local_borrow_provider(&self, pat: PatId) -> Option<ProviderAddressSpace> {
+        self.local_borrow_providers[pat]
     }
 
     pub(super) fn set_local_borrow_provider(
         &mut self,
         pat: PatId,
-        provider: Option<ConcreteBorrowProvider>,
+        provider: Option<ProviderAddressSpace>,
     ) {
-        if let Some(provider) = provider {
-            self.local_borrow_providers.insert(pat, provider);
-        } else {
-            self.local_borrow_providers.remove(&pat);
-        }
+        self.local_borrow_providers[pat] = provider;
     }
 
     pub(super) fn set_pat_binding_mode(&mut self, pat: PatId, mode: PatBindingMode) {
-        if self.pat_bindings.contains_key(&pat) {
-            self.pat_binding_modes.insert(pat, mode);
+        if self.pat_bindings[pat].is_some() {
+            self.pat_binding_modes[pat] = Some(mode);
         }
     }
 
     pub(super) fn discard_pat_binding(&mut self, pat: PatId) {
-        let Some(binding) = self.pat_bindings.remove(&pat) else {
+        let Some(binding) = self.pat_bindings[pat].take() else {
             return;
         };
-        self.local_borrow_providers.remove(&pat);
-        self.pat_binding_modes.remove(&pat);
+        self.local_borrow_providers[pat] = None;
+        self.pat_binding_modes[pat] = None;
         self.pending_vars.retain(|_, pending| *pending != binding);
     }
 
@@ -623,9 +722,8 @@ impl<'db> TyCheckEnv<'db> {
         call_expr: ExprId,
         arg: super::ResolvedEffectArg<'db>,
     ) {
-        self.call_effect_args
-            .entry(call_expr)
-            .or_default()
+        self.call_effect_args[call_expr]
+            .get_or_insert_default()
             .push(arg);
     }
 
@@ -673,11 +771,11 @@ impl<'db> TyCheckEnv<'db> {
     }
 
     pub(super) fn type_expr(&mut self, expr: ExprId, typed: ExprProp<'db>) {
-        self.expr_ty.insert(expr, typed);
+        self.expr_ty[expr] = Some(typed);
     }
 
     pub(super) fn type_pat(&mut self, pat: PatId, ty: TyId<'db>) {
-        self.pat_ty.insert(pat, ty);
+        self.pat_ty[pat] = Some(ty);
     }
 
     pub(super) fn alloc_validated_pat(&mut self, pat: ValidatedPat<'db>) -> ValidatedPatId {
@@ -691,7 +789,7 @@ impl<'db> TyCheckEnv<'db> {
                 self.pattern_store.clear_root(pat)
             }
         }
-        self.pattern_status.insert(pat, status);
+        self.pattern_status[pat] = status;
     }
 
     /// Registers a new pending binding.
@@ -719,10 +817,10 @@ impl<'db> TyCheckEnv<'db> {
     ) -> Option<LocalBinding<'db>> {
         // Also store in pat_bindings for transfer to TypedBody
         if let LocalBinding::Local { pat, .. } = binding {
-            self.pat_bindings.insert(pat, binding);
-            self.pat_binding_modes
-                .entry(pat)
-                .or_insert(PatBindingMode::ByValue);
+            self.pat_bindings[pat] = Some(binding);
+            if self.pat_binding_modes[pat].is_none() {
+                self.pat_binding_modes[pat] = Some(PatBindingMode::ByValue);
+            }
         }
         self.pending_vars.insert(name, binding)
     }
@@ -792,53 +890,94 @@ impl<'db> TyCheckEnv<'db> {
 
         self.expr_ty
             .values_mut()
+            .flatten()
             .for_each(|ty| *ty = ty.clone().fold_with(self.db, &mut prober));
 
         self.pat_ty
             .values_mut()
+            .flatten()
             .for_each(|ty| *ty = ty.fold_with(self.db, &mut prober));
 
         self.const_refs
             .values_mut()
+            .flatten()
             .for_each(|cref| *cref = (*cref).fold_with(self.db, &mut prober));
 
-        self.call_effect_args.values_mut().for_each(|args| {
-            for arg in args {
-                arg.instantiated_target_ty = arg
-                    .instantiated_target_ty
-                    .map(|ty| ty.fold_with(self.db, &mut prober));
-            }
-        });
+        self.call_effect_args
+            .values_mut()
+            .flatten()
+            .for_each(|args| {
+                for arg in args {
+                    arg.instantiated_key_ty = arg
+                        .instantiated_key_ty
+                        .map(|ty| ty.fold_with(self.db, &mut prober));
+                    arg.provider_target_ty = arg
+                        .provider_target_ty
+                        .map(|ty| ty.fold_with(self.db, &mut prober));
+                }
+            });
         let assumptions = self.assumptions.fold_with(self.db, &mut prober);
         let pattern_store = self.pattern_store.fold_with(self.db, &mut prober);
 
-        let callables = self
-            .callables
-            .into_iter()
-            .map(|(expr, callable)| (expr, callable.fold_with(self.db, &mut prober)))
-            .collect();
+        self.semantic_expr_lowering
+            .values_mut()
+            .flatten()
+            .for_each(|lowering| *lowering = lowering.clone().fold_with(self.db, &mut prober));
+        self.record_init_lowering
+            .values_mut()
+            .flatten()
+            .for_each(|lowering| *lowering = (*lowering).fold_with(self.db, &mut prober));
 
-        let for_loop_seq = self
-            .for_loop_seq
-            .into_iter()
-            .map(|(stmt, seq)| (stmt, seq.fold_with(self.db, &mut prober)))
-            .collect();
+        self.for_loop_seq
+            .values_mut()
+            .flatten()
+            .for_each(|seq| *seq = seq.clone().fold_with(self.db, &mut prober));
+        let mut expr_place = SecondaryMap::new();
+        let mut expr_places: PrimaryMap<super::ExprPlaceId, Place<'db>> = PrimaryMap::new();
+        for expr in self.body.exprs(self.db).keys() {
+            if let Some(place) = Place::from_expr_in_body(
+                self.db,
+                self.body,
+                expr,
+                |expr| self.expr_ty[expr].as_ref().and_then(|prop| prop.binding),
+                |expr| {
+                    self.expr_ty[expr].as_ref().map_or_else(
+                        || TyId::invalid(self.db, InvalidCause::Other),
+                        |prop| prop.ty,
+                    )
+                },
+            ) {
+                let place_id = expr_places.push(place);
+                expr_place[expr] = place_id.into();
+            }
+        }
+        let result_ty = self.expr_ty[self.body.expr(self.db)].as_ref().map_or_else(
+            || TyId::invalid(self.db, InvalidCause::Other),
+            |prop| prop.ty,
+        );
 
         TypedBody {
             body: Some(self.body),
+            result_ty,
             assumptions,
             pat_ty: self.pat_ty,
             expr_ty: self.expr_ty,
             implicit_moves: self.implicit_moves,
             const_refs: self.const_refs,
-            callables,
+            value_path_refs: self.value_path_refs,
+            semantic_expr_lowering: self.semantic_expr_lowering,
+            record_init_lowering: self.record_init_lowering,
+            resolved_field_index: self.resolved_field_index,
             call_effect_args: self.call_effect_args,
+            return_borrow_provider: None,
             param_bindings: self.param_bindings,
             pat_bindings: self.pat_bindings,
             pat_binding_modes: self.pat_binding_modes,
             pattern_store,
             pattern_status: self.pattern_status,
-            for_loop_seq,
+            for_loop_seq: self.for_loop_seq,
+            expr_place,
+            expr_places,
         }
     }
 
@@ -880,49 +1019,35 @@ impl<'db> TyChecker<'db> {
 
     fn seed_func_effect_witnesses(&mut self, func: Func<'db>) {
         let assumptions = self.env.base_assumptions();
-        let provider_map = place_effect_provider_param_index_map(self.db, func);
-        let provider_params = CallableDef::Func(func).params(self.db);
 
-        for binding in func.effect_bindings(self.db) {
-            if !matches!(binding.key_kind, EffectKeyKind::Type | EffectKeyKind::Trait) {
+        for binding in func.effect_requirements(self.db) {
+            if !matches!(
+                binding.key.kind(),
+                EffectKeyKind::Type | EffectKeyKind::Trait
+            ) {
                 continue;
             }
 
             let idx = binding.binding_idx as usize;
-            let Some(provider_param_idx) = provider_map.get(idx).copied().flatten() else {
-                panic!("missing provider param for effect at index {idx}");
-            };
-            let Some(&provider_ty) = provider_params.get(provider_param_idx) else {
-                panic!("provider param index {provider_param_idx} out of range");
-            };
-            let provided_ty = match binding.key_kind {
-                EffectKeyKind::Trait => provider_ty,
-                EffectKeyKind::Type => binding
-                    .key_ty
-                    .unwrap_or_else(|| TyId::invalid(self.db, InvalidCause::Other)),
-                EffectKeyKind::Other => unreachable!(),
-            };
-            let local_binding = LocalBinding::EffectParam {
-                site: EffectParamSite::Func(func),
-                idx,
-                key_path: binding.binding_path,
-                is_mut: binding.is_mut,
-            };
+            let resolved_binding = self
+                .env
+                .resolved_effect_binding(EffectParamSite::Func(func), idx)
+                .unwrap_or_else(|| panic!("missing provider binding for effect at index {idx}"));
+            let local_binding = LocalBinding::effect_param(&resolved_binding);
             let provided = ProvidedEffect {
                 origin: EffectOrigin::Param {
                     site: EffectParamSite::Func(func),
                     index: idx,
-                    name: func
-                        .effect_params(self.db)
-                        .nth(idx)
-                        .and_then(|effect| effect.name(self.db)),
+                    name: Some(resolved_binding.requirement.binding_name),
                 },
-                ty: provided_ty,
+                ty: EffectEnvView::new(EffectParamSite::Func(func))
+                    .resolved_binding_ty(self.db, idx)
+                    .unwrap_or_else(|| self.env.lookup_binding_ty(&local_binding)),
                 is_mut: local_binding.is_mut(),
                 binding: Some(local_binding),
             };
 
-            if let Some(req) = EffectRequirementDecl::from_effect_binding(self.db, binding)
+            if let Some(req) = EffectRequirementDecl::from_effect_requirement(self.db, binding)
                 && let Some(forwarder) =
                     seed_forwarder_from_requirement(self, &req, provided, func.scope(), assumptions)
             {
@@ -934,19 +1059,17 @@ impl<'db> TyChecker<'db> {
     }
 
     fn seed_contract_effect_witnesses(&mut self) {
-        let Some((contract, view)) = self.env.contract_effect_env_view() else {
+        let Some((_contract, view)) = self.env.contract_effect_env_view() else {
             return;
         };
 
         let assumptions = self.env.base_assumptions();
-        let root_effect_ty =
-            super::super::resolve_default_root_effect_ty(self.db, contract.scope(), assumptions);
-
-        for binding in view.bindings(self.db) {
-            let Some(req) = EffectRequirementDecl::from_effect_binding(self.db, binding) else {
+        for binding in view.requirements(self.db) {
+            let Some(req) = EffectRequirementDecl::from_effect_requirement(self.db, &binding)
+            else {
                 continue;
             };
-            let Some(provider) = self.contract_effect_provider(binding, root_effect_ty) else {
+            let Some(provider) = self.contract_effect_provider(&binding) else {
                 continue;
             };
             self.seed_constrained_contract_requirement_witness(
@@ -960,8 +1083,7 @@ impl<'db> TyChecker<'db> {
 
     fn contract_effect_provider(
         &self,
-        binding: &crate::core::semantic::EffectBinding<'db>,
-        root_effect_ty: Option<TyId<'db>>,
+        binding: &EffectRequirement<'db>,
     ) -> Option<ProvidedEffect<'db>> {
         let idx = binding.binding_idx as usize;
         let origin = EffectOrigin::Param {
@@ -970,40 +1092,17 @@ impl<'db> TyChecker<'db> {
             name: Some(binding.binding_name),
         };
 
-        Some(match binding.source {
-            EffectSource::Root => {
-                let local_binding = LocalBinding::EffectParam {
-                    site: binding.binding_site,
-                    idx,
-                    key_path: binding.binding_path,
-                    is_mut: binding.is_mut,
-                };
-                ProvidedEffect {
-                    origin,
-                    ty: match binding.key_kind {
-                        EffectKeyKind::Trait => root_effect_ty?,
-                        EffectKeyKind::Type => binding.key_ty?,
-                        EffectKeyKind::Other => return None,
-                    },
-                    is_mut: binding.is_mut,
-                    binding: Some(local_binding),
-                }
-            }
-            EffectSource::Field(_) => {
-                let ty = binding.key_ty?;
-                ProvidedEffect {
-                    origin,
-                    ty,
-                    is_mut: binding.is_mut,
-                    binding: Some(LocalBinding::Param {
-                        site: ParamSite::EffectField(binding.binding_site),
-                        idx,
-                        mode: FuncParamMode::View,
-                        ty,
-                        is_mut: binding.is_mut,
-                    }),
-                }
-            }
+        let resolved_binding = self
+            .env
+            .resolved_effect_binding(binding.binding_site, idx)?;
+        let local_binding = LocalBinding::effect_param(&resolved_binding);
+        Some(ProvidedEffect {
+            origin,
+            ty: EffectEnvView::new(binding.binding_site)
+                .resolved_binding_ty(self.db, idx)
+                .unwrap_or_else(|| self.env.lookup_binding_ty(&local_binding)),
+            is_mut: binding.is_mut,
+            binding: Some(local_binding),
         })
     }
 
@@ -1211,7 +1310,8 @@ pub struct ExprProp<'db> {
     pub ty: TyId<'db>,
     pub is_mut: bool,
     pub binding: Option<LocalBinding<'db>>,
-    pub borrow_provider: Option<ConcreteBorrowProvider>,
+    pub borrow_provider: Option<ProviderAddressSpace>,
+    pub path_read_semantics: Option<PathReadSemantics>,
 }
 
 impl<'db> ExprProp<'db> {
@@ -1221,6 +1321,7 @@ impl<'db> ExprProp<'db> {
             is_mut,
             binding: None,
             borrow_provider: None,
+            path_read_semantics: None,
         }
     }
 
@@ -1230,27 +1331,16 @@ impl<'db> ExprProp<'db> {
             is_mut: true,
             binding: None,
             borrow_provider: None,
+            path_read_semantics: None,
         }
     }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Update)]
-pub enum ConcreteBorrowProvider {
-    Memory,
-    Storage,
-    TransientStorage,
-    Calldata,
-}
-
-impl ConcreteBorrowProvider {
-    pub fn pretty(self) -> &'static str {
-        match self {
-            Self::Memory => "memory",
-            Self::Storage => "storage",
-            Self::TransientStorage => "transient storage",
-            Self::Calldata => "calldata",
-        }
-    }
+pub enum PathReadSemantics {
+    ReuseLocal,
+    ForwardInterface,
+    MaterializeValue,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Update)]
@@ -1269,6 +1359,8 @@ pub enum LocalBinding<'db> {
     EffectParam {
         site: EffectParamSite<'db>,
         idx: usize,
+        binding_name: IdentId<'db>,
+        provider_idx: u32,
         key_path: PathId<'db>,
         is_mut: bool,
     },
@@ -1293,6 +1385,17 @@ impl<'db> LocalBinding<'db> {
         }
     }
 
+    pub(crate) fn effect_param(binding: &ResolvedEffectBindingInfo<'db>) -> Self {
+        Self::EffectParam {
+            site: binding.requirement.binding_site,
+            idx: binding.requirement.binding_idx as usize,
+            binding_name: binding.requirement.binding_name,
+            provider_idx: binding.provider.provider_idx,
+            key_path: binding.requirement.binding_path,
+            is_mut: binding.requirement.is_mut,
+        }
+    }
+
     pub(super) fn binding_name(&self, env: &TyCheckEnv<'db>) -> IdentId<'db> {
         match self {
             Self::Local { pat, .. } => {
@@ -1310,16 +1413,13 @@ impl<'db> LocalBinding<'db> {
                 idx,
                 ..
             } => env
-                .semantic_effect_binding(*effect_site, *idx)
+                .semantic_effect_requirement(*effect_site, *idx)
                 .map(|binding| binding.binding_name)
                 .or_else(|| param_name(env.db, ParamSite::EffectField(*effect_site), *idx))
                 .unwrap_or_else(|| IdentId::new(env.db, "_".to_string())),
             Self::Param { site, idx, .. } => param_name(env.db, *site, *idx)
                 .unwrap_or_else(|| IdentId::new(env.db, "_".to_string())),
-            Self::EffectParam { key_path, .. } => key_path
-                .ident(env.db)
-                .to_opt()
-                .unwrap_or_else(|| IdentId::new(env.db, "_".to_string())),
+            Self::EffectParam { binding_name, .. } => *binding_name,
         }
     }
 
@@ -1340,11 +1440,46 @@ impl<'db> LocalBinding<'db> {
     }
 
     /// Get the definition span for this binding given just the body.
-    pub(super) fn def_span_in_body(&self, body: Body<'db>) -> DynLazySpan<'db> {
+    pub(crate) fn def_span_in_body(&self, body: Body<'db>) -> DynLazySpan<'db> {
         match self {
             LocalBinding::Local { pat, .. } => pat.span(body).into(),
             LocalBinding::Param { site, idx, .. } => param_span(*site, *idx),
             LocalBinding::EffectParam { site, idx, .. } => effect_param_span(*site, *idx),
+        }
+    }
+
+    pub(crate) fn pretty_name_in_body(
+        &self,
+        db: &'db dyn HirAnalysisDb,
+        body: Body<'db>,
+    ) -> String {
+        match self {
+            Self::Local { pat, .. } => {
+                let Partial::Present(Pat::Path(Partial::Present(path), ..)) = pat.data(db, body)
+                else {
+                    return "_".to_string();
+                };
+                path.ident(db)
+                    .to_opt()
+                    .map(|ident| ident.data(db).to_string())
+                    .unwrap_or_else(|| "_".to_string())
+            }
+            Self::Param {
+                site: ParamSite::EffectField(effect_site),
+                idx,
+                ..
+            } => effect_param_name(db, *effect_site, *idx)
+                .or_else(|| param_name(db, ParamSite::EffectField(*effect_site), *idx))
+                .map(|ident| ident.data(db).to_string())
+                .unwrap_or_else(|| format!("%param{idx}")),
+            Self::Param { site, idx, .. } => param_name(db, *site, *idx)
+                .map(|ident| ident.data(db).to_string())
+                .unwrap_or_else(|| format!("%param{idx}")),
+            Self::EffectParam {
+                binding_name, idx, ..
+            } => Some(*binding_name)
+                .map(|ident| ident.data(db).to_string())
+                .unwrap_or_else(|| format!("%effect{idx}")),
         }
     }
 }

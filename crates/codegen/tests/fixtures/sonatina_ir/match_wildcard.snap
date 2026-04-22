@@ -5,52 +5,73 @@ input_file: crates/codegen/tests/fixtures/match_wildcard.fe
 ---
 target = "evm-ethereum-osaka"
 
-func private %match_with_wildcard(v0.i256) -> i8 {
+type @__fe_layout_0 = {i8, i8, i8};
+type @__fe_layout_1 = enum {
+    #Red,
+    #Green,
+    #Blue,
+};
+
+func private %__fe_main_root() {
     block0:
-        jump block4;
+        jump block1;
 
     block1:
-        jump block2;
+        v0.@__fe_layout_0 = call %main;
+        evm_stop;
+}
+
+func private %main() -> @__fe_layout_0 {
+    block0:
+        jump block1;
+
+    block1:
+        v0.@__fe_layout_1 = enum.make @__fe_layout_1 #Red;
+        v1.i8 = call %match_with_wildcard v0;
+        v3.i8 = call %wildcard_not_last 1.i8;
+        v4.@__fe_layout_1 = enum.make @__fe_layout_1 #Green;
+        v5.i8 = call %multiple_before_wildcard v4;
+        v6.objref<@__fe_layout_0> = obj.alloc @__fe_layout_0;
+        v8.objref<i8> = obj.proj v6 0.i256;
+        obj.store v8 v1;
+        v10.objref<i8> = obj.proj v6 1.i256;
+        obj.store v10 v3;
+        v12.objref<i8> = obj.proj v6 2.i256;
+        obj.store v12 v5;
+        v13.@__fe_layout_0 = obj.load v6;
+        return v13;
+}
+
+func private %match_with_wildcard(v0.@__fe_layout_1) -> i8 {
+    block0:
+        jump block1;
+
+    block1:
+        v2.enumtag(@__fe_layout_1) = enum.tag v0;
+        br_table v2 block4 (0.enumtag(@__fe_layout_1) block3);
 
     block2:
-        v4.i8 = phi (1.i8 block1) (0.i8 block3);
+        v4.i8 = phi (1.i8 block3) (0.i8 block4);
         return v4;
 
     block3:
         jump block2;
 
     block4:
-        br_table v0 block3 (0.i256 block1);
+        jump block2;
 }
 
-func private %wildcard_not_last(v0.i8) -> i8 {
+func private %multiple_before_wildcard(v0.@__fe_layout_1) -> i8 {
     block0:
-        jump block4;
+        jump block1;
 
     block1:
-        jump block2;
+        v2.enumtag(@__fe_layout_1) = enum.tag v0;
+        br_table v2 block5 (0.enumtag(@__fe_layout_1) block3) (1.enumtag(@__fe_layout_1) block4);
 
     block2:
-        v4.i8 = phi (10.i8 block1) (99.i8 block3);
-        return v4;
-
-    block3:
-        jump block2;
-
-    block4:
-        br_table v0 block3 (0.i8 block1);
-}
-
-func private %multiple_before_wildcard(v0.i256) -> i8 {
-    block0:
-        jump block5;
-
-    block1:
-        jump block2;
-
-    block2:
-        v4.i8 = phi (1.i8 block1) (2.i8 block3) (3.i8 block4);
-        return v4;
+        v5.i8 = phi (1.i8 block3) (2.i8 block4) (3.i8 block5);
+        return v5;
 
     block3:
         jump block2;
@@ -59,18 +80,38 @@ func private %multiple_before_wildcard(v0.i256) -> i8 {
         jump block2;
 
     block5:
-        br_table v0 block4 (0.i256 block1) (1.i256 block3);
+        jump block2;
 }
 
-func private %__fe_sonatina_entry() {
+func private %wildcard_not_last(v0.i8) -> i8 {
     block0:
-        v1.i8 = call %match_with_wildcard 0.i256;
-        evm_stop;
+        v1.*i8 = alloca i8;
+        mstore v1 v0 i8;
+        jump block1;
+
+    block1:
+        v2.i256 = mload v1 i256;
+        v3.i8 = trunc v2 i8;
+        v5.i1 = eq v3 0.i8;
+        br v5 block3 block5;
+
+    block2:
+        v6.i8 = phi (10.i8 block3) (99.i8 block4);
+        return v6;
+
+    block3:
+        jump block2;
+
+    block4:
+        jump block2;
+
+    block5:
+        jump block4;
 }
 
 
-object @Contract {
-    section runtime {
-        entry %__fe_sonatina_entry;
+object @main {
+    section main {
+        entry %__fe_main_root;
     }
 }

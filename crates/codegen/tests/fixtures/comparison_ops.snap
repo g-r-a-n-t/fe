@@ -1,60 +1,74 @@
 ---
 source: crates/codegen/tests/yul.rs
-assertion_line: 33
 expression: output
 input_file: tests/fixtures/comparison_ops.fe
 ---
-function $comparison_ops() -> ret {
-  let v0 := 1
-  let v1 := 2
-  let v2 := 3
-  let v3 := $u256_h3271ca15373d4483_eq_he50383edd273619f_eq(v0, v0)
-  let v4 := $u256_h3271ca15373d4483_eq_he50383edd273619f_ne(v0, v1)
-  let v5 := $u256_h3271ca15373d4483_ord_h264f6d6d75097a_lt(v0, v1)
-  let v6 := $u256_h3271ca15373d4483_ord_h264f6d6d75097a_le(v1, v1)
-  let v7 := $u256_h3271ca15373d4483_ord_h264f6d6d75097a_gt(v2, v1)
-  let v8 := $u256_h3271ca15373d4483_ord_h264f6d6d75097a_ge(v2, v2)
-  let v9 := mload(0x40)
-  if iszero(v9) {
-    v9 := 0x80
+object "main" {
+  code {
+    function $__fe_main_root() {
+      let v0 := $comparison_ops()
+      stop()
+    }
+    function $comparison_ops() -> ret {
+      let v19 := 0x01
+      let v3 := v19
+      let v20 := 0x01
+      let v0 := v20
+      let v21 := 0x02
+      let v4 := v21
+      let v22 := 0x02
+      let v1 := v22
+      let v23 := 0x03
+      let v5 := v23
+      let v24 := 0x03
+      let v2 := v24
+      let v25 := 0x01
+      let v6 := v25
+      let v26 := 1
+      let v7 := iszero(iszero(v26))
+      let v27 := 0x02
+      let v8 := v27
+      let v28 := 1
+      let v9 := iszero(iszero(v28))
+      let v29 := 0x02
+      let v10 := v29
+      let v30 := 1
+      let v11 := iszero(iszero(v30))
+      let v31 := 0x02
+      let v12 := v31
+      let v32 := 1
+      let v13 := iszero(iszero(v32))
+      let v33 := 0x02
+      let v14 := v33
+      let v34 := 1
+      let v15 := iszero(iszero(v34))
+      let v35 := 0x03
+      let v16 := v35
+      let v36 := 1
+      let v17 := iszero(iszero(v36))
+      let v37 := 1
+      let v38 := 1
+      let v39 := 1
+      let v40 := 1
+      let v41 := 1
+      let v42 := 1
+      let t45 := mload(0x40)
+      if iszero(t45) {
+        t45 := 0x80
+      }
+      mstore(0x40, add(t45, 192))
+      let v44 := t45
+      mstore(v44, iszero(iszero(iszero(iszero(v37)))))
+      mstore(add(v44, 32), iszero(iszero(iszero(iszero(v38)))))
+      mstore(add(v44, 64), iszero(iszero(iszero(iszero(v39)))))
+      mstore(add(v44, 96), iszero(iszero(iszero(iszero(v40)))))
+      mstore(add(v44, 128), iszero(iszero(iszero(iszero(v41)))))
+      mstore(add(v44, 160), iszero(iszero(iszero(iszero(v42)))))
+      let v43 := v44
+      let v18 := v43
+      ret := v18
+      leave
+    }
+    $__fe_main_root()
   }
-  mstore(0x40, add(v9, 192))
-  mstore(v9, iszero(iszero(v3)))
-  mstore(add(v9, 32), iszero(iszero(v4)))
-  mstore(add(v9, 64), iszero(iszero(v5)))
-  mstore(add(v9, 96), iszero(iszero(v6)))
-  mstore(add(v9, 128), iszero(iszero(v7)))
-  mstore(add(v9, 160), iszero(iszero(v8)))
-  ret := v9
-  leave
-}
-function $u256_h3271ca15373d4483_eq_he50383edd273619f_eq($self, $other) -> ret {
-  let v0 := eq($self, $other)
-  ret := v0
-  leave
-}
-function $u256_h3271ca15373d4483_eq_he50383edd273619f_ne($self, $other) -> ret {
-  let v0 := iszero(eq($self, $other))
-  ret := v0
-  leave
-}
-function $u256_h3271ca15373d4483_ord_h264f6d6d75097a_lt($self, $other) -> ret {
-  let v0 := lt($self, $other)
-  ret := v0
-  leave
-}
-function $u256_h3271ca15373d4483_ord_h264f6d6d75097a_le($self, $other) -> ret {
-  let v0 := iszero(gt($self, $other))
-  ret := v0
-  leave
-}
-function $u256_h3271ca15373d4483_ord_h264f6d6d75097a_gt($self, $other) -> ret {
-  let v0 := gt($self, $other)
-  ret := v0
-  leave
-}
-function $u256_h3271ca15373d4483_ord_h264f6d6d75097a_ge($self, $other) -> ret {
-  let v0 := iszero(lt($self, $other))
-  ret := v0
-  leave
 }

@@ -1,5 +1,14 @@
-use fe_hir::hir_def::{InlineAttrErrorKind, Partial, Stmt};
 use fe_hir::test_db::HirAnalysisTestDb;
+use fe_hir::{
+    analysis::{
+        semantic::{
+            SExpr, SStmtKind, SemanticCodeRegionRef, get_or_build_semantic_instance,
+            identity_semantic_instance_key,
+        },
+        ty::ty_check::{BodyOwner, check_func_body},
+    },
+    hir_def::{InlineAttrErrorKind, ManualContractRootAttr, Partial, Stmt},
+};
 
 #[test]
 fn expr_valued_inline_attr_stays_invalid() {
@@ -208,4 +217,388 @@ contract C {
         .expect("expected one recv arm at 0:0");
 
     assert!(!arm.is_payable(&db));
+}
+
+#[test]
+fn manual_contract_root_attr_parses_valid_forms() {
+    let mut db = HirAnalysisTestDb::default();
+    let file = db.new_stand_alone(
+        "manual_contract_root_attr.fe".into(),
+        r#"use std::evm::Evm
+
+#[contract_init(Coin)]
+fn init() uses (evm: mut Evm) {}
+
+#[contract_runtime(Coin)]
+fn runtime() uses (evm: mut Evm) {}"#,
+    );
+    let (top_mod, _) = db.top_mod(file);
+    let funcs = top_mod.all_funcs(&db);
+    let init = funcs
+        .iter()
+        .copied()
+        .find(|func| {
+            func.name(&db)
+                .to_opt()
+                .is_some_and(|name| name.data(&db) == "init")
+        })
+        .expect("missing init");
+    let runtime = funcs
+        .iter()
+        .copied()
+        .find(|func| {
+            func.name(&db)
+                .to_opt()
+                .is_some_and(|name| name.data(&db) == "runtime")
+        })
+        .expect("missing runtime");
+
+    assert_eq!(
+        init.manual_contract_root_attr(&db),
+        Some(ManualContractRootAttr::Init {
+            contract_name: fe_hir::hir_def::StringId::new(&db, "Coin".to_string()),
+        })
+    );
+    assert_eq!(
+        runtime.manual_contract_root_attr(&db),
+        Some(ManualContractRootAttr::Runtime {
+            contract_name: fe_hir::hir_def::StringId::new(&db, "Coin".to_string()),
+        })
+    );
+}
+
+#[test]
+fn code_region_intrinsics_lower_to_semantic_code_region_exprs() {
+    let mut db = HirAnalysisTestDb::default();
+    let file = db.new_stand_alone(
+        "manual_contract_code_region.fe".into(),
+        r#"use std::evm::Evm
+
+#[contract_init(Coin)]
+fn init() uses (evm: mut Evm) {
+    let len = evm.code_region_len(runtime)
+    let off = evm.code_region_offset(runtime)
+}
+
+#[contract_runtime(Coin)]
+fn runtime() uses (evm: mut Evm) {}"#,
+    );
+    let (top_mod, _) = db.top_mod(file);
+    db.assert_no_diags(top_mod);
+
+    let funcs = top_mod.all_funcs(&db);
+    let init = funcs
+        .iter()
+        .copied()
+        .find(|func| {
+            func.name(&db)
+                .to_opt()
+                .is_some_and(|name| name.data(&db) == "init")
+        })
+        .expect("missing init");
+    let runtime = funcs
+        .iter()
+        .copied()
+        .find(|func| {
+            func.name(&db)
+                .to_opt()
+                .is_some_and(|name| name.data(&db) == "runtime")
+        })
+        .expect("missing runtime");
+
+    let (diags, typed_body) = check_func_body(&db, init);
+    assert!(diags.is_empty(), "{diags:#?}");
+    let body = init.body(&db).expect("missing init body");
+    let refs = body
+        .exprs(&db)
+        .keys()
+        .filter_map(|expr| typed_body.code_region_ref(&db, expr))
+        .collect::<Vec<_>>();
+    assert_eq!(refs.len(), 2);
+    assert!(refs.iter().all(|region| matches!(
+        region,
+        SemanticCodeRegionRef::ManualContractRoot { func } if *func == runtime
+    )));
+
+    let instance = get_or_build_semantic_instance(
+        &db,
+        identity_semantic_instance_key(&db, BodyOwner::Func(init)),
+    );
+    let body = instance.body(&db);
+    let exprs = body
+        .blocks
+        .iter()
+        .flat_map(|block| block.stmts.iter())
+        .filter_map(|stmt| match &stmt.kind {
+            SStmtKind::Assign { expr, .. } => Some(expr),
+            SStmtKind::Store { .. } => None,
+        })
+        .collect::<Vec<_>>();
+    assert!(exprs.iter().any(|expr| matches!(
+        expr,
+        SExpr::CodeRegionLen { region: SemanticCodeRegionRef::ManualContractRoot { func } }
+            if *func == runtime
+    )));
+    assert!(exprs.iter().any(|expr| matches!(
+        expr,
+        SExpr::CodeRegionOffset { region: SemanticCodeRegionRef::ManualContractRoot { func } }
+            if *func == runtime
+    )));
+}
+
+#[test]
+fn direct_code_region_intrinsics_record_semantic_refs() {
+    let mut db = HirAnalysisTestDb::default();
+    let file = db.new_stand_alone(
+        "manual_contract_code_region_direct.fe".into(),
+        r#"use std::evm::Evm
+use std::evm::intrinsic::{code_region_len, code_region_offset}
+
+#[contract_init(Coin)]
+fn init() uses (evm: mut Evm) {
+    let len = code_region_len(runtime)
+    let off = code_region_offset(runtime)
+}
+
+#[contract_runtime(Coin)]
+fn runtime() uses (evm: mut Evm) {}"#,
+    );
+    let (top_mod, _) = db.top_mod(file);
+    db.assert_no_diags(top_mod);
+
+    let funcs = top_mod.all_funcs(&db);
+    let init = funcs
+        .iter()
+        .copied()
+        .find(|func| {
+            func.name(&db)
+                .to_opt()
+                .is_some_and(|name| name.data(&db) == "init")
+        })
+        .expect("missing init");
+    let runtime = funcs
+        .iter()
+        .copied()
+        .find(|func| {
+            func.name(&db)
+                .to_opt()
+                .is_some_and(|name| name.data(&db) == "runtime")
+        })
+        .expect("missing runtime");
+
+    let (diags, typed_body) = check_func_body(&db, init);
+    assert!(diags.is_empty(), "{diags:#?}");
+    let body = init.body(&db).expect("missing init body");
+    let refs = body
+        .exprs(&db)
+        .keys()
+        .filter_map(|expr| typed_body.code_region_ref(&db, expr))
+        .collect::<Vec<_>>();
+    assert_eq!(refs.len(), 2);
+    assert!(refs.iter().all(|region| matches!(
+        region,
+        SemanticCodeRegionRef::ManualContractRoot { func } if *func == runtime
+    )));
+}
+
+#[test]
+fn create_contract_generic_forwarding_preserves_manual_root_refs() {
+    let mut db = HirAnalysisTestDb::default();
+    let file = db.new_stand_alone(
+        "manual_contract_create_contract_forwarding.fe".into(),
+        r#"use std::evm::Evm
+
+#[contract_init(Coin)]
+fn init() uses (evm: mut Evm) {
+    evm.create_contract(runtime)
+}
+
+#[contract_runtime(Coin)]
+fn runtime() uses (evm: mut Evm) {}"#,
+    );
+    let (top_mod, _) = db.top_mod(file);
+    db.assert_no_diags(top_mod);
+
+    let funcs = top_mod.all_funcs(&db);
+    let init = funcs
+        .iter()
+        .copied()
+        .find(|func| {
+            func.name(&db)
+                .to_opt()
+                .is_some_and(|name| name.data(&db) == "init")
+        })
+        .expect("missing init");
+    let runtime = funcs
+        .iter()
+        .copied()
+        .find(|func| {
+            func.name(&db)
+                .to_opt()
+                .is_some_and(|name| name.data(&db) == "runtime")
+        })
+        .expect("missing runtime");
+
+    let (diags, typed_body) = check_func_body(&db, init);
+    assert!(diags.is_empty(), "{diags:#?}");
+    let body = init.body(&db).expect("missing init body");
+    assert!(body.exprs(&db).keys().any(|expr| matches!(
+        typed_body.expr_code_region_ref(&db, expr),
+        Some(SemanticCodeRegionRef::ManualContractRoot { func }) if func == runtime
+    )));
+
+    let init_instance = get_or_build_semantic_instance(
+        &db,
+        identity_semantic_instance_key(&db, BodyOwner::Func(init)),
+    );
+    let mut pending = vec![init_instance];
+    let mut seen = Vec::new();
+    let mut saw_len = false;
+    let mut saw_offset = false;
+    while let Some(instance) = pending.pop() {
+        let key = instance.key(&db);
+        if seen.contains(&key) {
+            continue;
+        }
+        seen.push(key);
+        let body = instance.body(&db);
+        for expr in body
+            .blocks
+            .iter()
+            .flat_map(|block| block.stmts.iter())
+            .filter_map(|stmt| match &stmt.kind {
+                SStmtKind::Assign { expr, .. } => Some(expr),
+                SStmtKind::Store { .. } => None,
+            })
+        {
+            saw_len |= matches!(
+                expr,
+                SExpr::CodeRegionLen { region: SemanticCodeRegionRef::ManualContractRoot { func } }
+                    if *func == runtime
+            );
+            saw_offset |= matches!(
+                expr,
+                SExpr::CodeRegionOffset { region: SemanticCodeRegionRef::ManualContractRoot { func } }
+                    if *func == runtime
+            );
+        }
+        pending.extend(
+            instance
+                .callees(&db)
+                .iter()
+                .map(|callee| get_or_build_semantic_instance(&db, callee.key)),
+        );
+    }
+    assert!(saw_len);
+    assert!(saw_offset);
+}
+
+#[test]
+fn array_repeat_lowering_preserves_array_arity() {
+    let mut db = HirAnalysisTestDb::default();
+    let file = db.new_stand_alone(
+        "array_repeat_lowering_preserves_array_arity.fe".into(),
+        r#"fn repeat(x: u256) -> [u256; 4] {
+    return [x; 4]
+}"#,
+    );
+    let (top_mod, _) = db.top_mod(file);
+    db.assert_no_diags(top_mod);
+
+    let [func] = top_mod.all_funcs(&db).as_slice() else {
+        panic!("expected exactly one function");
+    };
+    let instance = get_or_build_semantic_instance(
+        &db,
+        identity_semantic_instance_key(&db, BodyOwner::Func(*func)),
+    );
+    let body = instance.body(&db);
+    let array_aggregate_arity = body
+        .blocks
+        .iter()
+        .flat_map(|block| block.stmts.iter())
+        .find_map(|stmt| match &stmt.kind {
+            SStmtKind::Assign {
+                expr: SExpr::AggregateMake { ty, fields },
+                ..
+            } if ty.is_array(&db) => Some(fields.len()),
+            SStmtKind::Assign { .. } | SStmtKind::Store { .. } => None,
+        })
+        .expect("expected an array aggregate in semantic lowering");
+    assert_eq!(array_aggregate_arity, 4);
+}
+
+#[test]
+fn mut_self_aug_assign_receivers_lower_as_borrow_calls() {
+    let mut db = HirAnalysisTestDb::default();
+    let file = db.new_stand_alone(
+        "mut_self_aug_assign_receivers_lower_as_borrow_calls.fe".into(),
+        r#"
+pub struct Tower {
+    counts: [u256; 24],
+}
+
+impl Tower {
+    pub fn add(mut self) -> u256 {
+        let mut scan: usize = 24
+        while scan != 0 {
+            scan -= 1
+            if self.counts[scan] != 0 {
+                return self.counts[scan]
+            }
+        }
+        0
+    }
+}
+"#,
+    );
+    let (top_mod, _) = db.top_mod(file);
+    db.assert_no_diags(top_mod);
+
+    let add = top_mod
+        .all_funcs(&db)
+        .iter()
+        .copied()
+        .find(|func| matches!(func.name(&db), Partial::Present(name) if name.data(&db) == "add"))
+        .expect("expected add method");
+    let instance = get_or_build_semantic_instance(
+        &db,
+        identity_semantic_instance_key(&db, BodyOwner::Func(add)),
+    );
+    let body = instance.body(&db);
+
+    let borrow_dsts = body
+        .blocks
+        .iter()
+        .flat_map(|block| block.stmts.iter())
+        .filter_map(|stmt| match &stmt.kind {
+            SStmtKind::Assign {
+                dst,
+                expr:
+                    SExpr::Borrow {
+                        kind: fe_hir::analysis::ty::ty_def::BorrowKind::Mut,
+                        ..
+                    },
+            } => Some(*dst),
+            SStmtKind::Assign { .. } | SStmtKind::Store { .. } => None,
+        })
+        .collect::<std::collections::HashSet<_>>();
+
+    assert!(
+        body.blocks
+            .iter()
+            .flat_map(|block| block.stmts.iter())
+            .any(|stmt| {
+                matches!(
+                    &stmt.kind,
+                    SStmtKind::Assign {
+                        expr: SExpr::Call { args, .. },
+                        ..
+                    } if args
+                        .first()
+                        .is_some_and(|receiver| borrow_dsts.contains(&receiver.value))
+                )
+            }),
+        "augmented assignment receiver should lower through a synthesized mutable borrow:\n{body:#?}"
+    );
 }

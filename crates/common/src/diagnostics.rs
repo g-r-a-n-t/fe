@@ -67,6 +67,19 @@ pub fn cmp_complete_diagnostics(
     }
 }
 
+pub fn trim_trailing_line_whitespace(text: &str) -> String {
+    let mut result = String::with_capacity(text.len());
+    for line in text.split_inclusive('\n') {
+        if let Some(line) = line.strip_suffix('\n') {
+            result.push_str(line.trim_end_matches([' ', '\t']));
+            result.push('\n');
+        } else {
+            result.push_str(line.trim_end_matches([' ', '\t']));
+        }
+    }
+    result
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub struct GlobalErrorCode {
     pub pass: DiagnosticPass,
@@ -190,6 +203,7 @@ pub enum DiagnosticPass {
     TyCheck,
 
     Mir,
+    SemanticBorrowck,
 
     ExternalAnalysis(ExternalAnalysisKey),
 }
@@ -213,6 +227,7 @@ impl DiagnosticPass {
             Self::MethodDefinition => 7,
             Self::TyCheck => 8,
             Self::Mir => 11,
+            Self::SemanticBorrowck => 16,
 
             Self::ExternalAnalysis(_) => u16::MAX,
         }

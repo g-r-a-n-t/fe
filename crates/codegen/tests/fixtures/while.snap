@@ -3,52 +3,42 @@ source: crates/codegen/tests/yul.rs
 expression: output
 input_file: tests/fixtures/while.fe
 ---
-function $do_while() -> ret {
-  let v0 := 0
-  for { } 1 { } {
-    let v1 := $u64_haee7f05a097ffa16_ord_h264f6d6d75097a_lt(v0, 10)
-    if iszero(v1) {
-      break
+object "main" {
+  code {
+    function $__fe_main_root() {
+      let v0 := $do_while()
+      stop()
     }
-    let v2 := $checked_add_u64(v0, 1)
-    v0 := v2
+    function $do_while() -> ret {
+      let v0 := 0
+      let v7 := 0x00
+      let v1 := and(v7, 0xffffffffffffffff)
+      let v8 := 0x00
+      v0 := and(v8, 0xffffffffffffffff)
+      for {} 1 {} {
+        let v9 := 0x0a
+        let v2 := and(v9, 0xffffffffffffffff)
+        let v10 := iszero(iszero(lt(and(v0, 0xffffffffffffffff), and(v2, 0xffffffffffffffff))))
+        let v3 := iszero(iszero(v10))
+        if iszero(iszero(v3)) {
+          let v11 := 0x01
+          let v4 := and(v11, 0xffffffffffffffff)
+          let t13 := and(add(and(v0, 0xffffffffffffffff), and(v4, 0xffffffffffffffff)), 0xffffffffffffffff)
+          if lt(t13, and(v0, 0xffffffffffffffff)) {
+            revert(0, 0)
+          }
+          let v12 := t13
+          let v5 := and(v12, 0xffffffffffffffff)
+          v0 := and(v5, 0xffffffffffffffff)
+          continue
+        }
+        if iszero(iszero(iszero(v3))) {
+          break
+        }
+      }
+      ret := and(v0, 0xffffffffffffffff)
+      leave
+    }
+    $__fe_main_root()
   }
-  ret := v0
-  leave
-}
-function $u64_haee7f05a097ffa16_ord_h264f6d6d75097a_lt($self, $other) -> ret {
-  let v0 := lt(and($self, 0xffffffffffffffff), and($other, 0xffffffffffffffff))
-  ret := v0
-  leave
-}
-function $checked_add_u64($a, $b) -> ret {
-  let v0 := $checked_add_unsigned_impl__u64__aee7f05a097ffa16($a, $b)
-  ret := v0
-  leave
-}
-function $checked_add_unsigned_impl__u64__aee7f05a097ffa16($a, $b) -> ret {
-  let v0 := $u64_haee7f05a097ffa16_wrappingadd_h14afa79b3047617f_wrapping_add($a, $b)
-  let v1 := $u64_haee7f05a097ffa16_intword_h9a147c8c32b1323c_to_word(v0)
-  let v2 := $u64_haee7f05a097ffa16_intword_h9a147c8c32b1323c_to_word($a)
-  let v3 := $u256_h3271ca15373d4483_ord_h264f6d6d75097a_lt(v1, v2)
-  let v4 := v3
-  if v4 {
-    revert(0, 0)
-  }
-  ret := v0
-  leave
-}
-function $u256_h3271ca15373d4483_ord_h264f6d6d75097a_lt($self, $other) -> ret {
-  let v0 := lt($self, $other)
-  ret := v0
-  leave
-}
-function $u64_haee7f05a097ffa16_intword_h9a147c8c32b1323c_to_word($self) -> ret {
-  ret := $self
-  leave
-}
-function $u64_haee7f05a097ffa16_wrappingadd_h14afa79b3047617f_wrapping_add($self, $other) -> ret {
-  let v0 := and(add(and($self, 0xffffffffffffffff), and($other, 0xffffffffffffffff)), 0xffffffffffffffff)
-  ret := v0
-  leave
 }

@@ -8,16 +8,20 @@ use either::Either;
 use super::{ConstRef, RecordLike, TyChecker, env::LocalBinding, path::RecordInitChecker};
 use crate::analysis::{
     name_resolution::{PathRes, ResolvedVariant},
+    semantic::{
+        SemConstScalar, SemConstValue, SemOrigin, eval_const_ref,
+        instance::resolve_semantic_const_ref,
+    },
     ty::adt_def::AdtRef,
     ty::{
         assoc_const::AssocConstUse,
         binder::Binder,
-        const_eval::{ConstValue, try_eval_const_ref},
         diagnostics::BodyDiag,
         fold::TyFoldable,
         pattern_ir::{
             BindingRef, ConstructorKind, PatternAnalysisStatus, ValidatedPat, ValidatedPatKind,
         },
+        pattern_types::pattern_match_expected_ty,
         trait_def::TraitInstId,
         ty_def::{InvalidCause, Kind, TyId, TyVarSort},
         ty_lower::lower_hir_ty,
@@ -113,10 +117,10 @@ impl<'db> TyChecker<'db> {
         ty: TyId<'db>,
         binding: Option<BindingRef<'db>>,
     ) -> PatternAnalysisStatus {
-        PatternAnalysisStatus::Ready(self.env.alloc_validated_pat(ValidatedPat {
+        PatternAnalysisStatus::Ready(self.env.alloc_validated_pat(ValidatedPat::new(
             ty,
-            kind: ValidatedPatKind::Wildcard { binding },
-        }))
+            ValidatedPatKind::Wildcard { binding },
+        )))
     }
 
     fn ready_constructor(
@@ -129,10 +133,10 @@ impl<'db> TyChecker<'db> {
             Ok(fields) => fields,
             Err(status) => return status,
         };
-        PatternAnalysisStatus::Ready(self.env.alloc_validated_pat(ValidatedPat {
+        PatternAnalysisStatus::Ready(self.env.alloc_validated_pat(ValidatedPat::new(
             ty,
-            kind: ValidatedPatKind::Constructor { ctor, fields },
-        }))
+            ValidatedPatKind::Constructor { ctor, fields },
+        )))
     }
 
     fn ready_or(
@@ -144,10 +148,10 @@ impl<'db> TyChecker<'db> {
             Ok(pats) => pats,
             Err(status) => return status,
         };
-        PatternAnalysisStatus::Ready(self.env.alloc_validated_pat(ValidatedPat {
-            ty,
-            kind: ValidatedPatKind::Or(pats),
-        }))
+        PatternAnalysisStatus::Ready(
+            self.env
+                .alloc_validated_pat(ValidatedPat::new(ty, ValidatedPatKind::Or(pats))),
+        )
     }
 
     fn collect_ready_roots(
@@ -213,12 +217,35 @@ impl<'db> TyChecker<'db> {
         cref: ConstRef<'db>,
         expected: TyId<'db>,
     ) -> Option<LitKind<'db>> {
-        match try_eval_const_ref(self.db, cref, expected)? {
-            ConstValue::Int(int) => {
-                Some(LitKind::Int(crate::hir_def::IntegerId::new(self.db, int)))
+        let expected = expected
+            .as_capability(self.db)
+            .map_or(expected, |(_, inner)| inner);
+        let cref = resolve_semantic_const_ref(self.db, cref, expected, SemOrigin::Synthetic)?;
+        match eval_const_ref(self.db, cref).ok()?.value(self.db) {
+            SemConstValue::Scalar {
+                value: SemConstScalar::Int { value },
+                ..
+            } => {
+                let (_, bytes) = value.to_bytes_be();
+                Some(LitKind::Int(crate::hir_def::IntegerId::new(
+                    self.db,
+                    num_bigint::BigUint::from_bytes_be(&bytes),
+                )))
             }
-            ConstValue::Bool(flag) => Some(LitKind::Bool(flag)),
-            ConstValue::Bytes(_) | ConstValue::EnumVariant(_) | ConstValue::ConstArray(_) => None,
+            SemConstValue::Scalar {
+                value: SemConstScalar::Bool(flag),
+                ..
+            } => Some(LitKind::Bool(flag)),
+            SemConstValue::Unit
+            | SemConstValue::TypeLevel { .. }
+            | SemConstValue::Tuple { .. }
+            | SemConstValue::Struct { .. }
+            | SemConstValue::Array { .. }
+            | SemConstValue::Enum { .. }
+            | SemConstValue::Scalar {
+                value: SemConstScalar::Bytes(_),
+                ..
+            } => None,
         }
     }
 
@@ -718,18 +745,20 @@ impl<'db> TyChecker<'db> {
                 pat_idx += 1;
             }
             if rest_range.contains(&i) {
-                analyses.push(self.ready_wildcard(elem_ty, None));
+                analyses
+                    .push(self.ready_wildcard(pattern_match_expected_ty(self.db, elem_ty), None));
                 continue;
             }
             if pat_idx >= source_pats.len() {
-                analyses.push(self.ready_wildcard(elem_ty, None));
+                analyses
+                    .push(self.ready_wildcard(pattern_match_expected_ty(self.db, elem_ty), None));
                 continue;
             }
 
             let pat = source_pats[pat_idx];
             let (pat_expected, mode) = self.destructure_source_mode(elem_ty);
             let result = self.check_pat(pat, pat_expected);
-            if let super::DestructureSourceMode::Borrow(kind) = mode {
+            if let super::PatternDestructureMode::Borrow(kind) = mode {
                 self.retype_pattern_bindings_for_borrow(pat, kind);
             }
             analyses.push(result.analysis);
@@ -993,7 +1022,7 @@ impl<'db> TyChecker<'db> {
 
             let (pat_expected, mode) = rec_checker.tc.destructure_source_mode(expected);
             let result = rec_checker.tc.check_pat(field_pat.pat, pat_expected);
-            if let super::DestructureSourceMode::Borrow(kind) = mode {
+            if let super::PatternDestructureMode::Borrow(kind) = mode {
                 rec_checker
                     .tc
                     .retype_pattern_bindings_for_borrow(field_pat.pat, kind);
@@ -1021,10 +1050,13 @@ impl<'db> TyChecker<'db> {
         for (field_idx, field_ty) in field_tys.into_iter().enumerate() {
             match field_status_by_idx.remove(&field_idx) {
                 Some(status) => canonical_fields.push(status),
-                None if contains_rest => canonical_fields.push(self.ready_wildcard(field_ty, None)),
+                None if contains_rest => canonical_fields
+                    .push(self.ready_wildcard(pattern_match_expected_ty(self.db, field_ty), None)),
                 None => {
                     invalid = true;
-                    canonical_fields.push(self.ready_wildcard(field_ty, None));
+                    canonical_fields.push(
+                        self.ready_wildcard(pattern_match_expected_ty(self.db, field_ty), None),
+                    );
                 }
             }
         }

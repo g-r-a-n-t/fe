@@ -1,10 +1,20 @@
 ---
 source: crates/codegen/tests/yul.rs
-assertion_line: 33
 expression: output
 input_file: tests/fixtures/const_fn_mapping_slot_hash.fe
 ---
-function $main() -> ret {
-  ret := 3253375974595066614526584426541216327299611994431550246078837110170861790149
-  leave
+object "main" {
+  code {
+    function $__fe_main_root() {
+      let v0 := $main()
+      stop()
+    }
+    function $main() -> ret {
+      let v1 := 0x07315875c131dc1dff59b5eecd3feba7c4eb34f9c8bac4a22e69acd1d04d63c5
+      let v0 := v1
+      ret := v0
+      leave
+    }
+    $__fe_main_root()
+  }
 }

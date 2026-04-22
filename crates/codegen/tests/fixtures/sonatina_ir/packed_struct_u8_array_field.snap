@@ -5,60 +5,80 @@ input_file: crates/codegen/tests/fixtures/packed_struct_u8_array_field.fe
 ---
 target = "evm-ethereum-osaka"
 
-type @__fe_obj_Pair_0 = {[i8; 2], i256};
+type @__fe_layout_0 = {[i8; 2], i256};
 
-global private const [i8; 2] $__fe_const_data_0 = [1, 2];
-
-func private %packed_field_offset() -> i256 {
+func private %__fe_main_root() {
     block0:
-        v0.objref<[i8; 2]> = obj.alloc [i8; 2];
-        v1.i256 = sym_addr $__fe_const_data_0;
-        v3.*i256 = alloca i256;
-        v4.i256 = ptr_to_int v3 i256;
-        evm_code_copy v4 v1 1.i256;
-        v5.i256 = mload v4 i256;
-        v7.i256 = evm_byte 0.i256 v5;
-        v8.i8 = trunc v7 i8;
-        v9.objref<i8> = obj.index v0 0.i256;
-        obj.store v9 v8;
-        v10.i256 = sym_addr $__fe_const_data_0;
-        v11.i256 = add v10 1.i256;
-        v12.*i256 = alloca i256;
-        v13.i256 = ptr_to_int v12 i256;
-        evm_code_copy v13 v11 1.i256;
-        v14.i256 = mload v13 i256;
-        v15.i256 = evm_byte 0.i256 v14;
-        v16.i8 = trunc v15 i8;
-        v17.objref<i8> = obj.index v0 1.i256;
-        obj.store v17 v16;
-        v18.objref<@__fe_obj_Pair_0> = obj.alloc @__fe_obj_Pair_0;
-        v19.objref<i8> = obj.index v0 0.i256;
-        v20.i8 = obj.load v19;
-        v21.objref<[i8; 2]> = obj.proj v18 0.i256;
-        v22.objref<i8> = obj.index v21 0.i256;
-        obj.store v22 v20;
-        v23.objref<i8> = obj.index v0 1.i256;
-        v24.i8 = obj.load v23;
-        v25.objref<[i8; 2]> = obj.proj v18 0.i256;
-        v26.objref<i8> = obj.index v25 1.i256;
-        obj.store v26 v24;
-        v28.objref<i256> = obj.proj v18 1.i256;
-        obj.store v28 42.i256;
-        v29.objref<i256> = obj.proj v18 1.i256;
-        v30.i256 = obj.load v29;
-        return v30;
-}
+        jump block1;
 
-func private %__fe_sonatina_entry() {
-    block0:
+    block1:
         v0.i256 = call %packed_field_offset;
         evm_stop;
 }
 
+func private %packed_field_offset() -> i256 {
+    block0:
+        v0.objref<@__fe_layout_0> = obj.alloc @__fe_layout_0;
+        jump block1;
 
-object @Contract {
-    section runtime {
-        entry %__fe_sonatina_entry;
-        data $__fe_const_data_0;
+    block1:
+        v3.objref<[i8; 2]> = obj.alloc [i8; 2];
+        v5.objref<i8> = obj.index v3 0.i256;
+        obj.store v5 1.i8;
+        v7.objref<i8> = obj.index v3 1.i256;
+        obj.store v7 2.i8;
+        v8.[i8; 2] = obj.load v3;
+        v10.objref<[i8; 2]> = obj.alloc [i8; 2];
+        v11.objref<i8> = obj.index v10 0.i256;
+        obj.store v11 1.i8;
+        v12.objref<i8> = obj.index v10 1.i256;
+        obj.store v12 2.i8;
+        v13.[i8; 2] = obj.load v10;
+        v14.objref<@__fe_layout_0> = obj.alloc @__fe_layout_0;
+        v15.objref<[i8; 2]> = obj.proj v14 0.i256;
+        v16.objref<i8> = obj.index v15 0.i256;
+        v17.i8 = extract_value v13 0.i256;
+        obj.store v16 v17;
+        v18.objref<i8> = obj.index v15 1.i256;
+        v19.i8 = extract_value v13 1.i256;
+        obj.store v18 v19;
+        v20.objref<i256> = obj.proj v14 1.i256;
+        obj.store v20 42.i256;
+        v21.@__fe_layout_0 = obj.load v14;
+        v22.objref<[i8; 2]> = obj.alloc [i8; 2];
+        v23.objref<i8> = obj.index v22 0.i256;
+        obj.store v23 1.i8;
+        v24.objref<i8> = obj.index v22 1.i256;
+        obj.store v24 2.i8;
+        v25.[i8; 2] = obj.load v22;
+        v26.objref<@__fe_layout_0> = obj.alloc @__fe_layout_0;
+        v27.objref<[i8; 2]> = obj.proj v26 0.i256;
+        v28.objref<i8> = obj.index v27 0.i256;
+        v29.i8 = extract_value v25 0.i256;
+        obj.store v28 v29;
+        v30.objref<i8> = obj.index v27 1.i256;
+        v31.i8 = extract_value v25 1.i256;
+        obj.store v30 v31;
+        v32.objref<i256> = obj.proj v26 1.i256;
+        obj.store v32 42.i256;
+        v33.@__fe_layout_0 = obj.load v26;
+        v34.objref<[i8; 2]> = obj.proj v0 0.i256;
+        v35.[i8; 2] = extract_value v33 0.i256;
+        v36.objref<i8> = obj.index v34 0.i256;
+        v37.i8 = extract_value v35 0.i256;
+        obj.store v36 v37;
+        v38.objref<i8> = obj.index v34 1.i256;
+        v39.i8 = extract_value v35 1.i256;
+        obj.store v38 v39;
+        v40.objref<i256> = obj.proj v0 1.i256;
+        v41.i256 = extract_value v33 1.i256;
+        obj.store v40 v41;
+        return 42.i256;
+}
+
+
+object @main {
+    section main {
+        entry %__fe_main_root;
     }
 }

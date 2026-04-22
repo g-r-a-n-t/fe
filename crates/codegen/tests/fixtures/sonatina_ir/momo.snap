@@ -5,35 +5,61 @@ input_file: crates/codegen/tests/fixtures/momo.fe
 ---
 target = "evm-ethereum-osaka"
 
-type @__fe_obj_MyStruct_0 = {i8, i8};
+type @__fe_layout_0 = {i8, i8};
 
-func private %read_x(v0.objref<@__fe_obj_MyStruct_0>) -> i8 {
+func private %__fe_main_root() {
     block0:
-        v2.objref<i8> = obj.proj v0 0.i256;
-        v3.i8 = obj.load v2;
-        v5.objref<i8> = obj.proj v0 1.i256;
-        v6.i8 = obj.load v5;
-        (v7.i8, v8.i1) = uaddo v3 v6;
-        br v8 block1 block2;
+        jump block1;
 
     block1:
-        mstore 0.i256 35408467139433450592217433187231851964531694900788300625387963629091585785856.i256 i256;
-        mstore 4.i256 17.i256 i256;
-        evm_revert 0.i256 36.i256;
-
-    block2:
-        return v7;
-}
-
-func private %__fe_sonatina_entry() {
-    block0:
-        v1.i8 = call %read_x undef.objref<@__fe_obj_MyStruct_0>;
+        v0.i8 = call %main;
         evm_stop;
 }
 
+func private %main() -> i8 {
+    block0:
+        jump block1;
 
-object @Contract {
-    section runtime {
-        entry %__fe_sonatina_entry;
+    block1:
+        v2.objref<@__fe_layout_0> = obj.alloc @__fe_layout_0;
+        v4.objref<i8> = obj.proj v2 0.i256;
+        obj.store v4 1.i8;
+        v6.objref<i8> = obj.proj v2 1.i256;
+        obj.store v6 2.i8;
+        v7.@__fe_layout_0 = obj.load v2;
+        v8.i8 = call %read_x v7;
+        return v8;
+}
+
+func private %read_x(v0.@__fe_layout_0) -> i8 {
+    block0:
+        v1.objref<@__fe_layout_0> = obj.alloc @__fe_layout_0;
+        v3.objref<i8> = obj.proj v1 0.i256;
+        v4.i8 = extract_value v0 0.i256;
+        obj.store v3 v4;
+        v6.objref<i8> = obj.proj v1 1.i256;
+        v7.i8 = extract_value v0 1.i256;
+        obj.store v6 v7;
+        jump block1;
+
+    block1:
+        v8.objref<i8> = obj.proj v1 0.i256;
+        v9.i8 = obj.load v8;
+        v10.objref<i8> = obj.proj v1 1.i256;
+        v11.i8 = obj.load v10;
+        (v12.i8, v13.i1) = uaddo v9 v11;
+        br v13 block2 block3;
+
+    block2:
+        evm_revert 0.i256 0.i256;
+
+    block3:
+        return v12;
+}
+
+
+object @main {
+    section main {
+        entry %__fe_main_root;
     }
 }

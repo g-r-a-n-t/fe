@@ -5,41 +5,78 @@ input_file: crates/codegen/tests/fixtures/match_arm_return_comma.fe
 ---
 target = "evm-ethereum-osaka"
 
-type @__fe_obj_E_0 = enum {
+type @__fe_layout_0 = enum {
     #A(i256),
     #B,
 };
 
-func private %f(v0.objref<@__fe_obj_E_0>) -> i256 {
+func private %__fe_main_root() {
     block0:
-        jump block3;
+        jump block1;
 
     block1:
-        v3.objref<@__fe_obj_E_0> = enum.assert_variant_ref v0 #A;
-        v4.objref<i256> = enum.proj v3 #A 0.i256;
-        v5.i256 = obj.load v4;
-        return v5;
-
-    block2:
-        return 0.i256;
-
-    block3:
-        v7.enumtag(@__fe_obj_E_0) = enum.get_tag v0;
-        br_table v7 block4 (0.enumtag(@__fe_obj_E_0) block1) (1.enumtag(@__fe_obj_E_0) block2);
-
-    block4:
-        evm_invalid;
-}
-
-func private %__fe_sonatina_entry() {
-    block0:
-        v1.i256 = call %f undef.objref<@__fe_obj_E_0>;
+        v0.i256 = call %main;
         evm_stop;
 }
 
+func private %f(v0.@__fe_layout_0) -> i256 {
+    block0:
+        v1.objref<@__fe_layout_0> = obj.alloc @__fe_layout_0;
+        v2.*i256 = alloca i256;
+        v3.*i256 = alloca i256;
+        v4.enumtag(@__fe_layout_0) = enum.tag v0;
+        br_table v4 block5 (0.enumtag(@__fe_layout_0) block6) (1.enumtag(@__fe_layout_0) block7);
 
-object @Contract {
-    section runtime {
-        entry %__fe_sonatina_entry;
+    block1:
+        v10.@__fe_layout_0 = obj.load v1;
+        v11.enumtag(@__fe_layout_0) = enum.tag v10;
+        br_table v11 (0.enumtag(@__fe_layout_0) block2) (1.enumtag(@__fe_layout_0) block3);
+
+    block2:
+        v12.@__fe_layout_0 = obj.load v1;
+        enum.assert_variant v12 #A;
+        v13.i256 = enum.extract v12 #A 0.i256;
+        mstore v3 v13 i256;
+        v14.i256 = mload v3 i256;
+        mstore v2 v14 i256;
+        v15.i256 = mload v2 i256;
+        return v15;
+
+    block3:
+        return 0.i256;
+
+    block4:
+        jump block1;
+
+    block5:
+        unreachable;
+
+    block6:
+        enum.set_tag v1 #A;
+        enum.assert_variant v0 #A;
+        v8.objref<i256> = enum.proj v1 #A 0.i256;
+        v9.i256 = enum.extract v0 #A 0.i256;
+        obj.store v8 v9;
+        jump block4;
+
+    block7:
+        enum.set_tag v1 #B;
+        jump block4;
+}
+
+func private %main() -> i256 {
+    block0:
+        jump block1;
+
+    block1:
+        v1.@__fe_layout_0 = enum.make @__fe_layout_0 #A 1.i256;
+        v2.i256 = call %f v1;
+        return v2;
+}
+
+
+object @main {
+    section main {
+        entry %__fe_main_root;
     }
 }

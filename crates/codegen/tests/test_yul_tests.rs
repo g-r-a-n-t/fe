@@ -29,10 +29,8 @@ fn yul_test_object_snap(fixture: Fixture<&str>) {
         .expect("file should be loaded");
     let top_mod = db.top_mod(file);
 
-    let output = match emit_test_module_yul(&db, top_mod, None) {
-        Ok(output) => output,
-        Err(err) => panic!("MIR ERROR: {err}"),
-    };
+    let output =
+        emit_test_module_yul(&db, top_mod, None).expect("Yul test emission should succeed");
 
     assert_eq!(output.tests.len(), 1, "fixture should yield one test");
     snap_test!(output.tests[0].yul, fixture.path());
@@ -97,8 +95,43 @@ fn drop_me() -> u256 {
     let top_mod = db.top_mod(file);
 
     let output = emit_test_module_yul(&db, top_mod, Some("keep"))
-        .expect("filtered Yul test emission should ignore unrelated invalid tests");
+        .expect("filtered Yul test emission should succeed");
 
     assert_eq!(output.tests.len(), 1, "expected exactly one filtered test");
     assert_eq!(output.tests[0].hir_name, "keep");
+}
+
+#[test]
+fn test_roots_reject_ordinary_runtime_effect_params() {
+    let mut db = DriverDataBase::default();
+    let file_url =
+        Url::parse("file:///test_roots_reject_ordinary_runtime_effect_params.fe").unwrap();
+    db.workspace().touch(
+        &mut db,
+        file_url.clone(),
+        Some(
+            r#"
+#[test]
+fn test_effect() uses (x: mut u256) {
+    x += 1
+}
+"#
+            .to_string(),
+        ),
+    );
+    let file = db
+        .workspace()
+        .get(&db, &file_url)
+        .expect("file should be loaded");
+    let top_mod = db.top_mod(file);
+
+    let err = emit_test_module_yul(&db, top_mod, None)
+        .expect_err("ordinary runtime-visible uses params should not synthesize test roots");
+    let message = err.to_string();
+    assert!(
+        message.contains("test root `test_effect`")
+            && message.contains("ordinary uses parameter")
+            && message.contains("x"),
+        "unexpected error message:\n{message}"
+    );
 }

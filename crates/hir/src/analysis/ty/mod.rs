@@ -15,7 +15,7 @@ use diagnostics::{DefConflictError, TraitLowerDiag, TyLowerDiag};
 use rustc_hash::{FxHashMap, FxHashSet};
 use smallvec1::SmallVec;
 use trait_resolution::constraint::super_trait_cycle;
-use ty_def::{BorrowKind, InvalidCause, TyData, TyId, instantiate_adt_field_ty};
+use ty_def::{BorrowKind, InvalidCause, TyBase, TyData, TyId, instantiate_adt_field_ty};
 use ty_lower::lower_type_alias;
 
 use crate::analysis::name_resolution::{PathRes, resolve_path};
@@ -29,11 +29,9 @@ pub mod assoc_const;
 pub mod binder;
 pub mod canonical;
 pub(crate) mod const_check;
-pub mod const_eval;
 pub mod const_expr;
 pub mod const_ty;
 pub mod corelib;
-pub(crate) mod ctfe;
 pub mod effects;
 pub mod msg_selector;
 
@@ -46,6 +44,8 @@ pub mod method_table;
 pub mod normalize;
 pub mod pattern_analysis;
 pub mod pattern_ir;
+pub mod pattern_types;
+pub mod provider;
 pub(crate) mod scratch;
 pub mod trait_def;
 pub mod trait_lower;
@@ -59,8 +59,29 @@ pub mod visitor;
 
 pub use layout_holes::ty_contains_const_hole;
 pub use msg_selector::MsgSelectorAnalysisPass;
+pub use provider::{
+    ProviderAddressSpace, ProviderKind, ProviderSemantics, ProviderTransport,
+    RootProviderRegistration, RootProviderSiteKind, address_space_from_ty, provider_semantics,
+    registered_root_providers,
+};
 
 const DEFAULT_TARGET_TY_PATH: &[&str] = &["std", "evm", "EvmTarget"];
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct EffectHandleMetadata<'db> {
+    pub address_space: TyId<'db>,
+    pub target_ty: TyId<'db>,
+}
+
+fn ty_may_require_effect_handle_metadata<'db>(db: &'db dyn HirAnalysisDb, ty: TyId<'db>) -> bool {
+    matches!(
+        ty.base_ty(db).data(db),
+        TyData::TyParam(_)
+            | TyData::AssocTy(_)
+            | TyData::QualifiedTy(_)
+            | TyData::TyBase(TyBase::Adt(_))
+    )
+}
 
 pub fn ty_is_borrow<'db>(
     db: &'db dyn HirAnalysisDb,
@@ -329,7 +350,12 @@ impl ModuleAnalysisPass for ContractAnalysisPass {
 
             // 2. Validate contract-level effects (`contract Foo uses (ctx: Ctx)`).
             let assumptions = PredicateListId::empty_list(db);
-            let root_effect_ty = resolve_default_root_effect_ty(db, contract.scope(), assumptions);
+            let root_effect_ty = registered_root_providers(
+                db,
+                crate::analysis::ty::ty_check::EffectParamSite::Contract(contract),
+            )
+            .first()
+            .map(|registration| registration.provider_ty);
             for (idx, effect) in contract.effects(db).data(db).iter().enumerate() {
                 let Some(key_path) = effect
                     .key_path
@@ -439,7 +465,7 @@ impl ModuleAnalysisPass for ContractAnalysisPass {
     }
 }
 
-fn resolve_default_root_effect_ty<'db>(
+pub fn resolve_default_root_effect_ty<'db>(
     db: &'db dyn HirAnalysisDb,
     scope: ScopeId<'db>,
     assumptions: PredicateListId<'db>,
@@ -462,7 +488,51 @@ fn resolve_default_root_effect_ty<'db>(
     ))
 }
 
-fn instantiate_trait_self<'db>(
+pub fn effect_handle_metadata<'db>(
+    db: &'db dyn HirAnalysisDb,
+    scope: ScopeId<'db>,
+    assumptions: PredicateListId<'db>,
+    ty: TyId<'db>,
+) -> Option<EffectHandleMetadata<'db>> {
+    let ty = ty_def::strip_derived_adt_layout_args(db, ty);
+    if ty.as_capability(db).is_some() || !ty_may_require_effect_handle_metadata(db, ty) {
+        return None;
+    }
+    let effect_handle = corelib::resolve_core_trait(db, scope, &["EffectHandle"])?;
+    let address_space_ident = IdentId::new(db, "AddressSpace".to_string());
+    let target_ident = IdentId::new(db, "Target".to_string());
+    let inst = trait_def::TraitInstId::new(db, effect_handle, vec![ty], IndexMap::new());
+    match is_goal_satisfiable(
+        db,
+        TraitSolveCx::new(db, scope).with_assumptions(assumptions),
+        inst,
+    ) {
+        GoalSatisfiability::ContainsInvalid | GoalSatisfiability::UnSat(_) => None,
+        GoalSatisfiability::Satisfied(_) | GoalSatisfiability::NeedsConfirmation(_) => {
+            let address_space = normalize::normalize_ty(
+                db,
+                inst.assoc_ty(db, address_space_ident)?,
+                scope,
+                assumptions,
+            );
+            let target_ty = normalize::normalize_ty(
+                db,
+                inst.assoc_ty(db, target_ident).unwrap_or(ty),
+                scope,
+                assumptions,
+            );
+            (!address_space.has_invalid(db)
+                && !ty_contains_const_hole(db, address_space)
+                && !target_ty.has_invalid(db))
+            .then_some(EffectHandleMetadata {
+                address_space,
+                target_ty,
+            })
+        }
+    }
+}
+
+pub(crate) fn instantiate_trait_self<'db>(
     db: &'db dyn HirAnalysisDb,
     inst: trait_def::TraitInstId<'db>,
     self_ty: TyId<'db>,

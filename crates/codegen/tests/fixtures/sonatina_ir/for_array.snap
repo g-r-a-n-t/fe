@@ -5,348 +5,264 @@ input_file: crates/codegen/tests/fixtures/for_array.fe
 ---
 target = "evm-ethereum-osaka"
 
-global private const [i8; 800] $__fe_const_data_0 = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 2, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 3, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 4, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 5, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 6, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 7, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 8, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 9, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 10, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 11, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 12, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 13, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 14, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 15, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 16, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 17, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 18, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 19, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 20, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 21, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 22, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 23, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 24, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 25];
-
-func private %for_array_sum() -> i64 {
+func private %__fe_main_root() {
     block0:
-        v0.objref<[i64; 25]> = obj.alloc [i64; 25];
-        v1.i256 = sym_addr $__fe_const_data_0;
-        v2.*[i64; 25] = int_to_ptr v1 *[i64; 25];
-        v4.*i64 = gep v2 0.i256 0.i256;
-        v5.i256 = ptr_to_int v4 i256;
-        v7.*i256 = alloca i256;
-        v8.i256 = ptr_to_int v7 i256;
-        evm_code_copy v8 v5 32.i256;
-        v9.i256 = mload v8 i256;
-        v10.i64 = trunc v9 i64;
-        v11.objref<i64> = obj.index v0 0.i256;
-        obj.store v11 v10;
-        v12.i256 = sym_addr $__fe_const_data_0;
-        v13.*[i64; 25] = int_to_ptr v12 *[i64; 25];
-        v15.*i64 = gep v13 0.i256 1.i256;
-        v16.i256 = ptr_to_int v15 i256;
-        v17.*i256 = alloca i256;
-        v18.i256 = ptr_to_int v17 i256;
-        evm_code_copy v18 v16 32.i256;
-        v19.i256 = mload v18 i256;
-        v20.i64 = trunc v19 i64;
-        v21.objref<i64> = obj.index v0 1.i256;
-        obj.store v21 v20;
-        v22.i256 = sym_addr $__fe_const_data_0;
-        v23.*[i64; 25] = int_to_ptr v22 *[i64; 25];
-        v25.*i64 = gep v23 0.i256 2.i256;
-        v26.i256 = ptr_to_int v25 i256;
-        v27.*i256 = alloca i256;
-        v28.i256 = ptr_to_int v27 i256;
-        evm_code_copy v28 v26 32.i256;
-        v29.i256 = mload v28 i256;
-        v30.i64 = trunc v29 i64;
-        v31.objref<i64> = obj.index v0 2.i256;
-        obj.store v31 v30;
-        v32.i256 = sym_addr $__fe_const_data_0;
-        v33.*[i64; 25] = int_to_ptr v32 *[i64; 25];
-        v35.*i64 = gep v33 0.i256 3.i256;
-        v36.i256 = ptr_to_int v35 i256;
-        v37.*i256 = alloca i256;
-        v38.i256 = ptr_to_int v37 i256;
-        evm_code_copy v38 v36 32.i256;
-        v39.i256 = mload v38 i256;
-        v40.i64 = trunc v39 i64;
-        v41.objref<i64> = obj.index v0 3.i256;
-        obj.store v41 v40;
-        v42.i256 = sym_addr $__fe_const_data_0;
-        v43.*[i64; 25] = int_to_ptr v42 *[i64; 25];
-        v45.*i64 = gep v43 0.i256 4.i256;
-        v46.i256 = ptr_to_int v45 i256;
-        v47.*i256 = alloca i256;
-        v48.i256 = ptr_to_int v47 i256;
-        evm_code_copy v48 v46 32.i256;
-        v49.i256 = mload v48 i256;
-        v50.i64 = trunc v49 i64;
-        v51.objref<i64> = obj.index v0 4.i256;
-        obj.store v51 v50;
-        v52.i256 = sym_addr $__fe_const_data_0;
-        v53.*[i64; 25] = int_to_ptr v52 *[i64; 25];
-        v55.*i64 = gep v53 0.i256 5.i256;
-        v56.i256 = ptr_to_int v55 i256;
-        v57.*i256 = alloca i256;
-        v58.i256 = ptr_to_int v57 i256;
-        evm_code_copy v58 v56 32.i256;
-        v59.i256 = mload v58 i256;
-        v60.i64 = trunc v59 i64;
-        v61.objref<i64> = obj.index v0 5.i256;
-        obj.store v61 v60;
-        v62.i256 = sym_addr $__fe_const_data_0;
-        v63.*[i64; 25] = int_to_ptr v62 *[i64; 25];
-        v65.*i64 = gep v63 0.i256 6.i256;
-        v66.i256 = ptr_to_int v65 i256;
-        v67.*i256 = alloca i256;
-        v68.i256 = ptr_to_int v67 i256;
-        evm_code_copy v68 v66 32.i256;
-        v69.i256 = mload v68 i256;
-        v70.i64 = trunc v69 i64;
-        v71.objref<i64> = obj.index v0 6.i256;
-        obj.store v71 v70;
-        v72.i256 = sym_addr $__fe_const_data_0;
-        v73.*[i64; 25] = int_to_ptr v72 *[i64; 25];
-        v75.*i64 = gep v73 0.i256 7.i256;
-        v76.i256 = ptr_to_int v75 i256;
-        v77.*i256 = alloca i256;
-        v78.i256 = ptr_to_int v77 i256;
-        evm_code_copy v78 v76 32.i256;
-        v79.i256 = mload v78 i256;
-        v80.i64 = trunc v79 i64;
-        v81.objref<i64> = obj.index v0 7.i256;
-        obj.store v81 v80;
-        v82.i256 = sym_addr $__fe_const_data_0;
-        v83.*[i64; 25] = int_to_ptr v82 *[i64; 25];
-        v85.*i64 = gep v83 0.i256 8.i256;
-        v86.i256 = ptr_to_int v85 i256;
-        v87.*i256 = alloca i256;
-        v88.i256 = ptr_to_int v87 i256;
-        evm_code_copy v88 v86 32.i256;
-        v89.i256 = mload v88 i256;
-        v90.i64 = trunc v89 i64;
-        v91.objref<i64> = obj.index v0 8.i256;
-        obj.store v91 v90;
-        v92.i256 = sym_addr $__fe_const_data_0;
-        v93.*[i64; 25] = int_to_ptr v92 *[i64; 25];
-        v95.*i64 = gep v93 0.i256 9.i256;
-        v96.i256 = ptr_to_int v95 i256;
-        v97.*i256 = alloca i256;
-        v98.i256 = ptr_to_int v97 i256;
-        evm_code_copy v98 v96 32.i256;
-        v99.i256 = mload v98 i256;
-        v100.i64 = trunc v99 i64;
-        v101.objref<i64> = obj.index v0 9.i256;
-        obj.store v101 v100;
-        v102.i256 = sym_addr $__fe_const_data_0;
-        v103.*[i64; 25] = int_to_ptr v102 *[i64; 25];
-        v105.*i64 = gep v103 0.i256 10.i256;
-        v106.i256 = ptr_to_int v105 i256;
-        v107.*i256 = alloca i256;
-        v108.i256 = ptr_to_int v107 i256;
-        evm_code_copy v108 v106 32.i256;
-        v109.i256 = mload v108 i256;
-        v110.i64 = trunc v109 i64;
-        v111.objref<i64> = obj.index v0 10.i256;
-        obj.store v111 v110;
-        v112.i256 = sym_addr $__fe_const_data_0;
-        v113.*[i64; 25] = int_to_ptr v112 *[i64; 25];
-        v115.*i64 = gep v113 0.i256 11.i256;
-        v116.i256 = ptr_to_int v115 i256;
-        v117.*i256 = alloca i256;
-        v118.i256 = ptr_to_int v117 i256;
-        evm_code_copy v118 v116 32.i256;
-        v119.i256 = mload v118 i256;
-        v120.i64 = trunc v119 i64;
-        v121.objref<i64> = obj.index v0 11.i256;
-        obj.store v121 v120;
-        v122.i256 = sym_addr $__fe_const_data_0;
-        v123.*[i64; 25] = int_to_ptr v122 *[i64; 25];
-        v125.*i64 = gep v123 0.i256 12.i256;
-        v126.i256 = ptr_to_int v125 i256;
-        v127.*i256 = alloca i256;
-        v128.i256 = ptr_to_int v127 i256;
-        evm_code_copy v128 v126 32.i256;
-        v129.i256 = mload v128 i256;
-        v130.i64 = trunc v129 i64;
-        v131.objref<i64> = obj.index v0 12.i256;
-        obj.store v131 v130;
-        v132.i256 = sym_addr $__fe_const_data_0;
-        v133.*[i64; 25] = int_to_ptr v132 *[i64; 25];
-        v135.*i64 = gep v133 0.i256 13.i256;
-        v136.i256 = ptr_to_int v135 i256;
-        v137.*i256 = alloca i256;
-        v138.i256 = ptr_to_int v137 i256;
-        evm_code_copy v138 v136 32.i256;
-        v139.i256 = mload v138 i256;
-        v140.i64 = trunc v139 i64;
-        v141.objref<i64> = obj.index v0 13.i256;
-        obj.store v141 v140;
-        v142.i256 = sym_addr $__fe_const_data_0;
-        v143.*[i64; 25] = int_to_ptr v142 *[i64; 25];
-        v145.*i64 = gep v143 0.i256 14.i256;
-        v146.i256 = ptr_to_int v145 i256;
-        v147.*i256 = alloca i256;
-        v148.i256 = ptr_to_int v147 i256;
-        evm_code_copy v148 v146 32.i256;
-        v149.i256 = mload v148 i256;
-        v150.i64 = trunc v149 i64;
-        v151.objref<i64> = obj.index v0 14.i256;
-        obj.store v151 v150;
-        v152.i256 = sym_addr $__fe_const_data_0;
-        v153.*[i64; 25] = int_to_ptr v152 *[i64; 25];
-        v155.*i64 = gep v153 0.i256 15.i256;
-        v156.i256 = ptr_to_int v155 i256;
-        v157.*i256 = alloca i256;
-        v158.i256 = ptr_to_int v157 i256;
-        evm_code_copy v158 v156 32.i256;
-        v159.i256 = mload v158 i256;
-        v160.i64 = trunc v159 i64;
-        v161.objref<i64> = obj.index v0 15.i256;
-        obj.store v161 v160;
-        v162.i256 = sym_addr $__fe_const_data_0;
-        v163.*[i64; 25] = int_to_ptr v162 *[i64; 25];
-        v165.*i64 = gep v163 0.i256 16.i256;
-        v166.i256 = ptr_to_int v165 i256;
-        v167.*i256 = alloca i256;
-        v168.i256 = ptr_to_int v167 i256;
-        evm_code_copy v168 v166 32.i256;
-        v169.i256 = mload v168 i256;
-        v170.i64 = trunc v169 i64;
-        v171.objref<i64> = obj.index v0 16.i256;
-        obj.store v171 v170;
-        v172.i256 = sym_addr $__fe_const_data_0;
-        v173.*[i64; 25] = int_to_ptr v172 *[i64; 25];
-        v175.*i64 = gep v173 0.i256 17.i256;
-        v176.i256 = ptr_to_int v175 i256;
-        v177.*i256 = alloca i256;
-        v178.i256 = ptr_to_int v177 i256;
-        evm_code_copy v178 v176 32.i256;
-        v179.i256 = mload v178 i256;
-        v180.i64 = trunc v179 i64;
-        v181.objref<i64> = obj.index v0 17.i256;
-        obj.store v181 v180;
-        v182.i256 = sym_addr $__fe_const_data_0;
-        v183.*[i64; 25] = int_to_ptr v182 *[i64; 25];
-        v185.*i64 = gep v183 0.i256 18.i256;
-        v186.i256 = ptr_to_int v185 i256;
-        v187.*i256 = alloca i256;
-        v188.i256 = ptr_to_int v187 i256;
-        evm_code_copy v188 v186 32.i256;
-        v189.i256 = mload v188 i256;
-        v190.i64 = trunc v189 i64;
-        v191.objref<i64> = obj.index v0 18.i256;
-        obj.store v191 v190;
-        v192.i256 = sym_addr $__fe_const_data_0;
-        v193.*[i64; 25] = int_to_ptr v192 *[i64; 25];
-        v195.*i64 = gep v193 0.i256 19.i256;
-        v196.i256 = ptr_to_int v195 i256;
-        v197.*i256 = alloca i256;
-        v198.i256 = ptr_to_int v197 i256;
-        evm_code_copy v198 v196 32.i256;
-        v199.i256 = mload v198 i256;
-        v200.i64 = trunc v199 i64;
-        v201.objref<i64> = obj.index v0 19.i256;
-        obj.store v201 v200;
-        v202.i256 = sym_addr $__fe_const_data_0;
-        v203.*[i64; 25] = int_to_ptr v202 *[i64; 25];
-        v205.*i64 = gep v203 0.i256 20.i256;
-        v206.i256 = ptr_to_int v205 i256;
-        v207.*i256 = alloca i256;
-        v208.i256 = ptr_to_int v207 i256;
-        evm_code_copy v208 v206 32.i256;
-        v209.i256 = mload v208 i256;
-        v210.i64 = trunc v209 i64;
-        v211.objref<i64> = obj.index v0 20.i256;
-        obj.store v211 v210;
-        v212.i256 = sym_addr $__fe_const_data_0;
-        v213.*[i64; 25] = int_to_ptr v212 *[i64; 25];
-        v215.*i64 = gep v213 0.i256 21.i256;
-        v216.i256 = ptr_to_int v215 i256;
-        v217.*i256 = alloca i256;
-        v218.i256 = ptr_to_int v217 i256;
-        evm_code_copy v218 v216 32.i256;
-        v219.i256 = mload v218 i256;
-        v220.i64 = trunc v219 i64;
-        v221.objref<i64> = obj.index v0 21.i256;
-        obj.store v221 v220;
-        v222.i256 = sym_addr $__fe_const_data_0;
-        v223.*[i64; 25] = int_to_ptr v222 *[i64; 25];
-        v225.*i64 = gep v223 0.i256 22.i256;
-        v226.i256 = ptr_to_int v225 i256;
-        v227.*i256 = alloca i256;
-        v228.i256 = ptr_to_int v227 i256;
-        evm_code_copy v228 v226 32.i256;
-        v229.i256 = mload v228 i256;
-        v230.i64 = trunc v229 i64;
-        v231.objref<i64> = obj.index v0 22.i256;
-        obj.store v231 v230;
-        v232.i256 = sym_addr $__fe_const_data_0;
-        v233.*[i64; 25] = int_to_ptr v232 *[i64; 25];
-        v235.*i64 = gep v233 0.i256 23.i256;
-        v236.i256 = ptr_to_int v235 i256;
-        v237.*i256 = alloca i256;
-        v238.i256 = ptr_to_int v237 i256;
-        evm_code_copy v238 v236 32.i256;
-        v239.i256 = mload v238 i256;
-        v240.i64 = trunc v239 i64;
-        v241.objref<i64> = obj.index v0 23.i256;
-        obj.store v241 v240;
-        v242.i256 = sym_addr $__fe_const_data_0;
-        v243.*[i64; 25] = int_to_ptr v242 *[i64; 25];
-        v245.*i64 = gep v243 0.i256 24.i256;
-        v246.i256 = ptr_to_int v245 i256;
-        v247.*i256 = alloca i256;
-        v248.i256 = ptr_to_int v247 i256;
-        evm_code_copy v248 v246 32.i256;
-        v249.i256 = mload v248 i256;
-        v250.i64 = trunc v249 i64;
-        v251.objref<i64> = obj.index v0 24.i256;
-        obj.store v251 v250;
-        v253.i256 = call %_t__const_n__usize__h8b63f3f6d3df6413_seq_ha637d2df505bccf2_len__u64_25__540b817a073b29f5;
         jump block1;
 
     block1:
-        v271.i64 = phi (0.i64 block0) (v261 block3);
-        v254.i256 = phi (0.i256 block0) (v266 block3);
-        v256.i1 = lt v254 v253;
-        br v256 block2 block4;
-
-    block2:
-        v259.i64 = call %_t__const_n__usize__h8b63f3f6d3df6413_seq_ha637d2df505bccf2_get__u64_25__540b817a073b29f5 v0 v254;
-        (v261.i64, v262.i1) = uaddo v271 v259;
-        br v262 block5 block6;
-
-    block3:
-        v266.i256 = add v254 1.i256;
-        jump block1;
-
-    block4:
-        return v271;
-
-    block5:
-        mstore 0.i256 35408467139433450592217433187231851964531694900788300625387963629091585785856.i256 i256;
-        mstore 4.i256 17.i256 i256;
-        evm_revert 0.i256 36.i256;
-
-    block6:
-        jump block3;
-}
-
-func private %_t__const_n__usize__h8b63f3f6d3df6413_seq_ha637d2df505bccf2_len__u64_25__540b817a073b29f5() -> i256 {
-    block0:
-        return 25.i256;
-}
-
-func private %_t__const_n__usize__h8b63f3f6d3df6413_seq_ha637d2df505bccf2_get__u64_25__540b817a073b29f5(v0.objref<[i64; 25]>, v1.i256) -> i64 {
-    block0:
-        v3.i1 = lt v1 25.i256;
-        v4.i1 = is_zero v3;
-        br v4 block1 block2;
-
-    block1:
-        mstore 0.i256 35408467139433450592217433187231851964531694900788300625387963629091585785856.i256 i256;
-        mstore 4.i256 50.i256 i256;
-        evm_revert 0.i256 36.i256;
-
-    block2:
-        v10.objref<i64> = obj.index v0 v1;
-        v11.i64 = obj.load v10;
-        return v11;
-}
-
-func private %__fe_sonatina_entry() {
-    block0:
         v0.i64 = call %for_array_sum;
         evm_stop;
 }
 
+func private %for_array_sum() -> i64 {
+    block0:
+        v0.*i64 = alloca i64;
+        jump block1;
 
-object @Contract {
-    section runtime {
-        entry %__fe_sonatina_entry;
-        data $__fe_const_data_0;
+    block1:
+        v26.objref<[i64; 25]> = obj.alloc [i64; 25];
+        v28.objref<i64> = obj.index v26 0.i256;
+        obj.store v28 1.i64;
+        v30.objref<i64> = obj.index v26 1.i256;
+        obj.store v30 2.i64;
+        v32.objref<i64> = obj.index v26 2.i256;
+        obj.store v32 3.i64;
+        v34.objref<i64> = obj.index v26 3.i256;
+        obj.store v34 4.i64;
+        v36.objref<i64> = obj.index v26 4.i256;
+        obj.store v36 5.i64;
+        v38.objref<i64> = obj.index v26 5.i256;
+        obj.store v38 6.i64;
+        v40.objref<i64> = obj.index v26 6.i256;
+        obj.store v40 7.i64;
+        v42.objref<i64> = obj.index v26 7.i256;
+        obj.store v42 8.i64;
+        v44.objref<i64> = obj.index v26 8.i256;
+        obj.store v44 9.i64;
+        v46.objref<i64> = obj.index v26 9.i256;
+        obj.store v46 10.i64;
+        v48.objref<i64> = obj.index v26 10.i256;
+        obj.store v48 11.i64;
+        v50.objref<i64> = obj.index v26 11.i256;
+        obj.store v50 12.i64;
+        v52.objref<i64> = obj.index v26 12.i256;
+        obj.store v52 13.i64;
+        v54.objref<i64> = obj.index v26 13.i256;
+        obj.store v54 14.i64;
+        v56.objref<i64> = obj.index v26 14.i256;
+        obj.store v56 15.i64;
+        v58.objref<i64> = obj.index v26 15.i256;
+        obj.store v58 16.i64;
+        v60.objref<i64> = obj.index v26 16.i256;
+        obj.store v60 17.i64;
+        v62.objref<i64> = obj.index v26 17.i256;
+        obj.store v62 18.i64;
+        v64.objref<i64> = obj.index v26 18.i256;
+        obj.store v64 19.i64;
+        v66.objref<i64> = obj.index v26 19.i256;
+        obj.store v66 20.i64;
+        v68.objref<i64> = obj.index v26 20.i256;
+        obj.store v68 21.i64;
+        v70.objref<i64> = obj.index v26 21.i256;
+        obj.store v70 22.i64;
+        v72.objref<i64> = obj.index v26 22.i256;
+        obj.store v72 23.i64;
+        v74.objref<i64> = obj.index v26 23.i256;
+        obj.store v74 24.i64;
+        v76.objref<i64> = obj.index v26 24.i256;
+        obj.store v76 25.i64;
+        v77.[i64; 25] = obj.load v26;
+        v78.objref<[i64; 25]> = obj.alloc [i64; 25];
+        v79.objref<i64> = obj.index v78 0.i256;
+        obj.store v79 1.i64;
+        v80.objref<i64> = obj.index v78 1.i256;
+        obj.store v80 2.i64;
+        v81.objref<i64> = obj.index v78 2.i256;
+        obj.store v81 3.i64;
+        v82.objref<i64> = obj.index v78 3.i256;
+        obj.store v82 4.i64;
+        v83.objref<i64> = obj.index v78 4.i256;
+        obj.store v83 5.i64;
+        v84.objref<i64> = obj.index v78 5.i256;
+        obj.store v84 6.i64;
+        v85.objref<i64> = obj.index v78 6.i256;
+        obj.store v85 7.i64;
+        v86.objref<i64> = obj.index v78 7.i256;
+        obj.store v86 8.i64;
+        v87.objref<i64> = obj.index v78 8.i256;
+        obj.store v87 9.i64;
+        v88.objref<i64> = obj.index v78 9.i256;
+        obj.store v88 10.i64;
+        v89.objref<i64> = obj.index v78 10.i256;
+        obj.store v89 11.i64;
+        v90.objref<i64> = obj.index v78 11.i256;
+        obj.store v90 12.i64;
+        v91.objref<i64> = obj.index v78 12.i256;
+        obj.store v91 13.i64;
+        v92.objref<i64> = obj.index v78 13.i256;
+        obj.store v92 14.i64;
+        v93.objref<i64> = obj.index v78 14.i256;
+        obj.store v93 15.i64;
+        v94.objref<i64> = obj.index v78 15.i256;
+        obj.store v94 16.i64;
+        v95.objref<i64> = obj.index v78 16.i256;
+        obj.store v95 17.i64;
+        v96.objref<i64> = obj.index v78 17.i256;
+        obj.store v96 18.i64;
+        v97.objref<i64> = obj.index v78 18.i256;
+        obj.store v97 19.i64;
+        v98.objref<i64> = obj.index v78 19.i256;
+        obj.store v98 20.i64;
+        v99.objref<i64> = obj.index v78 20.i256;
+        obj.store v99 21.i64;
+        v100.objref<i64> = obj.index v78 21.i256;
+        obj.store v100 22.i64;
+        v101.objref<i64> = obj.index v78 22.i256;
+        obj.store v101 23.i64;
+        v102.objref<i64> = obj.index v78 23.i256;
+        obj.store v102 24.i64;
+        v103.objref<i64> = obj.index v78 24.i256;
+        obj.store v103 25.i64;
+        v104.[i64; 25] = obj.load v78;
+        v106.i256 = call %len v104;
+        jump block2;
+
+    block2:
+        v125.i64 = phi (0.i64 block1) (v117 block7);
+        v107.i256 = phi (0.i256 block1) (v119 block7);
+        v109.i1 = lt v107 v106;
+        br v109 block3 block4;
+
+    block3:
+        v112.i64 = call %get v104 v107;
+        (v114.i64, v115.i1) = uaddo v125 v112;
+        br v115 block5 block6;
+
+    block4:
+        return v125;
+
+    block5:
+        evm_revert 0.i256 0.i256;
+
+    block6:
+        mstore v0 v114 i64;
+        v116.i256 = mload v0 i256;
+        v117.i64 = trunc v116 i64;
+        (v119.i256, v120.i1) = uaddo v107 1.i256;
+        br v120 block5 block7;
+
+    block7:
+        jump block2;
+}
+
+func private %get(v0.[i64; 25], v1.i256) -> i64 {
+    block0:
+        v2.objref<[i64; 25]> = obj.alloc [i64; 25];
+        v3.*i256 = alloca i256;
+        v5.objref<i64> = obj.index v2 0.i256;
+        v6.i64 = extract_value v0 0.i256;
+        obj.store v5 v6;
+        v8.objref<i64> = obj.index v2 1.i256;
+        v9.i64 = extract_value v0 1.i256;
+        obj.store v8 v9;
+        v11.objref<i64> = obj.index v2 2.i256;
+        v12.i64 = extract_value v0 2.i256;
+        obj.store v11 v12;
+        v14.objref<i64> = obj.index v2 3.i256;
+        v15.i64 = extract_value v0 3.i256;
+        obj.store v14 v15;
+        v17.objref<i64> = obj.index v2 4.i256;
+        v18.i64 = extract_value v0 4.i256;
+        obj.store v17 v18;
+        v20.objref<i64> = obj.index v2 5.i256;
+        v21.i64 = extract_value v0 5.i256;
+        obj.store v20 v21;
+        v23.objref<i64> = obj.index v2 6.i256;
+        v24.i64 = extract_value v0 6.i256;
+        obj.store v23 v24;
+        v26.objref<i64> = obj.index v2 7.i256;
+        v27.i64 = extract_value v0 7.i256;
+        obj.store v26 v27;
+        v29.objref<i64> = obj.index v2 8.i256;
+        v30.i64 = extract_value v0 8.i256;
+        obj.store v29 v30;
+        v32.objref<i64> = obj.index v2 9.i256;
+        v33.i64 = extract_value v0 9.i256;
+        obj.store v32 v33;
+        v35.objref<i64> = obj.index v2 10.i256;
+        v36.i64 = extract_value v0 10.i256;
+        obj.store v35 v36;
+        v38.objref<i64> = obj.index v2 11.i256;
+        v39.i64 = extract_value v0 11.i256;
+        obj.store v38 v39;
+        v41.objref<i64> = obj.index v2 12.i256;
+        v42.i64 = extract_value v0 12.i256;
+        obj.store v41 v42;
+        v44.objref<i64> = obj.index v2 13.i256;
+        v45.i64 = extract_value v0 13.i256;
+        obj.store v44 v45;
+        v47.objref<i64> = obj.index v2 14.i256;
+        v48.i64 = extract_value v0 14.i256;
+        obj.store v47 v48;
+        v50.objref<i64> = obj.index v2 15.i256;
+        v51.i64 = extract_value v0 15.i256;
+        obj.store v50 v51;
+        v53.objref<i64> = obj.index v2 16.i256;
+        v54.i64 = extract_value v0 16.i256;
+        obj.store v53 v54;
+        v56.objref<i64> = obj.index v2 17.i256;
+        v57.i64 = extract_value v0 17.i256;
+        obj.store v56 v57;
+        v59.objref<i64> = obj.index v2 18.i256;
+        v60.i64 = extract_value v0 18.i256;
+        obj.store v59 v60;
+        v62.objref<i64> = obj.index v2 19.i256;
+        v63.i64 = extract_value v0 19.i256;
+        obj.store v62 v63;
+        v65.objref<i64> = obj.index v2 20.i256;
+        v66.i64 = extract_value v0 20.i256;
+        obj.store v65 v66;
+        v68.objref<i64> = obj.index v2 21.i256;
+        v69.i64 = extract_value v0 21.i256;
+        obj.store v68 v69;
+        v71.objref<i64> = obj.index v2 22.i256;
+        v72.i64 = extract_value v0 22.i256;
+        obj.store v71 v72;
+        v74.objref<i64> = obj.index v2 23.i256;
+        v75.i64 = extract_value v0 23.i256;
+        obj.store v74 v75;
+        v77.objref<i64> = obj.index v2 24.i256;
+        v78.i64 = extract_value v0 24.i256;
+        obj.store v77 v78;
+        mstore v3 v1 i256;
+        jump block1;
+
+    block1:
+        v79.i256 = mload v3 i256;
+        v81.i1 = lt v79 25.i256;
+        v82.i1 = is_zero v81;
+        br v82 block2 block3;
+
+    block2:
+        evm_revert 0.i256 0.i256;
+
+    block3:
+        v83.objref<i64> = obj.index v2 v79;
+        v84.i64 = obj.load v83;
+        return v84;
+}
+
+func private %len(v0.[i64; 25]) -> i256 {
+    block0:
+        jump block1;
+
+    block1:
+        return 25.i256;
+}
+
+
+object @main {
+    section main {
+        entry %__fe_main_root;
     }
 }

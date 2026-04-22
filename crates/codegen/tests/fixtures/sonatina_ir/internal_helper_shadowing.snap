@@ -5,65 +5,142 @@ input_file: crates/codegen/tests/fixtures/internal_helper_shadowing.fe
 ---
 target = "evm-ethereum-osaka"
 
-type @__fe_obj_tuple_0 = {i64, i64};
+type @__fe_layout_0 = {i64, i64};
+type @__fe_layout_1 = {@__fe_layout_0, @__fe_layout_0};
 
-func private %checked_add_u64() -> i64 {
+func private %__fe_main_root() {
     block0:
-        return 77.i64;
-}
-
-func private %saturating_add_u64() -> i64 {
-    block0:
-        return 88.i64;
-}
-
-func private %call_user_helpers() -> objref<@__fe_obj_tuple_0> {
-    block0:
-        v2.i64 = call %checked_add_u64;
-        v3.i64 = call %saturating_add_u64;
-        v4.objref<@__fe_obj_tuple_0> = obj.alloc @__fe_obj_tuple_0;
-        v6.objref<i64> = obj.proj v4 0.i256;
-        obj.store v6 v2;
-        v8.objref<i64> = obj.proj v4 1.i256;
-        obj.store v8 v3;
-        return v4;
-}
-
-func private %call_internal_helpers(v0.i64, v1.i64) -> objref<@__fe_obj_tuple_0> {
-    block0:
-        (v2.i64, v3.i1) = uaddo v0 v1;
-        br v3 block1 block2;
+        jump block1;
 
     block1:
-        mstore 0.i256 35408467139433450592217433187231851964531694900788300625387963629091585785856.i256 i256;
-        mstore 4.i256 17.i256 i256;
-        evm_revert 0.i256 36.i256;
-
-    block2:
-        v11.i64 = call %u64_haee7f05a097ffa16_saturatingadd_h7ca6e43aca8f23bb_saturating_add v0 v1;
-        v12.objref<@__fe_obj_tuple_0> = obj.alloc @__fe_obj_tuple_0;
-        v13.objref<i64> = obj.proj v12 0.i256;
-        obj.store v13 v2;
-        v15.objref<i64> = obj.proj v12 1.i256;
-        obj.store v15 v11;
-        return v12;
-}
-
-func private %u64_haee7f05a097ffa16_saturatingadd_h7ca6e43aca8f23bb_saturating_add(v0.i64, v1.i64) -> i64 {
-    block0:
-        v2.i64 = uaddsat v0 v1;
-        return v2;
-}
-
-func private %__fe_sonatina_entry() {
-    block0:
-        v0.i64 = call %checked_add_u64;
+        v0.@__fe_layout_1 = call %main;
         evm_stop;
 }
 
+func private %call_internal_helpers(v0.i64, v1.i64) -> @__fe_layout_0 {
+    block0:
+        v2.*i64 = alloca i64;
+        v3.*i64 = alloca i64;
+        mstore v2 v0 i64;
+        mstore v3 v1 i64;
+        jump block1;
 
-object @Contract {
-    section runtime {
-        entry %__fe_sonatina_entry;
+    block1:
+        v4.i256 = mload v2 i256;
+        v5.i64 = trunc v4 i64;
+        v6.i256 = mload v3 i256;
+        v7.i64 = trunc v6 i64;
+        (v8.i64, v9.i1) = uaddo v5 v7;
+        br v9 block2 block3;
+
+    block2:
+        evm_revert 0.i256 0.i256;
+
+    block3:
+        v11.i256 = mload v2 i256;
+        v12.i64 = trunc v11 i64;
+        v13.i256 = mload v3 i256;
+        v14.i64 = trunc v13 i64;
+        v15.i64 = call %saturating_add v12 v14;
+        v16.objref<@__fe_layout_0> = obj.alloc @__fe_layout_0;
+        v17.objref<i64> = obj.proj v16 0.i256;
+        obj.store v17 v8;
+        v19.objref<i64> = obj.proj v16 1.i256;
+        obj.store v19 v15;
+        v20.@__fe_layout_0 = obj.load v16;
+        return v20;
+}
+
+func private %call_user_helpers(v0.i64, v1.i64) -> @__fe_layout_0 {
+    block0:
+        v2.*i64 = alloca i64;
+        v3.*i64 = alloca i64;
+        mstore v2 v0 i64;
+        mstore v3 v1 i64;
+        jump block1;
+
+    block1:
+        v4.i256 = mload v2 i256;
+        v5.i64 = trunc v4 i64;
+        v6.i256 = mload v3 i256;
+        v7.i64 = trunc v6 i64;
+        v8.i64 = call %checked_add_u64 v5 v7;
+        v9.i256 = mload v2 i256;
+        v10.i64 = trunc v9 i64;
+        v11.i256 = mload v3 i256;
+        v12.i64 = trunc v11 i64;
+        v13.i64 = call %saturating_add_u64 v10 v12;
+        v14.objref<@__fe_layout_0> = obj.alloc @__fe_layout_0;
+        v16.objref<i64> = obj.proj v14 0.i256;
+        obj.store v16 v8;
+        v18.objref<i64> = obj.proj v14 1.i256;
+        obj.store v18 v13;
+        v19.@__fe_layout_0 = obj.load v14;
+        return v19;
+}
+
+func private %checked_add_u64(v0.i64, v1.i64) -> i64 {
+    block0:
+        jump block1;
+
+    block1:
+        return 77.i64;
+}
+
+func private %main() -> @__fe_layout_1 {
+    block0:
+        jump block1;
+
+    block1:
+        v2.@__fe_layout_0 = call %call_user_helpers 1.i64 2.i64;
+        v3.@__fe_layout_0 = call %call_internal_helpers 1.i64 2.i64;
+        v4.objref<@__fe_layout_1> = obj.alloc @__fe_layout_1;
+        v6.objref<@__fe_layout_0> = obj.proj v4 0.i256;
+        v7.objref<i64> = obj.proj v6 0.i256;
+        v8.i64 = extract_value v2 0.i256;
+        obj.store v7 v8;
+        v10.objref<i64> = obj.proj v6 1.i256;
+        v11.i64 = extract_value v2 1.i256;
+        obj.store v10 v11;
+        v12.objref<@__fe_layout_0> = obj.proj v4 1.i256;
+        v13.objref<i64> = obj.proj v12 0.i256;
+        v14.i64 = extract_value v3 0.i256;
+        obj.store v13 v14;
+        v15.objref<i64> = obj.proj v12 1.i256;
+        v16.i64 = extract_value v3 1.i256;
+        obj.store v15 v16;
+        v17.@__fe_layout_1 = obj.load v4;
+        return v17;
+}
+
+func private %saturating_add(v0.i64, v1.i64) -> i64 {
+    block0:
+        v2.*i64 = alloca i64;
+        v3.*i64 = alloca i64;
+        mstore v2 v0 i64;
+        mstore v3 v1 i64;
+        jump block1;
+
+    block1:
+        v4.i256 = mload v2 i256;
+        v5.i64 = trunc v4 i64;
+        v6.i256 = mload v3 i256;
+        v7.i64 = trunc v6 i64;
+        v8.i64 = uaddsat v5 v7;
+        return v8;
+}
+
+func private %saturating_add_u64(v0.i64, v1.i64) -> i64 {
+    block0:
+        jump block1;
+
+    block1:
+        return 88.i64;
+}
+
+
+object @main {
+    section main {
+        entry %__fe_main_root;
     }
 }

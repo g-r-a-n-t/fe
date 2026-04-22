@@ -3,17 +3,31 @@ source: crates/codegen/tests/yul.rs
 expression: output
 input_file: tests/fixtures/borrow_handles_readback.fe
 ---
-function $borrow_handles_readback() -> ret {
-  let v0 := mload(0x40)
-  if iszero(v0) {
-    v0 := 0x80
+object "main" {
+  code {
+    function $__fe_main_root() {
+      let v0 := $borrow_handles_readback()
+      stop()
+    }
+    function $borrow_handles_readback() -> ret {
+      let v6 := 0x00
+      let v2 := v6
+      let v7 := 0x00
+      let r0 := mload(0x40)
+      if iszero(r0) {
+        r0 := 0x80
+      }
+      mstore(0x40, add(r0, 32))
+      mstore(r0, v7)
+      let v8 := r0
+      let v3 := v8
+      let v1 := v3
+      let v9 := 0x05
+      let v4 := v9
+      mstore(v1, v4)
+      ret := mload(r0)
+      leave
+    }
+    $__fe_main_root()
   }
-  mstore(0x40, add(v0, 32))
-  let v1 := 0
-  mstore(v0, v1)
-  let v2 := v0
-  mstore(v2, 5)
-  let v3 := mload(v0)
-  ret := v3
-  leave
 }

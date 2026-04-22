@@ -11,13 +11,15 @@ use crate::{
 };
 use salsa::Update;
 
-use super::{ExprProp, TyChecker};
+use super::{BodyOwner, ExprProp, LocalBinding, TyChecker};
 use crate::analysis::{
     HirAnalysisDb,
     ty::{
         const_ty::LayoutHoleArgSite,
+        corelib::resolve_lib_func_path,
         diagnostics::{BodyDiag, FuncBodyDiag},
         fold::{AssocTySubst, TyFoldable, TyFolder},
+        normalize::normalize_ty,
         trait_def::TraitInstId,
         trait_resolution::constraint::collect_func_decl_constraints,
         ty_def::{BorrowKind, CapabilityKind},
@@ -26,6 +28,7 @@ use crate::analysis::{
         visitor::{TyVisitable, TyVisitor, collect_flags},
     },
 };
+use crate::core::semantic::{ProviderBinding, ProviderSource};
 use crate::hir_def::Body;
 use crate::hir_def::CallableDef;
 use crate::hir_def::params::FuncParamMode;
@@ -33,6 +36,107 @@ use crate::hir_def::params::FuncParamMode;
 pub(super) enum CallGenericArgUnifyError {
     ArityMismatch { given: usize, expected: usize },
     UnificationFailed,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Update)]
+pub enum EffectProviderProvenance<'db> {
+    Binding {
+        owner: BodyOwner<'db>,
+        binding: LocalBinding<'db>,
+    },
+    Expr {
+        owner: BodyOwner<'db>,
+        expr: ExprId,
+    },
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Update)]
+pub struct EffectProviderSpecialization<'db> {
+    pub provider: ProviderBinding<'db>,
+    pub provenance: EffectProviderProvenance<'db>,
+}
+
+impl<'db> TyVisitable<'db> for EffectProviderSpecialization<'db> {
+    fn visit_with<V>(&self, visitor: &mut V)
+    where
+        V: TyVisitor<'db> + ?Sized,
+    {
+        self.provider.provider_ty.visit_with(visitor);
+        self.provider.semantics.provider_ty.visit_with(visitor);
+        if let Some(target_ty) = self.provider.semantics.target_ty {
+            target_ty.visit_with(visitor);
+        }
+        match &self.provider.source {
+            ProviderSource::UsesParam { .. } | ProviderSource::ContractField { .. } => {}
+            ProviderSource::RootProvider { registration, .. } => {
+                registration.provider_ty.visit_with(visitor);
+            }
+        }
+        if let EffectProviderProvenance::Binding { binding, .. } = self.provenance {
+            binding.visit_with(visitor);
+        }
+    }
+}
+
+impl<'db> TyFoldable<'db> for EffectProviderSpecialization<'db> {
+    fn super_fold_with<F>(self, db: &'db dyn HirAnalysisDb, folder: &mut F) -> Self
+    where
+        F: TyFolder<'db>,
+    {
+        let provider_ty = self.provider.provider_ty.fold_with(db, folder);
+        let semantics = crate::analysis::ty::provider::ProviderSemantics {
+            provider_ty: self.provider.semantics.provider_ty.fold_with(db, folder),
+            target_ty: self
+                .provider
+                .semantics
+                .target_ty
+                .map(|ty| ty.fold_with(db, folder)),
+            ..self.provider.semantics
+        };
+        let source = match self.provider.source {
+            ProviderSource::UsesParam {
+                site,
+                requirement_idx,
+            } => ProviderSource::UsesParam {
+                site,
+                requirement_idx,
+            },
+            ProviderSource::ContractField {
+                contract,
+                field_idx,
+            } => ProviderSource::ContractField {
+                contract,
+                field_idx,
+            },
+            ProviderSource::RootProvider { site, registration } => ProviderSource::RootProvider {
+                site,
+                registration: crate::analysis::ty::provider::RootProviderRegistration {
+                    provider_ty: registration.provider_ty.fold_with(db, folder),
+                    ..registration
+                },
+            },
+        };
+        let provenance = match self.provenance {
+            EffectProviderProvenance::Binding { owner, binding } => {
+                EffectProviderProvenance::Binding {
+                    owner,
+                    binding: binding.fold_with(db, folder),
+                }
+            }
+            EffectProviderProvenance::Expr { owner, expr } => {
+                EffectProviderProvenance::Expr { owner, expr }
+            }
+        };
+        Self {
+            provider: ProviderBinding {
+                provider_ty,
+                semantics,
+                source,
+                ..self.provider
+            },
+            provenance,
+        }
+    }
 }
 
 pub(super) fn unify_explicit_call_generic_args<'db>(
@@ -80,6 +184,7 @@ pub struct Callable<'db> {
     pub callable_def: CallableDef<'db>,
     base_ty: TyId<'db>,
     generic_args: Vec<TyId<'db>>,
+    effect_providers: Vec<EffectProviderSpecialization<'db>>,
     /// The originating trait instance if this callable comes from a trait method
     /// (e.g., operator overloading, method call, indexing). None for inherent functions.
     pub trait_inst: Option<TraitInstId<'db>>,
@@ -91,6 +196,7 @@ impl<'db> TyVisitable<'db> for Callable<'db> {
         V: TyVisitor<'db> + ?Sized,
     {
         self.generic_args.visit_with(visitor);
+        self.effect_providers.visit_with(visitor);
         if let Some(inst) = self.trait_inst {
             inst.visit_with(visitor);
         }
@@ -106,12 +212,17 @@ impl<'db> TyFoldable<'db> for Callable<'db> {
             callable_def: self.callable_def,
             base_ty: self.base_ty,
             generic_args: self.generic_args.fold_with(db, folder),
+            effect_providers: self.effect_providers.fold_with(db, folder),
             trait_inst: self.trait_inst.map(|i| i.fold_with(db, folder)),
         }
     }
 }
 
 impl<'db> Callable<'db> {
+    pub fn callable_def(&self) -> CallableDef<'db> {
+        self.callable_def
+    }
+
     pub fn new(
         db: &'db dyn HirAnalysisDb,
         ty: TyId<'db>,
@@ -137,6 +248,7 @@ impl<'db> Callable<'db> {
             callable_def,
             base_ty: base,
             generic_args: args.to_vec(),
+            effect_providers: Vec::new(),
             trait_inst,
         })
     }
@@ -147,6 +259,14 @@ impl<'db> Callable<'db> {
 
     pub fn generic_args_mut(&mut self) -> &mut Vec<TyId<'db>> {
         &mut self.generic_args
+    }
+
+    pub fn effect_providers(&self) -> &[EffectProviderSpecialization<'db>] {
+        &self.effect_providers
+    }
+
+    pub fn effect_providers_mut(&mut self) -> &mut Vec<EffectProviderSpecialization<'db>> {
+        &mut self.effect_providers
     }
 
     pub fn trait_inst(&self) -> Option<TraitInstId<'db>> {
@@ -164,6 +284,19 @@ impl<'db> Callable<'db> {
         } else {
             ret
         }
+    }
+
+    pub fn arg_ty(&self, db: &'db dyn HirAnalysisDb, idx: usize) -> Option<TyId<'db>> {
+        let mut arg = self
+            .callable_def
+            .arg_tys(db)
+            .get(idx)?
+            .instantiate(db, &self.generic_args);
+        if let Some(inst) = self.trait_inst {
+            let mut subst = AssocTySubst::new(inst);
+            arg = arg.fold_with(db, &mut subst);
+        }
+        Some(arg)
     }
 
     pub fn ty(&self, db: &'db dyn HirAnalysisDb) -> TyId<'db> {
@@ -228,30 +361,6 @@ impl<'db> Callable<'db> {
             return;
         }
 
-        let mut args = if let Some((receiver_expr, receiver_prop)) = receiver {
-            let mut args = Vec::with_capacity(call_args.len() + 1);
-            let arg = CallArg::new(
-                IdentId::make_self(db).into(),
-                receiver_expr,
-                receiver_prop,
-                None,
-                receiver_expr.span(tc.body()).into(),
-            );
-            args.push(arg);
-            args
-        } else {
-            Vec::with_capacity(call_args.len())
-        };
-
-        for (i, hir_arg) in call_args.iter().enumerate() {
-            args.push(CallArg::from_hir_arg(
-                tc,
-                hir_arg,
-                span.clone().arg(i),
-                already_typed,
-            ));
-        }
-
         let expected_arg_tys = self.callable_def.arg_tys(db);
         let func_params: Option<Vec<_>> = match self.callable_def {
             CallableDef::Func(func) => {
@@ -268,6 +377,34 @@ impl<'db> Callable<'db> {
             CallableDef::VariantCtor(_) => None,
         };
 
+        let mut args = if let Some((receiver_expr, receiver_prop)) = receiver {
+            let mut args = Vec::with_capacity(call_args.len() + 1);
+            let arg = CallArg::new(
+                IdentId::make_self(db).into(),
+                receiver_expr,
+                receiver_prop,
+                None,
+                receiver_expr.span(tc.body()).into(),
+            );
+            args.push(arg);
+            args
+        } else {
+            Vec::with_capacity(call_args.len())
+        };
+
+        for (i, hir_arg) in call_args.iter().enumerate() {
+            let arg_idx = if has_receiver { i + 1 } else { i };
+            let expected_hint =
+                self.compile_time_string_literal_arg_expected(tc, hir_arg.expr, arg_idx);
+            args.push(CallArg::from_hir_arg(
+                tc,
+                hir_arg,
+                span.clone().arg(i),
+                already_typed,
+                expected_hint,
+            ));
+        }
+
         let body = tc.body();
         let is_unary = |expr: ExprId, op: UnOp| {
             matches!(
@@ -277,9 +414,10 @@ impl<'db> Callable<'db> {
         };
 
         for (i, (given, expected)) in args.into_iter().zip(expected_arg_tys.iter()).enumerate() {
-            if let Some(expected_label) = self.callable_def.param_label(db, i)
+            if let Some(given_label) = given.label
+                && let Some(expected_label) = self.callable_def.param_label(db, i)
                 && !expected_label.is_self(db)
-                && Some(expected_label) != given.label
+                && given_label != expected_label
             {
                 let diag = BodyDiag::CallArgLabelMismatch {
                     primary: given.label_span.unwrap_or(given.expr_span.clone()),
@@ -463,6 +601,55 @@ impl<'db> Callable<'db> {
             }
         }
     }
+
+    fn compile_time_string_literal_arg_expected(
+        &self,
+        tc: &TyChecker<'db>,
+        expr: ExprId,
+        arg_idx: usize,
+    ) -> Option<TyId<'db>> {
+        let Partial::Present(Expr::Lit(LitKind::String(string_id))) = expr.data(tc.db, tc.body())
+        else {
+            return None;
+        };
+
+        let mut expected = self
+            .callable_def
+            .arg_tys(tc.db)
+            .get(arg_idx)?
+            .instantiate(tc.db, &self.generic_args);
+        if let Some(inst) = self.trait_inst {
+            let mut subst = AssocTySubst::new(inst);
+            expected = expected.fold_with(tc.db, &mut subst);
+        }
+        let expected = normalize_ty(tc.db, expected, tc.env.scope(), tc.env.assumptions());
+        if tc.string_literal_should_use_byte_array(expected)
+            || self
+                .callable_def
+                .accepts_compile_time_string_literal_bytes(tc.db, tc.env.scope())
+        {
+            return Some(tc.string_literal_byte_array_ty(string_id.len_bytes(tc.db)));
+        }
+
+        None
+    }
+}
+
+impl<'db> CallableDef<'db> {
+    fn accepts_compile_time_string_literal_bytes(
+        self,
+        db: &'db dyn HirAnalysisDb,
+        scope: crate::hir_def::scope_graph::ScopeId<'db>,
+    ) -> bool {
+        let Self::Func(func) = self else {
+            return false;
+        };
+
+        resolve_lib_func_path(db, scope, "core::keccak")
+            .is_some_and(|core_keccak| func == core_keccak)
+            || resolve_lib_func_path(db, scope, "std::abi::sol")
+                .is_some_and(|std_sol| func == std_sol)
+    }
 }
 
 fn place_borrow_suggestion<'db>(
@@ -528,17 +715,18 @@ impl<'db> CallArg<'db> {
         arg: &HirCallArg<'db>,
         span: LazyCallArgSpan<'db>,
         already_typed: bool,
+        expected_hint: Option<TyId<'db>>,
     ) -> Self {
-        let expr_prop = if already_typed {
+        let expr_prop = if already_typed && expected_hint.is_none() {
             let db = tc.db;
             tc.env
                 .typed_expr(arg.expr)
                 .unwrap_or_else(|| ExprProp::invalid(db))
         } else {
-            let ty = tc.fresh_ty();
+            let ty = expected_hint.unwrap_or_else(|| tc.fresh_ty());
             tc.check_expr(arg.expr, ty)
         };
-        let label = arg.label_eagerly(tc.db, tc.body());
+        let label = arg.label;
         let label_span = arg.label.is_some().then(|| span.clone().label().into());
         let expr_span = span.expr().into();
 

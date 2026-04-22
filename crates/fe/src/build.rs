@@ -6,10 +6,10 @@ use std::{
 use camino::{Utf8Path, Utf8PathBuf};
 use codegen::{BackendKind, OptLevel, SonatinaContractBytecode};
 use common::{InputDb, config::Config, dependencies::WorkspaceMemberRecord, file::IngotFileKind};
-use driver::DriverDataBase;
 use driver::cli_target::{CliTarget, resolve_cli_target};
-use hir::hir_def::TopLevelMod;
-use mir::{analysis::build_contract_graph, fmt as mir_fmt, lower_ingot, lower_module};
+use driver::{DriverDataBase, MirDiagnosticsMode};
+use hir::hir_def::{HirIngot, ManualContractRootAttr, TopLevelMod};
+use mir2::build_runtime_package;
 use salsa::Setter;
 use smol_str::SmolStr;
 use solc_runner::compile_single_contract_with_solc;
@@ -357,9 +357,23 @@ fn build_file(
     };
 
     let top_mod = db.top_mod(file);
-    let diags = db.run_on_top_mod(top_mod);
-    if !diags.is_empty() {
-        diags.emit(db);
+    let hir_diags = db.run_on_top_mod(top_mod);
+    let mut has_errors = false;
+    let hir_has_errors = hir_diags.has_errors(db);
+    if !hir_diags.is_empty() {
+        hir_diags.emit(db);
+        has_errors = true;
+    }
+    let mir_diags = if hir_has_errors {
+        Vec::new()
+    } else {
+        db.mir_diagnostics_for_top_mod(top_mod, MirDiagnosticsMode::CompilerParity)
+    };
+    if !mir_diags.is_empty() {
+        db.emit_complete_diagnostics(&mir_diags);
+        has_errors = true;
+    }
+    if has_errors {
         return true;
     }
 
@@ -699,15 +713,27 @@ fn analyze_ingot_build_artifacts(
         return Err(());
     }
 
-    let diags = db.run_on_ingot(ingot);
-    if !diags.is_empty() {
-        diags.emit(db);
+    let hir_diags = db.run_on_ingot(ingot);
+    let mut has_errors = false;
+    let hir_has_errors = hir_diags.has_errors(db);
+    if !hir_diags.is_empty() {
+        hir_diags.emit(db);
+        has_errors = true;
+    }
+    let mir_diags = if hir_has_errors {
+        Vec::new()
+    } else {
+        db.mir_diagnostics_for_ingot(ingot, MirDiagnosticsMode::CompilerParity)
+    };
+    if !mir_diags.is_empty() {
+        db.emit_complete_diagnostics(&mir_diags);
+        has_errors = true;
+    }
+    if has_errors {
         return Err(());
     }
 
-    let contract_names = collect_ingot_contract_names(db, ingot).map_err(|err| {
-        eprintln!("Error: Failed to analyze contracts: {err}");
-    })?;
+    let contract_names = collect_workspace_contract_names(db, ingot);
 
     let abi_artifact_names = if include_abi_artifact_names {
         collect_ingot_abi_artifact_names(db, ingot).map_err(|err| {
@@ -872,9 +898,23 @@ fn build_ingot_url(
         return BuildSummary { had_errors: true };
     }
 
-    let diags = db.run_on_ingot(ingot);
-    if !diags.is_empty() {
-        diags.emit(db);
+    let hir_diags = db.run_on_ingot(ingot);
+    let mut has_errors = false;
+    let hir_has_errors = hir_diags.has_errors(db);
+    if !hir_diags.is_empty() {
+        hir_diags.emit(db);
+        has_errors = true;
+    }
+    let mir_diags = if hir_has_errors {
+        Vec::new()
+    } else {
+        db.mir_diagnostics_for_ingot(ingot, MirDiagnosticsMode::CompilerParity)
+    };
+    if !mir_diags.is_empty() {
+        db.emit_complete_diagnostics(&mir_diags);
+        has_errors = true;
+    }
+    if has_errors {
         return BuildSummary { had_errors: true };
     }
 
@@ -952,19 +992,11 @@ fn build_ingot(
                 if let Some(dir) = report_dir {
                     let path = dir.join("ingot.yul");
                     let _ = std::fs::write(path.as_std_path(), &yul);
-                    match lower_ingot(db, ingot) {
-                        Ok(mir) => {
-                            let path = dir.join("mir.txt");
-                            let _ = std::fs::write(
-                                path.as_std_path(),
-                                mir_fmt::format_module(db, &mir),
-                            );
-                        }
-                        Err(err) => {
-                            let path = dir.join("mir_error.txt");
-                            let _ = std::fs::write(path.as_std_path(), format!("{err}"));
-                        }
-                    }
+                    let path = dir.join("runtime_package.txt");
+                    let _ = std::fs::write(
+                        path.as_std_path(),
+                        format_ingot_runtime_packages(db, ingot),
+                    );
                 }
                 if emit.ir
                     && let Err(err) =
@@ -976,29 +1008,22 @@ fn build_ingot(
                 if emit.writes_any_bytecode() {
                     had_errors |= write_yul_bytecode_artifacts(
                         &names_to_build,
-                        &yul,
                         optimize,
                         out_dir,
                         report_dir,
                         emit,
                         solc,
+                        |name| {
+                            codegen::emit_ingot_object_yul(db, ingot, name)
+                                .map_err(|err| format!("Failed to emit Yul for `{name}`: {err}"))
+                        },
                     );
                 }
             }
             BackendKind::Sonatina => {
                 if emit.ir {
-                    let mir_module = match lower_ingot(db, ingot) {
-                        Ok(mir_module) => mir_module,
-                        Err(err) => {
-                            eprintln!("Error: Failed to compile Sonatina IR: {err}");
-                            return BuildSummary { had_errors: true };
-                        }
-                    };
-                    let ir = match codegen::emit_mir_module_sonatina_ir_optimized(
-                        db,
-                        &mir_module,
-                        opt_level,
-                        contract,
+                    let ir = match codegen::emit_ingot_sonatina_ir_optimized(
+                        db, ingot, opt_level, contract,
                     ) {
                         Ok(ir) => ir,
                         Err(err) => {
@@ -1100,19 +1125,8 @@ fn build_top_mod(
                 if let Some(dir) = report_dir {
                     let path = dir.join("module.yul");
                     let _ = std::fs::write(path.as_std_path(), &yul);
-                    match lower_module(db, top_mod) {
-                        Ok(mir) => {
-                            let path = dir.join("mir.txt");
-                            let _ = std::fs::write(
-                                path.as_std_path(),
-                                mir_fmt::format_module(db, &mir),
-                            );
-                        }
-                        Err(err) => {
-                            let path = dir.join("mir_error.txt");
-                            let _ = std::fs::write(path.as_std_path(), format!("{err}"));
-                        }
-                    }
+                    let path = dir.join("runtime_package.txt");
+                    let _ = std::fs::write(path.as_std_path(), format_runtime_package(db, top_mod));
                 }
                 if emit.ir
                     && let Err(err) =
@@ -1124,12 +1138,15 @@ fn build_top_mod(
                 if emit.writes_any_bytecode() {
                     had_errors |= write_yul_bytecode_artifacts(
                         &names_to_build,
-                        &yul,
                         optimize,
                         out_dir,
                         report_dir,
                         emit,
                         solc,
+                        |name| {
+                            codegen::emit_module_object_yul(db, top_mod, name)
+                                .map_err(|err| format!("Failed to emit Yul for `{name}`: {err}"))
+                        },
                     );
                 }
             }
@@ -1184,10 +1201,14 @@ fn collect_contract_names(
     db: &DriverDataBase,
     top_mod: TopLevelMod<'_>,
 ) -> Result<Vec<String>, String> {
-    let module = lower_module(db, top_mod).map_err(|err| err.to_string())?;
-    let graph = build_contract_graph(&module.functions);
-    let mut names: Vec<_> = graph.contracts.keys().cloned().collect();
+    let package = build_runtime_package(db, top_mod).map_err(|err| err.to_string())?;
+    let mut names: Vec<_> = package
+        .root_objects(db)
+        .iter()
+        .map(|object| object.name(db).clone())
+        .collect();
     names.sort();
+    names.dedup();
     Ok(names)
 }
 
@@ -1195,11 +1216,57 @@ fn collect_ingot_contract_names(
     db: &DriverDataBase,
     ingot: hir::Ingot<'_>,
 ) -> Result<Vec<String>, String> {
-    let module = lower_ingot(db, ingot).map_err(|err| err.to_string())?;
-    let graph = build_contract_graph(&module.functions);
-    let mut names: Vec<_> = graph.contracts.keys().cloned().collect();
+    let mut names = BTreeSet::new();
+    for &top_mod in ingot.all_modules(db) {
+        let package = build_runtime_package(db, top_mod).map_err(|err| err.to_string())?;
+        for object in package.root_objects(db) {
+            names.insert(object.name(db).clone());
+        }
+    }
+    let mut names: Vec<_> = names.into_iter().collect();
     names.sort();
     Ok(names)
+}
+
+fn collect_workspace_contract_names(db: &DriverDataBase, ingot: hir::Ingot<'_>) -> Vec<String> {
+    let mut names = BTreeSet::new();
+    for &top_mod in ingot.all_modules(db) {
+        for contract in top_mod.all_contracts(db) {
+            if let Some(name) = contract.name(db).to_opt() {
+                names.insert(name.data(db).to_string());
+            }
+        }
+        for &func in top_mod.all_funcs(db) {
+            if func.top_mod(db) != top_mod {
+                continue;
+            }
+            match func.manual_contract_root_attr(db) {
+                Some(ManualContractRootAttr::Init { contract_name })
+                | Some(ManualContractRootAttr::Runtime { contract_name }) => {
+                    names.insert(contract_name.data(db).to_string());
+                }
+                Some(ManualContractRootAttr::Error(_)) | None => {}
+            }
+        }
+    }
+    names.into_iter().collect()
+}
+
+fn format_runtime_package(db: &DriverDataBase, top_mod: TopLevelMod<'_>) -> String {
+    match build_runtime_package(db, top_mod) {
+        Ok(package) => format!("{package:#?}"),
+        Err(err) => format!("runtime package error: {err}"),
+    }
+}
+
+fn format_ingot_runtime_packages(db: &DriverDataBase, ingot: hir::Ingot<'_>) -> String {
+    let mut out = String::new();
+    for &top_mod in ingot.all_modules(db) {
+        out.push_str(&format!("=== {:?} ===\n", top_mod.name(db)));
+        out.push_str(&format_runtime_package(db, top_mod));
+        out.push_str("\n\n");
+    }
+    out
 }
 
 fn collect_ingot_abi_artifact_names(
@@ -1363,16 +1430,28 @@ fn write_named_ir_artifact(
 #[allow(clippy::too_many_arguments)]
 fn write_yul_bytecode_artifacts(
     names_to_build: &[String],
-    yul: &str,
     optimize: bool,
     out_dir: &Utf8Path,
     report_dir: Option<&Utf8Path>,
     emit: EmitSelection,
     solc: Option<&str>,
+    mut yul_for_name: impl FnMut(&str) -> Result<String, String>,
 ) -> bool {
     let mut had_errors = false;
     for name in names_to_build {
-        match compile_single_contract_with_solc(name, yul, optimize, true, solc) {
+        let yul = match yul_for_name(name) {
+            Ok(yul) => yul,
+            Err(err) => {
+                eprintln!("Error: {err}");
+                had_errors = true;
+                continue;
+            }
+        };
+        if let Some(dir) = report_dir {
+            let file_name = format!("{}.solc.yul", sanitize_filename(name));
+            let _ = std::fs::write(dir.join(file_name).as_std_path(), &yul);
+        }
+        match compile_single_contract_with_solc(name, &yul, optimize, true, solc) {
             Ok(bytecode) => {
                 if let Err(err) = write_contract_artifacts(
                     out_dir,

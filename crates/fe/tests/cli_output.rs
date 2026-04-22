@@ -179,6 +179,34 @@ fn run_fe_main_in_dir(args: &[&str], cwd: &Path) -> (String, i32) {
     (out.combined(), out.exit_code)
 }
 
+#[test]
+fn test_cli_check_invalid_named_const_used_in_type_position_reports_error_instead_of_panicking() {
+    let temp = tempdir().expect("tempdir");
+    let file = temp.path().join("invalid_const_ty_use.fe");
+    fs::write(
+        &file,
+        r#"
+const N: usize = nope()
+
+fn f() {
+    let _x: [u8; N] = [0; 1]
+}
+"#,
+    )
+    .expect("write fixture");
+
+    let (output, exit_code) = run_fe_check(file.to_str().expect("fixture path utf8"));
+    assert_eq!(exit_code, 1, "expected check failure:\n{output}");
+    assert!(
+        output.contains("undefined variable `nope`"),
+        "expected undefined variable diagnostic instead of panic:\n{output}"
+    );
+    assert!(
+        !output.contains("semantic lowering missing for call-like expression"),
+        "unexpected semantic lowering panic:\n{output}"
+    );
+}
+
 fn run_fe_main_in_dir_with_env(
     args: &[&str],
     cwd: &Path,
@@ -722,9 +750,8 @@ struct Weird {
 }
 
 impl core::abi::AbiSize for Weird {
-    const ENCODED_SIZE: u256 = 64
+    const HEAD_SIZE: u256 = 64
     const IS_DYNAMIC: bool = false
-    const NEEDS_PARENT_WRAPPER: bool = false
 }
 
 impl core::abi::Encode<std::abi::Sol> for Weird {
@@ -742,9 +769,9 @@ impl core::abi::Encode<std::abi::Sol> for Weird {
 }
 
 impl core::abi::Decode<std::abi::Sol> for Weird {
-    fn decode<D: core::abi::AbiDecoder<std::abi::Sol>>(_ d: mut D) -> Self {
-        let flag = bool::decode(d)
-        let amount = u64::decode(d)
+    fn decode_payload<D: core::abi::AbiDecoder<std::abi::Sol>>(_ d: mut D) -> Self {
+        let flag = bool::decode_payload(d)
+        let amount = u64::decode_payload(d)
         Self { amount, flag }
     }
 }
@@ -1622,6 +1649,78 @@ fn test_cli_test_ingot_discovers_tests_in_non_root_modules() {
     assert!(
         output.contains("1 passed"),
         "expected 1 passed test, got:\n{output}"
+    );
+}
+
+#[test]
+fn test_cli_test_default_project_path_discovers_tests_in_non_root_modules() {
+    let fixture_dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("tests/fixtures/fe_test_runner/ingot_tests_in_non_root_module");
+
+    let (output, exit_code) = run_fe_main_in_dir(&["test"], &fixture_dir);
+    assert_eq!(exit_code, 0, "fe test failed:\n{output}");
+    assert!(
+        output.contains("PASS  [<time>] test_add"),
+        "expected test_add to be discovered, got:\n{output}"
+    );
+    assert!(
+        output.contains("1 passed"),
+        "expected 1 passed test, got:\n{output}"
+    );
+}
+
+#[test]
+fn test_cli_test_single_file_zero_sized_self_method_passes() {
+    let fixture = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("tests/fixtures/fe_test/zero_sized_self_method.fe");
+    let fixture = fixture.to_str().expect("fixture path utf8");
+
+    let (output, exit_code) = run_fe_main(&["test", fixture]);
+    assert_eq!(exit_code, 0, "fe test failed:\n{output}");
+    assert!(
+        output.contains("PASS  [<time>] test_zero_sized_self_method"),
+        "expected zero-sized self method test to pass, got:\n{output}"
+    );
+    assert!(
+        output.contains("1 passed"),
+        "expected 1 passed test, got:\n{output}"
+    );
+}
+
+#[test]
+fn test_cli_test_emit_ir_and_rmir_writes_artifacts() {
+    let temp = tempdir().expect("tempdir");
+    let fixture = temp.path().join("emit_test.fe");
+    fs::write(&fixture, "#[test]\nfn test_pass() {}\n").expect("write fixture");
+    let fixture = fixture.to_str().expect("fixture path utf8");
+
+    let (output, exit_code) =
+        run_fe_main(&["test", "--jobs", "1", "-O0", "--emit", "ir,rmir", fixture]);
+    assert_eq!(exit_code, 0, "fe test failed:\n{output}");
+
+    let out_dir = temp.path().join("out");
+    let sona_path = out_dir.join("emit_test.test.sona");
+    let rmir_path = out_dir.join("emit_test.test.rmir");
+    assert!(
+        sona_path.is_file(),
+        "missing Sonatina IR artifact:\n{output}"
+    );
+    assert!(rmir_path.is_file(), "missing rMIR artifact:\n{output}");
+
+    let sona = fs::read_to_string(&sona_path).expect("read Sonatina IR");
+    let rmir = fs::read_to_string(&rmir_path).expect("read rMIR");
+    assert!(
+        sona.contains("target = \"evm-ethereum-osaka\""),
+        "unexpected Sonatina IR:\n{sona}"
+    );
+    assert!(
+        rmir.contains("package"),
+        "unexpected rMIR package dump:\n{rmir}"
+    );
+    assert!(rmir.contains("bb0:"), "unexpected rMIR body dump:\n{rmir}");
+    assert!(
+        output.contains("Wrote "),
+        "expected artifact output, got:\n{output}"
     );
 }
 

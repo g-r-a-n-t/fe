@@ -5,35 +5,74 @@ input_file: crates/codegen/tests/fixtures/newtype_word_mut_method_call.fe
 ---
 target = "evm-ethereum-osaka"
 
-func private %newtype_word_mut_method_call(v0.i256) -> i256 {
-    block0:
-        v1.i256 = call %wrap_haf9e70905fcbd513_bump v0;
-        return v1;
-}
+type @__fe_layout_0 = {i256};
 
-func private %wrap_haf9e70905fcbd513_bump(v0.i256) -> i256 {
+func private %__fe_main_root() {
     block0:
-        (v2.i256, v3.i1) = uaddo v0 1.i256;
-        br v3 block1 block2;
+        jump block1;
 
     block1:
-        mstore 0.i256 35408467139433450592217433187231851964531694900788300625387963629091585785856.i256 i256;
-        mstore 4.i256 17.i256 i256;
-        evm_revert 0.i256 36.i256;
-
-    block2:
-        return v2;
-}
-
-func private %__fe_sonatina_entry() {
-    block0:
-        v1.i256 = call %newtype_word_mut_method_call 0.i256;
+        v0.i256 = call %main;
         evm_stop;
 }
 
+func private %bump(v0.@__fe_layout_0) -> @__fe_layout_0 {
+    block0:
+        v1.objref<@__fe_layout_0> = obj.alloc @__fe_layout_0;
+        v3.objref<i256> = obj.proj v1 0.i256;
+        v4.i256 = extract_value v0 0.i256;
+        obj.store v3 v4;
+        jump block1;
 
-object @Contract {
-    section runtime {
-        entry %__fe_sonatina_entry;
+    block1:
+        v5.objref<i256> = obj.proj v1 0.i256;
+        v7.i256 = obj.load v5;
+        (v8.i256, v9.i1) = uaddo v7 1.i256;
+        br v9 block2 block3;
+
+    block2:
+        evm_revert 0.i256 0.i256;
+
+    block3:
+        obj.store v5 v8;
+        v11.@__fe_layout_0 = obj.load v1;
+        return v11;
+}
+
+func private %main() -> i256 {
+    block0:
+        jump block1;
+
+    block1:
+        v1.i256 = call %newtype_word_mut_method_call 1.i256;
+        return v1;
+}
+
+func private %newtype_word_mut_method_call(v0.i256) -> i256 {
+    block0:
+        v1.*i256 = alloca i256;
+        mstore v1 v0 i256;
+        jump block1;
+
+    block1:
+        v2.i256 = mload v1 i256;
+        v3.objref<@__fe_layout_0> = obj.alloc @__fe_layout_0;
+        v5.objref<i256> = obj.proj v3 0.i256;
+        obj.store v5 v2;
+        v6.@__fe_layout_0 = obj.load v3;
+        v7.@__fe_layout_0 = call %bump v6;
+        v8.objref<@__fe_layout_0> = obj.alloc @__fe_layout_0;
+        v9.objref<i256> = obj.proj v8 0.i256;
+        v10.i256 = extract_value v7 0.i256;
+        obj.store v9 v10;
+        v11.objref<i256> = obj.proj v8 0.i256;
+        v12.i256 = obj.load v11;
+        return v12;
+}
+
+
+object @main {
+    section main {
+        entry %__fe_main_root;
     }
 }

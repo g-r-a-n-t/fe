@@ -69,7 +69,9 @@ use crate::analysis::ty::adt_def::{AdtCycleMember, AdtDef, AdtField, AdtRef};
 use crate::analysis::ty::const_ty::{
     CallableInputLayoutHoleOrigin, ConstTyData, ConstTyId, EvaluatedConstTy,
 };
-use crate::analysis::ty::effects::{EffectKeyKind, resolve_effect_key};
+use crate::analysis::ty::effects::{
+    EffectKeyKind, place_effect_provider_param_index_map, resolve_effect_key,
+};
 use crate::analysis::ty::layout_holes::{
     LayoutPlaceholderPolicy, callable_input_layout_bindings_by_origin,
     collect_layout_hole_tys_in_order, collect_unique_layout_placeholders_in_order_with_policy,
@@ -89,6 +91,9 @@ use crate::analysis::ty::ty_lower::{GenericParamTypeSet, collect_generic_params}
 use crate::analysis::ty::visitor::{TyVisitable, TyVisitor, walk_ty};
 use crate::analysis::ty::{
     diagnostics::{TraitConstraintDiag, TyDiagCollection},
+    provider::{
+        ProviderSemantics, RootProviderRegistration, provider_semantics, registered_root_providers,
+    },
     trait_resolution::{
         GoalSatisfiability, PredicateListId, TraitSolveCx, WellFormedness, check_ty_wf,
         is_goal_satisfiable,
@@ -328,10 +333,10 @@ fn canonicalize_contract_effect_key<'db>(
     (key_ty, key_trait)
 }
 
-fn func_effect_bindings_canonical<'db>(
+fn func_effect_requirements_canonical<'db>(
     db: &'db dyn HirAnalysisDb,
     func: Func<'db>,
-) -> Vec<EffectBinding<'db>> {
+) -> Vec<EffectRequirement<'db>> {
     let assumptions = collect_func_decl_constraints(db, func.into(), true).instantiate_identity();
     let layout_args = callable_input_layout_args(db, func);
     func.effects(db)
@@ -374,13 +379,10 @@ fn func_effect_bindings_canonical<'db>(
                     substitute_layout_holes_by_identity_in(db, trait_inst, effect_layout_args),
                 )
             });
-            Some(EffectBinding {
+            Some(EffectRequirement {
                 binding_name,
-                key_kind,
-                key_ty,
-                key_trait,
+                key: EffectRequirementKey::from_parts(key_kind, key_ty, key_trait),
                 is_mut: effect.is_mut,
-                source: EffectSource::Root,
                 binding_site: EffectParamSite::Func(func),
                 binding_idx: idx as u32,
                 binding_path: key_path,
@@ -389,10 +391,112 @@ fn func_effect_bindings_canonical<'db>(
         .collect()
 }
 
-fn contract_effect_bindings_canonical<'db>(
+fn func_provider_bindings_canonical<'db>(
+    db: &'db dyn HirAnalysisDb,
+    func: Func<'db>,
+) -> Vec<ProviderBinding<'db>> {
+    let requirements = func_effect_requirements_canonical(db, func);
+    let assumptions = collect_func_decl_constraints(db, func.into(), true).instantiate_identity();
+    let scope = func.scope();
+    let provider_map = place_effect_provider_param_index_map(db, func);
+    let provider_params = CallableDef::Func(func).params(db);
+    let mut providers = requirements
+        .iter()
+        .filter(|requirement| {
+            matches!(
+                requirement.key.kind(),
+                EffectKeyKind::Type | EffectKeyKind::Trait
+            )
+        })
+        .filter_map(|requirement| {
+            let provider_param_idx = provider_map
+                .get(requirement.binding_idx as usize)
+                .copied()
+                .flatten()?;
+            let provider_ty = *provider_params.get(provider_param_idx)?;
+            Some(ProviderBinding {
+                provider_idx: requirement.binding_idx,
+                provider_ty,
+                is_mut: requirement.is_mut,
+                source: ProviderSource::UsesParam {
+                    site: EffectParamSite::Func(func),
+                    requirement_idx: requirement.binding_idx,
+                },
+                semantics: provider_semantics(db, scope, assumptions, provider_ty),
+            })
+        })
+        .collect::<Vec<_>>();
+
+    let base_provider_idx = providers.len();
+    providers.extend(
+        registered_root_providers(db, EffectParamSite::Func(func))
+            .into_iter()
+            .enumerate()
+            .map(|(idx, registration)| {
+                let provider_ty = registration.provider_ty;
+                ProviderBinding {
+                    provider_idx: (base_provider_idx + idx) as u32,
+                    provider_ty,
+                    is_mut: true,
+                    source: ProviderSource::RootProvider {
+                        site: EffectParamSite::Func(func),
+                        registration,
+                    },
+                    semantics: provider_semantics(db, scope, assumptions, provider_ty),
+                }
+            }),
+    );
+    providers
+}
+
+fn func_effect_resolutions_canonical<'db>(
+    db: &'db dyn HirAnalysisDb,
+    func: Func<'db>,
+) -> Vec<ResolvedEffectBinding> {
+    let explicit_provider_idx = func_provider_bindings_canonical(db, func)
+        .into_iter()
+        .filter_map(|provider| match provider.source {
+            ProviderSource::UsesParam {
+                requirement_idx, ..
+            } => Some((
+                requirement_idx,
+                (provider.provider_idx, provider.semantics.kind),
+            )),
+            ProviderSource::RootProvider { .. } | ProviderSource::ContractField { .. } => None,
+        })
+        .collect::<FxHashMap<_, _>>();
+    let root_provider_idx = provider_bindings_for_site(db, EffectParamSite::Func(func))
+        .into_iter()
+        .find_map(|provider| match provider.source {
+            ProviderSource::RootProvider { .. } => Some(provider.provider_idx),
+            ProviderSource::UsesParam { .. } | ProviderSource::ContractField { .. } => None,
+        });
+
+    func_effect_requirements_canonical(db, func)
+        .into_iter()
+        .filter(|requirement| {
+            matches!(
+                requirement.key.kind(),
+                EffectKeyKind::Type | EffectKeyKind::Trait
+            )
+        })
+        .filter_map(|requirement| {
+            explicit_provider_idx
+                .get(&requirement.binding_idx)
+                .map(|(provider_idx, _)| *provider_idx)
+                .or(root_provider_idx)
+                .map(|provider_idx| ResolvedEffectBinding {
+                    requirement_idx: requirement.binding_idx,
+                    provider_idx,
+                })
+        })
+        .collect()
+}
+
+fn contract_effect_requirements_canonical<'db>(
     db: &'db dyn HirAnalysisDb,
     contract: Contract<'db>,
-) -> Vec<EffectBinding<'db>> {
+) -> Vec<EffectRequirement<'db>> {
     let assumptions = PredicateListId::empty_list(db);
     let site = EffectParamSite::Contract(contract);
     contract
@@ -410,13 +514,10 @@ fn contract_effect_bindings_canonical<'db>(
                 resolve_effect_key(db, key_path, contract.scope(), assumptions).into_parts();
             let (key_ty, key_trait) =
                 canonicalize_contract_effect_key(db, site, idx as u32, key_ty, key_trait);
-            Some(EffectBinding {
+            Some(EffectRequirement {
                 binding_name,
-                key_kind,
-                key_ty,
-                key_trait,
+                key: EffectRequirementKey::from_parts(key_kind, key_ty, key_trait),
                 is_mut: effect.is_mut,
-                source: EffectSource::Root,
                 binding_site: site,
                 binding_idx: idx as u32,
                 binding_path: key_path,
@@ -531,6 +632,9 @@ impl<'db> TopLevelMod<'db> {
 impl<'db> Mod<'db> {
     // Note: semantic child iteration and module-scoped diagnostics can be
     // added here if direct `scope_graph` traversal in analysis becomes noisy.
+    pub fn arithmetic_mode(self, db: &'db dyn HirDb) -> Option<ArithmeticMode> {
+        self.attributes(db).arithmetic_mode(db)
+    }
 }
 
 // Function items ------------------------------------------------------------
@@ -1417,7 +1521,10 @@ impl<'db> RecvArmView<'db> {
     }
 
     #[salsa::tracked(return_ref)]
-    pub fn effective_effect_bindings(self, db: &'db dyn HirAnalysisDb) -> Vec<EffectBinding<'db>> {
+    pub fn effective_effect_requirements(
+        self,
+        db: &'db dyn HirAnalysisDb,
+    ) -> Vec<EffectRequirement<'db>> {
         let contract = self.contract(db);
         let recv_idx = self.recv(db).recv_idx(db);
         let arm_idx = self.arm_idx(db);
@@ -1430,7 +1537,7 @@ impl<'db> RecvArmView<'db> {
             recv_idx,
             arm_idx,
         };
-        contract_scoped_effect_bindings_canonical(db, contract, site, arm.effects)
+        contract_scoped_effect_requirements_canonical(db, contract, site, arm.effects)
     }
 }
 
@@ -1465,28 +1572,112 @@ pub struct ArgBinding<'db> {
     pub ty: TyId<'db>,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Update)]
-pub enum EffectSource {
-    Root,
-    Field(u32),
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Update)]
+pub enum EffectRequirementKey<'db> {
+    Type(TyId<'db>),
+    Trait(TraitInstId<'db>),
+    Other,
+}
+
+impl<'db> EffectRequirementKey<'db> {
+    pub fn from_parts(
+        key_kind: EffectKeyKind,
+        key_ty: Option<TyId<'db>>,
+        key_trait: Option<TraitInstId<'db>>,
+    ) -> Self {
+        match key_kind {
+            EffectKeyKind::Type => key_ty.map_or(Self::Other, Self::Type),
+            EffectKeyKind::Trait => key_trait.map_or(Self::Other, Self::Trait),
+            EffectKeyKind::Other => Self::Other,
+        }
+    }
+
+    pub fn kind(&self) -> EffectKeyKind {
+        match self {
+            Self::Type(_) => EffectKeyKind::Type,
+            Self::Trait(_) => EffectKeyKind::Trait,
+            Self::Other => EffectKeyKind::Other,
+        }
+    }
+
+    pub fn key_ty(&self) -> Option<TyId<'db>> {
+        match self {
+            Self::Type(ty) => Some(*ty),
+            Self::Trait(_) | Self::Other => None,
+        }
+    }
+
+    pub fn key_trait(&self) -> Option<TraitInstId<'db>> {
+        match self {
+            Self::Trait(trait_inst) => Some(*trait_inst),
+            Self::Type(_) | Self::Other => None,
+        }
+    }
+
+    pub fn binding_ty(&self, db: &'db dyn HirAnalysisDb) -> Option<TyId<'db>> {
+        match self {
+            Self::Type(ty) => Some(*ty),
+            Self::Trait(trait_inst) => Some(trait_inst.self_ty(db)),
+            Self::Other => None,
+        }
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Update)]
-pub struct EffectBinding<'db> {
+pub struct EffectRequirement<'db> {
     pub binding_name: IdentId<'db>,
-    pub key_kind: EffectKeyKind,
-    pub key_ty: Option<TyId<'db>>,
-    pub key_trait: Option<TraitInstId<'db>>,
+    pub key: EffectRequirementKey<'db>,
     pub is_mut: bool,
-    pub source: EffectSource,
     pub binding_site: EffectParamSite<'db>,
     pub binding_idx: u32,
     /// The path written at the binding site (e.g. `uses (ctx)` or `uses (mut store)`).
     ///
     /// Note: this is not necessarily the semantic "key path" that resolves to a type/trait; for
     /// contract-scoped named imports, this is the import name, while the resolved key is captured
-    /// by `key_kind`/`key_ty`/`key_trait`.
+    /// by `key`.
     pub binding_path: PathId<'db>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Update)]
+pub enum ProviderSource<'db> {
+    UsesParam {
+        site: EffectParamSite<'db>,
+        requirement_idx: u32,
+    },
+    ContractField {
+        contract: Contract<'db>,
+        field_idx: u32,
+    },
+    RootProvider {
+        site: EffectParamSite<'db>,
+        registration: RootProviderRegistration<'db>,
+    },
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Update)]
+pub struct ProviderBinding<'db> {
+    pub provider_idx: u32,
+    pub provider_ty: TyId<'db>,
+    pub is_mut: bool,
+    pub source: ProviderSource<'db>,
+    pub semantics: ProviderSemantics<'db>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Update)]
+pub struct ResolvedEffectBinding {
+    pub requirement_idx: u32,
+    pub provider_idx: u32,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Update)]
+pub struct ResolvedEffectBindingInfo<'db> {
+    pub requirement: EffectRequirement<'db>,
+    pub provider: ProviderBinding<'db>,
+}
+
+#[salsa::interned]
+pub struct EffectEnvSite<'db> {
+    pub site: EffectParamSite<'db>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Update)]
@@ -1503,23 +1694,46 @@ impl<'db> EffectEnvView<'db> {
         self.site
     }
 
-    pub fn bindings(self, db: &'db dyn HirAnalysisDb) -> &'db [EffectBinding<'db>] {
-        match self.site {
-            EffectParamSite::Contract(contract) => contract.effect_bindings(db).as_slice(),
-            EffectParamSite::ContractInit { contract } => {
-                contract.init_effect_bindings(db).as_slice()
-            }
-            EffectParamSite::ContractRecvArm {
-                contract,
-                recv_idx,
-                arm_idx,
-            } => {
-                let recv = RecvView::new(db, contract, recv_idx);
-                let arm = RecvArmView::new(db, recv, arm_idx);
-                arm.effective_effect_bindings(db).as_slice()
-            }
-            EffectParamSite::Func(func) => func.effective_effect_bindings(db).as_slice(),
+    pub fn requirements(self, db: &'db dyn HirAnalysisDb) -> Vec<EffectRequirement<'db>> {
+        effect_requirements_for_site(db, self.site)
+    }
+
+    pub fn resolved_binding(
+        self,
+        db: &'db dyn HirAnalysisDb,
+        idx: usize,
+    ) -> Option<ResolvedEffectBindingInfo<'db>> {
+        resolved_effect_binding_infos_for_site(db, EffectEnvSite::new(db, self.site))
+            .get(idx)
+            .and_then(|binding| binding.clone())
+    }
+
+    pub fn resolved_binding_ty(self, db: &'db dyn HirAnalysisDb, idx: usize) -> Option<TyId<'db>> {
+        let requirement = self
+            .requirements(db)
+            .into_iter()
+            .find(|binding| binding.binding_idx as usize == idx)?;
+        let provider = self
+            .resolved_binding(db, idx)
+            .map(|binding| binding.provider);
+
+        match requirement.key {
+            EffectRequirementKey::Trait(_) => provider
+                .map(|binding| binding.provider_ty)
+                .or_else(|| requirement.key.binding_ty(db)),
+            EffectRequirementKey::Type(_) | EffectRequirementKey::Other => requirement
+                .key
+                .binding_ty(db)
+                .or_else(|| provider.map(|binding| binding.provider_ty)),
         }
+    }
+
+    pub fn providers(self, db: &'db dyn HirAnalysisDb) -> Vec<ProviderBinding<'db>> {
+        provider_bindings_for_site(db, self.site)
+    }
+
+    pub fn resolutions(self, db: &'db dyn HirAnalysisDb) -> Vec<ResolvedEffectBinding> {
+        effect_resolutions_for_site(db, self.site)
     }
 }
 
@@ -1839,8 +2053,8 @@ impl<'db> Contract<'db> {
         let scope = self.top_mod(db).scope();
         let assumptions = PredicateListId::empty_list(db);
 
-        let effect_handle = resolve_core_trait(db, scope, &["effect_ref", "EffectHandle"])
-            .expect("missing required core trait `core::effect_ref::EffectHandle`");
+        let effect_handle = resolve_core_trait(db, scope, &["EffectHandle"])
+            .expect("missing required core trait `core::EffectHandle`");
         let address_space_ident = IdentId::new(db, "AddressSpace".to_string());
         let target_ident = IdentId::new(db, "Target".to_string());
         let default_storage_address_space =
@@ -1962,16 +2176,19 @@ impl<'db> Contract<'db> {
     }
 
     #[salsa::tracked(return_ref)]
-    pub fn effect_bindings(self, db: &'db dyn HirAnalysisDb) -> Vec<EffectBinding<'db>> {
-        contract_effect_bindings_canonical(db, self)
+    pub fn effect_requirements(self, db: &'db dyn HirAnalysisDb) -> Vec<EffectRequirement<'db>> {
+        contract_effect_requirements_canonical(db, self)
     }
 
     #[salsa::tracked(return_ref)]
-    pub fn init_effect_bindings(self, db: &'db dyn HirAnalysisDb) -> Vec<EffectBinding<'db>> {
+    pub fn init_effect_requirements(
+        self,
+        db: &'db dyn HirAnalysisDb,
+    ) -> Vec<EffectRequirement<'db>> {
         let Some(init) = self.init(db) else {
             return Vec::new();
         };
-        contract_scoped_effect_bindings_canonical(
+        contract_scoped_effect_requirements_canonical(
             db,
             self,
             EffectParamSite::ContractInit { contract: self },
@@ -1983,34 +2200,149 @@ impl<'db> Contract<'db> {
 #[salsa::tracked]
 impl<'db> Func<'db> {
     #[salsa::tracked(return_ref)]
-    pub fn effect_bindings(self, db: &'db dyn HirAnalysisDb) -> Vec<EffectBinding<'db>> {
-        func_effect_bindings_canonical(db, self)
+    pub fn effect_requirements(self, db: &'db dyn HirAnalysisDb) -> Vec<EffectRequirement<'db>> {
+        func_effect_requirements_canonical(db, self)
     }
 
     #[salsa::tracked(return_ref)]
-    pub fn effective_effect_bindings(self, db: &'db dyn HirAnalysisDb) -> Vec<EffectBinding<'db>> {
-        func_effect_bindings_canonical(db, self)
+    pub fn effective_effect_requirements(
+        self,
+        db: &'db dyn HirAnalysisDb,
+    ) -> Vec<EffectRequirement<'db>> {
+        func_effect_requirements_canonical(db, self)
     }
 }
 
 fn contract_effect_decl_map<'db>(
     db: &'db dyn HirAnalysisDb,
     contract: Contract<'db>,
-) -> FxHashMap<IdentId<'db>, EffectBinding<'db>> {
+) -> FxHashMap<IdentId<'db>, EffectRequirement<'db>> {
     contract
-        .effect_bindings(db)
+        .effect_requirements(db)
         .iter()
         .cloned()
         .map(|binding| (binding.binding_name, binding))
         .collect()
 }
 
-fn contract_scoped_effect_bindings_canonical<'db>(
+#[derive(Clone, Copy)]
+enum ContractResolutionSource {
+    RootProvider,
+    Field(u32),
+    Unresolved,
+}
+
+pub fn effect_requirements_for_site<'db>(
+    db: &'db dyn HirAnalysisDb,
+    site: EffectParamSite<'db>,
+) -> Vec<EffectRequirement<'db>> {
+    match site {
+        EffectParamSite::Func(func) => func.effective_effect_requirements(db).clone(),
+        EffectParamSite::Contract(contract) => contract.effect_requirements(db).clone(),
+        EffectParamSite::ContractInit { contract } => contract.init_effect_requirements(db).clone(),
+        EffectParamSite::ContractRecvArm {
+            contract,
+            recv_idx,
+            arm_idx,
+        } => {
+            let recv = RecvView::new(db, contract, recv_idx);
+            let arm = RecvArmView::new(db, recv, arm_idx);
+            arm.effective_effect_requirements(db).clone()
+        }
+    }
+}
+
+pub fn provider_bindings_for_site<'db>(
+    db: &'db dyn HirAnalysisDb,
+    site: EffectParamSite<'db>,
+) -> Vec<ProviderBinding<'db>> {
+    match site {
+        EffectParamSite::Func(func) => func_provider_bindings_canonical(db, func),
+        EffectParamSite::Contract(contract)
+        | EffectParamSite::ContractInit { contract }
+        | EffectParamSite::ContractRecvArm { contract, .. } => {
+            contract_provider_bindings_canonical(db, contract, site)
+        }
+    }
+}
+
+pub fn effect_resolutions_for_site<'db>(
+    db: &'db dyn HirAnalysisDb,
+    site: EffectParamSite<'db>,
+) -> Vec<ResolvedEffectBinding> {
+    match site {
+        EffectParamSite::Func(func) => func_effect_resolutions_canonical(db, func),
+        EffectParamSite::Contract(contract) => {
+            contract_effect_resolutions_canonical(db, contract, site, contract.effects(db))
+        }
+        EffectParamSite::ContractInit { contract } => {
+            let Some(init) = contract.init(db) else {
+                return Vec::new();
+            };
+            contract_effect_resolutions_canonical(db, contract, site, init.effects(db))
+        }
+        EffectParamSite::ContractRecvArm {
+            contract,
+            recv_idx,
+            arm_idx,
+        } => {
+            let Some(arm) = contract.recv_arm(db, recv_idx as usize, arm_idx as usize) else {
+                return Vec::new();
+            };
+            contract_effect_resolutions_canonical(db, contract, site, arm.effects)
+        }
+    }
+}
+
+#[salsa::tracked(return_ref)]
+pub fn resolved_effect_binding_infos_for_site<'db>(
+    db: &'db dyn HirAnalysisDb,
+    site: EffectEnvSite<'db>,
+) -> Vec<Option<ResolvedEffectBindingInfo<'db>>> {
+    let site = site.site(db);
+    let requirements = effect_requirements_for_site(db, site);
+    let resolutions = effect_resolutions_for_site(db, site);
+    let providers = provider_bindings_for_site(db, site);
+    let max_idx = requirements
+        .iter()
+        .map(|requirement| requirement.binding_idx as usize)
+        .max()
+        .map_or(0, |idx| idx + 1);
+    let mut requirements_by_idx = vec![None; max_idx];
+    for requirement in requirements {
+        let idx = requirement.binding_idx as usize;
+        requirements_by_idx[idx] = Some(requirement);
+    }
+    let providers_by_idx = providers
+        .into_iter()
+        .map(|provider| (provider.provider_idx, provider))
+        .collect::<FxHashMap<_, _>>();
+    let mut resolved = vec![None; requirements_by_idx.len()];
+    for resolution in resolutions {
+        let idx = resolution.requirement_idx as usize;
+        let Some(requirement) = requirements_by_idx
+            .get(idx)
+            .and_then(|requirement| requirement.clone())
+        else {
+            continue;
+        };
+        let Some(provider) = providers_by_idx.get(&resolution.provider_idx).cloned() else {
+            continue;
+        };
+        resolved[idx] = Some(ResolvedEffectBindingInfo {
+            requirement,
+            provider,
+        });
+    }
+    resolved
+}
+
+fn contract_scoped_effect_requirements_canonical<'db>(
     db: &'db dyn HirAnalysisDb,
     contract: Contract<'db>,
     list_site: EffectParamSite<'db>,
     list: EffectParamListId<'db>,
-) -> Vec<EffectBinding<'db>> {
+) -> Vec<EffectRequirement<'db>> {
     if matches!(list_site, EffectParamSite::Func(_)) {
         unreachable!("contract-scoped effect bindings require a contract init/recv/decl site");
     }
@@ -2026,18 +2358,28 @@ fn contract_scoped_effect_bindings_canonical<'db>(
         };
 
         if let Some(binding_name) = effect.name {
-            let (key_kind, key_ty, key_trait) =
-                resolve_effect_key(db, key_path, contract.scope(), assumptions).into_parts();
-            let (key_ty, key_trait) =
-                canonicalize_contract_effect_key(db, list_site, idx as u32, key_ty, key_trait);
+            let forwarded_key = if key_path.len(db) == 1 {
+                key_path
+                    .ident(db)
+                    .to_opt()
+                    .and_then(|name| contract_named_effects.get(&name))
+                    .map(|binding| binding.key.clone())
+            } else {
+                None
+            };
+            let (key_kind, key_ty, key_trait) = forwarded_key.as_ref().map_or_else(
+                || resolve_effect_key(db, key_path, contract.scope(), assumptions).into_parts(),
+                |key| (key.kind(), key.key_ty(), key.key_trait()),
+            );
+            let (key_ty, key_trait) = forwarded_key.as_ref().map_or_else(
+                || canonicalize_contract_effect_key(db, list_site, idx as u32, key_ty, key_trait),
+                |_| (key_ty, key_trait),
+            );
 
-            out.push(EffectBinding {
+            out.push(EffectRequirement {
                 binding_name,
-                key_kind,
-                key_ty,
-                key_trait,
+                key: EffectRequirementKey::from_parts(key_kind, key_ty, key_trait),
                 is_mut: effect.is_mut,
-                source: EffectSource::Root,
                 binding_site: list_site,
                 binding_idx: idx as u32,
                 binding_path: key_path,
@@ -2049,16 +2391,12 @@ fn contract_scoped_effect_bindings_canonical<'db>(
             && let Some(name) = key_path.ident(db).to_opt()
             && let Some(field) = fields.get(&name)
         {
-            let field_idx = field.index;
             let target_ty = field.target_ty;
 
-            out.push(EffectBinding {
+            out.push(EffectRequirement {
                 binding_name: name,
-                key_kind: EffectKeyKind::Type,
-                key_ty: Some(target_ty),
-                key_trait: None,
+                key: EffectRequirementKey::Type(target_ty),
                 is_mut: effect.is_mut,
-                source: EffectSource::Field(field_idx),
                 binding_site: list_site,
                 binding_idx: idx as u32,
                 binding_path: key_path,
@@ -2070,13 +2408,10 @@ fn contract_scoped_effect_bindings_canonical<'db>(
             && let Some(name) = key_path.ident(db).to_opt()
             && let Some(binding) = contract_named_effects.get(&name)
         {
-            out.push(EffectBinding {
+            out.push(EffectRequirement {
                 binding_name: name,
-                key_kind: binding.key_kind,
-                key_ty: binding.key_ty,
-                key_trait: binding.key_trait,
+                key: binding.key.clone(),
                 is_mut: binding.is_mut,
-                source: binding.source,
                 binding_site: list_site,
                 binding_idx: idx as u32,
                 binding_path: key_path,
@@ -2091,13 +2426,10 @@ fn contract_scoped_effect_bindings_canonical<'db>(
             .to_opt()
             .unwrap_or_else(|| IdentId::new(db, "_effect".to_string()));
 
-        out.push(EffectBinding {
+        out.push(EffectRequirement {
             binding_name,
-            key_kind: EffectKeyKind::Other,
-            key_ty: None,
-            key_trait: None,
+            key: EffectRequirementKey::Other,
             is_mut: effect.is_mut,
-            source: EffectSource::Root,
             binding_site: list_site,
             binding_idx: idx as u32,
             binding_path: key_path,
@@ -2105,6 +2437,149 @@ fn contract_scoped_effect_bindings_canonical<'db>(
     }
 
     out
+}
+
+fn contract_provider_bindings_canonical<'db>(
+    db: &'db dyn HirAnalysisDb,
+    contract: Contract<'db>,
+    site: EffectParamSite<'db>,
+) -> Vec<ProviderBinding<'db>> {
+    let scope = contract.scope();
+    let assumptions = PredicateListId::empty_list(db);
+    let mut providers = contract
+        .field_layout(db)
+        .values()
+        .cloned()
+        .enumerate()
+        .map(|(idx, field)| ProviderBinding {
+            provider_idx: idx as u32,
+            provider_ty: field.target_ty,
+            is_mut: true,
+            source: ProviderSource::ContractField {
+                contract,
+                field_idx: field.index,
+            },
+            semantics: ProviderSemantics {
+                provider_ty: field.target_ty,
+                kind: if field.target_ty.is_struct(db)
+                    || field.target_ty.is_array(db)
+                    || field.target_ty.is_tuple(db)
+                    || field.target_ty.as_enum(db).is_some()
+                {
+                    crate::analysis::ty::ProviderKind::Handle
+                } else {
+                    crate::analysis::ty::ProviderKind::RawAddress
+                },
+                address_space: crate::analysis::ty::address_space_from_ty(
+                    db,
+                    scope,
+                    field.address_space,
+                ),
+                target_ty: Some(field.target_ty),
+                transport: crate::analysis::ty::ProviderTransport::ByValue,
+            },
+        })
+        .collect::<Vec<_>>();
+
+    let base_provider_idx = providers.len();
+    providers.extend(
+        registered_root_providers(db, site)
+            .iter()
+            .cloned()
+            .enumerate()
+            .map(|(idx, registration)| {
+                let provider_ty = registration.provider_ty;
+                ProviderBinding {
+                    provider_idx: (base_provider_idx + idx) as u32,
+                    provider_ty,
+                    is_mut: true,
+                    source: ProviderSource::RootProvider { site, registration },
+                    semantics: provider_semantics(db, scope, assumptions, provider_ty),
+                }
+            }),
+    );
+    providers
+}
+
+fn contract_effect_decl_resolution_sources<'db>(
+    db: &'db dyn HirAnalysisDb,
+    contract: Contract<'db>,
+) -> FxHashMap<IdentId<'db>, ContractResolutionSource> {
+    contract
+        .effect_requirements(db)
+        .iter()
+        .map(|requirement| {
+            (
+                requirement.binding_name,
+                if matches!(requirement.key, EffectRequirementKey::Other) {
+                    ContractResolutionSource::Unresolved
+                } else {
+                    ContractResolutionSource::RootProvider
+                },
+            )
+        })
+        .collect()
+}
+
+fn contract_effect_resolutions_canonical<'db>(
+    db: &'db dyn HirAnalysisDb,
+    contract: Contract<'db>,
+    site: EffectParamSite<'db>,
+    list: EffectParamListId<'db>,
+) -> Vec<ResolvedEffectBinding> {
+    let providers = provider_bindings_for_site(db, site);
+    let root_provider_idx = providers.iter().find_map(|provider| {
+        matches!(provider.source, ProviderSource::RootProvider { .. })
+            .then_some(provider.provider_idx)
+    });
+    let field_provider_idx = providers
+        .iter()
+        .filter_map(|provider| match provider.source {
+            ProviderSource::ContractField { field_idx, .. } => {
+                Some((field_idx, provider.provider_idx))
+            }
+            ProviderSource::UsesParam { .. } | ProviderSource::RootProvider { .. } => None,
+        })
+        .collect::<FxHashMap<_, _>>();
+    let contract_named_sources = contract_effect_decl_resolution_sources(db, contract);
+    let fields = contract.fields(db);
+
+    effect_requirements_for_site(db, site)
+        .iter()
+        .filter_map(|requirement| {
+            let effect = list.data(db).get(requirement.binding_idx as usize)?;
+            let key_path = effect.key_path.to_opt()?;
+            let source = if effect.name.is_some() {
+                ContractResolutionSource::RootProvider
+            } else if key_path.len(db) == 1
+                && let Some(name) = key_path.ident(db).to_opt()
+                && let Some(field) = fields.get(&name)
+            {
+                ContractResolutionSource::Field(field.index)
+            } else if key_path.len(db) == 1
+                && let Some(name) = key_path.ident(db).to_opt()
+            {
+                contract_named_sources
+                    .get(&name)
+                    .copied()
+                    .unwrap_or(ContractResolutionSource::Unresolved)
+            } else {
+                ContractResolutionSource::Unresolved
+            };
+
+            let provider_idx = match source {
+                ContractResolutionSource::RootProvider => root_provider_idx?,
+                ContractResolutionSource::Field(field_idx) => {
+                    *field_provider_idx.get(&field_idx)?
+                }
+                ContractResolutionSource::Unresolved => return None,
+            };
+            Some(ResolvedEffectBinding {
+                requirement_idx: requirement.binding_idx,
+                provider_idx,
+            })
+        })
+        .collect()
 }
 
 fn compute_arg_bindings<'db>(
@@ -2244,9 +2719,9 @@ fn get_variant_selector_info<'db>(
     variant_ty: TyId<'db>,
     scope: ScopeId<'db>,
 ) -> VariantSelectorInfo {
+    use crate::analysis::semantic::{SemConstScalar, SemConstValue, eval_body_owner_const};
     use crate::analysis::ty::{
         canonical::Canonical,
-        const_eval::{ConstValue, try_eval_const_body},
         corelib::resolve_core_trait,
         trait_def::impls_for_ty,
         ty_def::{PrimTy, TyBase, TyData},
@@ -2300,15 +2775,22 @@ fn get_variant_selector_info<'db>(
     };
     let signature = selector_signature_from_body(db, body, hir_impl.scope());
     let expected_ty = TyId::new(db, TyData::TyBase(TyBase::Prim(PrimTy::U32)));
-    let value = match try_eval_const_body(db, body, expected_ty) {
-        Some(ConstValue::Int(value)) => value.to_u32(),
-        Some(
-            ConstValue::Bool(_)
-            | ConstValue::Bytes(_)
-            | ConstValue::EnumVariant(_)
-            | ConstValue::ConstArray(_),
-        )
-        | None => None,
+    let value = match eval_body_owner_const(
+        db,
+        crate::analysis::ty::ty_check::BodyOwner::AnonConstBody {
+            body,
+            expected: expected_ty,
+        },
+        Vec::new(),
+    ) {
+        Ok(value) => match value.value(db) {
+            SemConstValue::Scalar {
+                value: SemConstScalar::Int { value },
+                ..
+            } => value.to_u32(),
+            _ => None,
+        },
+        Err(_) => None,
     };
 
     VariantSelectorInfo { value, signature }
@@ -3655,13 +4137,21 @@ impl<'db> ImplTrait<'db> {
                         }
                     },
                     ImplTraitLowerError::Conflict { primary, conflict } => {
-                        diags.push(
-                            TraitLowerDiag::ConflictTraitImpl {
-                                primary,
-                                conflict_with: conflict,
-                            }
-                            .into(),
-                        );
+                        let local_impls = self.top_mod(db).ingot(db).all_impl_traits(db);
+                        let primary_idx = local_impls.iter().position(|&item| item == primary);
+                        let conflict_idx = local_impls.iter().position(|&item| item == conflict);
+                        if !matches!(
+                            (primary_idx, conflict_idx),
+                            (Some(primary_idx), Some(conflict_idx)) if primary_idx > conflict_idx
+                        ) {
+                            diags.push(
+                                TraitLowerDiag::ConflictTraitImpl {
+                                    primary,
+                                    conflict_with: conflict,
+                                }
+                                .into(),
+                            );
+                        }
                     }
                     ImplTraitLowerError::KindMismatch { expected, actual } => {
                         diags.push(

@@ -402,6 +402,10 @@ fn diag_from_invalid_cause<'db>(
         }
         .into(),
 
+        InvalidCause::StringTooLarge { max, given } => {
+            TyLowerDiag::StringTooLarge { span, max, given }.into()
+        }
+
         InvalidCause::InvalidConstParamTy => TyLowerDiag::InvalidConstParamTy(span).into(),
 
         InvalidCause::RecursiveConstParamTy => TyLowerDiag::RecursiveConstParamTy(span).into(),
@@ -450,6 +454,14 @@ fn diag_from_invalid_cause<'db>(
 
         InvalidCause::ConstEvalDivisionByZero { body, expr } => {
             TyLowerDiag::ConstEvalDivisionByZero(expr.span(body).into()).into()
+        }
+
+        InvalidCause::ConstEvalArithmeticOverflow { body, expr } => {
+            TyLowerDiag::ConstEvalArithmeticOverflow(expr.span(body).into()).into()
+        }
+
+        InvalidCause::ConstEvalNegativeExponent { body, expr } => {
+            TyLowerDiag::ConstEvalNegativeExponent(expr.span(body).into()).into()
         }
 
         InvalidCause::ConstEvalStepLimitExceeded { body, expr } => {

@@ -9,7 +9,6 @@ use hir::analysis::{
             NSTerminator, NSTerminatorKind, NormalizedSemanticBody, normalize_semantic_body,
         },
         get_or_build_semantic_instance, reify_runtime_const_for_ty, sem_const_ty,
-        semantic_may_return_normally,
     },
     ty::{
         corelib::{
@@ -2424,7 +2423,7 @@ impl<'db> RmirEmitter<'db> {
         let ret_ty = semantic_return_ty(self.db, semantic);
         let ret_class = self.returns.return_class_for_key(callee_key);
         let Some(ret_class) = ret_class else {
-            if !semantic_may_return_normally(self.db, semantic) {
+            if !semantic.may_return_normally(self.db) {
                 self.set_terminator(
                     bb,
                     RTerminator::TerminalCall {

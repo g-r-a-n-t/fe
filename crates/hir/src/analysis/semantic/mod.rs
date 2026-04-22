@@ -14,10 +14,8 @@ pub use instance::{
     SemanticEffectEnvInstantiationError, SemanticInstance, SemanticInstanceKey, TypedBodyTemplate,
     get_or_build_semantic_instance, identity_semantic_instance_key, instantiate_typed_body,
     instantiate_with_generic_args, instantiated_effect_env,
-    resolved_provider_binding_for_instance_effect, root_semantic_instance_key,
-    semantic_binding_role, semantic_binding_ty, semantic_instance_assumptions,
-    semantic_may_return_normally, typed_body_template, validate_instantiated_effect_env,
-    validate_instantiated_effect_env_key,
+    resolved_provider_binding_for_instance_effect, root_semantic_instance_key, typed_body_template,
+    validate_instantiated_effect_env, validate_instantiated_effect_env_key,
 };
 pub use ir::*;
 pub use lower::{

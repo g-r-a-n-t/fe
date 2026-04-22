@@ -2,7 +2,6 @@ use hir::{
     analysis::{
         semantic::{
             SemanticInstance, owner_effect_bindings, resolved_provider_binding_for_instance_effect,
-            semantic_binding_ty,
         },
         ty::{ty_check::LocalBinding, ty_def::TyId},
     },
@@ -128,7 +127,7 @@ fn entry_effect_arg_plan_for_binding<'db>(
                 })?;
             Ok(Some(EntryEffectArgPlan::TargetRootProvider(
                 TargetRootProviderBinding {
-                    declared_ty: semantic_binding_ty(db, semantic, binding),
+                    declared_ty: semantic.binding_ty(db, binding),
                     class: plan.class,
                     materialization,
                 },
@@ -156,7 +155,7 @@ fn contract_field_binding<'db>(
     semantic: SemanticInstance<'db>,
     binding: LocalBinding<'db>,
 ) -> Result<ContractFieldBinding<'db>, LowerError> {
-    let binding_ty = semantic_binding_ty(db, semantic, binding);
+    let binding_ty = semantic.binding_ty(db, binding);
     let class = runtime_effect_binding_plan(db, semantic, binding)
         .map(|plan| plan.class)
         .ok_or_else(|| {

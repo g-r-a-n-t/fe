@@ -4,8 +4,7 @@ use hir::{
         semantic::{
             GenericSubst, ImplEnv, ManualContractSection, RootSemanticInstanceError,
             SemanticInstance, SemanticInstanceKey, get_or_build_semantic_instance,
-            owner_effect_bindings, root_semantic_instance_key, semantic_binding_ty,
-            semantic_instance_assumptions,
+            owner_effect_bindings, root_semantic_instance_key,
         },
         ty::{
             const_ty::ConstTyData,
@@ -1527,10 +1526,7 @@ pub(crate) fn runtime_instance_for_semantic<'db>(
             semantic.key(db)
         );
     }
-    let env = RuntimeTypeEnv::new(
-        Some(owner.scope()),
-        semantic_instance_assumptions(db, semantic),
-    );
+    let env = RuntimeTypeEnv::new(Some(owner.scope()), semantic.assumptions(db));
     let mut params = Vec::new();
     let mut idx = 0;
     while let Some(binding) = typed_body.param_binding(idx) {
@@ -1553,7 +1549,7 @@ pub(crate) fn runtime_instance_for_semantic<'db>(
             let Some(binding) = typed_body.pat_binding(arg_binding.pat) else {
                 continue;
             };
-            let ty = semantic_binding_ty(db, semantic, binding);
+            let ty = semantic.binding_ty(db, binding);
             if let Some(class) =
                 top_level_class_for_ty_in_env(db, env, ty, AddressSpaceKind::Memory)
             {

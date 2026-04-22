@@ -8,9 +8,7 @@ pub use semantic::{
     RootSemanticInstanceError, SemanticEffectEnvInstantiationError, SemanticInstance,
     SemanticInstanceKey, get_or_build_semantic_instance, identity_semantic_instance_key,
     instantiated_effect_env, resolved_provider_binding_for_instance_effect,
-    root_semantic_instance_key, semantic_binding_role, semantic_binding_ty,
-    semantic_call_lowering_plans, semantic_for_loop_callee_refs, semantic_instance_assumptions,
-    semantic_may_return_normally, validate_instantiated_effect_env,
+    root_semantic_instance_key, validate_instantiated_effect_env,
     validate_instantiated_effect_env_key,
 };
 pub use template::{

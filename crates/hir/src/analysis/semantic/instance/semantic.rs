@@ -6,10 +6,11 @@ use crate::{
         HirAnalysisDb,
         semantic::{
             PlaceProvenance, SBlockId, SExpr, SStmtKind, STerminatorKind, SemanticBody,
-            SemanticCalleeRef, SemanticLocalRole, ValueProvenance, effect_param_site,
+            SemanticCalleeRef, SemanticLocalRole, ValueProvenance, VariantIndex, effect_param_site,
             lower::lower_to_smir, verify_semantic_body,
         },
         ty::{
+            adt_def::{AdtDef, AdtRef},
             corelib::{RuntimeBuiltinFuncKind, runtime_builtin_func_kind},
             effect_handle_metadata,
             effects::place_effect_provider_param_index_map,
@@ -27,7 +28,7 @@ use crate::{
                 BodyOwner, EffectProviderProvenance, EffectProviderSpecialization, LocalBinding,
                 SemanticExprLowering, TypedBody,
             },
-            ty_def::{BorrowKind, CapabilityKind, TyId},
+            ty_def::{BorrowKind, CapabilityKind, TyId, instantiate_adt_field_ty},
         },
     },
     hir_def::FuncParamMode,
@@ -40,6 +41,7 @@ use crate::{
 use common::indexmap::IndexMap;
 use indexmap::IndexSet;
 use salsa::Update;
+use thin_vec::ThinVec;
 
 use super::{
     EffectProviderSubst, GenericSubst, ImplEnv, instantiate_typed_body, semantic_callee_key,
@@ -164,88 +166,12 @@ pub fn instantiated_effect_env<'db>(
     ))
 }
 
-#[salsa::tracked]
-pub fn semantic_instance_assumptions<'db>(
-    db: &'db dyn HirAnalysisDb,
-    instance: SemanticInstance<'db>,
-) -> PredicateListId<'db> {
-    instantiated_effect_env(db, instance)
-        .map(|env| env.assumptions(db))
-        .unwrap_or_else(|| semantic_instance_base_assumptions_for_key(db, instance.key(db)))
-}
-
 #[salsa::tracked(return_ref)]
 pub fn instantiated_typed_body<'db>(
     db: &'db dyn HirAnalysisDb,
     key: SemanticInstanceKey<'db>,
 ) -> TypedBody<'db> {
     instantiate_typed_body(db, typed_body_template(db, key.owner(db)), key.subst(db))
-}
-
-#[salsa::tracked(return_ref)]
-pub fn semantic_call_lowering_plans<'db>(
-    db: &'db dyn HirAnalysisDb,
-    instance: SemanticInstance<'db>,
-) -> Vec<Option<CallLoweringPlan<'db>>> {
-    let typed_body = instance.key(db).typed_body(db);
-    let Some(body) = typed_body.body() else {
-        return Vec::new();
-    };
-    let assumptions = semantic_instance_assumptions(db, instance);
-    let scope = body.scope();
-    let mut plans = vec![None; body.exprs(db).len()];
-
-    for (expr, expr_data) in body.exprs(db).iter() {
-        let Partial::Present(expr_data) = expr_data else {
-            continue;
-        };
-        let Some(SemanticExprLowering::Call { callable }) = typed_body.semantic_expr_lowering(expr)
-        else {
-            continue;
-        };
-        plans[expr.index()] = Some(CallLoweringPlan {
-            callee: semantic_callee_key(db, instance.key(db), callable)
-                .map(|key| SemanticCalleeRef { key }),
-            receiver: receiver_lowering_plan(
-                db,
-                expr_data,
-                callable,
-                typed_body,
-                scope,
-                assumptions,
-            ),
-        });
-    }
-
-    plans
-}
-
-#[salsa::tracked(return_ref)]
-pub fn semantic_for_loop_callee_refs<'db>(
-    db: &'db dyn HirAnalysisDb,
-    instance: SemanticInstance<'db>,
-) -> Vec<Option<ForLoopCalleeRefs<'db>>> {
-    let typed_body = instance.key(db).typed_body(db);
-    let Some(body) = typed_body.body() else {
-        return Vec::new();
-    };
-    let mut callees = vec![None; body.stmts(db).len()];
-    for (stmt, _) in body.stmts(db).iter() {
-        let Some(seq) = typed_body.for_loop_seq(stmt) else {
-            continue;
-        };
-        let len_callee = semantic_callee_key(db, instance.key(db), &seq.len_callable)
-            .map(|key| SemanticCalleeRef { key })
-            .expect("Seq::len should lower to a semantic callee");
-        let get_callee = semantic_callee_key(db, instance.key(db), &seq.get_callable)
-            .map(|key| SemanticCalleeRef { key })
-            .expect("Seq::get should lower to a semantic callee");
-        callees[stmt.index()] = Some(ForLoopCalleeRefs {
-            len_callee,
-            get_callee,
-        });
-    }
-    callees
 }
 
 fn receiver_lowering_plan<'db>(
@@ -303,6 +229,250 @@ fn call_like_receiver_expr<'db>(expr_data: &Expr<'db>) -> Option<ExprId> {
 #[salsa::tracked]
 impl<'db> SemanticInstance<'db> {
     #[salsa::tracked]
+    pub fn assumptions(self, db: &'db dyn HirAnalysisDb) -> PredicateListId<'db> {
+        instantiated_effect_env(db, self)
+            .map(|env| env.assumptions(db))
+            .unwrap_or_else(|| semantic_instance_base_assumptions_for_key(db, self.key(db)))
+    }
+
+    #[salsa::tracked(return_ref)]
+    pub fn call_lowering_plans(
+        self,
+        db: &'db dyn HirAnalysisDb,
+    ) -> Vec<Option<CallLoweringPlan<'db>>> {
+        let typed_body = self.key(db).typed_body(db);
+        let Some(body) = typed_body.body() else {
+            return Vec::new();
+        };
+        let assumptions = self.assumptions(db);
+        let scope = body.scope();
+        let mut plans = vec![None; body.exprs(db).len()];
+
+        for (expr, expr_data) in body.exprs(db).iter() {
+            let Partial::Present(expr_data) = expr_data else {
+                continue;
+            };
+            let Some(SemanticExprLowering::Call { callable }) =
+                typed_body.semantic_expr_lowering(expr)
+            else {
+                continue;
+            };
+            plans[expr.index()] = Some(CallLoweringPlan {
+                callee: semantic_callee_key(db, self.key(db), callable)
+                    .map(|key| SemanticCalleeRef { key }),
+                receiver: receiver_lowering_plan(
+                    db,
+                    expr_data,
+                    callable,
+                    typed_body,
+                    scope,
+                    assumptions,
+                ),
+            });
+        }
+
+        plans
+    }
+
+    #[salsa::tracked(return_ref)]
+    pub fn for_loop_callee_refs(
+        self,
+        db: &'db dyn HirAnalysisDb,
+    ) -> Vec<Option<ForLoopCalleeRefs<'db>>> {
+        let typed_body = self.key(db).typed_body(db);
+        let Some(body) = typed_body.body() else {
+            return Vec::new();
+        };
+        let mut callees = vec![None; body.stmts(db).len()];
+        for (stmt, _) in body.stmts(db).iter() {
+            let Some(seq) = typed_body.for_loop_seq(stmt) else {
+                continue;
+            };
+            let len_callee = semantic_callee_key(db, self.key(db), &seq.len_callable)
+                .map(|key| SemanticCalleeRef { key })
+                .expect("Seq::len should lower to a semantic callee");
+            let get_callee = semantic_callee_key(db, self.key(db), &seq.get_callable)
+                .map(|key| SemanticCalleeRef { key })
+                .expect("Seq::get should lower to a semantic callee");
+            callees[stmt.index()] = Some(ForLoopCalleeRefs {
+                len_callee,
+                get_callee,
+            });
+        }
+        callees
+    }
+
+    #[salsa::tracked]
+    pub fn binding_role(
+        self,
+        db: &'db dyn HirAnalysisDb,
+        binding: LocalBinding<'db>,
+    ) -> SemanticLocalRole<'db> {
+        classify_binding_role(db, self, binding)
+    }
+
+    #[salsa::tracked]
+    pub fn binding_ty(self, db: &'db dyn HirAnalysisDb, binding: LocalBinding<'db>) -> TyId<'db> {
+        match binding {
+            LocalBinding::EffectParam {
+                idx, provider_idx, ..
+            } => effect_binding_ty_from_env(
+                db,
+                instantiated_effect_env(db, self),
+                idx,
+                Some(provider_idx),
+            ),
+            LocalBinding::Param {
+                site: crate::analysis::ty::ty_check::ParamSite::EffectField(_),
+                idx,
+                ..
+            } => effect_binding_ty_from_env(db, instantiated_effect_env(db, self), idx, None),
+            LocalBinding::Local { .. } | LocalBinding::Param { .. } => {
+                self.key(db).typed_body(db).binding_ty(db, binding)
+            }
+        }
+    }
+
+    #[salsa::tracked]
+    pub fn normalized_ty(self, db: &'db dyn HirAnalysisDb, ty: TyId<'db>) -> TyId<'db> {
+        normalize_ty(db, ty, self.normalization_scope(db), self.assumptions(db))
+    }
+
+    #[salsa::tracked(return_ref)]
+    pub fn normalized_field_types(
+        self,
+        db: &'db dyn HirAnalysisDb,
+        ty: TyId<'db>,
+    ) -> ThinVec<TyId<'db>> {
+        let ty = self.normalized_ty(db, ty);
+        if ty.is_tuple(db) {
+            let (_, elems) = ty.decompose_ty_app(db);
+            return elems
+                .iter()
+                .map(|elem| self.normalized_ty(db, *elem))
+                .collect();
+        }
+
+        if let Some(adt_def) = ty.adt_def(db)
+            && matches!(adt_def.adt_ref(db), AdtRef::Struct(_))
+            && let Some(fields) = adt_def.fields(db).first()
+        {
+            return normalize_adt_field_types(
+                db,
+                self,
+                adt_def,
+                0,
+                ty.generic_args(db),
+                fields.num_types(),
+            );
+        }
+
+        ThinVec::new()
+    }
+
+    #[salsa::tracked(return_ref)]
+    pub fn normalized_enum_variant_field_tys(
+        self,
+        db: &'db dyn HirAnalysisDb,
+        enum_ty: TyId<'db>,
+        variant: VariantIndex,
+    ) -> ThinVec<TyId<'db>> {
+        let enum_ty = self.normalized_ty(db, enum_ty);
+        let variant_idx = usize::from(variant.0);
+        if let Some(adt_def) = enum_ty.adt_def(db)
+            && matches!(adt_def.adt_ref(db), AdtRef::Enum(_))
+            && let Some(fields) = adt_def.fields(db).get(variant_idx)
+        {
+            return normalize_adt_field_types(
+                db,
+                self,
+                adt_def,
+                variant_idx,
+                enum_ty.generic_args(db),
+                fields.num_types(),
+            );
+        }
+
+        ThinVec::new()
+    }
+
+    #[salsa::tracked]
+    pub fn normalized_binding_ty(
+        self,
+        db: &'db dyn HirAnalysisDb,
+        binding: LocalBinding<'db>,
+    ) -> TyId<'db> {
+        self.normalized_ty(db, self.binding_ty(db, binding))
+    }
+
+    #[salsa::tracked]
+    pub fn normalized_result_ty(self, db: &'db dyn HirAnalysisDb) -> TyId<'db> {
+        self.normalized_ty(db, self.key(db).typed_body(db).result_ty())
+    }
+
+    #[salsa::tracked(
+        cycle_fn=may_return_normally_cycle_recover,
+        cycle_initial=may_return_normally_cycle_initial
+    )]
+    pub fn may_return_normally(self, db: &'db dyn HirAnalysisDb) -> bool {
+        if semantic_is_nonreturning_builtin(db, self) {
+            return false;
+        }
+
+        let body = self.body(db);
+        if body.blocks.is_empty() {
+            return true;
+        }
+
+        let mut pending = vec![SBlockId::from_u32(0)];
+        let mut visited = FxHashSet::default();
+        while let Some(block_id) = pending.pop() {
+            if !visited.insert(block_id) {
+                continue;
+            }
+            let Some(block) = body.block(block_id) else {
+                continue;
+            };
+            let mut terminated_in_stmt = false;
+            for stmt in &block.stmts {
+                let SStmtKind::Assign {
+                    expr: SExpr::Call { callee, .. },
+                    ..
+                } = &stmt.kind
+                else {
+                    continue;
+                };
+                if !SemanticInstance::new(db, callee.key).may_return_normally(db) {
+                    terminated_in_stmt = true;
+                    break;
+                }
+            }
+            if terminated_in_stmt {
+                continue;
+            }
+
+            match &block.terminator.kind {
+                STerminatorKind::Return(_) => return true,
+                STerminatorKind::Goto(next) => pending.push(*next),
+                STerminatorKind::Branch {
+                    then_bb, else_bb, ..
+                } => {
+                    pending.push(*then_bb);
+                    pending.push(*else_bb);
+                }
+                STerminatorKind::MatchEnum { cases, default, .. } => {
+                    pending.extend(cases.iter().map(|(_, block)| *block));
+                    if let Some(default) = default {
+                        pending.push(*default);
+                    }
+                }
+            }
+        }
+
+        false
+    }
+
+    #[salsa::tracked]
     pub fn body(self, db: &'db dyn HirAnalysisDb) -> SemanticBody<'db> {
         lower_semantic_body(db, self)
     }
@@ -313,39 +483,26 @@ impl<'db> SemanticInstance<'db> {
     }
 }
 
-#[salsa::tracked]
-pub fn semantic_binding_role<'db>(
-    db: &'db dyn HirAnalysisDb,
-    instance: SemanticInstance<'db>,
-    binding: crate::analysis::ty::ty_check::LocalBinding<'db>,
-) -> SemanticLocalRole<'db> {
-    classify_binding_role(db, instance, binding)
+impl<'db> SemanticInstance<'db> {
+    fn normalization_scope(self, db: &'db dyn HirAnalysisDb) -> ScopeId<'db> {
+        self.key(db).owner(db).scope()
+    }
 }
 
-#[salsa::tracked]
-pub fn semantic_binding_ty<'db>(
+fn normalize_adt_field_types<'db>(
     db: &'db dyn HirAnalysisDb,
     instance: SemanticInstance<'db>,
-    binding: LocalBinding<'db>,
-) -> crate::analysis::ty::ty_def::TyId<'db> {
-    match binding {
-        LocalBinding::EffectParam {
-            idx, provider_idx, ..
-        } => effect_binding_ty_from_env(
-            db,
-            instantiated_effect_env(db, instance),
-            idx,
-            Some(provider_idx),
-        ),
-        LocalBinding::Param {
-            site: crate::analysis::ty::ty_check::ParamSite::EffectField(_),
-            idx,
-            ..
-        } => effect_binding_ty_from_env(db, instantiated_effect_env(db, instance), idx, None),
-        LocalBinding::Local { .. } | LocalBinding::Param { .. } => {
-            instance.key(db).typed_body(db).binding_ty(db, binding)
-        }
-    }
+    adt_def: AdtDef<'db>,
+    variant_idx: usize,
+    args: &[TyId<'db>],
+    field_count: usize,
+) -> ThinVec<TyId<'db>> {
+    (0..field_count)
+        .map(|field_idx| {
+            let field_ty = instantiate_adt_field_ty(db, adt_def, variant_idx, field_idx, args);
+            instance.normalized_ty(db, field_ty)
+        })
+        .collect()
 }
 
 #[salsa::tracked]
@@ -509,71 +666,6 @@ pub fn identity_semantic_instance_key<'db>(
     )
 }
 
-#[salsa::tracked(
-    cycle_fn=semantic_may_return_normally_cycle_recover,
-    cycle_initial=semantic_may_return_normally_cycle_initial
-)]
-pub fn semantic_may_return_normally<'db>(
-    db: &'db dyn HirAnalysisDb,
-    instance: SemanticInstance<'db>,
-) -> bool {
-    if semantic_is_nonreturning_builtin(db, instance) {
-        return false;
-    }
-
-    let body = instance.body(db);
-    if body.blocks.is_empty() {
-        return true;
-    }
-
-    let mut pending = vec![SBlockId::from_u32(0)];
-    let mut visited = FxHashSet::default();
-    while let Some(block_id) = pending.pop() {
-        if !visited.insert(block_id) {
-            continue;
-        }
-        let Some(block) = body.block(block_id) else {
-            continue;
-        };
-        let mut terminated_in_stmt = false;
-        for stmt in &block.stmts {
-            let SStmtKind::Assign {
-                expr: SExpr::Call { callee, .. },
-                ..
-            } = &stmt.kind
-            else {
-                continue;
-            };
-            if !semantic_may_return_normally(db, SemanticInstance::new(db, callee.key)) {
-                terminated_in_stmt = true;
-                break;
-            }
-        }
-        if terminated_in_stmt {
-            continue;
-        }
-
-        match &block.terminator.kind {
-            STerminatorKind::Return(_) => return true,
-            STerminatorKind::Goto(next) => pending.push(*next),
-            STerminatorKind::Branch {
-                then_bb, else_bb, ..
-            } => {
-                pending.push(*then_bb);
-                pending.push(*else_bb);
-            }
-            STerminatorKind::MatchEnum { cases, default, .. } => {
-                pending.extend(cases.iter().map(|(_, block)| *block));
-                if let Some(default) = default {
-                    pending.push(*default);
-                }
-            }
-        }
-    }
-
-    false
-}
-
 #[salsa::tracked]
 pub fn get_or_build_semantic_instance<'db>(
     db: &'db dyn HirAnalysisDb,
@@ -599,14 +691,14 @@ fn collect_semantic_callees<'db>(
 ) -> Vec<SemanticCalleeRef<'db>> {
     let mut seen = FxHashSet::default();
     let mut callees = Vec::new();
-    for plan in semantic_call_lowering_plans(db, instance).iter().flatten() {
+    for plan in instance.call_lowering_plans(db).iter().flatten() {
         if let Some(callee) = plan.callee
             && seen.insert(callee.key)
         {
             callees.push(callee);
         }
     }
-    for refs in semantic_for_loop_callee_refs(db, instance).iter().flatten() {
+    for refs in instance.for_loop_callee_refs(db).iter().flatten() {
         if seen.insert(refs.len_callee.key) {
             callees.push(refs.len_callee);
         }
@@ -624,13 +716,8 @@ fn classify_binding_role<'db>(
 ) -> SemanticLocalRole<'db> {
     let owner = instance.key(db).owner(db);
     let scope = owner.scope();
-    let assumptions = semantic_instance_assumptions(db, instance);
-    let mut ty = normalize_ty(
-        db,
-        semantic_binding_ty(db, instance, binding),
-        scope,
-        assumptions,
-    );
+    let assumptions = instance.assumptions(db);
+    let mut ty = normalize_ty(db, instance.binding_ty(db, binding), scope, assumptions);
     if let LocalBinding::Param {
         mode: FuncParamMode::View,
         ..
@@ -1257,14 +1344,14 @@ fn semantic_is_nonreturning_builtin<'db>(
     )
 }
 
-fn semantic_may_return_normally_cycle_initial<'db>(
+fn may_return_normally_cycle_initial<'db>(
     _db: &'db dyn HirAnalysisDb,
     _instance: SemanticInstance<'db>,
 ) -> bool {
     true
 }
 
-fn semantic_may_return_normally_cycle_recover<'db>(
+fn may_return_normally_cycle_recover<'db>(
     _db: &'db dyn HirAnalysisDb,
     _value: &bool,
     _count: u32,

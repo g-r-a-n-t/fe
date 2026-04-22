@@ -1,6 +1,6 @@
 use super::{
     EffectProviderSubst, GenericSubst, ImplEnv, SemanticInstance, SemanticInstanceKey,
-    resolved_provider_binding_for_instance_effect, semantic_instance_assumptions,
+    resolved_provider_binding_for_instance_effect,
 };
 use crate::{
     analysis::{
@@ -32,7 +32,7 @@ pub(crate) fn semantic_callee_key<'db>(
     callable: &Callable<'db>,
 ) -> Option<SemanticInstanceKey<'db>> {
     let impl_env = caller_key.impl_env(db);
-    let assumptions = semantic_instance_assumptions(db, SemanticInstance::new(db, caller_key));
+    let assumptions = SemanticInstance::new(db, caller_key).assumptions(db);
     let (owner, mut subst_args) = match callable.callable_def() {
         CallableDef::Func(func) => {
             let mut subst_args = callable.generic_args().to_vec();

@@ -1,8 +1,5 @@
 use hir::analysis::{
-    semantic::{
-        SemanticInstance, owner_effect_bindings, same_owner_effect_binding, semantic_binding_ty,
-        semantic_instance_assumptions,
-    },
+    semantic::{SemanticInstance, owner_effect_bindings, same_owner_effect_binding},
     ty::ty_check::{BodyOwner, LocalBinding, ParamSite},
     ty::ty_def::TyId,
 };
@@ -30,7 +27,8 @@ pub(crate) fn runtime_param_locals<'db>(
         let binding_debug = entries
             .iter()
             .map(|entry| {
-                let ty = semantic_binding_ty(db, semantic, entry.binding)
+                let ty = semantic
+                    .binding_ty(db, entry.binding)
                     .pretty_print(db)
                     .to_string();
                 format!(
@@ -63,7 +61,7 @@ fn runtime_visible_binding_semantic_ty<'db>(
         | LocalBinding::Param {
             site: ParamSite::EffectField(_),
             ..
-        } => semantic_binding_ty(db, semantic, binding),
+        } => semantic.binding_ty(db, binding),
         LocalBinding::Local { .. } | LocalBinding::Param { .. } => {
             typed_body.binding_ty(db, binding)
         }
@@ -125,15 +123,12 @@ pub(crate) fn runtime_visible_binding_plans<'db>(
     {
         let recv = hir::semantic::RecvView::new(db, contract, recv_idx);
         let arm = hir::semantic::RecvArmView::new(db, recv, arm_idx);
-        let env = RuntimeTypeEnv::new(
-            Some(owner.scope()),
-            semantic_instance_assumptions(db, semantic),
-        );
+        let env = RuntimeTypeEnv::new(Some(owner.scope()), semantic.assumptions(db));
         for arg_binding in arm.arg_bindings(db) {
             let Some(binding) = typed_body.pat_binding(arg_binding.pat) else {
                 continue;
             };
-            let ty = semantic_binding_ty(db, semantic, binding);
+            let ty = semantic.binding_ty(db, binding);
             let plan = top_level_class_for_ty_in_env(db, env, ty, AddressSpaceKind::Memory)
                 .map(RuntimeBoundarySpec::ExactTransport)
                 .map(RuntimeParamPlan::Boundary)

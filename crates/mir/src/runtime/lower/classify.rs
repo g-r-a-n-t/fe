@@ -9,8 +9,7 @@ use hir::analysis::{
             NAssignmentId, NBorrowRoot, NExpr, NLocalOrigin, NOperand, NSPlace, NSPlaceRoot,
             NormalizedBindingLowering, NormalizedBodyFacts, NormalizedSemanticBody,
         },
-        get_or_build_semantic_instance, sem_const_ty, semantic_binding_role, semantic_binding_ty,
-        semantic_instance_assumptions,
+        get_or_build_semantic_instance, sem_const_ty,
     },
     ty::{
         ProviderKind,
@@ -757,7 +756,7 @@ fn root_provider_for_runtime_visible_binding<'db>(
     semantic: SemanticInstance<'db>,
     binding: LocalBinding<'db>,
 ) -> Option<ProviderBinding<'db>> {
-    match semantic_binding_role(db, semantic, binding) {
+    match semantic.binding_role(db, binding) {
         SemanticLocalRole::DirectValue {
             provenance: ValueProvenance::RootProvider(provider),
         }
@@ -1326,12 +1325,9 @@ pub(crate) fn runtime_effect_binding_plan<'db>(
         return None;
     }
     let owner = semantic.key(db).owner(db);
-    let env = RuntimeTypeEnv::new(
-        Some(owner.scope()),
-        semantic_instance_assumptions(db, semantic),
-    );
-    let binding_ty = semantic_binding_ty(db, semantic, binding);
-    match semantic_binding_role(db, semantic, binding) {
+    let env = RuntimeTypeEnv::new(Some(owner.scope()), semantic.assumptions(db));
+    let binding_ty = semantic.binding_ty(db, binding);
+    match semantic.binding_role(db, binding) {
         SemanticLocalRole::Erased => None,
         SemanticLocalRole::DirectValue {
             provenance: ValueProvenance::RootProvider(provider),
@@ -1444,7 +1440,7 @@ fn runtime_exact_class_for_visible_binding_in_env<'db>(
     binding: LocalBinding<'db>,
     binding_ty: TyId<'db>,
 ) -> Option<RuntimeClass<'db>> {
-    match semantic_binding_role(db, semantic, binding) {
+    match semantic.binding_role(db, binding) {
         SemanticLocalRole::Erased => None,
         SemanticLocalRole::DirectValue {
             provenance: ValueProvenance::RootProvider(provider),
@@ -1534,7 +1530,7 @@ pub(crate) fn runtime_visible_binding_class<'db>(
     let owner = semantic.key(db).owner(db);
     let typed_body = semantic.key(db).typed_body(db);
     let env = RuntimeTypeEnv::new(Some(owner.scope()), typed_body.assumptions());
-    let binding_ty = semantic_binding_ty(db, semantic, binding);
+    let binding_ty = semantic.binding_ty(db, binding);
     runtime_exact_class_for_visible_binding_in_env(db, semantic, env, binding, binding_ty)
 }
 
@@ -2720,7 +2716,7 @@ mod tests {
         let self_binding = typed_body
             .param_binding(0)
             .expect("grant typed body should keep self as the first param binding");
-        let self_role = semantic_binding_role(&db, semantic, self_binding);
+        let self_role = semantic.binding_role(&db, self_binding);
         let plans = runtime_visible_binding_plans(&db, semantic);
         let signature = callee.signature(&db);
 
@@ -2786,7 +2782,7 @@ mod tests {
                 .into_iter()
                 .next()
                 .expect("Protected arm should keep one owner effect binding");
-            let binding_ty = semantic_binding_ty(&db, semantic, binding);
+            let binding_ty = semantic.binding_ty(&db, binding);
             let plan = runtime_effect_binding_plan(&db, semantic, binding)
                 .expect("guarded_balances should lower to a runtime effect binding plan");
             let RuntimeClass::Ref {

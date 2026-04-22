@@ -5,8 +5,6 @@ use rustc_hash::FxHashMap;
 use crate::{
     analysis::semantic::instance::{
         CallLoweringPlan, ForLoopCalleeRefs, SemanticInstance, resolve_semantic_const_ref,
-        semantic_binding_role, semantic_binding_ty, semantic_call_lowering_plans,
-        semantic_for_loop_callee_refs, semantic_instance_assumptions,
     },
     analysis::{
         HirAnalysisDb,
@@ -48,10 +46,10 @@ pub fn lower_to_smir<'db>(
     let Some(body) = typed_body.body() else {
         let mut locals = Vec::new();
         let mut push_binding_local = |binding| {
-            let role = semantic_binding_role(db, instance, binding);
+            let role = instance.binding_role(db, binding);
             let snapshot_source = initial_snapshot_source(&role);
             locals.push(SLocal {
-                ty: semantic_binding_ty(db, instance, binding),
+                ty: instance.binding_ty(db, binding),
                 mutability: if binding.is_mut() {
                     Mutability::Mutable
                 } else {
@@ -90,8 +88,8 @@ pub fn lower_to_smir<'db>(
         template_owner,
         typed_body,
         body,
-        semantic_call_lowering_plans(db, instance),
-        semantic_for_loop_callee_refs(db, instance),
+        instance.call_lowering_plans(db),
+        instance.for_loop_callee_refs(db),
     );
     let result = cx.lower_expr(body.expr(db));
     if !cx.is_terminated(cx.current) {
@@ -156,7 +154,7 @@ impl<'db> SmirLowerCtxt<'db> {
             body,
             call_lowering_plans,
             for_loop_callee_refs,
-            assumptions: semantic_instance_assumptions(db, instance),
+            assumptions: instance.assumptions(db),
             locals: Vec::new(),
             assigned_snapshots: Vec::new(),
             blocks: Vec::new(),
@@ -227,7 +225,7 @@ impl<'db> SmirLowerCtxt<'db> {
             return local;
         }
         let local = self.alloc_local(
-            semantic_binding_ty(self.db, self.instance, binding),
+            self.instance.binding_ty(self.db, binding),
             if binding.is_mut() {
                 Mutability::Mutable
             } else {
@@ -247,7 +245,7 @@ impl<'db> SmirLowerCtxt<'db> {
     ) -> SLocalId {
         let id = SLocalId::from_u32(self.locals.len() as u32);
         let role = source.map_or_else(ordinary_direct_value_role, |binding| {
-            semantic_binding_role(self.db, self.instance, binding)
+            self.instance.binding_role(self.db, binding)
         });
         let snapshot_source = initial_snapshot_source(&role);
         self.assigned_snapshots.push(snapshot_source.is_some());
@@ -592,7 +590,7 @@ impl<'db> SmirLowerCtxt<'db> {
                         ),
                         normalize_ty(
                             self.db,
-                            semantic_binding_ty(self.db, self.instance, binding),
+                            self.instance.binding_ty(self.db, binding),
                             self.body.scope(),
                             self.assumptions,
                         ),
@@ -1220,7 +1218,8 @@ impl<'db> SmirLowerCtxt<'db> {
         ) {
             return true;
         }
-        semantic_binding_ty(self.db, self.instance, binding)
+        self.instance
+            .binding_ty(self.db, binding)
             .as_capability(self.db)
             .is_some()
     }

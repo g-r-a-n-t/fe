@@ -6,7 +6,7 @@ use crate::{
         semantic::{
             PlaceProvenance, SExpr, SLocalId, SOperand, SPlace, SStmtKind, STerminatorKind,
             SemanticBody, SemanticInstance, SemanticLocalKind, SemanticLocalRole, ValueProvenance,
-            ctfe::canonicalize_semantic_consts, semantic_instance_assumptions,
+            ctfe::canonicalize_semantic_consts,
         },
         ty::{ty_check::LocalBinding, ty_def::TyId, ty_is_copy},
     },
@@ -38,12 +38,7 @@ fn normalized_semantic_body_query<'db>(
     instance: SemanticInstance<'db>,
 ) -> SemanticNormalizeResult<'db> {
     let raw = canonicalize_semantic_consts(db, instance);
-    let cx = NormalizeCtxt::new(
-        db,
-        instance,
-        raw,
-        semantic_instance_assumptions(db, instance),
-    );
+    let cx = NormalizeCtxt::new(db, instance, raw, instance.assumptions(db));
     match cx.normalize() {
         Ok(body) => SemanticNormalizeResult::Ok(NormalizedSemanticBodyId::new(db, body)),
         Err(err) => SemanticNormalizeResult::Err(SemanticNormalizeErrorId::new(db, err)),

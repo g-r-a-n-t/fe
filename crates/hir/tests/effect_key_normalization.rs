@@ -5,8 +5,8 @@ use fe_hir::analysis::diagnostics::DiagnosticVoucher;
 use fe_hir::analysis::place::PlaceBase;
 use fe_hir::analysis::semantic::{
     GenericSubst, get_or_build_semantic_instance, instantiate_typed_body, instantiated_effect_env,
-    resolved_provider_binding_for_instance_effect, root_semantic_instance_key, semantic_binding_ty,
-    typed_body_template, validate_instantiated_effect_env_key,
+    resolved_provider_binding_for_instance_effect, root_semantic_instance_key, typed_body_template,
+    validate_instantiated_effect_env_key,
 };
 use fe_hir::analysis::ty::effects::{EffectKeyKind, place_effect_provider_param_index_map};
 use fe_hir::analysis::ty::trait_def::resolve_trait_method_instance;
@@ -4816,7 +4816,8 @@ fn function_effect_bindings_use_instantiated_provider_bindings() {
         .source
         .expect("effect local should keep its source binding");
     assert_eq!(
-        semantic_binding_ty(&db, callee, effect_binding)
+        callee
+            .binding_ty(&db, effect_binding)
             .pretty_print(&db)
             .to_string(),
         "Cell"
@@ -4864,7 +4865,7 @@ fn root_effect_bindings_specialize_rawmem_to_evm() {
         })
         .expect("expected root mem effect binding");
     assert_eq!(
-        semantic_binding_ty(&db, root, root_effect_binding)
+        root.binding_ty(&db, root_effect_binding)
             .pretty_print(&db)
             .to_string(),
         "Evm"
@@ -4901,7 +4902,8 @@ fn root_effect_bindings_specialize_rawmem_to_evm() {
         })
         .expect("expected specialized raw_store mem effect binding");
     assert_eq!(
-        semantic_binding_ty(&db, raw_store, raw_store_effect_binding)
+        raw_store
+            .binding_ty(&db, raw_store_effect_binding)
             .pretty_print(&db)
             .to_string(),
         "Evm"

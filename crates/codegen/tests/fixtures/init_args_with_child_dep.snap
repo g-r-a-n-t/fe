@@ -28,7 +28,9 @@ object "Child" {
         if iszero(iszero(iszero(v5))) {
           let t18 := sub(v4, v3)
           if gt(v3, v4) {
-            revert(0, 0)
+            mstore(0, 0x4e487b7100000000000000000000000000000000000000000000000000000000)
+            mstore(4, 0x11)
+            revert(0, 36)
           }
           let v6 := t18
           let t19 := mload(0x40)
@@ -99,7 +101,9 @@ object "Child" {
         let v3 := v9
         let t41 := add(v2, v1)
         if lt(t41, v2) {
-          revert(0, 0)
+          mstore(0, 0x4e487b7100000000000000000000000000000000000000000000000000000000)
+          mstore(4, 0x11)
+          revert(0, 36)
         }
         let v27 := t41
         let v10 := v27
@@ -249,7 +253,9 @@ object "Child" {
       let v7 := v23
       let t36 := add(v6, v7)
       if lt(t36, v6) {
-        revert(0, 0)
+        mstore(0, 0x4e487b7100000000000000000000000000000000000000000000000000000000)
+        mstore(4, 0x11)
+        revert(0, 36)
       }
       let v24 := t36
       let v8 := v24
@@ -306,7 +312,9 @@ object "Child" {
       let v7 := v23
       let t36 := add(v6, v7)
       if lt(t36, v6) {
-        revert(0, 0)
+        mstore(0, 0x4e487b7100000000000000000000000000000000000000000000000000000000)
+        mstore(4, 0x11)
+        revert(0, 36)
       }
       let v24 := t36
       let v8 := v24
@@ -455,7 +463,9 @@ object "Parent" {
         if iszero(iszero(iszero(v5))) {
           let t19 := sub(v4, v3)
           if gt(v3, v4) {
-            revert(0, 0)
+            mstore(0, 0x4e487b7100000000000000000000000000000000000000000000000000000000)
+            mstore(4, 0x11)
+            revert(0, 36)
           }
           let v6 := t19
           let t20 := mload(0x40)
@@ -582,14 +592,18 @@ object "Parent" {
           let v6 := p0
           let t31 := add(v6, mload(r3))
           if lt(t31, v6) {
-            revert(0, 0)
+            mstore(0, 0x4e487b7100000000000000000000000000000000000000000000000000000000)
+            mstore(4, 0x11)
+            revert(0, 36)
           }
           let v19 := t31
           let v7 := v19
           let v8 := p1
           let t32 := add(v8, mload(r3))
           if lt(t32, v8) {
-            revert(0, 0)
+            mstore(0, 0x4e487b7100000000000000000000000000000000000000000000000000000000)
+            mstore(4, 0x11)
+            revert(0, 36)
           }
           let v20 := t32
           let v9 := v20
@@ -604,7 +618,9 @@ object "Parent" {
           let v28 := t33
           let t34 := add(v28, v13)
           if lt(t34, v28) {
-            revert(0, 0)
+            mstore(0, 0x4e487b7100000000000000000000000000000000000000000000000000000000)
+            mstore(4, 0x11)
+            revert(0, 36)
           }
           let v29 := t34
           mstore(v12, v29)
@@ -674,7 +690,9 @@ object "Parent" {
           let v26 := t90
           let t91 := add(v3, v26)
           if lt(t91, v3) {
-            revert(0, 0)
+            mstore(0, 0x4e487b7100000000000000000000000000000000000000000000000000000000)
+            mstore(4, 0x11)
+            revert(0, 36)
           }
           let v61 := t91
           let v27 := v61
@@ -689,7 +707,9 @@ object "Parent" {
           datacopy(v8, v4, v3)
           let t93 := add(v8, v3)
           if lt(t93, v8) {
-            revert(0, 0)
+            mstore(0, 0x4e487b7100000000000000000000000000000000000000000000000000000000)
+            mstore(4, 0x11)
+            revert(0, 36)
           }
           let v66 := t93
           let v30 := v66
@@ -702,7 +722,9 @@ object "Parent" {
           let v34 := t96
           let t97 := add(v3, v34)
           if lt(t97, v3) {
-            revert(0, 0)
+            mstore(0, 0x4e487b7100000000000000000000000000000000000000000000000000000000)
+            mstore(4, 0x11)
+            revert(0, 36)
           }
           let v69 := t97
           let v35 := v69
@@ -735,7 +757,9 @@ object "Parent" {
         let v26 := t100
         let t101 := add(v3, v26)
         if lt(t101, v3) {
-          revert(0, 0)
+          mstore(0, 0x4e487b7100000000000000000000000000000000000000000000000000000000)
+          mstore(4, 0x11)
+          revert(0, 36)
         }
         let v61 := t101
         let v27 := v61
@@ -750,7 +774,9 @@ object "Parent" {
         datacopy(v8, v4, v3)
         let t103 := add(v8, v3)
         if lt(t103, v8) {
-          revert(0, 0)
+          mstore(0, 0x4e487b7100000000000000000000000000000000000000000000000000000000)
+          mstore(4, 0x11)
+          revert(0, 36)
         }
         let v66 := t103
         let v30 := v66
@@ -763,7 +789,9 @@ object "Parent" {
         let v34 := t106
         let t107 := add(v3, v34)
         if lt(t107, v3) {
-          revert(0, 0)
+          mstore(0, 0x4e487b7100000000000000000000000000000000000000000000000000000000)
+          mstore(4, 0x11)
+          revert(0, 36)
         }
         let v69 := t107
         let v35 := v69
@@ -843,7 +871,9 @@ object "Parent" {
         let v3 := v9
         let t41 := add(v2, v1)
         if lt(t41, v2) {
-          revert(0, 0)
+          mstore(0, 0x4e487b7100000000000000000000000000000000000000000000000000000000)
+          mstore(4, 0x11)
+          revert(0, 36)
         }
         let v27 := t41
         let v10 := v27
@@ -930,7 +960,9 @@ object "Parent" {
         let v32 := t56
         let t57 := sub(v32, v3)
         if gt(v3, v32) {
-          revert(0, 0)
+          mstore(0, 0x4e487b7100000000000000000000000000000000000000000000000000000000)
+          mstore(4, 0x11)
+          revert(0, 36)
         }
         let v33 := t57
         let v12 := v33
@@ -955,7 +987,9 @@ object "Parent" {
         let v51 := t60
         let t61 := add(v51, v5)
         if lt(t61, v51) {
-          revert(0, 0)
+          mstore(0, 0x4e487b7100000000000000000000000000000000000000000000000000000000)
+          mstore(4, 0x11)
+          revert(0, 36)
         }
         let v52 := t61
         let v22 := v52
@@ -988,7 +1022,9 @@ object "Parent" {
       let v4 := v16
       let t26 := add(v3, v4)
       if lt(t26, v3) {
-        revert(0, 0)
+        mstore(0, 0x4e487b7100000000000000000000000000000000000000000000000000000000)
+        mstore(4, 0x11)
+        revert(0, 36)
       }
       let v17 := t26
       let v5 := v17
@@ -1162,7 +1198,9 @@ object "Parent" {
       let v3 := v9
       let t14 := add(v1, v3)
       if lt(t14, v1) {
-        revert(0, 0)
+        mstore(0, 0x4e487b7100000000000000000000000000000000000000000000000000000000)
+        mstore(4, 0x11)
+        revert(0, 36)
       }
       let v10 := t14
       let v4 := v10
@@ -1172,7 +1210,9 @@ object "Parent" {
       let v6 := v11
       let t16 := add(v4, v6)
       if lt(t16, v4) {
-        revert(0, 0)
+        mstore(0, 0x4e487b7100000000000000000000000000000000000000000000000000000000)
+        mstore(4, 0x11)
+        revert(0, 36)
       }
       let v12 := t16
       let v7 := v12
@@ -1232,7 +1272,9 @@ object "Parent" {
       let v7 := v23
       let t36 := add(v6, v7)
       if lt(t36, v6) {
-        revert(0, 0)
+        mstore(0, 0x4e487b7100000000000000000000000000000000000000000000000000000000)
+        mstore(4, 0x11)
+        revert(0, 36)
       }
       let v24 := t36
       let v8 := v24
@@ -1289,7 +1331,9 @@ object "Parent" {
       let v7 := v23
       let t36 := add(v6, v7)
       if lt(t36, v6) {
-        revert(0, 0)
+        mstore(0, 0x4e487b7100000000000000000000000000000000000000000000000000000000)
+        mstore(4, 0x11)
+        revert(0, 36)
       }
       let v24 := t36
       let v8 := v24
@@ -1442,7 +1486,9 @@ object "Parent" {
           if iszero(iszero(iszero(v5))) {
             let t18 := sub(v4, v3)
             if gt(v3, v4) {
-              revert(0, 0)
+              mstore(0, 0x4e487b7100000000000000000000000000000000000000000000000000000000)
+              mstore(4, 0x11)
+              revert(0, 36)
             }
             let v6 := t18
             let t19 := mload(0x40)
@@ -1513,7 +1559,9 @@ object "Parent" {
           let v3 := v9
           let t41 := add(v2, v1)
           if lt(t41, v2) {
-            revert(0, 0)
+            mstore(0, 0x4e487b7100000000000000000000000000000000000000000000000000000000)
+            mstore(4, 0x11)
+            revert(0, 36)
           }
           let v27 := t41
           let v10 := v27
@@ -1663,7 +1711,9 @@ object "Parent" {
         let v7 := v23
         let t36 := add(v6, v7)
         if lt(t36, v6) {
-          revert(0, 0)
+          mstore(0, 0x4e487b7100000000000000000000000000000000000000000000000000000000)
+          mstore(4, 0x11)
+          revert(0, 36)
         }
         let v24 := t36
         let v8 := v24
@@ -1720,7 +1770,9 @@ object "Parent" {
         let v7 := v23
         let t36 := add(v6, v7)
         if lt(t36, v6) {
-          revert(0, 0)
+          mstore(0, 0x4e487b7100000000000000000000000000000000000000000000000000000000)
+          mstore(4, 0x11)
+          revert(0, 36)
         }
         let v24 := t36
         let v8 := v24

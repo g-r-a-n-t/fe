@@ -460,7 +460,9 @@ object "Erc20Contract" {
           let v19 := p2
           let t42 := add(v6, v19)
           if lt(t42, v6) {
-            revert(0, 0)
+            mstore(0, 0x4e487b7100000000000000000000000000000000000000000000000000000000)
+            mstore(4, 0x11)
+            revert(0, 36)
           }
           let v36 := t42
           let v20 := v36
@@ -470,7 +472,9 @@ object "Erc20Contract" {
           let v23 := p2
           let t44 := add(v22, v23)
           if lt(t44, v22) {
-            revert(0, 0)
+            mstore(0, 0x4e487b7100000000000000000000000000000000000000000000000000000000)
+            mstore(4, 0x11)
+            revert(0, 36)
           }
           let v39 := t44
           let v24 := v39
@@ -848,7 +852,9 @@ object "Erc20Contract" {
         let v3 := v6
         let t25 := add(v2, v3)
         if lt(t25, v2) {
-          revert(0, 0)
+          mstore(0, 0x4e487b7100000000000000000000000000000000000000000000000000000000)
+          mstore(4, 0x11)
+          revert(0, 36)
         }
         let v17 := t25
         let v7 := v17
@@ -858,7 +864,9 @@ object "Erc20Contract" {
         let v10 := v20
         let t26 := add(v3, v10)
         if lt(t26, v3) {
-          revert(0, 0)
+          mstore(0, 0x4e487b7100000000000000000000000000000000000000000000000000000000)
+          mstore(4, 0x11)
+          revert(0, 36)
         }
         let v21 := t26
         let v11 := v21
@@ -883,7 +891,9 @@ object "Erc20Contract" {
         let v3 := v6
         let t25 := add(v2, v3)
         if lt(t25, v2) {
-          revert(0, 0)
+          mstore(0, 0x4e487b7100000000000000000000000000000000000000000000000000000000)
+          mstore(4, 0x11)
+          revert(0, 36)
         }
         let v17 := t25
         let v7 := v17
@@ -893,7 +903,9 @@ object "Erc20Contract" {
         let v10 := v20
         let t26 := add(v3, v10)
         if lt(t26, v3) {
-          revert(0, 0)
+          mstore(0, 0x4e487b7100000000000000000000000000000000000000000000000000000000)
+          mstore(4, 0x11)
+          revert(0, 36)
         }
         let v21 := t26
         let v11 := v21
@@ -918,7 +930,9 @@ object "Erc20Contract" {
         let v3 := v6
         let t25 := add(v2, v3)
         if lt(t25, v2) {
-          revert(0, 0)
+          mstore(0, 0x4e487b7100000000000000000000000000000000000000000000000000000000)
+          mstore(4, 0x11)
+          revert(0, 36)
         }
         let v17 := t25
         let v7 := v17
@@ -928,7 +942,9 @@ object "Erc20Contract" {
         let v10 := v20
         let t26 := add(v3, v10)
         if lt(t26, v3) {
-          revert(0, 0)
+          mstore(0, 0x4e487b7100000000000000000000000000000000000000000000000000000000)
+          mstore(4, 0x11)
+          revert(0, 36)
         }
         let v21 := t26
         let v11 := v21
@@ -953,7 +969,9 @@ object "Erc20Contract" {
         let v3 := v6
         let t25 := add(v2, v3)
         if lt(t25, v2) {
-          revert(0, 0)
+          mstore(0, 0x4e487b7100000000000000000000000000000000000000000000000000000000)
+          mstore(4, 0x11)
+          revert(0, 36)
         }
         let v17 := t25
         let v7 := v17
@@ -963,7 +981,9 @@ object "Erc20Contract" {
         let v10 := v20
         let t26 := add(v3, v10)
         if lt(t26, v3) {
-          revert(0, 0)
+          mstore(0, 0x4e487b7100000000000000000000000000000000000000000000000000000000)
+          mstore(4, 0x11)
+          revert(0, 36)
         }
         let v21 := t26
         let v11 := v21
@@ -988,7 +1008,9 @@ object "Erc20Contract" {
         let v3 := v6
         let t25 := add(v2, v3)
         if lt(t25, v2) {
-          revert(0, 0)
+          mstore(0, 0x4e487b7100000000000000000000000000000000000000000000000000000000)
+          mstore(4, 0x11)
+          revert(0, 36)
         }
         let v17 := t25
         let v7 := v17
@@ -998,7 +1020,9 @@ object "Erc20Contract" {
         let v10 := v20
         let t26 := add(v3, v10)
         if lt(t26, v3) {
-          revert(0, 0)
+          mstore(0, 0x4e487b7100000000000000000000000000000000000000000000000000000000)
+          mstore(4, 0x11)
+          revert(0, 36)
         }
         let v21 := t26
         let v11 := v21
@@ -1023,7 +1047,9 @@ object "Erc20Contract" {
         let v3 := v6
         let t25 := add(v2, v3)
         if lt(t25, v2) {
-          revert(0, 0)
+          mstore(0, 0x4e487b7100000000000000000000000000000000000000000000000000000000)
+          mstore(4, 0x11)
+          revert(0, 36)
         }
         let v17 := t25
         let v7 := v17
@@ -1033,7 +1059,9 @@ object "Erc20Contract" {
         let v10 := v20
         let t26 := add(v3, v10)
         if lt(t26, v3) {
-          revert(0, 0)
+          mstore(0, 0x4e487b7100000000000000000000000000000000000000000000000000000000)
+          mstore(4, 0x11)
+          revert(0, 36)
         }
         let v21 := t26
         let v11 := v21
@@ -1086,7 +1114,9 @@ object "Erc20Contract" {
           let v19 := p3
           let t42 := sub(v5, v19)
           if gt(v19, v5) {
-            revert(0, 0)
+            mstore(0, 0x4e487b7100000000000000000000000000000000000000000000000000000000)
+            mstore(4, 0x11)
+            revert(0, 36)
           }
           let v36 := t42
           let v20 := v36
@@ -1096,7 +1126,9 @@ object "Erc20Contract" {
           let v24 := p3
           let t43 := add(v6, v24)
           if lt(t43, v6) {
-            revert(0, 0)
+            mstore(0, 0x4e487b7100000000000000000000000000000000000000000000000000000000)
+            mstore(4, 0x11)
+            revert(0, 36)
           }
           let v39 := t43
           let v25 := v39
@@ -1132,7 +1164,9 @@ object "Erc20Contract" {
           let v19 := p3
           let t42 := sub(v5, v19)
           if gt(v19, v5) {
-            revert(0, 0)
+            mstore(0, 0x4e487b7100000000000000000000000000000000000000000000000000000000)
+            mstore(4, 0x11)
+            revert(0, 36)
           }
           let v36 := t42
           let v20 := v36
@@ -1142,7 +1176,9 @@ object "Erc20Contract" {
           let v24 := p3
           let t43 := add(v6, v24)
           if lt(t43, v6) {
-            revert(0, 0)
+            mstore(0, 0x4e487b7100000000000000000000000000000000000000000000000000000000)
+            mstore(4, 0x11)
+            revert(0, 36)
           }
           let v39 := t43
           let v25 := v39
@@ -1215,7 +1251,9 @@ object "Erc20Contract" {
           let v24 := p3
           let t42 := sub(v7, v24)
           if gt(v24, v7) {
-            revert(0, 0)
+            mstore(0, 0x4e487b7100000000000000000000000000000000000000000000000000000000)
+            mstore(4, 0x11)
+            revert(0, 36)
           }
           let v38 := t42
           let v25 := v38
@@ -1240,7 +1278,9 @@ object "Erc20Contract" {
         let v7 := p0
         let t17 := add(v7, v2)
         if lt(t17, v7) {
-          revert(0, 0)
+          mstore(0, 0x4e487b7100000000000000000000000000000000000000000000000000000000)
+          mstore(4, 0x11)
+          revert(0, 36)
         }
         let v13 := t17
         let v8 := v13
@@ -1251,7 +1291,9 @@ object "Erc20Contract" {
         let v3 := v10
         let t19 := add(v2, v3)
         if lt(t19, v2) {
-          revert(0, 0)
+          mstore(0, 0x4e487b7100000000000000000000000000000000000000000000000000000000)
+          mstore(4, 0x11)
+          revert(0, 36)
         }
         let v15 := t19
         let v11 := v15
@@ -1362,7 +1404,9 @@ object "Erc20Contract" {
         let v7 := p0
         let t17 := add(v7, v2)
         if lt(t17, v7) {
-          revert(0, 0)
+          mstore(0, 0x4e487b7100000000000000000000000000000000000000000000000000000000)
+          mstore(4, 0x11)
+          revert(0, 36)
         }
         let v13 := t17
         let v8 := v13
@@ -1373,7 +1417,9 @@ object "Erc20Contract" {
         let v3 := v10
         let t19 := add(v2, v3)
         if lt(t19, v2) {
-          revert(0, 0)
+          mstore(0, 0x4e487b7100000000000000000000000000000000000000000000000000000000)
+          mstore(4, 0x11)
+          revert(0, 36)
         }
         let v15 := t19
         let v11 := v15
@@ -1436,7 +1482,9 @@ object "Erc20Contract" {
         let v7 := p0
         let t17 := add(v7, v2)
         if lt(t17, v7) {
-          revert(0, 0)
+          mstore(0, 0x4e487b7100000000000000000000000000000000000000000000000000000000)
+          mstore(4, 0x11)
+          revert(0, 36)
         }
         let v13 := t17
         let v8 := v13
@@ -1447,7 +1495,9 @@ object "Erc20Contract" {
         let v3 := v10
         let t19 := add(v2, v3)
         if lt(t19, v2) {
-          revert(0, 0)
+          mstore(0, 0x4e487b7100000000000000000000000000000000000000000000000000000000)
+          mstore(4, 0x11)
+          revert(0, 36)
         }
         let v15 := t19
         let v11 := v15

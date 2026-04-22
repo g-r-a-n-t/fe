@@ -26,7 +26,9 @@ object "main" {
       for { let t59 := 0 } lt(t59, v5) { t59 := add(t59, 1) } {
         let t60 := mul(t58, v24)
         if and(iszero(iszero(t58)), iszero(eq(div(t60, t58), v24))) {
-          revert(0, 0)
+          mstore(0, 0x4e487b7100000000000000000000000000000000000000000000000000000000)
+          mstore(4, 0x11)
+          revert(0, 36)
         }
         t58 := t60
       }

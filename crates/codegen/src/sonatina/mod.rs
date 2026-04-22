@@ -5,7 +5,7 @@ use std::collections::BTreeMap;
 use common::ingot::Ingot;
 use driver::DriverDataBase;
 use hir::hir_def::{HirIngot, TopLevelMod};
-use mir2::{RuntimePackage, build_runtime_package, build_test_runtime_package};
+use mir::{RuntimePackage, build_runtime_package, build_test_runtime_package};
 use sonatina_codegen::{
     isa::evm::EvmBackend,
     object::{CompileOptions, ObjectArtifact, compile_all_objects},
@@ -29,7 +29,7 @@ use crate::{
 
 #[derive(Debug)]
 pub enum LowerError {
-    RuntimeLower(mir2::LowerError),
+    RuntimeLower(mir::LowerError),
     Unsupported(String),
     Internal(String),
 }
@@ -46,8 +46,8 @@ impl std::fmt::Display for LowerError {
 
 impl std::error::Error for LowerError {}
 
-impl From<mir2::LowerError> for LowerError {
-    fn from(err: mir2::LowerError) -> Self {
+impl From<mir::LowerError> for LowerError {
+    fn from(err: mir::LowerError) -> Self {
         LowerError::RuntimeLower(err)
     }
 }
@@ -186,13 +186,13 @@ fn compile_all_runtime_objects(
     })
 }
 
-fn section_name_for_runtime(name: &mir2::RuntimeSectionName) -> sonatina_ir::SectionName {
+fn section_name_for_runtime(name: &mir::RuntimeSectionName) -> sonatina_ir::SectionName {
     match name {
-        mir2::RuntimeSectionName::Init => "init".into(),
-        mir2::RuntimeSectionName::Runtime => "runtime".into(),
-        mir2::RuntimeSectionName::Main => "main".into(),
-        mir2::RuntimeSectionName::Test(name) => format!("test_{name}").into(),
-        mir2::RuntimeSectionName::CodeRegion(symbol) => format!("code_region_{symbol}").into(),
+        mir::RuntimeSectionName::Init => "init".into(),
+        mir::RuntimeSectionName::Runtime => "runtime".into(),
+        mir::RuntimeSectionName::Main => "main".into(),
+        mir::RuntimeSectionName::Test(name) => format!("test_{name}").into(),
+        mir::RuntimeSectionName::CodeRegion(symbol) => format!("code_region_{symbol}").into(),
     }
 }
 
@@ -293,10 +293,10 @@ pub fn emit_runtime_package_sonatina_bytecode(
             })?;
         let init = artifact
             .sections
-            .get(&section_name_for_runtime(&mir2::RuntimeSectionName::Init));
-        let runtime = artifact.sections.get(&section_name_for_runtime(
-            &mir2::RuntimeSectionName::Runtime,
-        ));
+            .get(&section_name_for_runtime(&mir::RuntimeSectionName::Init));
+        let runtime = artifact
+            .sections
+            .get(&section_name_for_runtime(&mir::RuntimeSectionName::Runtime));
         let (deploy, runtime) = match (init, runtime) {
             (Some(init), Some(runtime)) => (init.bytes.clone(), runtime.bytes.clone()),
             _ => {
@@ -429,7 +429,7 @@ pub fn emit_test_module_sonatina(
         let Some(section) = sections.first() else {
             continue;
         };
-        let mir2::RuntimeSectionName::Test(_) = &section.name else {
+        let mir::RuntimeSectionName::Test(_) = &section.name else {
             continue;
         };
         let artifact = artifacts_by_name

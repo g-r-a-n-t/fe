@@ -13,8 +13,8 @@ use hir::{
     hir_def::{ArithBinOp, BinOp, CompBinOp, LogicalBinOp, UnOp},
     projection::IndexSource,
 };
-use mir2::runtime::RefKind;
-use mir2::{
+use mir::runtime::RefKind;
+use mir::{
     AddressSpaceKind, ConstNode, ConstRegionId, ConstScalar, IntrinsicArithBinOp, Layout, LayoutId,
     RBlockId, RExpr, RLocalId, RStmt, RTerminator, ResolvedPlaceElem, ResolvedPlaceRootKind,
     RuntimeBody, RuntimeBuiltin, RuntimeClass, RuntimeFunction, RuntimeInlineHint, RuntimeInstance,
@@ -60,6 +60,9 @@ use sonatina_ir::{
 use super::{LowerError, create_module_ctx};
 use crate::TargetDataLayout;
 
+const PANIC_OVERFLOW: u64 = 0x11;
+const PANIC_DIVISION_BY_ZERO: u64 = 0x12;
+
 pub(super) fn compile_runtime_package_sonatina(
     db: &DriverDataBase,
     package: &RuntimePackage<'_>,
@@ -81,8 +84,8 @@ struct ModuleLowerer<'db, 'a> {
     builder: ModuleBuilder,
     isa: &'a sonatina_ir::isa::evm::Evm,
     package: &'a RuntimePackage<'db>,
-    func_map: FxHashMap<mir2::RuntimeInstance<'db>, FuncRef>,
-    section_membership: FxHashMap<mir2::RuntimeInstance<'db>, Vec<mir2::RuntimeSectionRef<'db>>>,
+    func_map: FxHashMap<mir::RuntimeInstance<'db>, FuncRef>,
+    section_membership: FxHashMap<mir::RuntimeInstance<'db>, Vec<mir::RuntimeSectionRef<'db>>>,
     type_cache: FxHashMap<LayoutId<'db>, Type>,
     layout_names: FxHashMap<LayoutId<'db>, String>,
     const_globals: FxHashMap<ConstRegionId<'db>, GlobalVariableRef>,
@@ -130,7 +133,7 @@ impl<'db, 'a> ModuleLowerer<'db, 'a> {
     fn sections_for_function(
         &self,
         instance: RuntimeInstance<'db>,
-    ) -> &[mir2::RuntimeSectionRef<'db>] {
+    ) -> &[mir::RuntimeSectionRef<'db>] {
         self.section_membership
             .get(&instance)
             .map(Vec::as_slice)
@@ -295,13 +298,13 @@ impl<'db, 'a> ModuleLowerer<'db, 'a> {
                 }
                 for embed in &section.embeds {
                     match &embed.source {
-                        mir2::RuntimeSectionRef::Local { object: _, section } => {
+                        mir::RuntimeSectionRef::Local { object: _, section } => {
                             section_builder.embed_local(
                                 super::section_name_for_runtime(section),
                                 EmbedSymbol::from(embed.as_symbol.clone()),
                             );
                         }
-                        mir2::RuntimeSectionRef::External { object, section } => {
+                        mir::RuntimeSectionRef::External { object, section } => {
                             section_builder.embed_external(
                                 object.name(self.db).clone(),
                                 super::section_name_for_runtime(section),
@@ -318,7 +321,7 @@ impl<'db, 'a> ModuleLowerer<'db, 'a> {
         Ok(())
     }
 
-    fn func_ref(&self, instance: mir2::RuntimeInstance<'db>) -> Result<FuncRef, LowerError> {
+    fn func_ref(&self, instance: mir::RuntimeInstance<'db>) -> Result<FuncRef, LowerError> {
         self.func_map.get(&instance).copied().ok_or_else(|| {
             let declared = self
                 .package
@@ -423,7 +426,7 @@ impl<'db, 'a> ModuleLowerer<'db, 'a> {
 
     fn scalar_ty(&mut self, scalar: &ScalarClass<'db>) -> Result<Type, LowerError> {
         Ok(match scalar.role {
-            mir2::ScalarRole::EnumTag { enum_layout } => self.enum_tag_ty(enum_layout)?,
+            mir::ScalarRole::EnumTag { enum_layout } => self.enum_tag_ty(enum_layout)?,
             _ => scalar_ty(scalar),
         })
     }
@@ -443,7 +446,7 @@ impl<'db, 'a> ModuleLowerer<'db, 'a> {
         class: Option<&RuntimeClass<'db>>,
     ) -> Result<Immediate, LowerError> {
         if let Some(RuntimeClass::Scalar(ScalarClass {
-            role: mir2::ScalarRole::EnumTag { enum_layout },
+            role: mir::ScalarRole::EnumTag { enum_layout },
             ..
         })) = class
         {
@@ -494,7 +497,7 @@ impl<'db, 'a> ModuleLowerer<'db, 'a> {
 
 fn describe_runtime_instance<'db>(
     db: &DriverDataBase,
-    instance: mir2::RuntimeInstance<'db>,
+    instance: mir::RuntimeInstance<'db>,
 ) -> String {
     let key = instance.key(db);
     match key.source(db) {
@@ -595,7 +598,7 @@ const INTRINSIC_SUFFIX_TYPES: &[(&str, PrimTy)] = &[
 
 fn runtime_intrinsic<'db>(
     db: &'db DriverDataBase,
-    instance: mir2::RuntimeInstance<'db>,
+    instance: mir::RuntimeInstance<'db>,
 ) -> Option<RuntimeIntrinsic<'db>> {
     let semantic = instance.key(db).semantic(db)?;
     let hir::analysis::ty::ty_check::BodyOwner::Func(func) = semantic.key(db).owner(db) else {
@@ -706,7 +709,7 @@ enum CopySource<'db> {
 struct FunctionLowerer<'ctx, 'db, 'a> {
     module: &'ctx mut ModuleLowerer<'db, 'a>,
     body: RuntimeBody<'db>,
-    current_sections: Vec<mir2::RuntimeSectionRef<'db>>,
+    current_sections: Vec<mir::RuntimeSectionRef<'db>>,
     fb: FunctionBuilder<InstInserter>,
     prologue_block: BlockId,
     block_map: Vec<Option<BlockId>>,
@@ -714,7 +717,9 @@ struct FunctionLowerer<'ctx, 'db, 'a> {
     vars: FxHashMap<RLocalId, Variable>,
     slot_roots: FxHashMap<RLocalId, SlotRoot>,
     pending_enum_proof: Option<PendingEnumProof<'db>>,
-    overflow_revert_block: Option<BlockId>,
+    empty_revert_block: Option<BlockId>,
+    overflow_panic_block: Option<BlockId>,
+    division_by_zero_panic_block: Option<BlockId>,
 }
 
 #[derive(Clone, Copy)]
@@ -750,12 +755,12 @@ impl<'ctx, 'db, 'a> FunctionLowerer<'ctx, 'db, 'a> {
                 RuntimeLocalRoot::None
                 | RuntimeLocalRoot::Ref(_)
                 | RuntimeLocalRoot::Ptr { .. } => match &local.carrier {
-                    mir2::RuntimeCarrier::Value(class) => Some(
+                    mir::RuntimeCarrier::Value(class) => Some(
                         module
                             .ty_for_class(class)
                             .map(|ty| (RLocalId::from_u32(idx as u32), fb.declare_var(ty))),
                     ),
-                    mir2::RuntimeCarrier::Erased => None,
+                    mir::RuntimeCarrier::Erased => None,
                 },
             })
             .collect::<Result<FxHashMap<_, _>, _>>()?;
@@ -770,7 +775,9 @@ impl<'ctx, 'db, 'a> FunctionLowerer<'ctx, 'db, 'a> {
             vars,
             slot_roots: FxHashMap::default(),
             pending_enum_proof: None,
-            overflow_revert_block: None,
+            empty_revert_block: None,
+            overflow_panic_block: None,
+            division_by_zero_panic_block: None,
         })
     }
 
@@ -1659,7 +1666,7 @@ impl<'ctx, 'db, 'a> FunctionLowerer<'ctx, 'db, 'a> {
         })
     }
 
-    fn code_region_symbol_ref(&self, region: mir2::RuntimeCodeRegion<'db>) -> SymbolRef {
+    fn code_region_symbol_ref(&self, region: mir::RuntimeCodeRegion<'db>) -> SymbolRef {
         if !self.current_sections.is_empty()
             && self
                 .module
@@ -1689,7 +1696,7 @@ impl<'ctx, 'db, 'a> FunctionLowerer<'ctx, 'db, 'a> {
 
     fn lower_intrinsic_call(
         &mut self,
-        callee: mir2::RuntimeInstance<'db>,
+        callee: mir::RuntimeInstance<'db>,
         args: &[RLocalId],
         dst: Option<RLocalId>,
     ) -> Result<Option<ValueId>, LowerError> {
@@ -2245,7 +2252,7 @@ impl<'ctx, 'db, 'a> FunctionLowerer<'ctx, 'db, 'a> {
         &mut self,
         place: &RuntimePlace<'db>,
     ) -> Result<Lowered<PlaceTerminal<'db>>, LowerError> {
-        let program = self.module.db as &dyn mir2::MirDb;
+        let program = self.module.db as &dyn mir::MirDb;
         let resolved = resolve_runtime_place(self.module.db, &program, &self.body, place)
             .map_err(|err| LowerError::Internal(format!("invalid runtime place: {err:?}")))?;
         let mut terminal = match resolved.root_kind {
@@ -2467,7 +2474,7 @@ impl<'ctx, 'db, 'a> FunctionLowerer<'ctx, 'db, 'a> {
         &mut self,
         place: &RuntimePlace<'db>,
     ) -> Result<Lowered<ValueId>, LowerError> {
-        let program = self.module.db as &dyn mir2::MirDb;
+        let program = self.module.db as &dyn mir::MirDb;
         let class = resolve_runtime_place(self.module.db, &program, &self.body, place)
             .map_err(|err| LowerError::Internal(format!("invalid runtime place: {err:?}")))?
             .result_class;
@@ -2766,7 +2773,7 @@ impl<'ctx, 'db, 'a> FunctionLowerer<'ctx, 'db, 'a> {
         &mut self,
         source: CopySource<'db>,
         dst_layout: LayoutId<'db>,
-        dst_variants: &[mir2::runtime::EnumVariantLayout<'db>],
+        dst_variants: &[mir::runtime::EnumVariantLayout<'db>],
         object: ValueId,
     ) -> Result<(), LowerError> {
         let source_class = self.copy_source_class(&source).clone();
@@ -3053,7 +3060,7 @@ impl<'ctx, 'db, 'a> FunctionLowerer<'ctx, 'db, 'a> {
         src: RLocalId,
     ) -> Result<Lowered<()>, LowerError> {
         let src_value = self.local_value(src)?;
-        let program = self.module.db as &dyn mir2::MirDb;
+        let program = self.module.db as &dyn mir::MirDb;
         let dst_class = resolve_runtime_place(self.module.db, &program, &self.body, place)
             .map_err(|err| LowerError::Internal(format!("invalid runtime place: {err:?}")))?
             .result_class;
@@ -3139,7 +3146,7 @@ impl<'ctx, 'db, 'a> FunctionLowerer<'ctx, 'db, 'a> {
         addr: ValueId,
         space: AddressSpaceKind,
         layout: LayoutId<'db>,
-        data: &mir2::runtime::EnumLayout<'db>,
+        data: &mir::runtime::EnumLayout<'db>,
         src: ValueId,
     ) -> Result<(), LowerError> {
         let tag = self.fb.insert_inst(
@@ -3324,7 +3331,7 @@ impl<'ctx, 'db, 'a> FunctionLowerer<'ctx, 'db, 'a> {
         addr: ValueId,
         space: AddressSpaceKind,
         layout: LayoutId<'db>,
-        data: &mir2::runtime::EnumLayout<'db>,
+        data: &mir::runtime::EnumLayout<'db>,
     ) -> Result<ValueId, LowerError> {
         let layout_ty = self.module.ty_for_layout(layout)?;
         let object = self.fb.insert_inst(
@@ -3648,7 +3655,7 @@ impl<'ctx, 'db, 'a> FunctionLowerer<'ctx, 'db, 'a> {
                 } else {
                     self.fb.insert_uaddo(lhs, rhs)
                 };
-                self.emit_overflow_revert(overflow)?;
+                self.emit_panic_revert(overflow, PANIC_OVERFLOW)?;
                 raw
             }
             ArithBinOp::Sub => {
@@ -3657,7 +3664,7 @@ impl<'ctx, 'db, 'a> FunctionLowerer<'ctx, 'db, 'a> {
                 } else {
                     self.fb.insert_usubo(lhs, rhs)
                 };
-                self.emit_overflow_revert(overflow)?;
+                self.emit_panic_revert(overflow, PANIC_OVERFLOW)?;
                 raw
             }
             ArithBinOp::Mul => {
@@ -3666,26 +3673,28 @@ impl<'ctx, 'db, 'a> FunctionLowerer<'ctx, 'db, 'a> {
                 } else {
                     self.fb.insert_umulo(lhs, rhs)
                 };
-                self.emit_overflow_revert(overflow)?;
+                self.emit_panic_revert(overflow, PANIC_OVERFLOW)?;
                 raw
             }
             ArithBinOp::Div => {
+                self.emit_division_by_zero_revert(rhs, ty)?;
                 let [raw, overflow] = if signed {
                     self.fb.insert_evm_sdivo(lhs, rhs)
                 } else {
                     self.fb.insert_evm_udivo(lhs, rhs)
                 };
-                self.emit_overflow_revert(overflow)?;
+                self.emit_panic_revert(overflow, PANIC_OVERFLOW)?;
                 raw
             }
             ArithBinOp::Rem => {
-                let [raw, overflow] = if signed {
-                    self.fb.insert_evm_smodo(lhs, rhs)
+                self.emit_division_by_zero_revert(rhs, ty)?;
+                if signed {
+                    self.fb
+                        .insert_inst(EvmSmod::new(self.module.inst_set(), lhs, rhs), ty)
                 } else {
-                    self.fb.insert_evm_umodo(lhs, rhs)
-                };
-                self.emit_overflow_revert(overflow)?;
-                raw
+                    self.fb
+                        .insert_inst(EvmUmod::new(self.module.inst_set(), lhs, rhs), ty)
+                }
             }
             ArithBinOp::Pow => self
                 .fb
@@ -3770,7 +3779,7 @@ impl<'ctx, 'db, 'a> FunctionLowerer<'ctx, 'db, 'a> {
                 } else {
                     self.fb.insert_uaddo(lhs, rhs)
                 };
-                self.emit_overflow_revert(overflow)?;
+                self.emit_panic_revert(overflow, PANIC_OVERFLOW)?;
                 raw
             }
             (IntrinsicArithBinOp::Sub, true) => {
@@ -3779,7 +3788,7 @@ impl<'ctx, 'db, 'a> FunctionLowerer<'ctx, 'db, 'a> {
                 } else {
                     self.fb.insert_usubo(lhs, rhs)
                 };
-                self.emit_overflow_revert(overflow)?;
+                self.emit_panic_revert(overflow, PANIC_OVERFLOW)?;
                 raw
             }
             (IntrinsicArithBinOp::Mul, true) => {
@@ -3788,26 +3797,28 @@ impl<'ctx, 'db, 'a> FunctionLowerer<'ctx, 'db, 'a> {
                 } else {
                     self.fb.insert_umulo(lhs, rhs)
                 };
-                self.emit_overflow_revert(overflow)?;
+                self.emit_panic_revert(overflow, PANIC_OVERFLOW)?;
                 raw
             }
             (IntrinsicArithBinOp::Div, true) => {
+                self.emit_division_by_zero_revert(rhs, ty)?;
                 let [raw, overflow] = if signed {
                     self.fb.insert_evm_sdivo(lhs, rhs)
                 } else {
                     self.fb.insert_evm_udivo(lhs, rhs)
                 };
-                self.emit_overflow_revert(overflow)?;
+                self.emit_panic_revert(overflow, PANIC_OVERFLOW)?;
                 raw
             }
             (IntrinsicArithBinOp::Rem, true) => {
-                let [raw, overflow] = if signed {
-                    self.fb.insert_evm_smodo(lhs, rhs)
+                self.emit_division_by_zero_revert(rhs, ty)?;
+                if signed {
+                    self.fb
+                        .insert_inst(EvmSmod::new(self.module.inst_set(), lhs, rhs), ty)
                 } else {
-                    self.fb.insert_evm_umodo(lhs, rhs)
-                };
-                self.emit_overflow_revert(overflow)?;
-                raw
+                    self.fb
+                        .insert_inst(EvmUmod::new(self.module.inst_set(), lhs, rhs), ty)
+                }
             }
             (IntrinsicArithBinOp::Pow, true) => {
                 self.lower_checked_pow_builtin(lhs, rhs, ty, signed)?
@@ -3828,7 +3839,7 @@ impl<'ctx, 'db, 'a> FunctionLowerer<'ctx, 'db, 'a> {
             let negative = self
                 .fb
                 .insert_inst(Slt::new(self.module.inst_set(), exp, zero), Type::I1);
-            self.emit_overflow_revert(negative)?;
+            self.emit_empty_revert(negative)?;
         }
 
         let entry = self
@@ -3859,7 +3870,7 @@ impl<'ctx, 'db, 'a> FunctionLowerer<'ctx, 'db, 'a> {
         } else {
             self.fb.insert_umulo(result, base)
         };
-        self.emit_overflow_revert(overflow)?;
+        self.emit_panic_revert(overflow, PANIC_OVERFLOW)?;
         let one_step = self.fb.make_imm_value(Immediate::one(ty));
         let next_idx = self
             .fb
@@ -3942,8 +3953,8 @@ impl<'ctx, 'db, 'a> FunctionLowerer<'ctx, 'db, 'a> {
         })
     }
 
-    fn ensure_overflow_revert_block(&mut self) -> BlockId {
-        if let Some(block) = self.overflow_revert_block {
+    fn ensure_empty_revert_block(&mut self) -> BlockId {
+        if let Some(block) = self.empty_revert_block {
             return block;
         }
         let revert_block = self.fb.append_block();
@@ -3956,12 +3967,61 @@ impl<'ctx, 'db, 'a> FunctionLowerer<'ctx, 'db, 'a> {
         self.fb
             .insert_inst_no_result(EvmRevert::new(self.module.inst_set(), zero, zero));
         self.fb.switch_to_block(current);
-        self.overflow_revert_block = Some(revert_block);
+        self.empty_revert_block = Some(revert_block);
         revert_block
     }
 
-    fn emit_overflow_revert(&mut self, overflow_flag: ValueId) -> Result<(), LowerError> {
-        let revert_block = self.ensure_overflow_revert_block();
+    fn ensure_panic_revert_block(&mut self, code: u64) -> BlockId {
+        if code == PANIC_OVERFLOW
+            && let Some(block) = self.overflow_panic_block
+        {
+            return block;
+        }
+        if code == PANIC_DIVISION_BY_ZERO
+            && let Some(block) = self.division_by_zero_panic_block
+        {
+            return block;
+        }
+        let revert_block = self.fb.append_block();
+        let current = self
+            .fb
+            .current_block()
+            .expect("panic block requires current block");
+        self.fb.switch_to_block(revert_block);
+        self.emit_panic_revert_payload(code);
+        self.fb.switch_to_block(current);
+        match code {
+            PANIC_OVERFLOW => self.overflow_panic_block = Some(revert_block),
+            PANIC_DIVISION_BY_ZERO => self.division_by_zero_panic_block = Some(revert_block),
+            _ => {}
+        }
+        revert_block
+    }
+
+    fn emit_panic_revert_payload(&mut self, code: u64) {
+        let zero = self.fb.make_imm_value(I256::zero());
+        let selector = self.fb.make_imm_value(panic_selector_immediate());
+        let code_offset = self.fb.make_imm_value(I256::from(4u64));
+        let code = self.fb.make_imm_value(I256::from(code));
+        let len = self.fb.make_imm_value(I256::from(36u64));
+        self.fb.insert_inst_no_result(Mstore::new(
+            self.module.inst_set(),
+            zero,
+            selector,
+            Type::I256,
+        ));
+        self.fb.insert_inst_no_result(Mstore::new(
+            self.module.inst_set(),
+            code_offset,
+            code,
+            Type::I256,
+        ));
+        self.fb
+            .insert_inst_no_result(EvmRevert::new(self.module.inst_set(), zero, len));
+    }
+
+    fn emit_empty_revert(&mut self, overflow_flag: ValueId) -> Result<(), LowerError> {
+        let revert_block = self.ensure_empty_revert_block();
         let continue_block = self.fb.append_block();
         self.fb.insert_inst_no_result(Br::new(
             self.module.inst_set(),
@@ -3973,8 +4033,29 @@ impl<'ctx, 'db, 'a> FunctionLowerer<'ctx, 'db, 'a> {
         Ok(())
     }
 
-    fn emit_unconditional_overflow_revert<T>(&mut self) -> Lowered<T> {
-        let revert_block = self.ensure_overflow_revert_block();
+    fn emit_panic_revert(&mut self, overflow_flag: ValueId, code: u64) -> Result<(), LowerError> {
+        let revert_block = self.ensure_panic_revert_block(code);
+        let continue_block = self.fb.append_block();
+        self.fb.insert_inst_no_result(Br::new(
+            self.module.inst_set(),
+            overflow_flag,
+            revert_block,
+            continue_block,
+        ));
+        self.fb.switch_to_block(continue_block);
+        Ok(())
+    }
+
+    fn emit_division_by_zero_revert(&mut self, rhs: ValueId, ty: Type) -> Result<(), LowerError> {
+        let zero = self.fb.make_imm_value(Immediate::zero(ty));
+        let divisor_is_zero = self
+            .fb
+            .insert_inst(Eq::new(self.module.inst_set(), rhs, zero), Type::I1);
+        self.emit_panic_revert(divisor_is_zero, PANIC_DIVISION_BY_ZERO)
+    }
+
+    fn emit_unconditional_empty_revert<T>(&mut self) -> Lowered<T> {
+        let revert_block = self.ensure_empty_revert_block();
         self.fb
             .insert_inst_no_result(Jump::new(self.module.inst_set(), revert_block));
         Lowered::Terminated
@@ -4004,7 +4085,7 @@ impl<'ctx, 'db, 'a> FunctionLowerer<'ctx, 'db, 'a> {
                 let out_of_bounds = self
                     .fb
                     .insert_inst(IsZero::new(self.module.inst_set(), in_bounds), Type::I1);
-                self.emit_overflow_revert(out_of_bounds)?;
+                self.emit_empty_revert(out_of_bounds)?;
                 Ok(Lowered::Value(index))
             }
         }
@@ -4020,7 +4101,7 @@ impl<'ctx, 'db, 'a> FunctionLowerer<'ctx, 'db, 'a> {
         {
             return Ok(Lowered::Value(self.index_value(index)));
         }
-        Ok(self.emit_unconditional_overflow_revert())
+        Ok(self.emit_unconditional_empty_revert())
     }
 
     fn variant_ref(&self, variant: VariantId<'db>) -> Result<EnumVariantRef, LowerError> {
@@ -4082,8 +4163,8 @@ struct LowerBodyContext<'a, 'db> {
 impl<'a, 'db> LowerBodyContext<'a, 'db> {
     fn wrap(self, err: LowerError) -> LowerError {
         let excerpt = self.block.map_or_else(
-            || mir2::format_runtime_body(self.db, self.body),
-            |block| mir2::format_runtime_body_excerpt(self.db, self.body, block, self.stmt),
+            || mir::format_runtime_body(self.db, self.body),
+            |block| mir::format_runtime_body_excerpt(self.db, self.body, block, self.stmt),
         );
         match err {
             LowerError::RuntimeLower(_) => err,
@@ -4330,6 +4411,12 @@ fn bytes_to_i256(bytes: &[u8], signed: bool) -> I256 {
     I256::from_be_bytes(bytes)
 }
 
+fn panic_selector_immediate() -> Immediate {
+    let mut bytes = [0; 32];
+    bytes[..4].copy_from_slice(&[0x4e, 0x48, 0x7b, 0x71]);
+    Immediate::from_i256(bytes_to_i256(&bytes, false), Type::I256)
+}
+
 fn zero_for_type(fb: &mut FunctionBuilder<InstInserter>, ty: Type) -> ValueId {
     if ty.is_unit() || ty.is_compound() {
         fb.make_undef_value(ty)
@@ -4361,16 +4448,16 @@ fn stable_hash<T: Hash>(value: &T) -> u64 {
 
 fn runtime_section_refs_match<'db>(
     db: &'db DriverDataBase,
-    lhs: &mir2::RuntimeSectionRef<'db>,
-    rhs: &mir2::RuntimeSectionRef<'db>,
+    lhs: &mir::RuntimeSectionRef<'db>,
+    rhs: &mir::RuntimeSectionRef<'db>,
 ) -> bool {
     let (lhs_object, lhs_section) = match lhs {
-        mir2::RuntimeSectionRef::Local { object, section }
-        | mir2::RuntimeSectionRef::External { object, section } => (object, section),
+        mir::RuntimeSectionRef::Local { object, section }
+        | mir::RuntimeSectionRef::External { object, section } => (object, section),
     };
     let (rhs_object, rhs_section) = match rhs {
-        mir2::RuntimeSectionRef::Local { object, section }
-        | mir2::RuntimeSectionRef::External { object, section } => (object, section),
+        mir::RuntimeSectionRef::Local { object, section }
+        | mir::RuntimeSectionRef::External { object, section } => (object, section),
     };
     lhs_object.name(db) == rhs_object.name(db) && lhs_section == rhs_section
 }
@@ -4378,12 +4465,12 @@ fn runtime_section_refs_match<'db>(
 fn compute_section_membership<'db>(
     db: &'db DriverDataBase,
     package: &RuntimePackage<'db>,
-) -> FxHashMap<mir2::RuntimeInstance<'db>, Vec<mir2::RuntimeSectionRef<'db>>> {
+) -> FxHashMap<mir::RuntimeInstance<'db>, Vec<mir::RuntimeSectionRef<'db>>> {
     let mut membership =
-        FxHashMap::<mir2::RuntimeInstance<'db>, Vec<mir2::RuntimeSectionRef<'db>>>::default();
+        FxHashMap::<mir::RuntimeInstance<'db>, Vec<mir::RuntimeSectionRef<'db>>>::default();
     for object in package.objects(db) {
         for section in object.sections(db) {
-            let section_ref = mir2::RuntimeSectionRef::Local {
+            let section_ref = mir::RuntimeSectionRef::Local {
                 object,
                 section: section.name.clone(),
             };
@@ -4409,7 +4496,7 @@ fn compute_section_membership<'db>(
 fn code_region_symbol<'db>(
     db: &'db DriverDataBase,
     package: &RuntimePackage<'db>,
-    region: mir2::RuntimeCodeRegion<'db>,
+    region: mir::RuntimeCodeRegion<'db>,
 ) -> String {
     package
         .code_regions(db)

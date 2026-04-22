@@ -36,7 +36,9 @@ object "main" {
           let v7 := v21
           let t30 := mod(v1, v7)
           if iszero(v7) {
-            revert(0, 0)
+            mstore(0, 0x4e487b7100000000000000000000000000000000000000000000000000000000)
+            mstore(4, 0x12)
+            revert(0, 36)
           }
           let v22 := t30
           let v8 := v22
@@ -58,7 +60,9 @@ object "main" {
           let v10 := t32
           let t33 := add(v2, v10)
           if lt(t33, v2) {
-            revert(0, 0)
+            mstore(0, 0x4e487b7100000000000000000000000000000000000000000000000000000000)
+            mstore(4, 0x11)
+            revert(0, 36)
           }
           let v27 := t33
           let v11 := v27
@@ -67,7 +71,9 @@ object "main" {
           let v13 := v28
           let t34 := add(v1, v13)
           if lt(t34, v1) {
-            revert(0, 0)
+            mstore(0, 0x4e487b7100000000000000000000000000000000000000000000000000000000)
+            mstore(4, 0x11)
+            revert(0, 36)
           }
           let v29 := t34
           let v14 := v29

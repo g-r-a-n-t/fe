@@ -1,6 +1,6 @@
 use driver::DriverDataBase;
 use hir::analysis::semantic::FieldIndex;
-use mir2::{
+use mir::{
     LayoutId, ScalarClass, ScalarRepr, VariantId, array_elem_size_bytes, enum_tag_size_bytes,
     enum_variant_field_offset_bytes, layout_size_bytes, struct_field_offset_bytes,
 };
@@ -214,7 +214,7 @@ impl<'a, 'db> FunctionEmitter<'a, 'db> {
     pub(super) fn alloc_memory_root_slot(
         &self,
         root_name: &str,
-        class: &mir2::RuntimeClass<'db>,
+        class: &mir::RuntimeClass<'db>,
     ) -> Result<Vec<YulDoc>, YulError> {
         let bytes = self.runtime_class_size_bytes(class)?;
         Ok(self.alloc_memory_name(root_name, &bytes.to_string()))
@@ -273,13 +273,13 @@ impl<'a, 'db> FunctionEmitter<'a, 'db> {
 
     pub(super) fn runtime_class_size_bytes(
         &self,
-        class: &mir2::RuntimeClass<'db>,
+        class: &mir::RuntimeClass<'db>,
     ) -> Result<usize, YulError> {
         Ok(match class {
-            mir2::RuntimeClass::Scalar(_)
-            | mir2::RuntimeClass::Ref { .. }
-            | mir2::RuntimeClass::RawAddr { .. } => self.index.package_layout().word_size_bytes,
-            mir2::RuntimeClass::AggregateValue { layout } => {
+            mir::RuntimeClass::Scalar(_)
+            | mir::RuntimeClass::Ref { .. }
+            | mir::RuntimeClass::RawAddr { .. } => self.index.package_layout().word_size_bytes,
+            mir::RuntimeClass::AggregateValue { layout } => {
                 layout_size_bytes(self.db, *layout, self.index.package_layout())
             }
         })
@@ -486,12 +486,12 @@ impl<'a, 'db> FunctionEmitter<'a, 'db> {
                 path: Box::default(),
                 storage_kind: match &self.plan.locals[local.index()].root {
                     YulLocalRoot::MemorySlot { class } => match class {
-                        mir2::RuntimeClass::AggregateValue { .. } => {
+                        mir::RuntimeClass::AggregateValue { .. } => {
                             crate::yul::legalize::YulStorageKind::Bytes
                         }
-                        mir2::RuntimeClass::Scalar(_)
-                        | mir2::RuntimeClass::Ref { .. }
-                        | mir2::RuntimeClass::RawAddr { .. } => {
+                        mir::RuntimeClass::Scalar(_)
+                        | mir::RuntimeClass::Ref { .. }
+                        | mir::RuntimeClass::RawAddr { .. } => {
                             crate::yul::legalize::YulStorageKind::Cell
                         }
                     },
@@ -503,13 +503,13 @@ impl<'a, 'db> FunctionEmitter<'a, 'db> {
                 runtime_result_class: match &self.plan.locals[local.index()].root {
                     YulLocalRoot::MemorySlot { class } => class.clone(),
                     YulLocalRoot::None | YulLocalRoot::PtrRoot { .. } => match class {
-                        YulValueClass::Word(word) => mir2::RuntimeClass::Scalar(word.clone()),
+                        YulValueClass::Word(word) => mir::RuntimeClass::Scalar(word.clone()),
                         YulValueClass::MemoryPtr { layout }
                         | YulValueClass::CodePtr { layout }
                         | YulValueClass::StoragePtr { layout }
                         | YulValueClass::TransientPtr { layout }
                         | YulValueClass::CalldataPtr { layout } => {
-                            mir2::RuntimeClass::AggregateValue { layout: *layout }
+                            mir::RuntimeClass::AggregateValue { layout: *layout }
                         }
                     },
                 },

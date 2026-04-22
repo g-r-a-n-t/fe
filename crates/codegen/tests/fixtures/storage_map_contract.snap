@@ -348,7 +348,9 @@ object "BalanceMap" {
         let v3 := v6
         let t25 := add(v2, v3)
         if lt(t25, v2) {
-          revert(0, 0)
+          mstore(0, 0x4e487b7100000000000000000000000000000000000000000000000000000000)
+          mstore(4, 0x11)
+          revert(0, 36)
         }
         let v17 := t25
         let v7 := v17
@@ -358,7 +360,9 @@ object "BalanceMap" {
         let v10 := v20
         let t26 := add(v3, v10)
         if lt(t26, v3) {
-          revert(0, 0)
+          mstore(0, 0x4e487b7100000000000000000000000000000000000000000000000000000000)
+          mstore(4, 0x11)
+          revert(0, 36)
         }
         let v21 := t26
         let v11 := v21
@@ -394,7 +398,9 @@ object "BalanceMap" {
           let v16 := p2
           let t35 := sub(v4, v16)
           if gt(v16, v4) {
-            revert(0, 0)
+            mstore(0, 0x4e487b7100000000000000000000000000000000000000000000000000000000)
+            mstore(4, 0x11)
+            revert(0, 36)
           }
           let v28 := t35
           let v17 := v28
@@ -403,7 +409,9 @@ object "BalanceMap" {
           let v20 := p2
           let t36 := add(v5, v20)
           if lt(t36, v5) {
-            revert(0, 0)
+            mstore(0, 0x4e487b7100000000000000000000000000000000000000000000000000000000)
+            mstore(4, 0x11)
+            revert(0, 36)
           }
           let v31 := t36
           let v21 := v31

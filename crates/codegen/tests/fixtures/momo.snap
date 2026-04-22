@@ -42,7 +42,9 @@ object "main" {
       let v2 := t6
       let t7 := and(add(and(v1, 0xff), and(v2, 0xff)), 0xff)
       if lt(t7, and(v1, 0xff)) {
-        revert(0, 0)
+        mstore(0, 0x4e487b7100000000000000000000000000000000000000000000000000000000)
+        mstore(4, 0x11)
+        revert(0, 36)
       }
       let v4 := t7
       let v3 := and(v4, 0xff)

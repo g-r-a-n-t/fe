@@ -56,7 +56,9 @@ object "NewtypeStorageFieldMutMethodCall" {
           let v4 := calldatasize()
           let t19 := sub(v4, v1)
           if gt(v1, v4) {
-            revert(0, 0)
+            mstore(0, 0x4e487b7100000000000000000000000000000000000000000000000000000000)
+            mstore(4, 0x11)
+            revert(0, 36)
           }
           let v5 := t19
           let t20 := mload(0x40)
@@ -113,7 +115,9 @@ object "NewtypeStorageFieldMutMethodCall" {
           let v5 := v11
           let t13 := add(v5, v1)
           if lt(t13, v5) {
-            revert(0, 0)
+            mstore(0, 0x4e487b7100000000000000000000000000000000000000000000000000000000)
+            mstore(4, 0x11)
+            revert(0, 36)
           }
           let v12 := t13
           let v6 := v12
@@ -153,7 +157,9 @@ object "NewtypeStorageFieldMutMethodCall" {
         let v7 := t10
         let t11 := add(v7, v2)
         if lt(t11, v7) {
-          revert(0, 0)
+          mstore(0, 0x4e487b7100000000000000000000000000000000000000000000000000000000)
+          mstore(4, 0x11)
+          revert(0, 36)
         }
         let v8 := t11
         sstore(v1, v8)
@@ -185,7 +191,9 @@ object "NewtypeStorageFieldMutMethodCall" {
           let v32 := t56
           let t57 := sub(v32, v3)
           if gt(v3, v32) {
-            revert(0, 0)
+            mstore(0, 0x4e487b7100000000000000000000000000000000000000000000000000000000)
+            mstore(4, 0x11)
+            revert(0, 36)
           }
           let v33 := t57
           let v12 := v33
@@ -210,7 +218,9 @@ object "NewtypeStorageFieldMutMethodCall" {
           let v51 := t60
           let t61 := add(v51, v5)
           if lt(t61, v51) {
-            revert(0, 0)
+            mstore(0, 0x4e487b7100000000000000000000000000000000000000000000000000000000)
+            mstore(4, 0x11)
+            revert(0, 36)
           }
           let v52 := t61
           let v22 := v52
@@ -263,7 +273,9 @@ object "NewtypeStorageFieldMutMethodCall" {
         let v4 := v11
         let t17 := add(v3, v4)
         if lt(t17, v3) {
-          revert(0, 0)
+          mstore(0, 0x4e487b7100000000000000000000000000000000000000000000000000000000)
+          mstore(4, 0x11)
+          revert(0, 36)
         }
         let v12 := t17
         let v5 := v12

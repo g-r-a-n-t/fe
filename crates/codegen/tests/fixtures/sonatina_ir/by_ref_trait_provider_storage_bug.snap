@@ -90,50 +90,52 @@ func private %__fe_contract_recv_abi_ByRefTraitProviderStorageBug_1() {
         br v10 block4 block5;
 
     block4:
-        evm_revert 0.i256 0.i256;
+        mstore 0.i256 35408467139433450592217433187231851964531694900788300625387963629091585785856.i256 i256;
+        mstore 4.i256 17.i256 i256;
+        evm_revert 0.i256 36.i256;
 
     block5:
-        v11.*i8 = evm_malloc v9;
-        v12.i256 = ptr_to_int v11 i256;
-        evm_calldata_copy v12 4.i256 v9;
-        v15.objref<i256> = obj.proj v0 0.i256;
-        obj.store v15 v12;
-        v17.objref<i256> = obj.proj v0 1.i256;
-        obj.store v17 v9;
-        v18.@__fe_layout_1 = obj.load v0;
-        v19.@__fe_layout_3 = call %decoder_new v18;
-        v20.objref<@__fe_layout_3> = obj.alloc @__fe_layout_3;
-        v21.objref<@__fe_layout_2> = obj.proj v20 0.i256;
-        v22.@__fe_layout_2 = extract_value v19 0.i256;
-        v23.objref<@__fe_layout_1> = obj.proj v21 0.i256;
-        v24.@__fe_layout_1 = extract_value v22 0.i256;
-        v25.objref<i256> = obj.proj v23 0.i256;
-        v26.i256 = extract_value v24 0.i256;
-        obj.store v25 v26;
-        v27.objref<i256> = obj.proj v23 1.i256;
-        v28.i256 = extract_value v24 1.i256;
-        obj.store v27 v28;
-        v29.objref<i256> = obj.proj v21 1.i256;
-        v30.i256 = extract_value v22 1.i256;
-        obj.store v29 v30;
-        v31.objref<i256> = obj.proj v20 1.i256;
-        v32.i256 = extract_value v19 1.i256;
-        obj.store v31 v32;
-        call %decode_payload v20;
-        v34.i256 = call %__ByRefTraitProviderStorageBug_recv_0_0 0.i256;
-        v35.@__fe_layout_4 = call %encode_single_root_alloc v34;
-        v36.objref<@__fe_layout_4> = obj.alloc @__fe_layout_4;
-        v37.objref<i256> = obj.proj v36 0.i256;
-        v38.i256 = extract_value v35 0.i256;
-        obj.store v37 v38;
-        v39.objref<i256> = obj.proj v36 1.i256;
-        v40.i256 = extract_value v35 1.i256;
-        obj.store v39 v40;
-        v41.objref<i256> = obj.proj v36 0.i256;
-        v42.i256 = obj.load v41;
-        v43.objref<i256> = obj.proj v36 1.i256;
-        v44.i256 = obj.load v43;
-        evm_return v42 v44;
+        v14.*i8 = evm_malloc v9;
+        v15.i256 = ptr_to_int v14 i256;
+        evm_calldata_copy v15 4.i256 v9;
+        v18.objref<i256> = obj.proj v0 0.i256;
+        obj.store v18 v15;
+        v20.objref<i256> = obj.proj v0 1.i256;
+        obj.store v20 v9;
+        v21.@__fe_layout_1 = obj.load v0;
+        v22.@__fe_layout_3 = call %decoder_new v21;
+        v23.objref<@__fe_layout_3> = obj.alloc @__fe_layout_3;
+        v24.objref<@__fe_layout_2> = obj.proj v23 0.i256;
+        v25.@__fe_layout_2 = extract_value v22 0.i256;
+        v26.objref<@__fe_layout_1> = obj.proj v24 0.i256;
+        v27.@__fe_layout_1 = extract_value v25 0.i256;
+        v28.objref<i256> = obj.proj v26 0.i256;
+        v29.i256 = extract_value v27 0.i256;
+        obj.store v28 v29;
+        v30.objref<i256> = obj.proj v26 1.i256;
+        v31.i256 = extract_value v27 1.i256;
+        obj.store v30 v31;
+        v32.objref<i256> = obj.proj v24 1.i256;
+        v33.i256 = extract_value v25 1.i256;
+        obj.store v32 v33;
+        v34.objref<i256> = obj.proj v23 1.i256;
+        v35.i256 = extract_value v22 1.i256;
+        obj.store v34 v35;
+        call %decode_payload v23;
+        v37.i256 = call %__ByRefTraitProviderStorageBug_recv_0_0 0.i256;
+        v38.@__fe_layout_4 = call %encode_single_root_alloc v37;
+        v39.objref<@__fe_layout_4> = obj.alloc @__fe_layout_4;
+        v40.objref<i256> = obj.proj v39 0.i256;
+        v41.i256 = extract_value v38 0.i256;
+        obj.store v40 v41;
+        v42.objref<i256> = obj.proj v39 1.i256;
+        v43.i256 = extract_value v38 1.i256;
+        obj.store v42 v43;
+        v44.objref<i256> = obj.proj v39 0.i256;
+        v45.i256 = obj.load v44;
+        v46.objref<i256> = obj.proj v39 1.i256;
+        v47.i256 = obj.load v46;
+        evm_return v45 v47;
 }
 
 func private %__fe_contract_runtime_root_ByRefTraitProviderStorageBug() {
@@ -173,7 +175,9 @@ func private %abi_field_size(v0.i256) -> i256 {
         return v2;
 
     block5:
-        evm_revert 0.i256 0.i256;
+        mstore 0.i256 35408467139433450592217433187231851964531694900788300625387963629091585785856.i256 i256;
+        mstore 4.i256 17.i256 i256;
+        evm_revert 0.i256 36.i256;
 
     block6:
         return v6;
@@ -245,25 +249,27 @@ func private %encode_field(v0.i256, v1.objref<@__fe_layout_0>, v2.i256) {
         return;
 
     block5:
-        evm_revert 0.i256 0.i256;
+        mstore 0.i256 35408467139433450592217433187231851964531694900788300625387963629091585785856.i256 i256;
+        mstore 4.i256 17.i256 i256;
+        evm_revert 0.i256 36.i256;
 
     block6:
         call %write_word_1 v1 v11;
-        v16.@__fe_layout_0 = obj.load v1;
-        v17.i256 = call %pos v16;
-        v19.i256 = mload v2 i256;
-        call %set_base v1 v19;
-        v21.i256 = mload v2 i256;
-        call %set_pos v1 v21;
+        v20.@__fe_layout_0 = obj.load v1;
+        v21.i256 = call %pos v20;
+        v23.i256 = mload v2 i256;
+        call %set_base v1 v23;
+        v25.i256 = mload v2 i256;
+        call %set_pos v1 v25;
         call %encode v0 v1;
         call %set_base v1 v6;
-        call %set_pos v1 v17;
-        v28.i256 = mload v2 i256;
-        (v30.i256, v31.i1) = uaddo v28 v9;
-        br v31 block5 block7;
+        call %set_pos v1 v21;
+        v32.i256 = mload v2 i256;
+        (v34.i256, v35.i1) = uaddo v32 v9;
+        br v35 block5 block7;
 
     block7:
-        mstore v2 v30 i256;
+        mstore v2 v34 i256;
         return;
 }
 
@@ -288,12 +294,14 @@ func private %encode_single_root(v0.i256, v1.objref<@__fe_layout_0>) {
         br v8 block2 block3;
 
     block2:
-        evm_revert 0.i256 0.i256;
+        mstore 0.i256 35408467139433450592217433187231851964531694900788300625387963629091585785856.i256 i256;
+        mstore 4.i256 17.i256 i256;
+        evm_revert 0.i256 36.i256;
 
     block3:
         mstore v2 v7 i256;
-        v11.i256 = ptr_to_int v2 i256;
-        call %encode_field v0 v1 v11;
+        v15.i256 = ptr_to_int v2 i256;
+        call %encode_field v0 v1 v15;
         return;
 }
 
@@ -489,7 +497,9 @@ func private %sum(v0.@__fe_layout_5) -> i256 {
         br v13 block2 block3;
 
     block2:
-        evm_revert 0.i256 0.i256;
+        mstore 0.i256 35408467139433450592217433187231851964531694900788300625387963629091585785856.i256 i256;
+        mstore 4.i256 17.i256 i256;
+        evm_revert 0.i256 36.i256;
 
     block3:
         return v12;

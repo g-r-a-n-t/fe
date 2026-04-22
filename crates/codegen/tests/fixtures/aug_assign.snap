@@ -24,7 +24,9 @@ object "main" {
       let v14 := t25
       let t26 := and(add(and(v14, 0xffffffffffffffff), and(v5, 0xffffffffffffffff)), 0xffffffffffffffff)
       if lt(t26, and(v14, 0xffffffffffffffff)) {
-        revert(0, 0)
+        mstore(0, 0x4e487b7100000000000000000000000000000000000000000000000000000000)
+        mstore(4, 0x11)
+        revert(0, 36)
       }
       let v15 := t26
       mstore(v4, and(and(v15, 0xffffffffffffffff), 0xffffffffffffffff))
@@ -36,7 +38,9 @@ object "main" {
       let v20 := t27
       let t28 := and(mul(and(v20, 0xffffffffffffffff), and(v8, 0xffffffffffffffff)), 0xffffffffffffffff)
       if and(iszero(iszero(and(v20, 0xffffffffffffffff))), iszero(eq(div(t28, and(v20, 0xffffffffffffffff)), and(v8, 0xffffffffffffffff)))) {
-        revert(0, 0)
+        mstore(0, 0x4e487b7100000000000000000000000000000000000000000000000000000000)
+        mstore(4, 0x11)
+        revert(0, 36)
       }
       let v21 := t28
       mstore(v7, and(and(v21, 0xffffffffffffffff), 0xffffffffffffffff))
@@ -44,7 +48,9 @@ object "main" {
       let v10 := and(v23, 0xffffffffffffffff)
       let t29 := and(div(and(mload(r2), 0xffffffffffffffff), and(v10, 0xffffffffffffffff)), 0xffffffffffffffff)
       if iszero(and(v10, 0xffffffffffffffff)) {
-        revert(0, 0)
+        mstore(0, 0x4e487b7100000000000000000000000000000000000000000000000000000000)
+        mstore(4, 0x12)
+        revert(0, 36)
       }
       let v24 := t29
       let v11 := and(v24, 0xffffffffffffffff)

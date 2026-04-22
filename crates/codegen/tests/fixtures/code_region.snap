@@ -128,7 +128,9 @@ object "Foo" {
       let v13 := p0
       let t27 := add(v2, v13)
       if lt(t27, v2) {
-        revert(0, 0)
+        mstore(0, 0x4e487b7100000000000000000000000000000000000000000000000000000000)
+        mstore(4, 0x11)
+        revert(0, 36)
       }
       let v24 := t27
       let v14 := v24

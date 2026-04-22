@@ -5,7 +5,7 @@ edition.workspace = true
 
 [dependencies]
 driver = { path = "../driver", package = "fe-driver" }
-mir2 = { path = "../mir2", package = "fe-mir2" }
+mir = { path = "../mir", package = "fe-mir" }
 hir.workspace = true
 common.workspace = true
 hex = "0.4"

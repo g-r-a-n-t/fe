@@ -7,7 +7,7 @@ mod state;
 use common::ingot::Ingot;
 use driver::DriverDataBase;
 use hir::hir_def::{HirIngot, ManualContractRootAttr, TopLevelMod};
-use mir2::{RuntimePackage, build_runtime_package, build_test_runtime_package};
+use mir::{RuntimePackage, build_runtime_package, build_test_runtime_package};
 
 use crate::{
     TargetDataLayout, TestModuleOutput, runtime_package::ensure_runtime_package_has_roots,
@@ -17,7 +17,7 @@ pub use errors::YulError;
 
 #[derive(Debug)]
 pub enum EmitModuleError {
-    RuntimeLower(mir2::LowerError),
+    RuntimeLower(mir::LowerError),
     Yul(YulError),
 }
 
@@ -32,8 +32,8 @@ impl std::fmt::Display for EmitModuleError {
 
 impl std::error::Error for EmitModuleError {}
 
-impl From<mir2::LowerError> for EmitModuleError {
-    fn from(err: mir2::LowerError) -> Self {
+impl From<mir::LowerError> for EmitModuleError {
+    fn from(err: mir::LowerError) -> Self {
         EmitModuleError::RuntimeLower(err)
     }
 }

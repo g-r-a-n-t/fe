@@ -70,7 +70,7 @@ use super::{
         RuntimeArgSource, RuntimeValueUseEmitter, SelectedRuntimeArg, emit_runtime_value_use_plan,
     },
     returns::RuntimeReturnAnalysisCx,
-    tuple::{RuntimeTupleFieldEmitter, extract_runtime_tuple_fields, memory_fallback_class},
+    tuple::RuntimeTupleFieldEmitter,
     type_info::{
         RuntimeTypeEnv, effect_handle_class_for_ty_in_context, provider_class_for_target_in_env,
         stored_class_for_ty_in_context, top_level_class_for_ty_in_env,
@@ -184,14 +184,14 @@ fn ensure_panic_payload_encodable<'db>(
 ) -> Result<(), LowerError> {
     let abi_ty = resolve_lib_type_path(db, scope, "std::abi::Sol")
         .ok_or_else(|| LowerError::Unsupported("missing std::abi::Sol".to_string()))?;
-    let abi_size_trait = resolve_core_trait(db, scope, &["abi", "AbiSize"])
-        .ok_or_else(|| LowerError::Unsupported("missing core::abi::AbiSize".to_string()))?;
     let encode_trait = resolve_core_trait(db, scope, &["abi", "Encode"])
         .ok_or_else(|| LowerError::Unsupported("missing core::abi::Encode".to_string()))?;
-    let abi_size = TraitInstId::new_simple(db, abi_size_trait, vec![value_ty]);
+    let abi_size_trait = resolve_core_trait(db, scope, &["abi", "AbiSize"])
+        .ok_or_else(|| LowerError::Unsupported("missing core::abi::AbiSize".to_string()))?;
     let encode = TraitInstId::new_simple(db, encode_trait, vec![value_ty, abi_ty]);
-    if trait_goal_satisfied(db, scope, assumptions, abi_size)
-        && trait_goal_satisfied(db, scope, assumptions, encode)
+    let abi_size = TraitInstId::new_simple(db, abi_size_trait, vec![value_ty]);
+    if trait_goal_satisfied(db, scope, assumptions, encode)
+        && trait_goal_satisfied(db, scope, assumptions, abi_size)
     {
         return Ok(());
     }
@@ -199,6 +199,23 @@ fn ensure_panic_payload_encodable<'db>(
         "`unwrap()` requires the error type `{}` to implement `Encode<Sol>` and `AbiSize`",
         value_ty.pretty_print(db)
     )))
+}
+
+fn panic_payload_is_error_variant<'db>(
+    db: &'db dyn MirDb,
+    scope: ScopeId<'db>,
+    assumptions: PredicateListId<'db>,
+    value_ty: TyId<'db>,
+) -> bool {
+    let Some(abi_ty) = resolve_lib_type_path(db, scope, "std::abi::Sol") else {
+        return false;
+    };
+    let Some(error_variant_trait) = resolve_core_trait(db, scope, &["error", "ErrorVariant"])
+    else {
+        return false;
+    };
+    let error_variant = TraitInstId::new_simple(db, error_variant_trait, vec![value_ty, abi_ty]);
+    trait_goal_satisfied(db, scope, assumptions, error_variant)
 }
 
 fn trait_goal_satisfied<'db>(
@@ -2536,53 +2553,38 @@ impl<'db> RmirEmitter<'db> {
 
     fn lower_panic_with_value(&mut self, bb: RBlockId, value: RLocalId) -> RLocalId {
         let value_ty = self.locals[value.index()].semantic_ty;
-        let encode_alloc = self.resolve_panic_payload_encode_alloc(value_ty);
-        let [param_class] = encode_alloc.key(self.db).params(self.db).as_slice() else {
-            panic!("panic payload encoder should have one runtime parameter");
+        let revert = self.resolve_panic_payload_revert(value_ty);
+        let [param_class] = revert.key(self.db).params(self.db).as_slice() else {
+            panic!("panic payload revert should have one runtime parameter");
         };
         let value = self.coerce_value_if_needed(bb, value, param_class);
-        let ret_class = encode_alloc
-            .signature(self.db)
-            .ret
-            .expect("encode_single_root_alloc should return an encoded ptr/len tuple");
-        let semantic = encode_alloc
-            .key(self.db)
-            .semantic(self.db)
-            .expect("panic payload encoder should be semantic");
-        let encoded_ty = semantic_return_ty(self.db, semantic);
-        let encoded = self.alloc_runtime_temp(encoded_ty, RuntimeCarrier::Value(ret_class));
-        self.push_stmt(
+        self.set_terminator(
             bb,
-            RStmt::Assign {
-                dst: encoded,
-                expr: RExpr::Call {
-                    callee: encode_alloc,
-                    args: Box::new([value]),
-                },
+            RTerminator::TerminalCall {
+                callee: revert,
+                args: Box::new([value]),
             },
         );
-        let fields = self.extract_tuple_fields(bb, encoded);
-        let [offset, len]: [RLocalId; 2] = fields
-            .try_into()
-            .expect("encoded panic payload should expose ptr/len");
-        self.set_terminator(bb, RTerminator::Revert { offset, len });
         self.alloc_runtime_temp(TyId::unit(self.db), RuntimeCarrier::Erased)
     }
 
-    fn resolve_panic_payload_encode_alloc(&self, value_ty: TyId<'db>) -> RuntimeInstance<'db> {
+    fn resolve_panic_payload_revert(&self, value_ty: TyId<'db>) -> RuntimeInstance<'db> {
         let key = self.current_semantic_key();
         let impl_env = key.impl_env(self.db);
         let scope = impl_env.normalization_scope(self.db);
         let assumptions = impl_env.assumptions(self.db);
         self.assert_panic_payload_encodable(scope, assumptions, value_ty);
-        let func = resolve_lib_func_path(self.db, scope, "core::abi::encode_single_root_alloc")
-            .expect("missing core::abi::encode_single_root_alloc");
-        let abi_ty =
-            resolve_lib_type_path(self.db, scope, "std::abi::Sol").expect("missing std::abi::Sol");
+        let func_path = if panic_payload_is_error_variant(self.db, scope, assumptions, value_ty) {
+            "std::evm::revert_error"
+        } else {
+            "std::evm::revert"
+        };
+        let func = resolve_lib_func_path(self.db, scope, func_path)
+            .unwrap_or_else(|| panic!("missing {func_path}"));
         let semantic_key = SemanticInstanceKey::new(
             self.db,
             BodyOwner::Func(func),
-            GenericSubst::new(self.db, vec![abi_ty, value_ty]),
+            GenericSubst::new(self.db, vec![value_ty]),
             EffectProviderSubst::empty(self.db),
             ImplEnv::new(self.db, scope, assumptions, Vec::new()),
         );
@@ -2600,16 +2602,6 @@ impl<'db> RmirEmitter<'db> {
     ) {
         ensure_panic_payload_encodable(self.db, scope, assumptions, value_ty)
             .expect("panic payload support should be checked before rMIR emission");
-    }
-
-    fn extract_tuple_fields(&mut self, bb: RBlockId, tuple: RLocalId) -> Vec<RLocalId> {
-        let tuple_ty = self.locals[tuple.index()].semantic_ty;
-        let field_count = tuple_ty.field_types(self.db).len();
-        extract_runtime_tuple_fields(self, bb, tuple, tuple_ty, 0..field_count, |emitter, ty| {
-            emitter
-                .top_level_class_for_ty(ty, AddressSpaceKind::Memory)
-                .unwrap_or_else(memory_fallback_class)
-        })
     }
 
     fn lower_numeric_intrinsic_call(

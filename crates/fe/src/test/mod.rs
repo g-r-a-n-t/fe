@@ -29,7 +29,7 @@ use contract_harness::{CallGasProfile, EvmTraceOptions, ExecutionOptions, Runtim
 use crossbeam_channel::{Receiver, Sender, TryRecvError};
 use driver::{DriverDataBase, MirDiagnosticsMode};
 use hir::hir_def::{HirIngot, TopLevelMod, item::ItemKind};
-use mir2::{build_runtime_package, build_test_runtime_package, format_runtime_package};
+use mir::{build_runtime_package, build_test_runtime_package, format_runtime_package};
 use rustc_hash::{FxHashMap, FxHashSet};
 use salsa::Setter;
 use solc_runner::compile_single_contract_with_solc;
@@ -2746,7 +2746,7 @@ fn emit_runtime_package_ir(
     db: &DriverDataBase,
     backend: &str,
     opt_level: OptLevel,
-    package: &mir2::RuntimePackage<'_>,
+    package: &mir::RuntimePackage<'_>,
 ) -> Result<(&'static str, String), String> {
     match backend.to_lowercase().as_str() {
         "sonatina" => Ok((

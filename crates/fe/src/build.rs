@@ -9,7 +9,7 @@ use common::{InputDb, config::Config, dependencies::WorkspaceMemberRecord, file:
 use driver::cli_target::{CliTarget, resolve_cli_target};
 use driver::{DriverDataBase, MirDiagnosticsMode};
 use hir::hir_def::{HirIngot, ManualContractRootAttr, TopLevelMod};
-use mir2::build_runtime_package;
+use mir::build_runtime_package;
 use salsa::Setter;
 use smol_str::SmolStr;
 use solc_runner::compile_single_contract_with_solc;

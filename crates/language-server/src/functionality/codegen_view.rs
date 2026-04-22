@@ -9,7 +9,7 @@ use common::InputDb;
 use driver::DriverDataBase;
 use hir::hir_def::TopLevelMod;
 use hir::lower::map_file_to_mod;
-use mir2::build_runtime_package;
+use mir::build_runtime_package;
 use serde_json::Value;
 use url::Url;
 

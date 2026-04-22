@@ -7,7 +7,7 @@ use hir::{
     },
     projection::IndexSource,
 };
-use mir2::{
+use mir::{
     Layout, PlaceElem, PlaceRoot, RExpr, RStmt, RuntimeInstanceKey, get_or_build_runtime_instance,
     instance::RuntimeInstanceSource,
 };

@@ -34,21 +34,23 @@ func private %call_internal_helpers(v0.i64, v1.i64) -> @__fe_layout_0 {
         br v9 block2 block3;
 
     block2:
-        evm_revert 0.i256 0.i256;
+        mstore 0.i256 35408467139433450592217433187231851964531694900788300625387963629091585785856.i256 i256;
+        mstore 4.i256 17.i256 i256;
+        evm_revert 0.i256 36.i256;
 
     block3:
-        v11.i256 = mload v2 i256;
-        v12.i64 = trunc v11 i64;
-        v13.i256 = mload v3 i256;
-        v14.i64 = trunc v13 i64;
-        v15.i64 = call %saturating_add v12 v14;
-        v16.objref<@__fe_layout_0> = obj.alloc @__fe_layout_0;
-        v17.objref<i64> = obj.proj v16 0.i256;
-        obj.store v17 v8;
-        v19.objref<i64> = obj.proj v16 1.i256;
-        obj.store v19 v15;
-        v20.@__fe_layout_0 = obj.load v16;
-        return v20;
+        v15.i256 = mload v2 i256;
+        v16.i64 = trunc v15 i64;
+        v17.i256 = mload v3 i256;
+        v18.i64 = trunc v17 i64;
+        v19.i64 = call %saturating_add v16 v18;
+        v20.objref<@__fe_layout_0> = obj.alloc @__fe_layout_0;
+        v21.objref<i64> = obj.proj v20 0.i256;
+        obj.store v21 v8;
+        v23.objref<i64> = obj.proj v20 1.i256;
+        obj.store v23 v19;
+        v24.@__fe_layout_0 = obj.load v20;
+        return v24;
 }
 
 func private %call_user_helpers(v0.i64, v1.i64) -> @__fe_layout_0 {

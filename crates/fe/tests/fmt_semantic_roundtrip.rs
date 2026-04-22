@@ -2,7 +2,7 @@ use common::InputDb;
 use dir_test::{Fixture, dir_test};
 use driver::DriverDataBase;
 use fmt::{Config, format_str};
-use mir2::build_runtime_package;
+use mir::build_runtime_package;
 use url::Url;
 
 #[dir_test(

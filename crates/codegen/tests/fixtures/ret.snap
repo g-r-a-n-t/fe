@@ -46,7 +46,9 @@ object "main" {
           let v16 := and(v30, 0xffffffffffffffff)
           let t37 := and(sub(and(v15, 0xffffffffffffffff), and(v16, 0xffffffffffffffff)), 0xffffffffffffffff)
           if gt(and(v16, 0xffffffffffffffff), and(v15, 0xffffffffffffffff)) {
-            revert(0, 0)
+            mstore(0, 0x4e487b7100000000000000000000000000000000000000000000000000000000)
+            mstore(4, 0x11)
+            revert(0, 36)
           }
           let v31 := t37
           let v17 := and(v31, 0xffffffffffffffff)
@@ -66,7 +68,9 @@ object "main" {
             let v24 := and(v35, 0xffffffffffffffff)
             let t38 := and(add(and(v2, 0xffffffffffffffff), and(v24, 0xffffffffffffffff)), 0xffffffffffffffff)
             if lt(t38, and(v2, 0xffffffffffffffff)) {
-              revert(0, 0)
+              mstore(0, 0x4e487b7100000000000000000000000000000000000000000000000000000000)
+              mstore(4, 0x11)
+              revert(0, 36)
             }
             let v36 := t38
             let v25 := and(v36, 0xffffffffffffffff)

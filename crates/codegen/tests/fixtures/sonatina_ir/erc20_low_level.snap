@@ -593,17 +593,19 @@ func private %mint_1(v0.i256, v1.@__fe_layout_4, v2.i256, v3.objref<@__fe_layout
         br v46 block5 block6;
 
     block5:
-        evm_revert 0.i256 0.i256;
+        mstore 0.i256 35408467139433450592217433187231851964531694900788300625387963629091585785856.i256 i256;
+        mstore 4.i256 17.i256 i256;
+        evm_revert 0.i256 36.i256;
 
     block6:
         call %set_0 v43 v45;
-        v50.i256 = evm_sload v0;
-        v51.i256 = mload v6 i256;
-        (v52.i256, v53.i1) = uaddo v50 v51;
-        br v53 block5 block7;
+        v54.i256 = evm_sload v0;
+        v55.i256 = mload v6 i256;
+        (v56.i256, v57.i1) = uaddo v54 v55;
+        br v57 block5 block7;
 
     block7:
-        evm_sstore v0 v52;
+        evm_sstore v0 v56;
         return;
 }
 
@@ -1106,17 +1108,19 @@ func private %storagemap_storage_slot_with_salt_0(v0.@__fe_layout_4, v1.i256) ->
         br v9 block2 block3;
 
     block2:
-        evm_revert 0.i256 0.i256;
+        mstore 0.i256 35408467139433450592217433187231851964531694900788300625387963629091585785856.i256 i256;
+        mstore 4.i256 17.i256 i256;
+        evm_revert 0.i256 36.i256;
 
     block3:
-        v10.i256 = mload v2 i256;
-        mstore v8 v10 i256;
-        (v14.i256, v15.i1) = uaddo v7 32.i256;
-        br v15 block2 block4;
+        v14.i256 = mload v2 i256;
+        mstore v8 v14 i256;
+        (v18.i256, v19.i1) = uaddo v7 32.i256;
+        br v19 block2 block4;
 
     block4:
-        v17.i256 = evm_keccak256 v5 v14;
-        return v17;
+        v21.i256 = evm_keccak256 v5 v18;
+        return v21;
 }
 
 func private %storagemap_storage_slot_with_salt_1(v0.@__fe_layout_4, v1.i256) -> i256 {
@@ -1133,17 +1137,19 @@ func private %storagemap_storage_slot_with_salt_1(v0.@__fe_layout_4, v1.i256) ->
         br v9 block2 block3;
 
     block2:
-        evm_revert 0.i256 0.i256;
+        mstore 0.i256 35408467139433450592217433187231851964531694900788300625387963629091585785856.i256 i256;
+        mstore 4.i256 17.i256 i256;
+        evm_revert 0.i256 36.i256;
 
     block3:
-        v10.i256 = mload v2 i256;
-        mstore v8 v10 i256;
-        (v14.i256, v15.i1) = uaddo v7 32.i256;
-        br v15 block2 block4;
+        v14.i256 = mload v2 i256;
+        mstore v8 v14 i256;
+        (v18.i256, v19.i1) = uaddo v7 32.i256;
+        br v19 block2 block4;
 
     block4:
-        v17.i256 = evm_keccak256 v5 v14;
-        return v17;
+        v21.i256 = evm_keccak256 v5 v18;
+        return v21;
 }
 
 func private %storagemap_storage_slot_with_salt_2(v0.@__fe_layout_6, v1.i256) -> i256 {
@@ -1160,17 +1166,19 @@ func private %storagemap_storage_slot_with_salt_2(v0.@__fe_layout_6, v1.i256) ->
         br v9 block2 block3;
 
     block2:
-        evm_revert 0.i256 0.i256;
+        mstore 0.i256 35408467139433450592217433187231851964531694900788300625387963629091585785856.i256 i256;
+        mstore 4.i256 17.i256 i256;
+        evm_revert 0.i256 36.i256;
 
     block3:
-        v10.i256 = mload v2 i256;
-        mstore v8 v10 i256;
-        (v14.i256, v15.i1) = uaddo v7 32.i256;
-        br v15 block2 block4;
+        v14.i256 = mload v2 i256;
+        mstore v8 v14 i256;
+        (v18.i256, v19.i1) = uaddo v7 32.i256;
+        br v19 block2 block4;
 
     block4:
-        v17.i256 = evm_keccak256 v5 v14;
-        return v17;
+        v21.i256 = evm_keccak256 v5 v18;
+        return v21;
 }
 
 func private %storagemap_storage_slot_with_salt_3(v0.@__fe_layout_6, v1.i256) -> i256 {
@@ -1187,17 +1195,19 @@ func private %storagemap_storage_slot_with_salt_3(v0.@__fe_layout_6, v1.i256) ->
         br v9 block2 block3;
 
     block2:
-        evm_revert 0.i256 0.i256;
+        mstore 0.i256 35408467139433450592217433187231851964531694900788300625387963629091585785856.i256 i256;
+        mstore 4.i256 17.i256 i256;
+        evm_revert 0.i256 36.i256;
 
     block3:
-        v10.i256 = mload v2 i256;
-        mstore v8 v10 i256;
-        (v14.i256, v15.i1) = uaddo v7 32.i256;
-        br v15 block2 block4;
+        v14.i256 = mload v2 i256;
+        mstore v8 v14 i256;
+        (v18.i256, v19.i1) = uaddo v7 32.i256;
+        br v19 block2 block4;
 
     block4:
-        v17.i256 = evm_keccak256 v5 v14;
-        return v17;
+        v21.i256 = evm_keccak256 v5 v18;
+        return v21;
 }
 
 func private %storagemap_storage_slot_with_salt_4(v0.@__fe_layout_4, v1.i256) -> i256 {
@@ -1214,17 +1224,19 @@ func private %storagemap_storage_slot_with_salt_4(v0.@__fe_layout_4, v1.i256) ->
         br v9 block2 block3;
 
     block2:
-        evm_revert 0.i256 0.i256;
+        mstore 0.i256 35408467139433450592217433187231851964531694900788300625387963629091585785856.i256 i256;
+        mstore 4.i256 17.i256 i256;
+        evm_revert 0.i256 36.i256;
 
     block3:
-        v10.i256 = mload v2 i256;
-        mstore v8 v10 i256;
-        (v14.i256, v15.i1) = uaddo v7 32.i256;
-        br v15 block2 block4;
+        v14.i256 = mload v2 i256;
+        mstore v8 v14 i256;
+        (v18.i256, v19.i1) = uaddo v7 32.i256;
+        br v19 block2 block4;
 
     block4:
-        v17.i256 = evm_keccak256 v5 v14;
-        return v17;
+        v21.i256 = evm_keccak256 v5 v18;
+        return v21;
 }
 
 func private %storagemap_storage_slot_with_salt_5(v0.@__fe_layout_6, v1.i256) -> i256 {
@@ -1241,17 +1253,19 @@ func private %storagemap_storage_slot_with_salt_5(v0.@__fe_layout_6, v1.i256) ->
         br v9 block2 block3;
 
     block2:
-        evm_revert 0.i256 0.i256;
+        mstore 0.i256 35408467139433450592217433187231851964531694900788300625387963629091585785856.i256 i256;
+        mstore 4.i256 17.i256 i256;
+        evm_revert 0.i256 36.i256;
 
     block3:
-        v10.i256 = mload v2 i256;
-        mstore v8 v10 i256;
-        (v14.i256, v15.i1) = uaddo v7 32.i256;
-        br v15 block2 block4;
+        v14.i256 = mload v2 i256;
+        mstore v8 v14 i256;
+        (v18.i256, v19.i1) = uaddo v7 32.i256;
+        br v19 block2 block4;
 
     block4:
-        v17.i256 = evm_keccak256 v5 v14;
-        return v17;
+        v21.i256 = evm_keccak256 v5 v18;
+        return v21;
 }
 
 func private %to_word_0(v0.i256) -> i256 {
@@ -1339,17 +1353,19 @@ func private %transfer_0(v0.i256, v1.@__fe_layout_4, v2.@__fe_layout_4, v3.i256,
         br v53 block5 block6;
 
     block5:
-        evm_revert 0.i256 0.i256;
+        mstore 0.i256 35408467139433450592217433187231851964531694900788300625387963629091585785856.i256 i256;
+        mstore 4.i256 17.i256 i256;
+        evm_revert 0.i256 36.i256;
 
     block6:
         call %set_2 v49 v52;
-        v58.@__fe_layout_4 = obj.load v6;
-        v59.i256 = mload v7 i256;
-        (v61.i256, v62.i1) = uaddo v47 v59;
-        br v62 block5 block7;
+        v62.@__fe_layout_4 = obj.load v6;
+        v63.i256 = mload v7 i256;
+        (v65.i256, v66.i1) = uaddo v47 v63;
+        br v66 block5 block7;
 
     block7:
-        call %set_2 v58 v61;
+        call %set_2 v62 v65;
         return;
 }
 
@@ -1406,17 +1422,19 @@ func private %transfer_1(v0.i256, v1.@__fe_layout_4, v2.@__fe_layout_4, v3.i256,
         br v53 block5 block6;
 
     block5:
-        evm_revert 0.i256 0.i256;
+        mstore 0.i256 35408467139433450592217433187231851964531694900788300625387963629091585785856.i256 i256;
+        mstore 4.i256 17.i256 i256;
+        evm_revert 0.i256 36.i256;
 
     block6:
         call %set_2 v49 v52;
-        v58.@__fe_layout_4 = obj.load v6;
-        v59.i256 = mload v7 i256;
-        (v61.i256, v62.i1) = uaddo v47 v59;
-        br v62 block5 block7;
+        v62.@__fe_layout_4 = obj.load v6;
+        v63.i256 = mload v7 i256;
+        (v65.i256, v66.i1) = uaddo v47 v63;
+        br v66 block5 block7;
 
     block7:
-        call %set_2 v58 v61;
+        call %set_2 v62 v65;
         return;
 }
 
@@ -1518,7 +1536,9 @@ func private %transfer_from_1(v0.i256, v1.@__fe_layout_4, v2.@__fe_layout_4, v3.
         br v55 block5 block6;
 
     block5:
-        evm_revert 0.i256 0.i256;
+        mstore 0.i256 35408467139433450592217433187231851964531694900788300625387963629091585785856.i256 i256;
+        mstore 4.i256 17.i256 i256;
+        evm_revert 0.i256 36.i256;
 
     block6:
         call %set_3 v51 v54;
@@ -1552,17 +1572,19 @@ func private %write_key_0(v0.i256, v1.@__fe_layout_6) -> i256 {
         br v20 block2 block3;
 
     block2:
-        evm_revert 0.i256 0.i256;
+        mstore 0.i256 35408467139433450592217433187231851964531694900788300625387963629091585785856.i256 i256;
+        mstore 4.i256 17.i256 i256;
+        evm_revert 0.i256 36.i256;
 
     block3:
-        v21.objref<@__fe_layout_4> = obj.proj v3 1.i256;
-        v22.@__fe_layout_4 = obj.load v21;
-        v23.i256 = call %write_key_12 v19 v22;
-        (v25.i256, v26.i1) = uaddo v17 v23;
-        br v26 block2 block4;
+        v25.objref<@__fe_layout_4> = obj.proj v3 1.i256;
+        v26.@__fe_layout_4 = obj.load v25;
+        v27.i256 = call %write_key_12 v19 v26;
+        (v29.i256, v30.i1) = uaddo v17 v27;
+        br v30 block2 block4;
 
     block4:
-        return v25;
+        return v29;
 }
 
 func private %write_key_1(v0.i256, v1.@__fe_layout_4) -> i256 {
@@ -1709,17 +1731,19 @@ func private %write_key_3(v0.i256, v1.@__fe_layout_6) -> i256 {
         br v20 block2 block3;
 
     block2:
-        evm_revert 0.i256 0.i256;
+        mstore 0.i256 35408467139433450592217433187231851964531694900788300625387963629091585785856.i256 i256;
+        mstore 4.i256 17.i256 i256;
+        evm_revert 0.i256 36.i256;
 
     block3:
-        v21.objref<@__fe_layout_4> = obj.proj v3 1.i256;
-        v22.@__fe_layout_4 = obj.load v21;
-        v23.i256 = call %write_key_1 v19 v22;
-        (v25.i256, v26.i1) = uaddo v17 v23;
-        br v26 block2 block4;
+        v25.objref<@__fe_layout_4> = obj.proj v3 1.i256;
+        v26.@__fe_layout_4 = obj.load v25;
+        v27.i256 = call %write_key_1 v19 v26;
+        (v29.i256, v30.i1) = uaddo v17 v27;
+        br v30 block2 block4;
 
     block4:
-        return v25;
+        return v29;
 }
 
 func private %write_key_4(v0.i256, v1.i256) -> i256 {
@@ -1800,17 +1824,19 @@ func private %write_key_7(v0.i256, v1.@__fe_layout_6) -> i256 {
         br v20 block2 block3;
 
     block2:
-        evm_revert 0.i256 0.i256;
+        mstore 0.i256 35408467139433450592217433187231851964531694900788300625387963629091585785856.i256 i256;
+        mstore 4.i256 17.i256 i256;
+        evm_revert 0.i256 36.i256;
 
     block3:
-        v21.objref<@__fe_layout_4> = obj.proj v3 1.i256;
-        v22.@__fe_layout_4 = obj.load v21;
-        v23.i256 = call %write_key_6 v19 v22;
-        (v25.i256, v26.i1) = uaddo v17 v23;
-        br v26 block2 block4;
+        v25.objref<@__fe_layout_4> = obj.proj v3 1.i256;
+        v26.@__fe_layout_4 = obj.load v25;
+        v27.i256 = call %write_key_6 v19 v26;
+        (v29.i256, v30.i1) = uaddo v17 v27;
+        br v30 block2 block4;
 
     block4:
-        return v25;
+        return v29;
 }
 
 func private %write_key_8(v0.i256, v1.i256) -> i256 {

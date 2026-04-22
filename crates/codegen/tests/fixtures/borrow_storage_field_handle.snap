@@ -26,7 +26,9 @@ object "main" {
       let v9 := t12
       let t13 := add(v9, v3)
       if lt(t13, v9) {
-        revert(0, 0)
+        mstore(0, 0x4e487b7100000000000000000000000000000000000000000000000000000000)
+        mstore(4, 0x11)
+        revert(0, 36)
       }
       let v10 := t13
       sstore(v1, v10)

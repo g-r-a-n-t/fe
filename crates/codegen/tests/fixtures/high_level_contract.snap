@@ -32,7 +32,9 @@ object "EchoContract" {
         if iszero(iszero(iszero(v5))) {
           let t19 := sub(v4, v3)
           if gt(v3, v4) {
-            revert(0, 0)
+            mstore(0, 0x4e487b7100000000000000000000000000000000000000000000000000000000)
+            mstore(4, 0x11)
+            revert(0, 36)
           }
           let v6 := t19
           let t20 := mload(0x40)
@@ -104,7 +106,9 @@ object "EchoContract" {
         let v3 := v9
         let t41 := add(v2, v1)
         if lt(t41, v2) {
-          revert(0, 0)
+          mstore(0, 0x4e487b7100000000000000000000000000000000000000000000000000000000)
+          mstore(4, 0x11)
+          revert(0, 36)
         }
         let v27 := t41
         let v10 := v27
@@ -254,7 +258,9 @@ object "EchoContract" {
       let v7 := v23
       let t36 := add(v6, v7)
       if lt(t36, v6) {
-        revert(0, 0)
+        mstore(0, 0x4e487b7100000000000000000000000000000000000000000000000000000000)
+        mstore(4, 0x11)
+        revert(0, 36)
       }
       let v24 := t36
       let v8 := v24
@@ -311,7 +317,9 @@ object "EchoContract" {
       let v7 := v23
       let t36 := add(v6, v7)
       if lt(t36, v6) {
-        revert(0, 0)
+        mstore(0, 0x4e487b7100000000000000000000000000000000000000000000000000000000)
+        mstore(4, 0x11)
+        revert(0, 36)
       }
       let v24 := t36
       let v8 := v24
@@ -435,7 +443,9 @@ object "EchoContract" {
           let v4 := calldatasize()
           let t18 := sub(v4, v1)
           if gt(v1, v4) {
-            revert(0, 0)
+            mstore(0, 0x4e487b7100000000000000000000000000000000000000000000000000000000)
+            mstore(4, 0x11)
+            revert(0, 36)
           }
           let v5 := t18
           let t19 := mload(0x40)
@@ -480,7 +490,9 @@ object "EchoContract" {
           let v4 := calldatasize()
           let t20 := sub(v4, v1)
           if gt(v1, v4) {
-            revert(0, 0)
+            mstore(0, 0x4e487b7100000000000000000000000000000000000000000000000000000000)
+            mstore(4, 0x11)
+            revert(0, 36)
           }
           let v5 := t20
           let t21 := mload(0x40)
@@ -534,7 +546,9 @@ object "EchoContract" {
           let v4 := calldatasize()
           let t19 := sub(v4, v1)
           if gt(v1, v4) {
-            revert(0, 0)
+            mstore(0, 0x4e487b7100000000000000000000000000000000000000000000000000000000)
+            mstore(4, 0x11)
+            revert(0, 36)
           }
           let v5 := t19
           let t20 := mload(0x40)
@@ -599,7 +613,9 @@ object "EchoContract" {
           let v5 := v11
           let t13 := add(v5, v1)
           if lt(t13, v5) {
-            revert(0, 0)
+            mstore(0, 0x4e487b7100000000000000000000000000000000000000000000000000000000)
+            mstore(4, 0x11)
+            revert(0, 36)
           }
           let v12 := t13
           let v6 := v12
@@ -623,7 +639,9 @@ object "EchoContract" {
           let v5 := v11
           let t13 := add(v5, v1)
           if lt(t13, v5) {
-            revert(0, 0)
+            mstore(0, 0x4e487b7100000000000000000000000000000000000000000000000000000000)
+            mstore(4, 0x11)
+            revert(0, 36)
           }
           let v12 := t13
           let v6 := v12
@@ -692,7 +710,9 @@ object "EchoContract" {
           let v3 := v9
           let t41 := add(v2, v1)
           if lt(t41, v2) {
-            revert(0, 0)
+            mstore(0, 0x4e487b7100000000000000000000000000000000000000000000000000000000)
+            mstore(4, 0x11)
+            revert(0, 36)
           }
           let v27 := t41
           let v10 := v27
@@ -761,7 +781,9 @@ object "EchoContract" {
           let v32 := t56
           let t57 := sub(v32, v3)
           if gt(v3, v32) {
-            revert(0, 0)
+            mstore(0, 0x4e487b7100000000000000000000000000000000000000000000000000000000)
+            mstore(4, 0x11)
+            revert(0, 36)
           }
           let v33 := t57
           let v12 := v33
@@ -786,7 +808,9 @@ object "EchoContract" {
           let v51 := t60
           let t61 := add(v51, v5)
           if lt(t61, v51) {
-            revert(0, 0)
+            mstore(0, 0x4e487b7100000000000000000000000000000000000000000000000000000000)
+            mstore(4, 0x11)
+            revert(0, 36)
           }
           let v52 := t61
           let v22 := v52
@@ -817,7 +841,9 @@ object "EchoContract" {
           let v32 := t56
           let t57 := sub(v32, v3)
           if gt(v3, v32) {
-            revert(0, 0)
+            mstore(0, 0x4e487b7100000000000000000000000000000000000000000000000000000000)
+            mstore(4, 0x11)
+            revert(0, 36)
           }
           let v33 := t57
           let v12 := v33
@@ -842,7 +868,9 @@ object "EchoContract" {
           let v51 := t60
           let t61 := add(v51, v5)
           if lt(t61, v51) {
-            revert(0, 0)
+            mstore(0, 0x4e487b7100000000000000000000000000000000000000000000000000000000)
+            mstore(4, 0x11)
+            revert(0, 36)
           }
           let v52 := t61
           let v22 := v52
@@ -872,7 +900,9 @@ object "EchoContract" {
         let v4 := v11
         let t17 := add(v3, v4)
         if lt(t17, v3) {
-          revert(0, 0)
+          mstore(0, 0x4e487b7100000000000000000000000000000000000000000000000000000000)
+          mstore(4, 0x11)
+          revert(0, 36)
         }
         let v12 := t17
         let v5 := v12
@@ -951,7 +981,9 @@ object "EchoContract" {
         let v4 := v11
         let t17 := add(v3, v4)
         if lt(t17, v3) {
-          revert(0, 0)
+          mstore(0, 0x4e487b7100000000000000000000000000000000000000000000000000000000)
+          mstore(4, 0x11)
+          revert(0, 36)
         }
         let v12 := t17
         let v5 := v12
@@ -1138,7 +1170,9 @@ object "EchoContract" {
         let v7 := v23
         let t36 := add(v6, v7)
         if lt(t36, v6) {
-          revert(0, 0)
+          mstore(0, 0x4e487b7100000000000000000000000000000000000000000000000000000000)
+          mstore(4, 0x11)
+          revert(0, 36)
         }
         let v24 := t36
         let v8 := v24
@@ -1195,7 +1229,9 @@ object "EchoContract" {
         let v7 := v23
         let t36 := add(v6, v7)
         if lt(t36, v6) {
-          revert(0, 0)
+          mstore(0, 0x4e487b7100000000000000000000000000000000000000000000000000000000)
+          mstore(4, 0x11)
+          revert(0, 36)
         }
         let v24 := t36
         let v8 := v24

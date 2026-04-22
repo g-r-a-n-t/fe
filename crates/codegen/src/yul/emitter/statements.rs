@@ -451,8 +451,8 @@ impl<'a, 'db> FunctionEmitter<'a, 'db> {
         &mut self,
         root: &str,
         space: YulAddressSpace,
-        layout: mir2::LayoutId<'db>,
-        variant: mir2::VariantId<'db>,
+        layout: mir::LayoutId<'db>,
+        variant: mir::VariantId<'db>,
         fields: &[crate::yul::legalize::YLocalId],
     ) -> Result<Vec<YulDoc>, YulError> {
         let tag_class = self.enum_tag_class(layout)?;

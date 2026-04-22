@@ -19,12 +19,12 @@ pub(super) fn sanitize_yul_ident(value: &str) -> String {
         .collect()
 }
 
-pub(super) fn section_object_label(name: &mir2::RuntimeSectionName) -> String {
+pub(super) fn section_object_label(name: &mir::RuntimeSectionName) -> String {
     match name {
-        mir2::RuntimeSectionName::Init => "init".to_string(),
-        mir2::RuntimeSectionName::Runtime => "runtime".to_string(),
-        mir2::RuntimeSectionName::Main => "main".to_string(),
-        mir2::RuntimeSectionName::Test(name) => sanitize_yul_ident(name),
-        mir2::RuntimeSectionName::CodeRegion(symbol) => sanitize_yul_ident(symbol),
+        mir::RuntimeSectionName::Init => "init".to_string(),
+        mir::RuntimeSectionName::Runtime => "runtime".to_string(),
+        mir::RuntimeSectionName::Main => "main".to_string(),
+        mir::RuntimeSectionName::Test(name) => sanitize_yul_ident(name),
+        mir::RuntimeSectionName::CodeRegion(symbol) => sanitize_yul_ident(symbol),
     }
 }

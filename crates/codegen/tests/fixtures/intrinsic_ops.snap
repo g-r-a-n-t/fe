@@ -84,7 +84,9 @@ object "main" {
       let v15 := v35
       let t40 := add(v13, v15)
       if lt(t40, v13) {
-        revert(0, 0)
+        mstore(0, 0x4e487b7100000000000000000000000000000000000000000000000000000000)
+        mstore(4, 0x11)
+        revert(0, 36)
       }
       let v36 := t40
       let v16 := v36
@@ -94,7 +96,9 @@ object "main" {
       let v18 := v38
       let t41 := add(v16, v18)
       if lt(t41, v16) {
-        revert(0, 0)
+        mstore(0, 0x4e487b7100000000000000000000000000000000000000000000000000000000)
+        mstore(4, 0x11)
+        revert(0, 36)
       }
       let v39 := t41
       let v19 := v39

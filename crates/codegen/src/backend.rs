@@ -89,7 +89,7 @@ impl BackendOutput {
 
 #[derive(Debug)]
 pub enum BackendError {
-    RuntimeLower(mir2::LowerError),
+    RuntimeLower(mir::LowerError),
     Yul(crate::yul::YulError),
     Sonatina(String),
 }
@@ -106,8 +106,8 @@ impl fmt::Display for BackendError {
 
 impl std::error::Error for BackendError {}
 
-impl From<mir2::LowerError> for BackendError {
-    fn from(err: mir2::LowerError) -> Self {
+impl From<mir::LowerError> for BackendError {
+    fn from(err: mir::LowerError) -> Self {
         BackendError::RuntimeLower(err)
     }
 }
@@ -220,7 +220,7 @@ impl Backend for SonatinaBackend {
         layout: TargetDataLayout,
         opt_level: OptLevel,
     ) -> Result<BackendOutput, BackendError> {
-        let package = mir2::build_runtime_package(db, top_mod)?;
+        let package = mir::build_runtime_package(db, top_mod)?;
         let artifacts = crate::sonatina::emit_runtime_package_sonatina_bytecode(
             db, &package, layout, opt_level,
         )?;

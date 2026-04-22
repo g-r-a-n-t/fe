@@ -46,7 +46,9 @@ object "GuardContract" {
         let v11 := t16
         let t17 := add(v11, v4)
         if lt(t17, v11) {
-          revert(0, 0)
+          mstore(0, 0x4e487b7100000000000000000000000000000000000000000000000000000000)
+          mstore(4, 0x11)
+          revert(0, 36)
         }
         let v12 := t17
         sstore(v3, v12)
@@ -73,7 +75,9 @@ object "GuardContract" {
           let v4 := calldatasize()
           let t20 := sub(v4, v1)
           if gt(v1, v4) {
-            revert(0, 0)
+            mstore(0, 0x4e487b7100000000000000000000000000000000000000000000000000000000)
+            mstore(4, 0x11)
+            revert(0, 36)
           }
           let v5 := t20
           let t21 := mload(0x40)
@@ -131,7 +135,9 @@ object "GuardContract" {
           let v5 := v11
           let t13 := add(v5, v1)
           if lt(t13, v5) {
-            revert(0, 0)
+            mstore(0, 0x4e487b7100000000000000000000000000000000000000000000000000000000)
+            mstore(4, 0x11)
+            revert(0, 36)
           }
           let v12 := t13
           let v6 := v12
@@ -188,7 +194,9 @@ object "GuardContract" {
           let v32 := t56
           let t57 := sub(v32, v3)
           if gt(v3, v32) {
-            revert(0, 0)
+            mstore(0, 0x4e487b7100000000000000000000000000000000000000000000000000000000)
+            mstore(4, 0x11)
+            revert(0, 36)
           }
           let v33 := t57
           let v12 := v33
@@ -213,7 +221,9 @@ object "GuardContract" {
           let v51 := t60
           let t61 := add(v51, v5)
           if lt(t61, v51) {
-            revert(0, 0)
+            mstore(0, 0x4e487b7100000000000000000000000000000000000000000000000000000000)
+            mstore(4, 0x11)
+            revert(0, 36)
           }
           let v52 := t61
           let v22 := v52
@@ -248,7 +258,9 @@ object "GuardContract" {
         let v4 := v11
         let t17 := add(v3, v4)
         if lt(t17, v3) {
-          revert(0, 0)
+          mstore(0, 0x4e487b7100000000000000000000000000000000000000000000000000000000)
+          mstore(4, 0x11)
+          revert(0, 36)
         }
         let v12 := t17
         let v5 := v12

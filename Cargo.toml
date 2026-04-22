@@ -17,7 +17,7 @@ resolver = { path = "crates/resolver", package = "fe-resolver" }
 codegen = { path = "crates/codegen", package = "fe-codegen" }
 fe-web = { path = "crates/fe-web" }
 language-server = { path = "crates/language-server", package = "fe-language-server" }
-mir2 = { path = "crates/mir2", package = "fe-mir2" }
+mir = { path = "crates/mir", package = "fe-mir" }
 cranelift-entity = "0.130"
 url = "2.5.4"
 camino = "1.1.9"

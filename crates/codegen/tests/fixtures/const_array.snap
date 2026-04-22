@@ -54,7 +54,9 @@ object "main" {
       let v7 := t21
       let t22 := add(v4, v7)
       if lt(t22, v4) {
-        revert(0, 0)
+        mstore(0, 0x4e487b7100000000000000000000000000000000000000000000000000000000)
+        mstore(4, 0x11)
+        revert(0, 36)
       }
       let v17 := t22
       let v8 := v17

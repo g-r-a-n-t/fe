@@ -42,7 +42,9 @@ object "main" {
           let v3 := v12
           let t32 := add(v0, v3)
           if lt(t32, v0) {
-            revert(0, 0)
+            mstore(0, 0x4e487b7100000000000000000000000000000000000000000000000000000000)
+            mstore(4, 0x11)
+            revert(0, 36)
           }
           let v30 := t32
           let v13 := v30
@@ -51,7 +53,9 @@ object "main" {
           let v15 := v31
           let t33 := add(v9, v15)
           if lt(t33, v9) {
-            revert(0, 0)
+            mstore(0, 0x4e487b7100000000000000000000000000000000000000000000000000000000)
+            mstore(4, 0x11)
+            revert(0, 36)
           }
           let v16 := t33
           v9 := v16
@@ -76,7 +80,9 @@ object "main" {
       let v3 := p1
       let t7 := add(v2, v3)
       if lt(t7, v2) {
-        revert(0, 0)
+        mstore(0, 0x4e487b7100000000000000000000000000000000000000000000000000000000)
+        mstore(4, 0x11)
+        revert(0, 36)
       }
       let v5 := t7
       let v4 := v5
@@ -129,7 +135,9 @@ object "main" {
         let v7 := t17
         let t18 := sub(v6, v7)
         if gt(v7, v6) {
-          revert(0, 0)
+          mstore(0, 0x4e487b7100000000000000000000000000000000000000000000000000000000)
+          mstore(4, 0x11)
+          revert(0, 36)
         }
         let v13 := t18
         let v8 := v13

@@ -1,8 +1,8 @@
 use common::InputDb;
 use driver::DriverDataBase;
 use fe_codegen::{OptLevel, emit_module_sonatina_ir, emit_runtime_package_sonatina_ir_optimized};
-use mir2::runtime::{AddressSpaceKind, RefKind};
-use mir2::{
+use mir::runtime::{AddressSpaceKind, RefKind};
+use mir::{
     IntrinsicArithBinOp, Layout, PlaceElem, PlaceRoot, RExpr, RLocalId, RStmt, RuntimeBuiltin,
     RuntimeClass, build_runtime_package, build_test_runtime_package,
 };
@@ -235,7 +235,7 @@ fn provider_root_trait_receivers_preserve_concrete_runtime_layouts() {
             panic!("use_ctx should load its provider-bound receiver handle:\n{body:#?}")
         });
 
-    let mir2::RuntimeCarrier::Value(mir2::RuntimeClass::AggregateValue { layout }) =
+    let mir::RuntimeCarrier::Value(mir::RuntimeClass::AggregateValue { layout }) =
         &body.locals[load.as_u32() as usize].carrier
     else {
         panic!("root-provider receiver load should produce a concrete aggregate value:\n{body:#?}");
@@ -513,7 +513,7 @@ fn storage_backed_nested_handle_field_borrows_use_storage_transport() {
         matches!(
             kind,
             RefKind::Provider {
-                space: mir2::AddressSpaceKind::Storage,
+                space: mir::AddressSpaceKind::Storage,
                 ..
             }
         ),
@@ -632,7 +632,7 @@ fn entry() -> u8 {
                 && local.semantic_ty.pretty_print(&db) == "[u8; 4]"
                 && matches!(
                     local.carrier,
-                    mir2::RuntimeCarrier::Value(RuntimeClass::Ref {
+                    mir::RuntimeCarrier::Value(RuntimeClass::Ref {
                         kind: RefKind::Object,
                         ..
                     })
@@ -796,7 +796,7 @@ fn entry() -> u8 {
         .filter_map(|(idx, local)| {
             matches!(
                 local.carrier,
-                mir2::RuntimeCarrier::Value(RuntimeClass::RawAddr { target: None, .. })
+                mir::RuntimeCarrier::Value(RuntimeClass::RawAddr { target: None, .. })
             )
             .then_some(RLocalId::from_u32(idx as u32))
         })
@@ -829,7 +829,7 @@ fn entry() -> u8 {
                             expr:
                                 RExpr::Load {
                                     place:
-                                        mir2::RuntimePlace {
+                                        mir::RuntimePlace {
                                             root:
                                                 PlaceRoot::Ptr {
                                                     addr,
@@ -928,7 +928,7 @@ fn whole_handle_loads_materialize_values_before_rebinding_object_locals() {
                             expr:
                                 RExpr::Load {
                                     place:
-                                        mir2::RuntimePlace {
+                                        mir::RuntimePlace {
                                             root: PlaceRoot::Ref(_),
                                             path,
                                         },
@@ -936,7 +936,7 @@ fn whole_handle_loads_materialize_values_before_rebinding_object_locals() {
                         } if path.is_empty()
                             && matches!(
                                 body.locals[dst.as_u32() as usize].carrier,
-                                mir2::RuntimeCarrier::Value(mir2::RuntimeClass::Ref { .. })
+                                mir::RuntimeCarrier::Value(mir::RuntimeClass::Ref { .. })
                             )
                     )
                 }),
@@ -1393,7 +1393,7 @@ fn use_returned_array() -> u8 {
             .skip(body.signature.params.len())
             .any(|local| matches!(
                 &local.carrier,
-                mir2::RuntimeCarrier::Value(RuntimeClass::Ref {
+                mir::RuntimeCarrier::Value(RuntimeClass::Ref {
                     kind: RefKind::Object,
                     pointee,
                     ..

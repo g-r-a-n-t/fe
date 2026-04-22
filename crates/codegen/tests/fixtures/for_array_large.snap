@@ -74,7 +74,9 @@ object "main" {
           let v2 := and(v18, 0xffffffffffffffff)
           let t64 := and(add(and(v1, 0xffffffffffffffff), and(v2, 0xffffffffffffffff)), 0xffffffffffffffff)
           if lt(t64, and(v1, 0xffffffffffffffff)) {
-            revert(0, 0)
+            mstore(0, 0x4e487b7100000000000000000000000000000000000000000000000000000000)
+            mstore(4, 0x11)
+            revert(0, 36)
           }
           let v62 := t64
           let v19 := and(v62, 0xffffffffffffffff)
@@ -83,7 +85,9 @@ object "main" {
           let v21 := v63
           let t65 := add(v15, v21)
           if lt(t65, v15) {
-            revert(0, 0)
+            mstore(0, 0x4e487b7100000000000000000000000000000000000000000000000000000000)
+            mstore(4, 0x11)
+            revert(0, 36)
           }
           let v22 := t65
           v15 := v22

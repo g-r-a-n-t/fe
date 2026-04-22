@@ -33,48 +33,59 @@ func private %sum_loop(v0.i256) -> i256 {
         jump block2;
 
     block2:
-        v34.i256 = phi (0.i256 block1) (v27 block9);
-        v4.i256 = phi (0.i256 block1) (v31 block9);
+        v39.i256 = phi (0.i256 block1) (v32 block11);
+        v4.i256 = phi (0.i256 block1) (v36 block11);
         v6.i1 = lt v4 v0;
         br v6 block3 block4;
 
     block3:
-        (v9.i256, v10.i1) = evm_umodo v4 3.i256;
-        br v10 block5 block6;
+        v9.i1 = eq 3.i256 0.i256;
+        br v9 block5 block6;
 
     block4:
-        return v34;
+        return v39;
 
     block5:
-        evm_revert 0.i256 0.i256;
+        mstore 0.i256 35408467139433450592217433187231851964531694900788300625387963629091585785856.i256 i256;
+        mstore 4.i256 18.i256 i256;
+        evm_revert 0.i256 36.i256;
 
     block6:
-        v14.objref<[i256; 3]> = obj.alloc [i256; 3];
-        v15.objref<i256> = obj.index v14 0.i256;
-        obj.store v15 10.i256;
-        v17.objref<i256> = obj.index v14 1.i256;
-        obj.store v17 20.i256;
-        v19.objref<i256> = obj.index v14 2.i256;
-        obj.store v19 30.i256;
-        v20.i1 = lt v9 3.i256;
-        v21.i1 = is_zero v20;
-        br v21 block5 block7;
+        v14.i256 = evm_umod v4 3.i256;
+        v18.objref<[i256; 3]> = obj.alloc [i256; 3];
+        v19.objref<i256> = obj.index v18 0.i256;
+        obj.store v19 10.i256;
+        v21.objref<i256> = obj.index v18 1.i256;
+        obj.store v21 20.i256;
+        v23.objref<i256> = obj.index v18 2.i256;
+        obj.store v23 30.i256;
+        v24.i1 = lt v14 3.i256;
+        v25.i1 = is_zero v24;
+        br v25 block7 block8;
 
     block7:
-        v22.objref<i256> = obj.index v14 v9;
-        v23.i256 = obj.load v22;
-        (v25.i256, v26.i1) = uaddo v34 v23;
-        br v26 block5 block8;
+        evm_revert 0.i256 0.i256;
 
     block8:
-        mstore v1 v25 i256;
-        v27.i256 = mload v1 i256;
-        (v29.i256, v30.i1) = uaddo v4 1.i256;
-        br v30 block5 block9;
+        v26.objref<i256> = obj.index v18 v14;
+        v27.i256 = obj.load v26;
+        (v29.i256, v30.i1) = uaddo v39 v27;
+        br v30 block9 block10;
 
     block9:
-        mstore v2 v29 i256;
-        v31.i256 = mload v2 i256;
+        mstore 0.i256 35408467139433450592217433187231851964531694900788300625387963629091585785856.i256 i256;
+        mstore 4.i256 17.i256 i256;
+        evm_revert 0.i256 36.i256;
+
+    block10:
+        mstore v1 v29 i256;
+        v32.i256 = mload v1 i256;
+        (v34.i256, v35.i1) = uaddo v4 1.i256;
+        br v35 block9 block11;
+
+    block11:
+        mstore v2 v34 i256;
+        v36.i256 = mload v2 i256;
         jump block2;
 }
 

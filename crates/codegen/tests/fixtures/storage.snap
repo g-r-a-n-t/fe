@@ -118,7 +118,9 @@ object "Coin" {
         let v4 := p0
         let t15 := add(v3, v4)
         if lt(t15, v3) {
-          revert(0, 0)
+          mstore(0, 0x4e487b7100000000000000000000000000000000000000000000000000000000)
+          mstore(4, 0x11)
+          revert(0, 36)
         }
         let v12 := t15
         let v5 := v12
@@ -128,7 +130,9 @@ object "Coin" {
         let v8 := p0
         let t17 := add(v7, v8)
         if lt(t17, v7) {
-          revert(0, 0)
+          mstore(0, 0x4e487b7100000000000000000000000000000000000000000000000000000000)
+          mstore(4, 0x11)
+          revert(0, 36)
         }
         let v13 := t17
         let v9 := v13
@@ -144,7 +148,9 @@ object "Coin" {
         let v4 := p0
         let t15 := add(v3, v4)
         if lt(t15, v3) {
-          revert(0, 0)
+          mstore(0, 0x4e487b7100000000000000000000000000000000000000000000000000000000)
+          mstore(4, 0x11)
+          revert(0, 36)
         }
         let v12 := t15
         let v5 := v12
@@ -154,7 +160,9 @@ object "Coin" {
         let v8 := p0
         let t17 := add(v7, v8)
         if lt(t17, v7) {
-          revert(0, 0)
+          mstore(0, 0x4e487b7100000000000000000000000000000000000000000000000000000000)
+          mstore(4, 0x11)
+          revert(0, 36)
         }
         let v13 := t17
         let v9 := v13
@@ -377,7 +385,9 @@ object "Coin" {
           let v9 := p0
           let t25 := sub(v8, v9)
           if gt(v9, v8) {
-            revert(0, 0)
+            mstore(0, 0x4e487b7100000000000000000000000000000000000000000000000000000000)
+            mstore(4, 0x11)
+            revert(0, 36)
           }
           let v19 := t25
           let v10 := v19
@@ -387,7 +397,9 @@ object "Coin" {
           let v13 := p0
           let t27 := add(v12, v13)
           if lt(t27, v12) {
-            revert(0, 0)
+            mstore(0, 0x4e487b7100000000000000000000000000000000000000000000000000000000)
+            mstore(4, 0x11)
+            revert(0, 36)
           }
           let v20 := t27
           let v14 := v20
@@ -427,7 +439,9 @@ object "Coin" {
           let v9 := p0
           let t25 := sub(v8, v9)
           if gt(v9, v8) {
-            revert(0, 0)
+            mstore(0, 0x4e487b7100000000000000000000000000000000000000000000000000000000)
+            mstore(4, 0x11)
+            revert(0, 36)
           }
           let v19 := t25
           let v10 := v19
@@ -437,7 +451,9 @@ object "Coin" {
           let v13 := p0
           let t27 := add(v12, v13)
           if lt(t27, v12) {
-            revert(0, 0)
+            mstore(0, 0x4e487b7100000000000000000000000000000000000000000000000000000000)
+            mstore(4, 0x11)
+            revert(0, 36)
           }
           let v20 := t27
           let v14 := v20

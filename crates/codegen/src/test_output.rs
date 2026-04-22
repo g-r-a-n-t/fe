@@ -66,15 +66,15 @@ pub(crate) enum TestRootMetadataError {
 
 pub(crate) fn runtime_test_root_metadata<'db>(
     db: &'db DriverDataBase,
-    owner: &mir2::RuntimeFunctionOwner<'db>,
-    section_name: &mir2::RuntimeSectionName,
+    owner: &mir::RuntimeFunctionOwner<'db>,
+    section_name: &mir::RuntimeSectionName,
 ) -> Result<TestRootMetadata, TestRootMetadataError> {
-    let mir2::RuntimeSectionName::Test(hir_name) = section_name else {
+    let mir::RuntimeSectionName::Test(hir_name) = section_name else {
         return Err(TestRootMetadataError::InvalidPackage(format!(
             "non-test section `{section_name:?}` used as a test root"
         )));
     };
-    let mir2::RuntimeFunctionOwner::Synthetic(mir2::RuntimeSyntheticSpec::TestRoot {
+    let mir::RuntimeFunctionOwner::Synthetic(mir::RuntimeSyntheticSpec::TestRoot {
         callee, ..
     }) = owner
     else {

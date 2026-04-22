@@ -1,5 +1,5 @@
 use hir::hir_def::expr::{ArithBinOp, BinOp, CompBinOp, LogicalBinOp, UnOp};
-use mir2::{RefKind, RuntimeClass};
+use mir::{RefKind, RuntimeClass};
 
 use crate::yul::{
     doc::YulDoc,
@@ -11,6 +11,19 @@ use crate::yul::{
 };
 
 use super::function::{FunctionEmitter, RenderedValue};
+
+const PANIC_SELECTOR_WORD: &str =
+    "0x4e487b7100000000000000000000000000000000000000000000000000000000";
+const PANIC_OVERFLOW: u64 = 0x11;
+const PANIC_DIVISION_BY_ZERO: u64 = 0x12;
+
+fn panic_revert_docs(code: u64) -> Vec<YulDoc> {
+    vec![
+        YulDoc::line(format!("mstore(0, {PANIC_SELECTOR_WORD})")),
+        YulDoc::line(format!("mstore(4, 0x{code:x})")),
+        YulDoc::line("revert(0, 36)"),
+    ]
+}
 
 impl<'a, 'db> FunctionEmitter<'a, 'db> {
     pub(super) fn render_builtin_stmt(
@@ -127,9 +140,9 @@ impl<'a, 'db> FunctionEmitter<'a, 'db> {
                 setup: Vec::new(),
                 value: self.const_scalar_expr(value),
                 class: expected.cloned().unwrap_or_else(|| {
-                    YulValueClass::Word(mir2::ScalarClass {
+                    YulValueClass::Word(mir::ScalarClass {
                         repr: self.scalar_repr_for_const(value),
-                        role: mir2::ScalarRole::Plain,
+                        role: mir::ScalarRole::Plain,
                     })
                 }),
             }),
@@ -242,12 +255,12 @@ impl<'a, 'db> FunctionEmitter<'a, 'db> {
                 Ok(RenderedValue {
                     setup: value.setup,
                     value: value.value,
-                    class: YulValueClass::Word(mir2::ScalarClass {
-                        repr: mir2::ScalarRepr::Int {
+                    class: YulValueClass::Word(mir::ScalarClass {
+                        repr: mir::ScalarRepr::Int {
                             bits: 256,
                             signed: false,
                         },
-                        role: mir2::ScalarRole::Plain,
+                        role: mir::ScalarRole::Plain,
                     }),
                 })
             }
@@ -322,9 +335,9 @@ impl<'a, 'db> FunctionEmitter<'a, 'db> {
             YExpr::EnumIsVariant { value, variant } => {
                 let tag = self.enum_tag_of_value(*value)?;
                 let cmp = format!("eq({}, {})", tag.value, variant.index);
-                let class = YulValueClass::Word(mir2::ScalarClass {
-                    repr: mir2::ScalarRepr::Bool,
-                    role: mir2::ScalarRole::Plain,
+                let class = YulValueClass::Word(mir::ScalarClass {
+                    repr: mir::ScalarRepr::Bool,
+                    role: mir::ScalarRole::Plain,
                 });
                 Ok(RenderedValue {
                     setup: tag.setup,
@@ -391,7 +404,7 @@ impl<'a, 'db> FunctionEmitter<'a, 'db> {
         &self,
         place: &YulPlace<'db>,
         space: YulAddressSpace,
-        layout: mir2::LayoutId<'db>,
+        layout: mir::LayoutId<'db>,
     ) -> Result<YulValueClass<'db>, YulError> {
         let RuntimeClass::AggregateValue {
             layout: source_layout,
@@ -714,9 +727,9 @@ impl<'a, 'db> FunctionEmitter<'a, 'db> {
                     root,
                     YulAddressSpace::Memory,
                     match class {
-                        mir2::RuntimeClass::AggregateValue { layout } => Some(*layout),
-                        mir2::RuntimeClass::Ref { pointee, .. } => pointee.aggregate_layout(),
-                        mir2::RuntimeClass::Scalar(_) | mir2::RuntimeClass::RawAddr { .. } => None,
+                        mir::RuntimeClass::AggregateValue { layout } => Some(*layout),
+                        mir::RuntimeClass::Ref { pointee, .. } => pointee.aggregate_layout(),
+                        mir::RuntimeClass::Scalar(_) | mir::RuntimeClass::RawAddr { .. } => None,
                     },
                 )
             }
@@ -930,9 +943,9 @@ impl<'a, 'db> FunctionEmitter<'a, 'db> {
 
     pub(super) fn enum_tag_class(
         &self,
-        layout: mir2::LayoutId<'db>,
-    ) -> Result<mir2::ScalarClass<'db>, YulError> {
-        let mir2::Layout::Enum(data) = layout.data(self.db) else {
+        layout: mir::LayoutId<'db>,
+    ) -> Result<mir::ScalarClass<'db>, YulError> {
+        let mir::Layout::Enum(data) = layout.data(self.db) else {
             return Err(YulError::Layout(format!(
                 "enum tag requested for non-enum layout `{layout:?}`"
             )));
@@ -994,7 +1007,7 @@ impl<'a, 'db> FunctionEmitter<'a, 'db> {
                     value.value,
                     self.signed_min_literal(word)?
                 ),
-                vec![YulDoc::line("revert(0, 0)")],
+                panic_revert_docs(PANIC_OVERFLOW),
             ));
         }
         Ok(RenderedValue {
@@ -1161,13 +1174,32 @@ impl<'a, 'db> FunctionEmitter<'a, 'db> {
             word,
         );
         setup.push(YulDoc::line(format!("let {temp} := {raw}")));
-        setup.push(YulDoc::block(
-            format!(
-                "if {} ",
-                self.checked_overflow_cond(op, &lhs.value, &rhs.value, &temp, word)?
-            ),
-            vec![YulDoc::line("revert(0, 0)")],
-        ));
+        if matches!(op, BinOp::Arith(ArithBinOp::Div | ArithBinOp::Rem)) {
+            setup.push(YulDoc::block(
+                format!("if iszero({}) ", rhs.value),
+                panic_revert_docs(PANIC_DIVISION_BY_ZERO),
+            ));
+            if matches!(op, BinOp::Arith(ArithBinOp::Div)) && self.scalar_is_signed(word) {
+                setup.push(YulDoc::block(
+                    format!(
+                        "if and(eq({}, {}), eq({}, {})) ",
+                        lhs.value,
+                        self.signed_min_literal(word)?,
+                        rhs.value,
+                        self.signed_neg_one_literal(word)?,
+                    ),
+                    panic_revert_docs(PANIC_OVERFLOW),
+                ));
+            }
+        } else {
+            setup.push(YulDoc::block(
+                format!(
+                    "if {} ",
+                    self.checked_overflow_cond(op, &lhs.value, &rhs.value, &temp, word)?
+                ),
+                panic_revert_docs(PANIC_OVERFLOW),
+            ));
+        }
         Ok(RenderedValue {
             setup,
             value: temp,
@@ -1213,10 +1245,7 @@ impl<'a, 'db> FunctionEmitter<'a, 'db> {
                 "let {raw} := {}",
                 self.canonicalize_scalar_expr(format!("mul({result}, {})", lhs.value), word)
             )),
-            YulDoc::block(
-                format!("if {overflow} "),
-                vec![YulDoc::line("revert(0, 0)")],
-            ),
+            YulDoc::block(format!("if {overflow} "), panic_revert_docs(PANIC_OVERFLOW)),
             YulDoc::line(format!("{result} := {raw}")),
         ];
         setup.push(YulDoc::block(
@@ -1235,23 +1264,23 @@ impl<'a, 'db> FunctionEmitter<'a, 'db> {
 
     fn render_intrinsic_arith(
         &mut self,
-        op: mir2::IntrinsicArithBinOp,
+        op: mir::IntrinsicArithBinOp,
         checked: bool,
         lhs: YLocalId,
         rhs: YLocalId,
-        class: mir2::ScalarClass<'db>,
+        class: mir::ScalarClass<'db>,
     ) -> Result<RenderedValue<'db>, YulError> {
         if checked {
             let lhs = self.local_value(lhs)?;
             let rhs = self.local_value(rhs)?;
             return self.render_checked_binary_value(
                 BinOp::Arith(match op {
-                    mir2::IntrinsicArithBinOp::Add => ArithBinOp::Add,
-                    mir2::IntrinsicArithBinOp::Sub => ArithBinOp::Sub,
-                    mir2::IntrinsicArithBinOp::Mul => ArithBinOp::Mul,
-                    mir2::IntrinsicArithBinOp::Div => ArithBinOp::Div,
-                    mir2::IntrinsicArithBinOp::Rem => ArithBinOp::Rem,
-                    mir2::IntrinsicArithBinOp::Pow => ArithBinOp::Pow,
+                    mir::IntrinsicArithBinOp::Add => ArithBinOp::Add,
+                    mir::IntrinsicArithBinOp::Sub => ArithBinOp::Sub,
+                    mir::IntrinsicArithBinOp::Mul => ArithBinOp::Mul,
+                    mir::IntrinsicArithBinOp::Div => ArithBinOp::Div,
+                    mir::IntrinsicArithBinOp::Rem => ArithBinOp::Rem,
+                    mir::IntrinsicArithBinOp::Pow => ArithBinOp::Pow,
                 }),
                 lhs,
                 rhs,
@@ -1263,24 +1292,24 @@ impl<'a, 'db> FunctionEmitter<'a, 'db> {
         let mut setup = lhs.setup;
         setup.extend(rhs.setup);
         let value = match op {
-            mir2::IntrinsicArithBinOp::Add => format!("add({}, {})", lhs.value, rhs.value),
-            mir2::IntrinsicArithBinOp::Sub => format!("sub({}, {})", lhs.value, rhs.value),
-            mir2::IntrinsicArithBinOp::Mul => format!("mul({}, {})", lhs.value, rhs.value),
-            mir2::IntrinsicArithBinOp::Div => {
+            mir::IntrinsicArithBinOp::Add => format!("add({}, {})", lhs.value, rhs.value),
+            mir::IntrinsicArithBinOp::Sub => format!("sub({}, {})", lhs.value, rhs.value),
+            mir::IntrinsicArithBinOp::Mul => format!("mul({}, {})", lhs.value, rhs.value),
+            mir::IntrinsicArithBinOp::Div => {
                 if self.scalar_is_signed(&class) {
                     format!("sdiv({}, {})", lhs.value, rhs.value)
                 } else {
                     format!("div({}, {})", lhs.value, rhs.value)
                 }
             }
-            mir2::IntrinsicArithBinOp::Rem => {
+            mir::IntrinsicArithBinOp::Rem => {
                 if self.scalar_is_signed(&class) {
                     format!("smod({}, {})", lhs.value, rhs.value)
                 } else {
                     format!("mod({}, {})", lhs.value, rhs.value)
                 }
             }
-            mir2::IntrinsicArithBinOp::Pow => format!("exp({}, {})", lhs.value, rhs.value),
+            mir::IntrinsicArithBinOp::Pow => format!("exp({}, {})", lhs.value, rhs.value),
         };
         Ok(RenderedValue {
             setup,
@@ -1291,10 +1320,10 @@ impl<'a, 'db> FunctionEmitter<'a, 'db> {
 
     fn render_saturating_builtin(
         &mut self,
-        op: mir2::SaturatingBinOp,
+        op: mir::SaturatingBinOp,
         lhs: YLocalId,
         rhs: YLocalId,
-        class: mir2::ScalarClass<'db>,
+        class: mir::ScalarClass<'db>,
     ) -> Result<RenderedValue<'db>, YulError> {
         let lhs = self.local_value(lhs)?;
         let rhs = self.local_value(rhs)?;
@@ -1303,18 +1332,18 @@ impl<'a, 'db> FunctionEmitter<'a, 'db> {
         let temp = self.state.alloc_temp();
         let raw = self.canonicalize_scalar_expr(
             match op {
-                mir2::SaturatingBinOp::Add => format!("add({}, {})", lhs.value, rhs.value),
-                mir2::SaturatingBinOp::Sub => format!("sub({}, {})", lhs.value, rhs.value),
-                mir2::SaturatingBinOp::Mul => format!("mul({}, {})", lhs.value, rhs.value),
+                mir::SaturatingBinOp::Add => format!("add({}, {})", lhs.value, rhs.value),
+                mir::SaturatingBinOp::Sub => format!("sub({}, {})", lhs.value, rhs.value),
+                mir::SaturatingBinOp::Mul => format!("mul({}, {})", lhs.value, rhs.value),
             },
             &class,
         );
         setup.push(YulDoc::line(format!("let {temp} := {raw}")));
         let overflow = self.checked_overflow_cond(
             match op {
-                mir2::SaturatingBinOp::Add => BinOp::Arith(ArithBinOp::Add),
-                mir2::SaturatingBinOp::Sub => BinOp::Arith(ArithBinOp::Sub),
-                mir2::SaturatingBinOp::Mul => BinOp::Arith(ArithBinOp::Mul),
+                mir::SaturatingBinOp::Add => BinOp::Arith(ArithBinOp::Add),
+                mir::SaturatingBinOp::Sub => BinOp::Arith(ArithBinOp::Sub),
+                mir::SaturatingBinOp::Mul => BinOp::Arith(ArithBinOp::Mul),
             },
             &lhs.value,
             &rhs.value,
@@ -1323,20 +1352,20 @@ impl<'a, 'db> FunctionEmitter<'a, 'db> {
         )?;
         if self.scalar_is_signed(&class) {
             let (when_true, when_false) = match op {
-                mir2::SaturatingBinOp::Add | mir2::SaturatingBinOp::Sub => (
+                mir::SaturatingBinOp::Add | mir::SaturatingBinOp::Sub => (
                     self.signed_max_literal(&class)?,
                     self.signed_min_literal(&class)?,
                 ),
-                mir2::SaturatingBinOp::Mul => (
+                mir::SaturatingBinOp::Mul => (
                     self.signed_max_literal(&class)?,
                     self.signed_min_literal(&class)?,
                 ),
             };
             let sign_cond = match op {
-                mir2::SaturatingBinOp::Add | mir2::SaturatingBinOp::Sub => {
+                mir::SaturatingBinOp::Add | mir::SaturatingBinOp::Sub => {
                     format!("iszero(slt({}, 0))", lhs.value)
                 }
-                mir2::SaturatingBinOp::Mul => {
+                mir::SaturatingBinOp::Mul => {
                     format!("eq(slt({}, 0), slt({}, 0))", lhs.value, rhs.value)
                 }
             };
@@ -1355,10 +1384,10 @@ impl<'a, 'db> FunctionEmitter<'a, 'db> {
             ));
         } else {
             let replacement = match op {
-                mir2::SaturatingBinOp::Add | mir2::SaturatingBinOp::Mul => {
+                mir::SaturatingBinOp::Add | mir::SaturatingBinOp::Mul => {
                     self.unsigned_max_literal(&class)?
                 }
-                mir2::SaturatingBinOp::Sub => "0".to_string(),
+                mir::SaturatingBinOp::Sub => "0".to_string(),
             };
             setup.push(YulDoc::block(
                 format!("if {overflow} "),
@@ -1378,7 +1407,7 @@ impl<'a, 'db> FunctionEmitter<'a, 'db> {
         lhs: &str,
         rhs: &str,
         raw: &str,
-        word: &mir2::ScalarClass<'db>,
+        word: &mir::ScalarClass<'db>,
     ) -> Result<String, YulError> {
         let signed = self.scalar_is_signed(word);
         Ok(match op {
@@ -1420,30 +1449,30 @@ impl<'a, 'db> FunctionEmitter<'a, 'db> {
         })
     }
 
-    fn scalar_is_signed(&self, class: &mir2::ScalarClass<'db>) -> bool {
-        matches!(class.repr, mir2::ScalarRepr::Int { signed: true, .. })
+    fn scalar_is_signed(&self, class: &mir::ScalarClass<'db>) -> bool {
+        matches!(class.repr, mir::ScalarRepr::Int { signed: true, .. })
     }
 
-    fn unsigned_max_literal(&self, class: &mir2::ScalarClass<'db>) -> Result<String, YulError> {
+    fn unsigned_max_literal(&self, class: &mir::ScalarClass<'db>) -> Result<String, YulError> {
         match class.repr {
-            mir2::ScalarRepr::Bool => Ok("1".to_string()),
-            mir2::ScalarRepr::Int {
+            mir::ScalarRepr::Bool => Ok("1".to_string()),
+            mir::ScalarRepr::Int {
                 bits,
                 signed: false,
             }
-            | mir2::ScalarRepr::Address { bits } => {
+            | mir::ScalarRepr::Address { bits } => {
                 let bytes = bits.div_ceil(8) as usize;
                 Ok(format!("0x{}", "ff".repeat(bytes)))
             }
-            mir2::ScalarRepr::FixedBytes { len } => Ok(format!("0x{}", "ff".repeat(len as usize))),
-            mir2::ScalarRepr::Int { signed: true, .. } => Err(YulError::Unsupported(
+            mir::ScalarRepr::FixedBytes { len } => Ok(format!("0x{}", "ff".repeat(len as usize))),
+            mir::ScalarRepr::Int { signed: true, .. } => Err(YulError::Unsupported(
                 "unsigned max literal requested for signed scalar".to_string(),
             )),
         }
     }
 
-    fn signed_min_literal(&self, class: &mir2::ScalarClass<'db>) -> Result<String, YulError> {
-        let mir2::ScalarRepr::Int { bits, signed: true } = class.repr else {
+    fn signed_min_literal(&self, class: &mir::ScalarClass<'db>) -> Result<String, YulError> {
+        let mir::ScalarRepr::Int { bits, signed: true } = class.repr else {
             return Err(YulError::Unsupported(
                 "signed min literal requires a signed integer scalar".to_string(),
             ));
@@ -1459,8 +1488,8 @@ impl<'a, 'db> FunctionEmitter<'a, 'db> {
         ))
     }
 
-    fn signed_max_literal(&self, class: &mir2::ScalarClass<'db>) -> Result<String, YulError> {
-        let mir2::ScalarRepr::Int { bits, signed: true } = class.repr else {
+    fn signed_max_literal(&self, class: &mir::ScalarClass<'db>) -> Result<String, YulError> {
+        let mir::ScalarRepr::Int { bits, signed: true } = class.repr else {
             return Err(YulError::Unsupported(
                 "signed max literal requires a signed integer scalar".to_string(),
             ));
@@ -1469,8 +1498,8 @@ impl<'a, 'db> FunctionEmitter<'a, 'db> {
         Ok(format!("0x7f{}", "ff".repeat(bytes - 1)))
     }
 
-    fn signed_neg_one_literal(&self, class: &mir2::ScalarClass<'db>) -> Result<String, YulError> {
-        let mir2::ScalarRepr::Int { signed: true, .. } = class.repr else {
+    fn signed_neg_one_literal(&self, class: &mir::ScalarClass<'db>) -> Result<String, YulError> {
+        let mir::ScalarRepr::Int { signed: true, .. } = class.repr else {
             return Err(YulError::Unsupported(
                 "signed -1 literal requires a signed integer scalar".to_string(),
             ));
@@ -1478,18 +1507,18 @@ impl<'a, 'db> FunctionEmitter<'a, 'db> {
         Ok(format!("0x{}", "ff".repeat(32)))
     }
 
-    fn cast_word_expr(&self, value: &str, to: &mir2::ScalarClass<'db>) -> String {
+    fn cast_word_expr(&self, value: &str, to: &mir::ScalarClass<'db>) -> String {
         self.canonicalize_scalar_expr(value.to_string(), to)
     }
 
     pub(super) fn canonicalize_scalar_expr(
         &self,
         value: String,
-        class: &mir2::ScalarClass<'db>,
+        class: &mir::ScalarClass<'db>,
     ) -> String {
         match class.repr {
-            mir2::ScalarRepr::Bool => format!("iszero(iszero({value}))"),
-            mir2::ScalarRepr::Int { bits, signed } => {
+            mir::ScalarRepr::Bool => format!("iszero(iszero({value}))"),
+            mir::ScalarRepr::Int { bits, signed } => {
                 if bits == 256 {
                     value
                 } else if signed {
@@ -1507,7 +1536,7 @@ impl<'a, 'db> FunctionEmitter<'a, 'db> {
                     value
                 }
             }
-            mir2::ScalarRepr::FixedBytes { .. } | mir2::ScalarRepr::Address { .. } => {
+            mir::ScalarRepr::FixedBytes { .. } | mir::ScalarRepr::Address { .. } => {
                 if let Some(mask) = Self::raw_word_mask(class) {
                     format!("and({value}, {mask})")
                 } else {
@@ -1517,42 +1546,42 @@ impl<'a, 'db> FunctionEmitter<'a, 'db> {
         }
     }
 
-    pub(super) fn const_scalar_expr(&self, value: &mir2::ConstScalar) -> String {
+    pub(super) fn const_scalar_expr(&self, value: &mir::ConstScalar) -> String {
         match value {
-            mir2::ConstScalar::Bool(flag) => u8::from(*flag).to_string(),
-            mir2::ConstScalar::Int { words, .. } => {
+            mir::ConstScalar::Bool(flag) => u8::from(*flag).to_string(),
+            mir::ConstScalar::Int { words, .. } => {
                 if words.is_empty() {
                     "0".to_string()
                 } else {
                     format!("0x{}", hex::encode(words))
                 }
             }
-            mir2::ConstScalar::FixedBytes(bytes) => format!("0x{}", hex::encode(bytes)),
-            mir2::ConstScalar::Address { bytes, .. } => format!("0x{}", hex::encode(bytes)),
+            mir::ConstScalar::FixedBytes(bytes) => format!("0x{}", hex::encode(bytes)),
+            mir::ConstScalar::Address { bytes, .. } => format!("0x{}", hex::encode(bytes)),
         }
     }
 
-    fn scalar_repr_for_const(&self, value: &mir2::ConstScalar) -> mir2::ScalarRepr {
+    fn scalar_repr_for_const(&self, value: &mir::ConstScalar) -> mir::ScalarRepr {
         match value {
-            mir2::ConstScalar::Bool(_) => mir2::ScalarRepr::Bool,
-            mir2::ConstScalar::Int { bits, signed, .. } => mir2::ScalarRepr::Int {
+            mir::ConstScalar::Bool(_) => mir::ScalarRepr::Bool,
+            mir::ConstScalar::Int { bits, signed, .. } => mir::ScalarRepr::Int {
                 bits: *bits,
                 signed: *signed,
             },
-            mir2::ConstScalar::FixedBytes(bytes) => mir2::ScalarRepr::FixedBytes {
+            mir::ConstScalar::FixedBytes(bytes) => mir::ScalarRepr::FixedBytes {
                 len: bytes.len() as u16,
             },
-            mir2::ConstScalar::Address { bits, .. } => mir2::ScalarRepr::Address { bits: *bits },
+            mir::ConstScalar::Address { bits, .. } => mir::ScalarRepr::Address { bits: *bits },
         }
     }
 
     fn word_u256_class(&self) -> YulValueClass<'db> {
-        YulValueClass::Word(mir2::ScalarClass {
-            repr: mir2::ScalarRepr::Int {
+        YulValueClass::Word(mir::ScalarClass {
+            repr: mir::ScalarRepr::Int {
                 bits: 256,
                 signed: false,
             },
-            role: mir2::ScalarRole::Plain,
+            role: mir::ScalarRole::Plain,
         })
     }
 }

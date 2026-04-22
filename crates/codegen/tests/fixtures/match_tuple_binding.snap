@@ -108,7 +108,9 @@ object "main" {
             v2 := and(v11, 0xff)
             let t40 := and(add(and(v2, 0xff), and(v3, 0xff)), 0xff)
             if lt(t40, and(v2, 0xff)) {
-              revert(0, 0)
+              mstore(0, 0x4e487b7100000000000000000000000000000000000000000000000000000000)
+              mstore(4, 0x11)
+              revert(0, 36)
             }
             let v31 := t40
             let v18 := and(v31, 0xff)
@@ -119,7 +121,9 @@ object "main" {
             v5 := and(v15, 0xff)
             let t41 := and(add(and(v4, 0xff), and(v5, 0xff)), 0xff)
             if lt(t41, and(v4, 0xff)) {
-              revert(0, 0)
+              mstore(0, 0x4e487b7100000000000000000000000000000000000000000000000000000000)
+              mstore(4, 0x11)
+              revert(0, 36)
             }
             let v32 := t41
             let v19 := and(v32, 0xff)
@@ -146,7 +150,9 @@ object "main" {
           v2 := and(v23, 0xff)
           let t44 := and(add(and(v2, 0xff), and(v3, 0xff)), 0xff)
           if lt(t44, and(v2, 0xff)) {
-            revert(0, 0)
+            mstore(0, 0x4e487b7100000000000000000000000000000000000000000000000000000000)
+            mstore(4, 0x11)
+            revert(0, 36)
           }
           let v33 := t44
           let v24 := and(v33, 0xff)
@@ -159,7 +165,9 @@ object "main" {
           v4 := and(v25, 0xff)
           let t46 := and(add(and(v4, 0xff), and(v5, 0xff)), 0xff)
           if lt(t46, and(v4, 0xff)) {
-            revert(0, 0)
+            mstore(0, 0x4e487b7100000000000000000000000000000000000000000000000000000000)
+            mstore(4, 0x11)
+            revert(0, 36)
           }
           let v34 := t46
           let v26 := and(v34, 0xff)
@@ -217,7 +225,9 @@ object "main" {
           let v4 := and(v10, 0xff)
           let t20 := and(add(and(v3, 0xff), and(v4, 0xff)), 0xff)
           if lt(t20, and(v3, 0xff)) {
-            revert(0, 0)
+            mstore(0, 0x4e487b7100000000000000000000000000000000000000000000000000000000)
+            mstore(4, 0x11)
+            revert(0, 36)
           }
           let v16 := t20
           let v13 := and(v16, 0xff)

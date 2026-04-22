@@ -9,7 +9,7 @@ use common::{
 use driver::cli_target::{CliTarget, resolve_cli_target};
 use driver::{DriverDataBase, MirDiagnosticsMode};
 use hir::hir_def::{HirIngot, TopLevelMod};
-use mir2::build_runtime_package;
+use mir::build_runtime_package;
 use salsa::Setter;
 use url::Url;
 

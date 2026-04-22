@@ -75,7 +75,9 @@ object "main" {
       for { let t7 := 0 } lt(t7, v3) { t7 := add(t7, 1) } {
         let t8 := mul(t6, v2)
         if and(iszero(iszero(t6)), iszero(eq(div(t8, t6), v2))) {
-          revert(0, 0)
+          mstore(0, 0x4e487b7100000000000000000000000000000000000000000000000000000000)
+          mstore(4, 0x11)
+          revert(0, 36)
         }
         t6 := t8
       }

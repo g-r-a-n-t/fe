@@ -6,8 +6,8 @@ use hir::analysis::{
 };
 use hir::hir_def::{BinOp, TopLevelMod, UnOp};
 use hir::projection::{IndexSource, Projection, ProjectionPath};
-use mir2::runtime::RefKind;
-use mir2::{
+use mir::runtime::RefKind;
+use mir::{
     AddressSpaceKind, ConstNode, ConstRegionId, ConstScalar, IntrinsicArithBinOp, Layout, LayoutId,
     PlaceElem, PlaceRoot, RExpr, RLocalId, RStmt, RTerminator, RValueId, ResolvedPlaceElem,
     ResolvedPlaceRootKind, RuntimeBuiltin, RuntimeClass, RuntimeCodeRegion, RuntimeFunction,
@@ -773,7 +773,7 @@ struct YulLegalizer<'pkg, 'db> {
     const_region_label_map: FxHashMap<ConstRegionId<'db>, String>,
     code_region_labels: Vec<(RuntimeCodeRegion<'db>, String)>,
     function_by_instance:
-        std::collections::HashMap<mir2::RuntimeInstance<'db>, RuntimeFunction<'db>>,
+        std::collections::HashMap<mir::RuntimeInstance<'db>, RuntimeFunction<'db>>,
     function_variants: Vec<Option<YulFunctionPlan<'db>>>,
     function_variant_map: std::collections::HashMap<YulFunctionKey<'db>, YFunctionId>,
 }
@@ -1180,8 +1180,8 @@ impl<'pkg, 'db> YulLegalizer<'pkg, 'db> {
             .iter()
             .map(|local| LocalValueInfo {
                 class: match &local.carrier {
-                    mir2::RuntimeCarrier::Erased => None,
-                    mir2::RuntimeCarrier::Value(class) => {
+                    mir::RuntimeCarrier::Erased => None,
+                    mir::RuntimeCarrier::Value(class) => {
                         Some(yul_class_for_runtime_class(self.db, class))
                     }
                 },
@@ -1318,7 +1318,7 @@ impl<'pkg, 'db> YulLegalizer<'pkg, 'db> {
     fn code_backable_locals(
         &self,
         runtime_function: RuntimeFunction<'db>,
-        body: &mir2::RuntimeBody<'db>,
+        body: &mir::RuntimeBody<'db>,
     ) -> Vec<bool> {
         let Some(semantic) = runtime_function
             .instance(self.db)
@@ -1336,10 +1336,10 @@ impl<'pkg, 'db> YulLegalizer<'pkg, 'db> {
             .enumerate()
             .map(|(idx, local)| {
                 let aggregate_like = match &local.carrier {
-                    mir2::RuntimeCarrier::Value(class) => {
+                    mir::RuntimeCarrier::Value(class) => {
                         Some(yul_class_for_runtime_class(self.db, class))
                     }
-                    mir2::RuntimeCarrier::Erased => None,
+                    mir::RuntimeCarrier::Erased => None,
                 }
                 .is_some_and(|class| {
                     matches!(
@@ -1579,7 +1579,7 @@ impl<'pkg, 'db> YulLegalizer<'pkg, 'db> {
                 expr:
                     RExpr::Load {
                         place:
-                            mir2::RuntimePlace {
+                            mir::RuntimePlace {
                                 root: PlaceRoot::Ref(value),
                                 path,
                             },
@@ -1605,7 +1605,7 @@ impl<'pkg, 'db> YulLegalizer<'pkg, 'db> {
 
     fn capture_pending_aggregate_stmt(
         &mut self,
-        body: &mir2::RuntimeBody<'db>,
+        body: &mir::RuntimeBody<'db>,
         code_backable_locals: &[bool],
         local_values: &mut [LocalValueInfo<'db>],
         pending: &mut Vec<PendingAggregateObject<'db>>,
@@ -1807,14 +1807,14 @@ impl<'pkg, 'db> YulLegalizer<'pkg, 'db> {
         }
     }
 
-    fn const_object_handle_root(&self, place: &mir2::RuntimePlace<'db>) -> Option<RLocalId> {
+    fn const_object_handle_root(&self, place: &mir::RuntimePlace<'db>) -> Option<RLocalId> {
         match place.root {
             PlaceRoot::Ref(local) => Some(local),
             PlaceRoot::Slot(_) | PlaceRoot::Provider(_) | PlaceRoot::Ptr { .. } => None,
         }
     }
 
-    fn const_object_path(&self, place: &mir2::RuntimePlace<'db>) -> Option<Box<[PlaceElem<'db>]>> {
+    fn const_object_path(&self, place: &mir::RuntimePlace<'db>) -> Option<Box<[PlaceElem<'db>]>> {
         let mut path = Vec::with_capacity(place.path.len());
         for elem in place.path.iter() {
             match elem {
@@ -2233,7 +2233,7 @@ impl<'pkg, 'db> YulLegalizer<'pkg, 'db> {
 
     fn legalize_runtime_stmt(
         &mut self,
-        body: &mir2::RuntimeBody<'db>,
+        body: &mir::RuntimeBody<'db>,
         local_values: &mut [LocalValueInfo<'db>],
         code_backable_locals: &[bool],
         stmt: &RStmt<'db>,
@@ -2319,7 +2319,7 @@ impl<'pkg, 'db> YulLegalizer<'pkg, 'db> {
 
     fn legalize_runtime_expr(
         &mut self,
-        body: &mir2::RuntimeBody<'db>,
+        body: &mir::RuntimeBody<'db>,
         local_values: &[LocalValueInfo<'db>],
         code_backable_locals: &[bool],
         dst: Option<RLocalId>,
@@ -2758,11 +2758,11 @@ impl<'pkg, 'db> YulLegalizer<'pkg, 'db> {
 
     fn legalize_place(
         &self,
-        body: &mir2::RuntimeBody<'db>,
+        body: &mir::RuntimeBody<'db>,
         local_values: &[LocalValueInfo<'db>],
-        place: &mir2::RuntimePlace<'db>,
+        place: &mir::RuntimePlace<'db>,
     ) -> Result<(YulPlace<'db>, YTransportInfo<'db>), YulError> {
-        let program = &(self.db as &dyn mir2::MirDb);
+        let program = &(self.db as &dyn mir::MirDb);
         let resolved = resolve_runtime_place(self.db, program, body, place).map_err(|err| {
             YulError::InvalidYulPackage(format!(
                 "failed to resolve runtime place `{place:?}`: {err:?}"
@@ -2969,11 +2969,11 @@ impl<'pkg, 'db> YulLegalizer<'pkg, 'db> {
 
     fn legalize_local_root(
         &self,
-        local: &mir2::RLocal<'db>,
+        local: &mir::RLocal<'db>,
         info: &LocalValueInfo<'db>,
     ) -> YulLocalRoot<'db> {
         match &local.root {
-            mir2::RuntimeLocalRoot::None => {
+            mir::RuntimeLocalRoot::None => {
                 if let Some(class) = info.class.clone()
                     && let Some(space) = info.transport.root_alias
                     && !matches!(class, YulValueClass::Word(_))
@@ -2985,7 +2985,7 @@ impl<'pkg, 'db> YulLegalizer<'pkg, 'db> {
                     YulLocalRoot::None
                 }
             }
-            mir2::RuntimeLocalRoot::Slot(class) => {
+            mir::RuntimeLocalRoot::Slot(class) => {
                 if let Some(value_class) = info.class.clone()
                     && let Some(space) = yul_non_memory_root_space(&value_class, &info.transport)
                     && !matches!(value_class, YulValueClass::Word(_))
@@ -2999,10 +2999,10 @@ impl<'pkg, 'db> YulLegalizer<'pkg, 'db> {
                     }
                 }
             }
-            mir2::RuntimeLocalRoot::Ref(class) => YulLocalRoot::PtrRoot {
+            mir::RuntimeLocalRoot::Ref(class) => YulLocalRoot::PtrRoot {
                 class: yul_class_for_runtime_class(self.db, class),
             },
-            mir2::RuntimeLocalRoot::Ptr { space, class } => YulLocalRoot::PtrRoot {
+            mir::RuntimeLocalRoot::Ptr { space, class } => YulLocalRoot::PtrRoot {
                 class: specialize_yul_class_root(
                     yul_class_for_runtime_class(self.db, class),
                     Some(yul_space_from_runtime(*space)),
@@ -3095,7 +3095,7 @@ fn pointer_word_class<'db>() -> YulValueClass<'db> {
             bits: 256,
             signed: false,
         },
-        role: mir2::ScalarRole::Plain,
+        role: mir::ScalarRole::Plain,
     })
 }
 
@@ -3111,7 +3111,7 @@ fn yul_place_root_class<'db>(
 
 fn yul_place_uses_packed_byte_access<'db>(
     db: &'db DriverDataBase,
-    resolved: &mir2::ResolvedRuntimePlace<'db>,
+    resolved: &mir::ResolvedRuntimePlace<'db>,
     space: YulAddressSpace,
     target: TargetDataLayout,
 ) -> bool {

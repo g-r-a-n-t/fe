@@ -20,9 +20,9 @@ use super::{
 pub(super) struct PackageIndex<'a, 'db> {
     pub(super) db: &'db DriverDataBase,
     functions: HashMap<YFunctionId, &'a YulFunctionPlan<'db>>,
-    sections: HashMap<(String, mir2::RuntimeSectionName), &'a YulSectionPlan<'db>>,
-    const_region_labels: HashMap<mir2::ConstRegionId<'db>, &'a str>,
-    code_region_labels: HashMap<mir2::RuntimeCodeRegion<'db>, &'a str>,
+    sections: HashMap<(String, mir::RuntimeSectionName), &'a YulSectionPlan<'db>>,
+    const_region_labels: HashMap<mir::ConstRegionId<'db>, &'a str>,
+    code_region_labels: HashMap<mir::RuntimeCodeRegion<'db>, &'a str>,
 }
 
 impl<'a, 'db> PackageIndex<'a, 'db> {
@@ -76,7 +76,7 @@ impl<'a, 'db> PackageIndex<'a, 'db> {
     pub(super) fn section(
         &self,
         object: &str,
-        section: &mir2::RuntimeSectionName,
+        section: &mir::RuntimeSectionName,
     ) -> Result<&'a YulSectionPlan<'db>, YulError> {
         self.sections
             .get(&(object.to_string(), section.clone()))
@@ -88,10 +88,7 @@ impl<'a, 'db> PackageIndex<'a, 'db> {
             })
     }
 
-    pub(super) fn const_label(
-        &self,
-        region: mir2::ConstRegionId<'db>,
-    ) -> Result<&'a str, YulError> {
+    pub(super) fn const_label(&self, region: mir::ConstRegionId<'db>) -> Result<&'a str, YulError> {
         self.const_region_labels
             .get(&region)
             .copied()
@@ -102,7 +99,7 @@ impl<'a, 'db> PackageIndex<'a, 'db> {
 
     pub(super) fn code_region_label(
         &self,
-        region: mir2::RuntimeCodeRegion<'db>,
+        region: mir::RuntimeCodeRegion<'db>,
     ) -> Result<&'a str, YulError> {
         self.code_region_labels
             .get(&region)
@@ -169,7 +166,7 @@ pub fn emit_test_runtime_package_yul<'db>(
         let Some(section) = object
             .sections
             .iter()
-            .find(|section| matches!(section.name, mir2::RuntimeSectionName::Test(_)))
+            .find(|section| matches!(section.name, mir::RuntimeSectionName::Test(_)))
         else {
             continue;
         };
@@ -232,8 +229,8 @@ fn root_objects_in_emit_order<'a, 'db>(
 fn render_root_object<'a, 'db>(
     index: &PackageIndex<'a, 'db>,
     object: &'a YulObjectPlan<'db>,
-    rendered_sections: &mut HashSet<(String, mir2::RuntimeSectionName)>,
-    stack: &mut Vec<(String, mir2::RuntimeSectionName)>,
+    rendered_sections: &mut HashSet<(String, mir::RuntimeSectionName)>,
+    stack: &mut Vec<(String, mir::RuntimeSectionName)>,
 ) -> Result<YulDoc, YulError> {
     let body = render_root_object_body(index, object, &object.name, rendered_sections, stack)?;
     Ok(YulDoc::block(format!("object \"{}\" ", object.name), body))
@@ -243,8 +240,8 @@ fn render_test_root_object<'a, 'db>(
     index: &PackageIndex<'a, 'db>,
     object: &'a YulObjectPlan<'db>,
     wrapper_name: &str,
-    rendered_sections: &mut HashSet<(String, mir2::RuntimeSectionName)>,
-    stack: &mut Vec<(String, mir2::RuntimeSectionName)>,
+    rendered_sections: &mut HashSet<(String, mir::RuntimeSectionName)>,
+    stack: &mut Vec<(String, mir::RuntimeSectionName)>,
 ) -> Result<YulDoc, YulError> {
     let runtime = YulDoc::block(
         "object \"runtime\" ",
@@ -267,8 +264,8 @@ fn render_root_object_body<'a, 'db>(
     index: &PackageIndex<'a, 'db>,
     object: &'a YulObjectPlan<'db>,
     object_label: &str,
-    rendered_sections: &mut HashSet<(String, mir2::RuntimeSectionName)>,
-    stack: &mut Vec<(String, mir2::RuntimeSectionName)>,
+    rendered_sections: &mut HashSet<(String, mir::RuntimeSectionName)>,
+    stack: &mut Vec<(String, mir::RuntimeSectionName)>,
 ) -> Result<Vec<YulDoc>, YulError> {
     let primary = object.sections.first().ok_or_else(|| {
         YulError::InvalidYulPackage(format!("object `{}` has no sections", object.name))
@@ -296,8 +293,8 @@ fn render_nested_section<'a, 'db>(
     index: &PackageIndex<'a, 'db>,
     section: &'a YulSectionPlan<'db>,
     label: String,
-    rendered_sections: &mut HashSet<(String, mir2::RuntimeSectionName)>,
-    stack: &mut Vec<(String, mir2::RuntimeSectionName)>,
+    rendered_sections: &mut HashSet<(String, mir::RuntimeSectionName)>,
+    stack: &mut Vec<(String, mir::RuntimeSectionName)>,
 ) -> Result<YulDoc, YulError> {
     let key = (section.object_name.clone(), section.name.clone());
     if stack.contains(&key) {
@@ -317,8 +314,8 @@ fn render_section_body<'a, 'db>(
     index: &PackageIndex<'a, 'db>,
     section: &'a YulSectionPlan<'db>,
     object_label: &str,
-    rendered_sections: &mut HashSet<(String, mir2::RuntimeSectionName)>,
-    stack: &mut Vec<(String, mir2::RuntimeSectionName)>,
+    rendered_sections: &mut HashSet<(String, mir::RuntimeSectionName)>,
+    stack: &mut Vec<(String, mir::RuntimeSectionName)>,
 ) -> Result<Vec<YulDoc>, YulError> {
     let mut body = vec![YulDoc::block(
         "code ",
@@ -389,11 +386,11 @@ fn render_section_entry<'a, 'db>(
         args.join(", ")
     );
     match section.name {
-        mir2::RuntimeSectionName::Init
-        | mir2::RuntimeSectionName::Runtime
-        | mir2::RuntimeSectionName::Main
-        | mir2::RuntimeSectionName::Test(_)
-        | mir2::RuntimeSectionName::CodeRegion(_) => {
+        mir::RuntimeSectionName::Init
+        | mir::RuntimeSectionName::Runtime
+        | mir::RuntimeSectionName::Main
+        | mir::RuntimeSectionName::Test(_)
+        | mir::RuntimeSectionName::CodeRegion(_) => {
             docs.push(YulDoc::line(call));
         }
     }

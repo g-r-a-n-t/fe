@@ -22,7 +22,7 @@ salsa.workspace = true
 smol_str.workspace = true
 hir.workspace = true
 rayon = "1"
-mir2.workspace = true
+mir.workspace = true
 cranelift-entity.workspace = true
 rustc-hash.workspace = true
 codegen = { path = "../codegen", package = "fe-codegen" }

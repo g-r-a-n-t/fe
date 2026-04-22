@@ -67,18 +67,20 @@ func private %retfoo(v0.i1, v1.i64) -> i64 {
         jump block10;
 
     block10:
-        (v21.i64, v22.i1) = uaddo v15 1.i64;
-        br v22 block11 block13;
+        (v25.i64, v26.i1) = uaddo v15 1.i64;
+        br v26 block11 block13;
 
     block11:
-        evm_revert 0.i256 0.i256;
+        mstore 0.i256 35408467139433450592217433187231851964531694900788300625387963629091585785856.i256 i256;
+        mstore 4.i256 17.i256 i256;
+        evm_revert 0.i256 36.i256;
 
     block12:
-        v18.i1 = eq v15 42.i64;
-        br v18 block8 block9;
+        v22.i1 = eq v15 42.i64;
+        br v22 block8 block9;
 
     block13:
-        return v21;
+        return v25;
 }
 
 

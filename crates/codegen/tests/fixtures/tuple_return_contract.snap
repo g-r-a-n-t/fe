@@ -60,7 +60,9 @@ object "TupleReturnContract" {
           let v4 := calldatasize()
           let t18 := sub(v4, v1)
           if gt(v1, v4) {
-            revert(0, 0)
+            mstore(0, 0x4e487b7100000000000000000000000000000000000000000000000000000000)
+            mstore(4, 0x11)
+            revert(0, 36)
           }
           let v5 := t18
           let t19 := mload(0x40)
@@ -116,7 +118,9 @@ object "TupleReturnContract" {
           let v5 := v11
           let t13 := add(v5, v1)
           if lt(t13, v5) {
-            revert(0, 0)
+            mstore(0, 0x4e487b7100000000000000000000000000000000000000000000000000000000)
+            mstore(4, 0x11)
+            revert(0, 36)
           }
           let v12 := t13
           let v6 := v12
@@ -276,7 +280,9 @@ object "TupleReturnContract" {
           let v32 := t56
           let t57 := sub(v32, v3)
           if gt(v3, v32) {
-            revert(0, 0)
+            mstore(0, 0x4e487b7100000000000000000000000000000000000000000000000000000000)
+            mstore(4, 0x11)
+            revert(0, 36)
           }
           let v33 := t57
           let v12 := v33
@@ -301,7 +307,9 @@ object "TupleReturnContract" {
           let v51 := t60
           let t61 := add(v51, v5)
           if lt(t61, v51) {
-            revert(0, 0)
+            mstore(0, 0x4e487b7100000000000000000000000000000000000000000000000000000000)
+            mstore(4, 0x11)
+            revert(0, 36)
           }
           let v52 := t61
           let v22 := v52
@@ -332,7 +340,9 @@ object "TupleReturnContract" {
           let v32 := t56
           let t57 := sub(v32, v3)
           if gt(v3, v32) {
-            revert(0, 0)
+            mstore(0, 0x4e487b7100000000000000000000000000000000000000000000000000000000)
+            mstore(4, 0x11)
+            revert(0, 36)
           }
           let v33 := t57
           let v12 := v33
@@ -357,7 +367,9 @@ object "TupleReturnContract" {
           let v51 := t60
           let t61 := add(v51, v5)
           if lt(t61, v51) {
-            revert(0, 0)
+            mstore(0, 0x4e487b7100000000000000000000000000000000000000000000000000000000)
+            mstore(4, 0x11)
+            revert(0, 36)
           }
           let v52 := t61
           let v22 := v52
@@ -388,7 +400,9 @@ object "TupleReturnContract" {
           let v32 := t56
           let t57 := sub(v32, v3)
           if gt(v3, v32) {
-            revert(0, 0)
+            mstore(0, 0x4e487b7100000000000000000000000000000000000000000000000000000000)
+            mstore(4, 0x11)
+            revert(0, 36)
           }
           let v33 := t57
           let v12 := v33
@@ -413,7 +427,9 @@ object "TupleReturnContract" {
           let v51 := t60
           let t61 := add(v51, v5)
           if lt(t61, v51) {
-            revert(0, 0)
+            mstore(0, 0x4e487b7100000000000000000000000000000000000000000000000000000000)
+            mstore(4, 0x11)
+            revert(0, 36)
           }
           let v52 := t61
           let v22 := v52
@@ -454,7 +470,9 @@ object "TupleReturnContract" {
         let v4 := v16
         let t26 := add(v3, v4)
         if lt(t26, v3) {
-          revert(0, 0)
+          mstore(0, 0x4e487b7100000000000000000000000000000000000000000000000000000000)
+          mstore(4, 0x11)
+          revert(0, 36)
         }
         let v17 := t26
         let v5 := v17
@@ -492,7 +510,9 @@ object "TupleReturnContract" {
         let v4 := v11
         let t17 := add(v3, v4)
         if lt(t17, v3) {
-          revert(0, 0)
+          mstore(0, 0x4e487b7100000000000000000000000000000000000000000000000000000000)
+          mstore(4, 0x11)
+          revert(0, 36)
         }
         let v12 := t17
         let v5 := v12
@@ -661,7 +681,9 @@ object "TupleReturnContract" {
         let v3 := v9
         let t14 := add(v1, v3)
         if lt(t14, v1) {
-          revert(0, 0)
+          mstore(0, 0x4e487b7100000000000000000000000000000000000000000000000000000000)
+          mstore(4, 0x11)
+          revert(0, 36)
         }
         let v10 := t14
         let v4 := v10
@@ -671,7 +693,9 @@ object "TupleReturnContract" {
         let v6 := v11
         let t16 := add(v4, v6)
         if lt(t16, v4) {
-          revert(0, 0)
+          mstore(0, 0x4e487b7100000000000000000000000000000000000000000000000000000000)
+          mstore(4, 0x11)
+          revert(0, 36)
         }
         let v12 := t16
         let v7 := v12
@@ -700,7 +724,9 @@ object "TupleReturnContract" {
         let v3 := v9
         let t14 := add(v1, v3)
         if lt(t14, v1) {
-          revert(0, 0)
+          mstore(0, 0x4e487b7100000000000000000000000000000000000000000000000000000000)
+          mstore(4, 0x11)
+          revert(0, 36)
         }
         let v10 := t14
         let v4 := v10
@@ -710,7 +736,9 @@ object "TupleReturnContract" {
         let v6 := v11
         let t16 := add(v4, v6)
         if lt(t16, v4) {
-          revert(0, 0)
+          mstore(0, 0x4e487b7100000000000000000000000000000000000000000000000000000000)
+          mstore(4, 0x11)
+          revert(0, 36)
         }
         let v12 := t16
         let v7 := v12

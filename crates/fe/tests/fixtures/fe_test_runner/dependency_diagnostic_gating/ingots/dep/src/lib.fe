@@ -1,0 +1,18 @@
+use core::abi::{Abi, AbiEncoder, AbiSize, Encode}
+
+pub enum Error {
+    Oops,
+}
+
+impl AbiSize for Error {
+    const ENCODED_SIZE: u256 = 32
+    const IS_DYNAMIC: bool = false
+}
+
+impl<A: Abi> Encode<A> for Error {
+    const DIRECT_ENCODE: bool = true
+
+    fn encode<E: AbiEncoder<A>>(own self, _ e: mut E) {}
+
+    fn encode_to_ptr(own self, _ ptr: u256) {}
+}

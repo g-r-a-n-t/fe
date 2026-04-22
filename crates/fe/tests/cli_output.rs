@@ -1612,6 +1612,30 @@ fn test_cli_test_workspace_ingot_missing_member_is_error() {
     );
 }
 
+#[test]
+fn test_cli_test_dependency_diagnostics_block_codegen() {
+    let fixture_dir = fe_test_runner_fixture_dir("dependency_diagnostic_gating");
+    let fixture_dir = fixture_dir.to_str().expect("fixture path should be utf-8");
+    let (output, exit_code) = run_fe_main(&["test", "--jobs", "1", "--ingot", "app", fixture_dir]);
+    assert_ne!(
+        exit_code, 0,
+        "expected dependency diagnostic failure:\n{output}"
+    );
+    assert!(
+        output.contains("Error: Errors in dependency"),
+        "expected dependency error:\n{output}"
+    );
+    assert!(
+        output.contains("associated const not defined in trait")
+            && output.contains("missing associated const `HEAD_SIZE`"),
+        "expected ABI trait diagnostics:\n{output}"
+    );
+    assert!(
+        !output.contains("backend panicked") && !output.contains("panicked at"),
+        "dependency diagnostics should block codegen before panic:\n{output}"
+    );
+}
+
 /// Regression test: `create2` of a contract defined in another ingot within
 /// the same workspace must compile and run correctly.
 #[test]

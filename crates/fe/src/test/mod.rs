@@ -4,6 +4,7 @@
 //! executes them using revm.
 
 use crate::TestEmit;
+use crate::dependency_diagnostics::DependencyIssues;
 use crate::report::{
     PanicReportGuard, ReportStaging, copy_input_into_report, create_dir_all_utf8,
     create_report_staging_root, enable_panic_report, is_verifier_error_text,
@@ -34,6 +35,7 @@ use rustc_hash::{FxHashMap, FxHashSet};
 use salsa::Setter;
 use solc_runner::compile_single_contract_with_solc;
 use std::{
+    collections::HashSet,
     fmt::Write as _,
     sync::Arc,
     time::{Duration, Instant},
@@ -2245,6 +2247,21 @@ fn prepare_tests_ingot(
         }
         return SuitePreparation {
             results: suite_error_result(suite, "compile", "Compilation errors".to_string()),
+            single_jobs: Vec::new(),
+            gas_comparison_cases: None,
+        };
+    }
+
+    let mut seen = HashSet::from([ingot_url.clone()]);
+    let dependency_errors = DependencyIssues::collect(db, &ingot_url, &mut seen);
+    if !dependency_errors.is_empty() {
+        let formatted = dependency_errors.format(db);
+        let _ = write!(output, "{formatted}");
+        if let Some(report) = report {
+            write_report_error(report, "compilation_errors.txt", &formatted);
+        }
+        return SuitePreparation {
+            results: suite_error_result(suite, "compile", dependency_errors.message().to_string()),
             single_jobs: Vec::new(),
             gas_comparison_cases: None,
         };

@@ -3,6 +3,7 @@ mod abi;
 mod build;
 mod check;
 mod cli;
+mod dependency_diagnostics;
 mod doc;
 #[cfg(feature = "doc-server")]
 mod doc_serve;

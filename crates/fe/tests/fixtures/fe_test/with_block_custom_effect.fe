@@ -1,0 +1,25 @@
+pub struct Counter {
+    pub value: u256,
+}
+
+pub fn main() {}
+
+fn inc() uses (counter: mut Counter) {
+    counter.value = counter.value + 1
+}
+
+fn read() -> u256 uses (counter: Counter) {
+    counter.value
+}
+
+#[test]
+fn test_with_block_custom_effect() {
+    let mut counter = Counter { value: 0 }
+
+    let out: u256 = with (Counter = counter) {
+        inc()
+        read()
+    }
+
+    assert(out == 1)
+}

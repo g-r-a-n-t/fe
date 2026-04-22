@@ -11,8 +11,8 @@ use common::{
     },
 };
 use hir::analysis::{
-    diagnostics::DiagnosticVoucher, initialize_analysis_pass,
-    semantic::collect_semantic_borrow_diagnostics,
+    analysis_pass::AnalysisPassManager, diagnostics::DiagnosticVoucher, initialize_analysis_pass,
+    semantic::SemanticBorrowAnalysisPass,
 };
 use hir::{
     Ingot,
@@ -62,23 +62,37 @@ impl DriverDataBase {
         top_mod: TopLevelMod<'db>,
         _mode: MirDiagnosticsMode,
     ) -> Vec<CompleteDiagnostic> {
-        collect_semantic_borrow_diagnostics(self, top_mod)
+        let mut pass_manager = initialize_mir_diagnostics_pass();
+        let mut diagnostics: Vec<_> = pass_manager
+            .run_on_module(self, top_mod)
+            .into_iter()
+            .map(|diag| diag.to_complete(self))
+            .collect();
+        sort_and_dedup_complete_diagnostics(&mut diagnostics);
+        diagnostics
     }
 
     pub fn mir_diagnostics_for_ingot<'db>(
         &'db self,
         ingot: Ingot<'db>,
-        mode: MirDiagnosticsMode,
+        _mode: MirDiagnosticsMode,
     ) -> Vec<CompleteDiagnostic> {
         // Empty ingots (e.g. deleted during incremental workspace changes)
         // have no root module to analyze.
-        let Some(root_data) = ingot.module_tree(self).root_data() else {
+        if ingot.module_tree(self).root_data().is_none() {
             return Vec::new();
         };
         if self.run_on_ingot(ingot).has_errors(self) {
             return Vec::new();
         }
-        self.mir_diagnostics_for_top_mod(root_data.top_mod, mode)
+        let mut pass_manager = initialize_mir_diagnostics_pass();
+        let mut diagnostics: Vec<_> = pass_manager
+            .run_on_module_tree(self, ingot.module_tree(self))
+            .into_iter()
+            .map(|diag| diag.to_complete(self))
+            .collect();
+        sort_and_dedup_complete_diagnostics(&mut diagnostics);
+        diagnostics
     }
 
     pub fn emit_complete_diagnostics(&self, diagnostics: &[CompleteDiagnostic]) {
@@ -110,6 +124,12 @@ impl DriverDataBase {
 
         trim_trailing_line_whitespace(std::str::from_utf8(buffer.as_slice()).unwrap())
     }
+}
+
+fn initialize_mir_diagnostics_pass() -> AnalysisPassManager {
+    let mut pass_manager = AnalysisPassManager::new();
+    pass_manager.add_module_pass("SemanticBorrow", Box::new(SemanticBorrowAnalysisPass));
+    pass_manager
 }
 
 pub struct DiagnosticsCollection<'db>(Vec<Box<dyn DiagnosticVoucher + 'db>>);

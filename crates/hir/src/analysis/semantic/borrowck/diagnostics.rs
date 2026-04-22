@@ -6,57 +6,51 @@ use cranelift_entity::EntityRef;
 use crate::{
     analysis::{
         HirAnalysisDb,
+        diagnostics::DiagnosticVoucher,
         diagnostics::SpannedHirAnalysisDb,
-        semantic::{NOperand, SemOrigin, SemanticInstance},
+        semantic::{NOperand, SLocalId, SemOrigin, SemanticInstance},
         ty::ty_check::BodyOwner,
     },
     hir_def::{Body, Partial},
     span::LazySpan,
 };
 
-use super::ir::{NormalizedSemanticBody, SemanticNormalizeError};
+use super::ir::{
+    BorrowDiagnosticId, NormalizedSemanticBody, SemanticBorrowDiagKind, SemanticBorrowDiagnostic,
+    SemanticBorrowDiagnosticLabel, SemanticBorrowDiagnosticSpan, SemanticNormalizeError,
+};
 
 pub(super) fn operand_origin<'db>(operand: NOperand, fallback: SemOrigin<'db>) -> SemOrigin<'db> {
     operand.origin.map_or(fallback, SemOrigin::Expr)
 }
 
 pub(super) fn normalized_body_internal_diag<'db>(
-    db: &'db dyn SpannedHirAnalysisDb,
+    db: &'db dyn HirAnalysisDb,
     instance: SemanticInstance<'db>,
     body: &NormalizedSemanticBody<'db>,
     origin: SemOrigin<'db>,
     message: String,
-) -> CompleteDiagnostic {
-    CompleteDiagnostic::new(
-        Severity::Error,
-        format!(
-            "internal borrow checking error in `fn {}`",
-            checker_name(db, instance)
-        ),
-        vec![SubDiagnostic::new(
-            LabelStyle::Primary,
-            message,
-            span_for_origin_from_body(db, instance.key(db).owner(db).body(db), origin).or_else(
-                || {
-                    body.template_owner
-                        .body(db)
-                        .and_then(|hir_body| hir_body.span().resolve(db))
-                },
-            ),
-        )],
-        Vec::new(),
-        GlobalErrorCode::new(DiagnosticPass::SemanticBorrowck, 4),
+) -> SemanticBorrowDiagnostic<'db> {
+    SemanticBorrowDiagnostic::new(
+        instance,
+        SemanticBorrowDiagKind::Internal,
+        message,
+        SemanticBorrowDiagnosticSpan::OriginWithTemplateFallback {
+            owner: instance.key(db).owner(db),
+            template_owner: body.template_owner,
+            origin,
+        },
     )
 }
 
 pub(super) fn normalize_error_to_diag<'db>(
-    db: &'db dyn SpannedHirAnalysisDb,
+    db: &'db dyn HirAnalysisDb,
     instance: SemanticInstance<'db>,
     err: SemanticNormalizeError<'db>,
-) -> CompleteDiagnostic {
+) -> SemanticBorrowDiagnostic<'db> {
     let owner = instance.key(db).owner(db);
     let hir_body = owner.body(db);
-    let (origin, message, span) = match err {
+    let (message, span) = match err {
         SemanticNormalizeError::MissingBorrowRoot { local } => {
             let message = if let Some(body) = hir_body
                 && let Some(raw_local) = instance.body(db).local(local)
@@ -69,16 +63,10 @@ pub(super) fn normalize_error_to_diag<'db>(
             } else {
                 format!("cannot normalize borrow roots for `%{}`", local.index())
             };
-            let span = hir_body
-                .and_then(|body| {
-                    instance
-                        .body(db)
-                        .local(local)
-                        .and_then(|local| local.source)
-                        .and_then(|source| source.def_span_in_body(body).resolve(db))
-                })
-                .or_else(|| hir_body.and_then(|body| body.span().resolve(db)));
-            (SemOrigin::Body(owner), message, span)
+            (
+                message,
+                SemanticBorrowDiagnosticSpan::LocalSourceOrBody { instance, local },
+            )
         }
         SemanticNormalizeError::IllegalCarrierPlace { local, origin } => {
             let message = if let Some(body) = hir_body
@@ -96,40 +84,155 @@ pub(super) fn normalize_error_to_diag<'db>(
                 )
             };
             (
-                origin,
                 message,
-                span_for_origin_from_body(db, hir_body, origin),
+                SemanticBorrowDiagnosticSpan::Origin { owner, origin },
             )
         }
         SemanticNormalizeError::LocalProvenanceCycle { local, .. } => (
-            SemOrigin::Body(owner),
             format!(
                 "detected a cycle while normalizing derived-place provenance for `%{}`",
                 local.index()
             ),
-            hir_body.and_then(|body| body.span().resolve(db)),
+            SemanticBorrowDiagnosticSpan::Origin {
+                owner,
+                origin: SemOrigin::Body(owner),
+            },
         ),
         SemanticNormalizeError::NonPlaceDerivedValue { local, base, .. } => (
-            SemOrigin::Body(owner),
             format!(
                 "cannot normalize derived-place provenance for `%{}` from non-place base `%{}`",
                 local.index(),
                 base.index()
             ),
-            hir_body.and_then(|body| body.span().resolve(db)),
+            SemanticBorrowDiagnosticSpan::Origin {
+                owner,
+                origin: SemOrigin::Body(owner),
+            },
         ),
     };
-    let _ = origin;
-    CompleteDiagnostic::new(
-        Severity::Error,
-        format!(
-            "internal borrow checking error in `fn {}`",
-            checker_name(db, instance)
-        ),
-        vec![SubDiagnostic::new(LabelStyle::Primary, message, span)],
-        Vec::new(),
-        GlobalErrorCode::new(DiagnosticPass::SemanticBorrowck, 4),
-    )
+    SemanticBorrowDiagnostic::new(instance, SemanticBorrowDiagKind::Internal, message, span)
+}
+
+impl<'db> SemanticBorrowDiagnostic<'db> {
+    pub(super) fn new(
+        instance: SemanticInstance<'db>,
+        kind: SemanticBorrowDiagKind,
+        message: String,
+        span: SemanticBorrowDiagnosticSpan<'db>,
+    ) -> Self {
+        Self {
+            kind,
+            instance,
+            primary: SemanticBorrowDiagnosticLabel { message, span },
+            secondaries: Vec::new(),
+        }
+    }
+
+    pub(super) fn push_secondary(
+        &mut self,
+        message: String,
+        span: SemanticBorrowDiagnosticSpan<'db>,
+    ) {
+        self.secondaries
+            .push(SemanticBorrowDiagnosticLabel { message, span });
+    }
+}
+
+impl DiagnosticVoucher for BorrowDiagnosticId<'_> {
+    fn to_complete(&self, db: &dyn SpannedHirAnalysisDb) -> CompleteDiagnostic {
+        self.diag(db).to_complete(db)
+    }
+}
+
+impl DiagnosticVoucher for SemanticBorrowDiagnostic<'_> {
+    fn to_complete(&self, db: &dyn SpannedHirAnalysisDb) -> CompleteDiagnostic {
+        let local_code = match self.kind {
+            SemanticBorrowDiagKind::BorrowConflict => 1,
+            SemanticBorrowDiagKind::MoveConflict => 2,
+            SemanticBorrowDiagKind::InvalidReturnBorrow => 3,
+            SemanticBorrowDiagKind::Internal => 4,
+        };
+        CompleteDiagnostic::new(
+            Severity::Error,
+            self.kind.header(db, self.instance),
+            std::iter::once(SubDiagnostic::new(
+                LabelStyle::Primary,
+                self.primary.message.clone(),
+                self.primary.span.resolve(db),
+            ))
+            .chain(self.secondaries.iter().map(|secondary| {
+                SubDiagnostic::new(
+                    LabelStyle::Secondary,
+                    secondary.message.clone(),
+                    secondary.span.resolve(db),
+                )
+            }))
+            .collect(),
+            Vec::new(),
+            GlobalErrorCode::new(DiagnosticPass::SemanticBorrowck, local_code),
+        )
+    }
+}
+
+impl SemanticBorrowDiagKind {
+    fn header<'db>(self, db: &'db dyn HirAnalysisDb, instance: SemanticInstance<'db>) -> String {
+        match self {
+            Self::BorrowConflict => {
+                format!("borrow conflict in `fn {}`", checker_name(db, instance))
+            }
+            Self::MoveConflict => format!("move conflict in `fn {}`", checker_name(db, instance)),
+            Self::InvalidReturnBorrow => {
+                format!(
+                    "invalid return borrow in `fn {}`",
+                    checker_name(db, instance)
+                )
+            }
+            Self::Internal => {
+                format!(
+                    "internal borrow checking error in `fn {}`",
+                    checker_name(db, instance)
+                )
+            }
+        }
+    }
+}
+
+impl<'db> SemanticBorrowDiagnosticSpan<'db> {
+    fn resolve(&self, db: &dyn SpannedHirAnalysisDb) -> Option<Span> {
+        match *self {
+            Self::Origin { owner, origin } => span_for_origin_from_body(db, owner.body(db), origin),
+            Self::OriginWithTemplateFallback {
+                owner,
+                template_owner,
+                origin,
+            } => span_for_origin_from_body(db, owner.body(db), origin).or_else(|| {
+                template_owner
+                    .body(db)
+                    .and_then(|hir_body| hir_body.span().resolve(db))
+            }),
+            Self::LocalSourceOrBody { instance, local } => {
+                resolve_local_source_span(db, instance, local)
+            }
+        }
+    }
+}
+
+fn resolve_local_source_span<'db>(
+    db: &'db dyn SpannedHirAnalysisDb,
+    instance: SemanticInstance<'db>,
+    local: SLocalId,
+) -> Option<Span> {
+    let owner = instance.key(db).owner(db);
+    let hir_body = owner.body(db);
+    hir_body
+        .and_then(|body| {
+            instance
+                .body(db)
+                .local(local)
+                .and_then(|local| local.source)
+                .and_then(|source| source.def_span_in_body(body).resolve(db))
+        })
+        .or_else(|| hir_body.and_then(|body| body.span().resolve(db)))
 }
 
 pub(super) fn span_for_origin_from_body<'db>(

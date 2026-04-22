@@ -1,12 +1,11 @@
 use std::convert::Infallible;
 
-use common::diagnostics::CompleteDiagnostic;
 use cranelift_entity::{EntityRef, SecondaryMap};
 use dataflow::{BackwardCfgAnalysis, ForwardCfgAnalysis, JoinSemiLattice, SparseAnalysis};
 use rustc_hash::{FxHashMap, FxHashSet};
 
 use crate::analysis::{
-    diagnostics::SpannedHirAnalysisDb,
+    HirAnalysisDb,
     semantic::{
         SBlockId, SLocalId, SemanticInstance,
         borrowck::ir::{NEffectArgValue, NExpr, NSStmtKind},
@@ -17,8 +16,8 @@ use crate::analysis::{
 
 use super::{
     canon::{BorrowCanonCx, CanonPlace, CfgAdjacency, Loan, LoanId, MovedPlaces, State},
-    check::{Borrowck, semantic_borrow_summary},
-    ir::{BorrowInputRef, NormalizedSemanticBody},
+    check::{Borrowck, semantic_borrow_summary_voucher},
+    ir::{BorrowInputRef, NormalizedSemanticBody, SemanticBorrowDiagnostic},
 };
 
 pub(super) struct BorrowLoanTargetState<'a, 'db> {
@@ -26,7 +25,7 @@ pub(super) struct BorrowLoanTargetState<'a, 'db> {
 }
 
 pub(super) struct BorrowLoanTargetAnalysis<'a, 'db> {
-    db: &'db dyn SpannedHirAnalysisDb,
+    db: &'db dyn HirAnalysisDb,
     instance: SemanticInstance<'db>,
     body: &'a NormalizedSemanticBody<'db>,
     entry_state: &'a SecondaryMap<SBlockId, State>,
@@ -35,7 +34,7 @@ pub(super) struct BorrowLoanTargetAnalysis<'a, 'db> {
 
 impl<'a, 'db> BorrowLoanTargetAnalysis<'a, 'db> {
     pub(super) fn new(
-        db: &'db dyn SpannedHirAnalysisDb,
+        db: &'db dyn HirAnalysisDb,
         instance: SemanticInstance<'db>,
         body: &'a NormalizedSemanticBody<'db>,
         entry_state: &'a SecondaryMap<SBlockId, State>,
@@ -80,7 +79,7 @@ impl<'a, 'db> BorrowLoanTargetAnalysis<'a, 'db> {
         loans: &mut [Loan<'db>],
         state: &State,
         stmt: &super::ir::NSStmt<'db>,
-    ) -> Result<bool, CompleteDiagnostic> {
+    ) -> Result<bool, SemanticBorrowDiagnostic<'db>> {
         let NSStmtKind::Assign { dst, expr } = &stmt.kind else {
             return Ok(false);
         };
@@ -103,7 +102,7 @@ impl<'a, 'db> BorrowLoanTargetAnalysis<'a, 'db> {
                 args,
                 effect_args,
             } => {
-                let summary = semantic_borrow_summary(
+                let summary = semantic_borrow_summary_voucher(
                     self.db,
                     get_or_build_semantic_instance(self.db, callee.key),
                 )?;
@@ -159,7 +158,7 @@ impl<'a, 'db> BorrowLoanTargetAnalysis<'a, 'db> {
 impl<'a, 'db> SparseAnalysis for BorrowLoanTargetAnalysis<'a, 'db> {
     type Node = SBlockId;
     type State = BorrowLoanTargetState<'a, 'db>;
-    type Error = CompleteDiagnostic;
+    type Error = SemanticBorrowDiagnostic<'db>;
 
     fn node_count(&self) -> usize {
         self.body.blocks.len()
@@ -279,7 +278,7 @@ impl<'a, 'db> BorrowMovedStateAnalysis<'a, 'db> {
 impl<'db> ForwardCfgAnalysis for BorrowMovedStateAnalysis<'_, 'db> {
     type Block = SBlockId;
     type State = MovedState<'db>;
-    type Error = CompleteDiagnostic;
+    type Error = SemanticBorrowDiagnostic<'db>;
 
     fn block_count(&self) -> usize {
         self.borrowck.body.blocks.len()

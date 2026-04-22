@@ -1,14 +1,13 @@
 use std::collections::VecDeque;
 
 use cranelift_entity::EntityRef;
-use fe_hir::test_db::HirAnalysisTestDb;
+use fe_hir::test_db::{HirAnalysisTestDb, format_diagnostics};
 use fe_hir::{
     analysis::{
-        diagnostics::format_diags,
         semantic::{
             BorrowInputRef, BorrowTransform, NBorrowRoot, NExpr, NLocalOrigin, NSStmtKind,
             NormalizedBindingLowering, SStmtKind, SemanticInstance, SemanticLocalKind,
-            check_semantic_borrows, collect_semantic_borrow_diagnostics,
+            check_semantic_borrows, collect_semantic_borrow_diagnostic_vouchers,
             get_or_build_semantic_instance, identity_semantic_instance_key,
             normalize_semantic_body, semantic_borrow_summary,
         },
@@ -25,9 +24,9 @@ fn borrow_diags(src: &str) -> String {
     let mut db = HirAnalysisTestDb::default();
     let file = db.new_stand_alone("semantic_borrowck.fe".into(), src);
     let (top_mod, _) = db.top_mod(file);
-    format_diags(
+    format_diagnostics(
         &db,
-        collect_semantic_borrow_diagnostics(&db, top_mod).iter(),
+        &collect_semantic_borrow_diagnostic_vouchers(&db, top_mod),
     )
 }
 

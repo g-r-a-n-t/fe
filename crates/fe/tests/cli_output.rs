@@ -1653,6 +1653,52 @@ fn test_cli_test_ingot_discovers_tests_in_non_root_modules() {
 }
 
 #[test]
+fn test_cli_test_ingot_reports_mir_diagnostics_in_non_root_modules() {
+    let temp = tempdir().expect("tempdir");
+    let src = temp.path().join("src");
+    fs::create_dir_all(&src).expect("create src");
+    fs::write(
+        temp.path().join("fe.toml"),
+        "[ingot]\nname = \"non_root_mir_diagnostic\"\nversion = \"0.1.0\"\n",
+    )
+    .expect("write fe.toml");
+    fs::write(src.join("lib.fe"), "pub fn root_marker() {}\n").expect("write root module");
+    fs::write(
+        src.join("helper.fe"),
+        r#"
+struct Inner {}
+
+fn bad(x: own Inner) {
+    let y = x
+    let z = x
+}
+
+#[test]
+fn test_non_root_move_conflict() {
+    bad(Inner {})
+}
+"#,
+    )
+    .expect("write helper module");
+
+    let (output, exit_code) = run_fe_main(&["test", temp.path().to_str().expect("temp utf8")]);
+    assert_ne!(exit_code, 0, "expected fe test to fail:\n{output}");
+    assert!(
+        output.contains("move conflict in `fn bad`"),
+        "expected non-root MIR diagnostic, got:\n{output}"
+    );
+    assert_eq!(
+        output.matches("move conflict in `fn bad`").count(),
+        1,
+        "expected non-root MIR diagnostic once, got:\n{output}"
+    );
+    assert!(
+        !output.contains("Failed to emit test"),
+        "expected diagnostics preflight before test emission, got:\n{output}"
+    );
+}
+
+#[test]
 fn test_cli_test_default_project_path_discovers_tests_in_non_root_modules() {
     let fixture_dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
         .join("tests/fixtures/fe_test_runner/ingot_tests_in_non_root_module");

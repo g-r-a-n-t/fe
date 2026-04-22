@@ -8,7 +8,8 @@ mod normalize;
 mod verify;
 
 pub use check::{
-    check_semantic_borrows, collect_semantic_borrow_diagnostics, semantic_borrow_summary,
+    SemanticBorrowAnalysisPass, check_semantic_borrows,
+    collect_semantic_borrow_diagnostic_vouchers, semantic_borrow_summary,
 };
 pub use facts::*;
 pub use ir::*;

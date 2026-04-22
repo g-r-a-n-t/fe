@@ -1,4 +1,3 @@
-use common::diagnostics::CompleteDiagnostic;
 use cranelift_entity::SecondaryMap;
 use dataflow::JoinSemiLattice;
 use rustc_hash::{FxHashMap, FxHashSet};
@@ -6,7 +5,7 @@ use smallvec::SmallVec;
 
 use crate::{
     analysis::{
-        diagnostics::SpannedHirAnalysisDb,
+        HirAnalysisDb,
         semantic::{SBlockId, SLocalId, SemOrigin, SemanticInstance},
         ty::ty_def::BorrowKind,
     },
@@ -17,7 +16,7 @@ use super::{
     diagnostics::normalized_body_internal_diag,
     ir::{
         NBorrowRoot, NBorrowRootId, NExpr, NSPlace, NSPlaceRoot, NSProjectionPath, NSStmt,
-        NSStmtKind, NormalizedBindingLowering, NormalizedSemanticBody,
+        NSStmtKind, NormalizedBindingLowering, NormalizedSemanticBody, SemanticBorrowDiagnostic,
     },
 };
 
@@ -88,7 +87,7 @@ impl JoinSemiLattice for State {
 }
 
 pub(super) struct BorrowCanonCx<'a, 'db> {
-    db: &'db dyn SpannedHirAnalysisDb,
+    db: &'db dyn HirAnalysisDb,
     instance: SemanticInstance<'db>,
     body: &'a NormalizedSemanticBody<'db>,
     loans: &'a [Loan<'db>],
@@ -97,7 +96,7 @@ pub(super) struct BorrowCanonCx<'a, 'db> {
 
 impl<'a, 'db> BorrowCanonCx<'a, 'db> {
     pub(super) fn new(
-        db: &'db dyn SpannedHirAnalysisDb,
+        db: &'db dyn HirAnalysisDb,
         instance: SemanticInstance<'db>,
         body: &'a NormalizedSemanticBody<'db>,
         loans: &'a [Loan<'db>],
@@ -224,7 +223,7 @@ impl<'a, 'db> BorrowCanonCx<'a, 'db> {
         state: &State,
         place: &NSPlace<'db>,
         origin: SemOrigin<'db>,
-    ) -> Result<FxHashSet<CanonPlace<'db>>, CompleteDiagnostic> {
+    ) -> Result<FxHashSet<CanonPlace<'db>>, SemanticBorrowDiagnostic<'db>> {
         match place.root {
             NSPlaceRoot::Root(root) => Ok(FxHashSet::from_iter([CanonPlace {
                 root: self
@@ -301,7 +300,11 @@ impl<'a, 'db> BorrowCanonCx<'a, 'db> {
             .collect()
     }
 
-    fn internal_diag(&self, origin: SemOrigin<'db>, message: String) -> CompleteDiagnostic {
+    fn internal_diag(
+        &self,
+        origin: SemOrigin<'db>,
+        message: String,
+    ) -> SemanticBorrowDiagnostic<'db> {
         normalized_body_internal_diag(self.db, self.instance, self.body, origin, message)
     }
 }

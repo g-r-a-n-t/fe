@@ -1,9 +1,8 @@
-use common::diagnostics::CompleteDiagnostic;
 use cranelift_entity::EntityRef;
 
 use crate::{
     analysis::{
-        diagnostics::SpannedHirAnalysisDb,
+        HirAnalysisDb,
         semantic::{NOperand, NSLocal, SLocalId, SemOrigin, SemanticInstance, SemanticLocalKind},
     },
     projection::{IndexSource, Projection},
@@ -13,16 +12,16 @@ use super::{
     diagnostics::{normalized_body_internal_diag, operand_origin},
     ir::{
         NBorrowRoot, NExpr, NSPlace, NSPlaceRoot, NSStmtKind, NSTerminator, NSTerminatorKind,
-        NormalizedBindingLowering, NormalizedSemanticBody, ReadMode,
+        NormalizedBindingLowering, NormalizedSemanticBody, ReadMode, SemanticBorrowDiagnostic,
         local_has_runtime_move_semantics,
     },
 };
 
 pub fn verify_normalized_semantic_body<'db>(
-    db: &'db dyn SpannedHirAnalysisDb,
+    db: &'db dyn HirAnalysisDb,
     instance: SemanticInstance<'db>,
     body: &NormalizedSemanticBody<'db>,
-) -> Result<(), CompleteDiagnostic> {
+) -> Result<(), SemanticBorrowDiagnostic<'db>> {
     for (local_idx, local) in body.locals.iter().enumerate() {
         let local_id = SLocalId::from_u32(local_idx as u32);
         let verify_rooted_place = |place: &NSPlace<'db>, label: &str| {
@@ -119,11 +118,11 @@ pub fn verify_normalized_semantic_body<'db>(
 }
 
 fn verify_terminator<'db>(
-    db: &'db dyn SpannedHirAnalysisDb,
+    db: &'db dyn HirAnalysisDb,
     instance: SemanticInstance<'db>,
     body: &NormalizedSemanticBody<'db>,
     term: &NSTerminator<'db>,
-) -> Result<(), CompleteDiagnostic> {
+) -> Result<(), SemanticBorrowDiagnostic<'db>> {
     match &term.kind {
         NSTerminatorKind::Goto(bb) => {
             if body.block(*bb).is_none() {
@@ -180,12 +179,12 @@ fn verify_terminator<'db>(
 }
 
 fn verify_expr<'db>(
-    db: &'db dyn SpannedHirAnalysisDb,
+    db: &'db dyn HirAnalysisDb,
     instance: SemanticInstance<'db>,
     body: &NormalizedSemanticBody<'db>,
     origin: SemOrigin<'db>,
     expr: &NExpr<'db>,
-) -> Result<(), CompleteDiagnostic> {
+) -> Result<(), SemanticBorrowDiagnostic<'db>> {
     expr.try_for_each_value_operand(|value| verify_operand(db, instance, body, origin, value))?;
     expr.try_for_each_place_operand(|place| verify_place(db, instance, body, origin, place))?;
     if let NExpr::ReadPlace {
@@ -206,12 +205,12 @@ fn verify_expr<'db>(
 }
 
 fn verify_operand<'db>(
-    db: &'db dyn SpannedHirAnalysisDb,
+    db: &'db dyn HirAnalysisDb,
     instance: SemanticInstance<'db>,
     body: &NormalizedSemanticBody<'db>,
     origin: SemOrigin<'db>,
     operand: NOperand,
-) -> Result<(), CompleteDiagnostic> {
+) -> Result<(), SemanticBorrowDiagnostic<'db>> {
     let origin = operand_origin(operand, origin);
     let local = verify_local_exists(db, instance, body, origin, operand.local)?;
     if operand.mode == ReadMode::Move
@@ -232,12 +231,12 @@ fn verify_operand<'db>(
 }
 
 fn verify_local_exists<'db, 'a>(
-    db: &'db dyn SpannedHirAnalysisDb,
+    db: &'db dyn HirAnalysisDb,
     instance: SemanticInstance<'db>,
     body: &'a NormalizedSemanticBody<'db>,
     origin: SemOrigin<'db>,
     local: SLocalId,
-) -> Result<&'a NSLocal<'db>, CompleteDiagnostic> {
+) -> Result<&'a NSLocal<'db>, SemanticBorrowDiagnostic<'db>> {
     body.local(local).ok_or_else(|| {
         normalized_body_internal_diag(
             db,
@@ -250,12 +249,12 @@ fn verify_local_exists<'db, 'a>(
 }
 
 fn verify_place<'db>(
-    db: &'db dyn SpannedHirAnalysisDb,
+    db: &'db dyn HirAnalysisDb,
     instance: SemanticInstance<'db>,
     body: &NormalizedSemanticBody<'db>,
     origin: SemOrigin<'db>,
     place: &NSPlace<'db>,
-) -> Result<(), CompleteDiagnostic> {
+) -> Result<(), SemanticBorrowDiagnostic<'db>> {
     match place.root {
         NSPlaceRoot::Root(root) => {
             if body.root(root).is_none() {

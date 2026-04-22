@@ -1,13 +1,13 @@
-use common::diagnostics::{
-    CompleteDiagnostic, DiagnosticPass, GlobalErrorCode, LabelStyle, Severity, Span, SubDiagnostic,
-};
+use common::diagnostics::CompleteDiagnostic;
 use cranelift_entity::{EntityRef, SecondaryMap};
 use dataflow::{solve_backward_cfg, solve_forward_cfg, try_solve_forward_cfg, try_solve_sparse};
 use rustc_hash::{FxHashMap, FxHashSet};
 
 use crate::{
     analysis::{
-        diagnostics::SpannedHirAnalysisDb,
+        HirAnalysisDb,
+        analysis_pass::ModuleAnalysisPass,
+        diagnostics::{DiagnosticVoucher, SpannedHirAnalysisDb},
         semantic::{
             SBlockId, SemOrigin, SemanticInstance, get_or_build_semantic_instance,
             identity_semantic_instance_key,
@@ -19,7 +19,6 @@ use crate::{
     },
     hir_def::{Body, Expr, FuncParamMode, ItemKind, Partial, TopLevelMod},
     projection::{IndexSource, Projection},
-    span::LazySpan,
 };
 
 use super::{
@@ -31,13 +30,15 @@ use super::{
         BlockAdjacency, BorrowCanonCx, BorrowRoot, CanonPlace, CfgAdjacency, Loan, LoanId,
         MoveSite, MovedPlaces, State, place_set_overlaps, places_overlap,
     },
-    diagnostics::{checker_name, normalize_error_to_diag, operand_origin},
+    diagnostics::{normalize_error_to_diag, operand_origin},
     facts::NormalizedBodyFacts,
     ir::{
         BorrowDiagnosticId, BorrowInputRef, BorrowSummary, BorrowSummaryId, BorrowTransform,
         NBorrowRoot, NBorrowRootId, NExpr, NOperand, NSPlace, NSPlaceRoot, NSProjectionPath,
         NSStmtKind, NSTerminatorKind, NormalizedBindingLowering, NormalizedSemanticBody, ReadMode,
-        SemanticBorrowCheckResult, SemanticBorrowSummaryResult, local_has_runtime_move_semantics,
+        SemanticBorrowCheckResult, SemanticBorrowDiagKind, SemanticBorrowDiagnostic,
+        SemanticBorrowDiagnosticSpan, SemanticBorrowSummaryResult,
+        local_has_runtime_move_semantics,
     },
     normalize::normalize_semantic_body,
     verify::verify_normalized_semantic_body,
@@ -48,7 +49,7 @@ use super::{
     cycle_initial=semantic_borrow_summary_cycle_initial
 )]
 fn semantic_borrow_summary_query<'db>(
-    db: &'db dyn SpannedHirAnalysisDb,
+    db: &'db dyn HirAnalysisDb,
     instance: SemanticInstance<'db>,
 ) -> SemanticBorrowSummaryResult<'db> {
     match Borrowck::new(db, instance).and_then(Borrowck::borrow_summary) {
@@ -63,6 +64,13 @@ pub fn semantic_borrow_summary<'db>(
     db: &'db dyn SpannedHirAnalysisDb,
     instance: SemanticInstance<'db>,
 ) -> Result<Option<BorrowSummary<'db>>, CompleteDiagnostic> {
+    semantic_borrow_summary_voucher(db, instance).map_err(|diag| diag.to_complete(db))
+}
+
+pub(super) fn semantic_borrow_summary_voucher<'db>(
+    db: &'db dyn HirAnalysisDb,
+    instance: SemanticInstance<'db>,
+) -> Result<Option<BorrowSummary<'db>>, SemanticBorrowDiagnostic<'db>> {
     match semantic_borrow_summary_query(db, instance) {
         SemanticBorrowSummaryResult::Ok(summary) => {
             Ok(summary.map(|summary| summary.items(db).clone()))
@@ -77,13 +85,13 @@ pub fn check_semantic_borrows<'db>(
 ) -> Result<(), CompleteDiagnostic> {
     match semantic_borrow_check_query(db, instance) {
         SemanticBorrowCheckResult::Ok => Ok(()),
-        SemanticBorrowCheckResult::Err(diag) => Err(diag.diag(db).clone()),
+        SemanticBorrowCheckResult::Err(diag) => Err(diag.to_complete(db)),
     }
 }
 
 #[salsa::tracked]
 fn semantic_borrow_check_query<'db>(
-    db: &'db dyn SpannedHirAnalysisDb,
+    db: &'db dyn HirAnalysisDb,
     instance: SemanticInstance<'db>,
 ) -> SemanticBorrowCheckResult<'db> {
     match Borrowck::new(db, instance).and_then(Borrowck::check) {
@@ -92,22 +100,52 @@ fn semantic_borrow_check_query<'db>(
     }
 }
 
-pub fn collect_semantic_borrow_diagnostics<'db>(
-    db: &'db dyn SpannedHirAnalysisDb,
+pub struct SemanticBorrowAnalysisPass;
+
+impl ModuleAnalysisPass for SemanticBorrowAnalysisPass {
+    fn run_on_module<'db>(
+        &mut self,
+        db: &'db dyn HirAnalysisDb,
+        top_mod: TopLevelMod<'db>,
+    ) -> Vec<Box<dyn DiagnosticVoucher + 'db>> {
+        collect_semantic_borrow_diagnostic_vouchers(db, top_mod)
+    }
+}
+
+pub fn collect_semantic_borrow_diagnostic_vouchers<'db>(
+    db: &'db dyn HirAnalysisDb,
     top_mod: TopLevelMod<'db>,
-) -> Vec<CompleteDiagnostic> {
+) -> Vec<Box<dyn DiagnosticVoucher + 'db>> {
     let mut diags = Vec::new();
-    for item in top_mod.all_items(db) {
+    let mut seen_owners = FxHashSet::default();
+    collect_top_mod_semantic_borrow_diagnostic_vouchers(db, top_mod, &mut seen_owners, &mut diags);
+    diags
+}
+
+fn collect_top_mod_semantic_borrow_diagnostic_vouchers<'db>(
+    db: &'db dyn HirAnalysisDb,
+    top_mod: TopLevelMod<'db>,
+    seen_owners: &mut FxHashSet<BodyOwner<'db>>,
+    diags: &mut Vec<Box<dyn DiagnosticVoucher + 'db>>,
+) {
+    for item in top_mod
+        .all_items(db)
+        .iter()
+        .filter(|item| item.top_mod(db) == top_mod)
+    {
         match item {
-            ItemKind::Func(func) => collect_owner(db, BodyOwner::Func(*func), &mut diags),
-            ItemKind::Const(const_) => collect_owner(db, BodyOwner::Const(*const_), &mut diags),
+            ItemKind::Func(func) => collect_owner(db, BodyOwner::Func(*func), seen_owners, diags),
+            ItemKind::Const(const_) => {
+                collect_owner(db, BodyOwner::Const(*const_), seen_owners, diags)
+            }
             ItemKind::Contract(contract) => {
                 collect_owner(
                     db,
                     BodyOwner::ContractInit {
                         contract: *contract,
                     },
-                    &mut diags,
+                    seen_owners,
+                    diags,
                 );
                 for (recv_idx, recv) in contract.recvs(db).data(db).iter().enumerate() {
                     for arm_idx in 0..recv.arms.data(db).len() {
@@ -118,7 +156,8 @@ pub fn collect_semantic_borrow_diagnostics<'db>(
                                 recv_idx: recv_idx as u32,
                                 arm_idx: arm_idx as u32,
                             },
-                            &mut diags,
+                            seen_owners,
+                            diags,
                         );
                     }
                 }
@@ -135,23 +174,26 @@ pub fn collect_semantic_borrow_diagnostics<'db>(
             | ItemKind::Body(_) => {}
         }
     }
-    diags
 }
 
 fn collect_owner<'db>(
-    db: &'db dyn SpannedHirAnalysisDb,
+    db: &'db dyn HirAnalysisDb,
     owner: BodyOwner<'db>,
-    diags: &mut Vec<CompleteDiagnostic>,
+    seen_owners: &mut FxHashSet<BodyOwner<'db>>,
+    diags: &mut Vec<Box<dyn DiagnosticVoucher + 'db>>,
 ) {
+    if !seen_owners.insert(owner) {
+        return;
+    }
     let key = identity_semantic_instance_key(db, owner);
     let instance = get_or_build_semantic_instance(db, key);
-    if let Err(diag) = check_semantic_borrows(db, instance) {
-        diags.push(diag);
+    if let SemanticBorrowCheckResult::Err(diag) = semantic_borrow_check_query(db, instance) {
+        diags.push(Box::new(diag));
     }
 }
 
 pub(super) struct Borrowck<'db> {
-    pub(super) db: &'db dyn SpannedHirAnalysisDb,
+    pub(super) db: &'db dyn HirAnalysisDb,
     pub(super) instance: SemanticInstance<'db>,
     pub(super) body: NormalizedSemanticBody<'db>,
     pub(super) facts: NormalizedBodyFacts,
@@ -170,9 +212,9 @@ pub(super) struct Borrowck<'db> {
 
 impl<'db> Borrowck<'db> {
     fn new(
-        db: &'db dyn SpannedHirAnalysisDb,
+        db: &'db dyn HirAnalysisDb,
         instance: SemanticInstance<'db>,
-    ) -> Result<Self, CompleteDiagnostic> {
+    ) -> Result<Self, SemanticBorrowDiagnostic<'db>> {
         let body = normalize_semantic_body(db, instance)
             .map_err(|err| normalize_error_to_diag(db, instance, err))?;
         verify_normalized_semantic_body(db, instance, &body)?;
@@ -247,7 +289,9 @@ impl<'db> Borrowck<'db> {
         )
     }
 
-    fn borrow_summary(mut self) -> Result<Option<BorrowSummary<'db>>, CompleteDiagnostic> {
+    fn borrow_summary(
+        mut self,
+    ) -> Result<Option<BorrowSummary<'db>>, SemanticBorrowDiagnostic<'db>> {
         let owner = self.instance.key(self.db).owner(self.db);
         let typed_body = self.instance.key(self.db).instantiate_typed_body(self.db);
         if typed_body.result_ty().as_borrow(self.db).is_none() || owner.body(self.db).is_none() {
@@ -258,7 +302,7 @@ impl<'db> Borrowck<'db> {
         self.compute_return_summary().map(Some)
     }
 
-    fn check(mut self) -> Result<(), CompleteDiagnostic> {
+    fn check(mut self) -> Result<(), SemanticBorrowDiagnostic<'db>> {
         self.compute_entry_states();
         self.compute_loan_targets()?;
         self.compute_moved_states()?;
@@ -381,7 +425,7 @@ impl<'db> Borrowck<'db> {
         self.entry_state = solve_forward_cfg(&mut BorrowEntryStateAnalysis::new(self));
     }
 
-    fn compute_loan_targets(&mut self) -> Result<(), CompleteDiagnostic> {
+    fn compute_loan_targets(&mut self) -> Result<(), SemanticBorrowDiagnostic<'db>> {
         let mut analysis = BorrowLoanTargetAnalysis::new(
             self.db,
             self.instance,
@@ -395,7 +439,7 @@ impl<'db> Borrowck<'db> {
         try_solve_sparse(&mut analysis, &mut state)
     }
 
-    fn compute_moved_states(&mut self) -> Result<(), CompleteDiagnostic> {
+    fn compute_moved_states(&mut self) -> Result<(), SemanticBorrowDiagnostic<'db>> {
         self.moved_entry = try_solve_forward_cfg(&mut BorrowMovedStateAnalysis::new(self))?
             .iter()
             .map(|(bb, state)| (bb, state.0.clone()))
@@ -403,7 +447,7 @@ impl<'db> Borrowck<'db> {
         Ok(())
     }
 
-    fn check_conflicts(&self) -> Result<(), CompleteDiagnostic> {
+    fn check_conflicts(&self) -> Result<(), SemanticBorrowDiagnostic<'db>> {
         for (bb_idx, block) in self.body.blocks.iter().enumerate() {
             let bb = SBlockId::new(bb_idx);
             let mut state = self.entry_state[bb].clone();
@@ -429,7 +473,7 @@ impl<'db> Borrowck<'db> {
         moved: &MovedPlaces<'db>,
         live: &FxHashSet<crate::analysis::semantic::SLocalId>,
         stmt: &super::ir::NSStmt<'db>,
-    ) -> Result<(), CompleteDiagnostic> {
+    ) -> Result<(), SemanticBorrowDiagnostic<'db>> {
         let active = self.effective_loans(state, live);
         match &stmt.kind {
             NSStmtKind::Assign { expr, .. } => match expr {
@@ -494,7 +538,7 @@ impl<'db> Borrowck<'db> {
         moved: &MovedPlaces<'db>,
         live: &FxHashSet<crate::analysis::semantic::SLocalId>,
         term: &super::ir::NSTerminator<'db>,
-    ) -> Result<(), CompleteDiagnostic> {
+    ) -> Result<(), SemanticBorrowDiagnostic<'db>> {
         match &term.kind {
             NSTerminatorKind::Goto(_) => {}
             NSTerminatorKind::Branch { cond, .. }
@@ -529,7 +573,7 @@ impl<'db> Borrowck<'db> {
         Ok(())
     }
 
-    fn compute_return_summary(&self) -> Result<BorrowSummary<'db>, CompleteDiagnostic> {
+    fn compute_return_summary(&self) -> Result<BorrowSummary<'db>, SemanticBorrowDiagnostic<'db>> {
         let mut out = Vec::new();
         for (bb_idx, block) in self.body.blocks.iter().enumerate() {
             let NSTerminatorKind::Return(Some(value)) = block.terminator.kind else {
@@ -647,7 +691,7 @@ impl<'db> Borrowck<'db> {
         place: &NSPlace<'db>,
         targets: &FxHashSet<CanonPlace<'db>>,
         origin: crate::analysis::semantic::SemOrigin<'db>,
-    ) -> Result<(), CompleteDiagnostic> {
+    ) -> Result<(), SemanticBorrowDiagnostic<'db>> {
         if matches!(place.root, NSPlaceRoot::CarrierDerefLocal(_)) {
             return Err(self.move_conflict_diag(
                 origin,
@@ -663,7 +707,7 @@ impl<'db> Borrowck<'db> {
         active: &[LoanId],
         targets: &FxHashSet<CanonPlace<'db>>,
         origin: crate::analysis::semantic::SemOrigin<'db>,
-    ) -> Result<(), CompleteDiagnostic> {
+    ) -> Result<(), SemanticBorrowDiagnostic<'db>> {
         for target in targets {
             if let BorrowRoot::Param(idx) = target.root
                 && self
@@ -697,7 +741,7 @@ impl<'db> Borrowck<'db> {
         state: &State,
         moved: &mut MovedPlaces<'db>,
         stmt: &super::ir::NSStmt<'db>,
-    ) -> Result<(), CompleteDiagnostic> {
+    ) -> Result<(), SemanticBorrowDiagnostic<'db>> {
         match &stmt.kind {
             NSStmtKind::Assign { dst, expr } => {
                 if let Some(root) = self
@@ -780,7 +824,7 @@ impl<'db> Borrowck<'db> {
         moved: &MovedPlaces<'db>,
         origin: crate::analysis::semantic::SemOrigin<'db>,
         expr: &NExpr<'db>,
-    ) -> Result<(), CompleteDiagnostic> {
+    ) -> Result<(), SemanticBorrowDiagnostic<'db>> {
         expr.try_for_each_value_operand(|value| {
             self.check_operand(
                 state,
@@ -799,7 +843,7 @@ impl<'db> Borrowck<'db> {
         operand: NOperand,
         origin: crate::analysis::semantic::SemOrigin<'db>,
         message: &str,
-    ) -> Result<(), CompleteDiagnostic> {
+    ) -> Result<(), SemanticBorrowDiagnostic<'db>> {
         let origin = operand_origin(operand, origin);
         let targets = self.canon().canonicalize_value_base(state, operand.local);
         if targets.is_empty() {
@@ -814,7 +858,7 @@ impl<'db> Borrowck<'db> {
         moved: &mut MovedPlaces<'db>,
         origin: crate::analysis::semantic::SemOrigin<'db>,
         expr: &NExpr<'db>,
-    ) -> Result<(), CompleteDiagnostic> {
+    ) -> Result<(), SemanticBorrowDiagnostic<'db>> {
         expr.try_for_each_value_operand(|value| {
             self.record_operand_move(state, moved, value, origin)
         })
@@ -826,7 +870,7 @@ impl<'db> Borrowck<'db> {
         moved: &mut MovedPlaces<'db>,
         operand: NOperand,
         origin: crate::analysis::semantic::SemOrigin<'db>,
-    ) -> Result<(), CompleteDiagnostic> {
+    ) -> Result<(), SemanticBorrowDiagnostic<'db>> {
         let origin = operand_origin(operand, origin);
         if operand.mode == ReadMode::Move && self.local_has_runtime_move_semantics(operand.local) {
             let site = self.move_site(operand, origin);
@@ -869,7 +913,7 @@ impl<'db> Borrowck<'db> {
         accessed: &FxHashSet<CanonPlace<'db>>,
         origin: crate::analysis::semantic::SemOrigin<'db>,
         message: &str,
-    ) -> Result<(), CompleteDiagnostic> {
+    ) -> Result<(), SemanticBorrowDiagnostic<'db>> {
         if let Some((_, site)) = moved.iter().find(|(moved, _)| {
             accessed
                 .iter()
@@ -887,7 +931,7 @@ impl<'db> Borrowck<'db> {
         moved: &MovedPlaces<'db>,
         written: &FxHashSet<CanonPlace<'db>>,
         origin: crate::analysis::semantic::SemOrigin<'db>,
-    ) -> Result<(), CompleteDiagnostic> {
+    ) -> Result<(), SemanticBorrowDiagnostic<'db>> {
         if let Some((_, site)) = moved.iter().find(|(moved, _)| {
             written.iter().any(|written| {
                 written.root == moved.root
@@ -953,8 +997,8 @@ impl<'db> Borrowck<'db> {
         origin: crate::analysis::semantic::SemOrigin<'db>,
         message: String,
         loan: LoanId,
-    ) -> CompleteDiagnostic {
-        let mut diag = self.diag(1, self.borrow_conflict_header(), origin, message);
+    ) -> SemanticBorrowDiagnostic<'db> {
+        let mut diag = self.diag(SemanticBorrowDiagKind::BorrowConflict, origin, message);
         self.push_secondary_origin(
             &mut diag,
             self.loans[loan.0 as usize].origin,
@@ -967,97 +1011,56 @@ impl<'db> Borrowck<'db> {
         &self,
         origin: crate::analysis::semantic::SemOrigin<'db>,
         message: String,
-    ) -> CompleteDiagnostic {
-        self.diag(2, self.move_conflict_header(), origin, message)
+    ) -> SemanticBorrowDiagnostic<'db> {
+        self.diag(SemanticBorrowDiagKind::MoveConflict, origin, message)
     }
 
     fn invalid_return_diag(
         &self,
         origin: crate::analysis::semantic::SemOrigin<'db>,
         message: String,
-    ) -> CompleteDiagnostic {
-        self.diag(3, self.invalid_return_header(), origin, message)
+    ) -> SemanticBorrowDiagnostic<'db> {
+        self.diag(SemanticBorrowDiagKind::InvalidReturnBorrow, origin, message)
     }
 
     fn internal_diag(
         &self,
         origin: crate::analysis::semantic::SemOrigin<'db>,
         message: String,
-    ) -> CompleteDiagnostic {
-        self.diag(4, self.internal_error_header(), origin, message)
+    ) -> SemanticBorrowDiagnostic<'db> {
+        self.diag(SemanticBorrowDiagKind::Internal, origin, message)
     }
 
     fn diag(
         &self,
-        local_code: u16,
-        header: String,
+        kind: SemanticBorrowDiagKind,
         origin: crate::analysis::semantic::SemOrigin<'db>,
         message: String,
-    ) -> CompleteDiagnostic {
-        CompleteDiagnostic::new(
-            Severity::Error,
-            header,
-            vec![SubDiagnostic::new(
-                LabelStyle::Primary,
-                message,
-                self.span_for_origin(origin),
-            )],
-            Vec::new(),
-            GlobalErrorCode::new(DiagnosticPass::SemanticBorrowck, local_code),
+    ) -> SemanticBorrowDiagnostic<'db> {
+        SemanticBorrowDiagnostic::new(
+            self.instance,
+            kind,
+            message,
+            SemanticBorrowDiagnosticSpan::Origin {
+                owner: self.instance.key(self.db).owner(self.db),
+                origin,
+            },
         )
     }
 
     fn push_secondary_origin(
         &self,
-        diag: &mut CompleteDiagnostic,
+        diag: &mut SemanticBorrowDiagnostic<'db>,
         origin: crate::analysis::semantic::SemOrigin<'db>,
         message: String,
     ) {
-        diag.sub_diagnostics.push(SubDiagnostic::new(
-            LabelStyle::Secondary,
+        diag.push_secondary(
             message,
-            self.span_for_origin(origin),
-        ));
-    }
-
-    fn span_for_origin(&self, origin: crate::analysis::semantic::SemOrigin<'db>) -> Option<Span> {
-        let body = self.hir_body?;
-        match origin {
-            crate::analysis::semantic::SemOrigin::Expr(expr) => expr.span(body).resolve(self.db),
-            crate::analysis::semantic::SemOrigin::Stmt(stmt) => stmt.span(body).resolve(self.db),
-            crate::analysis::semantic::SemOrigin::Body(owner) => owner
-                .body(self.db)
-                .and_then(|body| body.span().resolve(self.db)),
-            crate::analysis::semantic::SemOrigin::Synthetic => None,
-        }
-    }
-
-    fn borrow_conflict_header(&self) -> String {
-        format!(
-            "borrow conflict in `fn {}`",
-            checker_name(self.db, self.instance)
-        )
-    }
-
-    fn move_conflict_header(&self) -> String {
-        format!(
-            "move conflict in `fn {}`",
-            checker_name(self.db, self.instance)
-        )
-    }
-
-    fn invalid_return_header(&self) -> String {
-        format!(
-            "invalid return borrow in `fn {}`",
-            checker_name(self.db, self.instance)
-        )
-    }
-
-    fn internal_error_header(&self) -> String {
-        format!(
-            "internal borrow checking error in `fn {}`",
-            checker_name(self.db, self.instance)
-        )
+            SemanticBorrowDiagnosticSpan::Origin {
+                owner: self.instance.key(self.db).owner(self.db),
+                origin,
+            },
+        );
     }
 
     fn overlapping_loans_msg(&self, loan: LoanId, new_kind: BorrowKind) -> String {
@@ -1084,7 +1087,7 @@ impl<'db> Borrowck<'db> {
 }
 
 fn semantic_borrow_summary_cycle_initial<'db>(
-    db: &'db dyn SpannedHirAnalysisDb,
+    db: &'db dyn HirAnalysisDb,
     instance: SemanticInstance<'db>,
 ) -> SemanticBorrowSummaryResult<'db> {
     let owner = instance.key(db).owner(db);
@@ -1096,7 +1099,7 @@ fn semantic_borrow_summary_cycle_initial<'db>(
 }
 
 fn semantic_borrow_summary_cycle_recover<'db>(
-    _db: &'db dyn SpannedHirAnalysisDb,
+    _db: &'db dyn HirAnalysisDb,
     _value: &SemanticBorrowSummaryResult<'db>,
     _count: u32,
     _instance: SemanticInstance<'db>,

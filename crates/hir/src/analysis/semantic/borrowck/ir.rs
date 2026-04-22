@@ -1,4 +1,3 @@
-use common::diagnostics::CompleteDiagnostic;
 use cranelift_entity::{EntityRef, entity_impl};
 use salsa::Update;
 
@@ -497,10 +496,41 @@ pub struct BorrowSummaryId<'db> {
     pub items: Vec<BorrowTransform<'db>>,
 }
 
+#[derive(Clone, Debug, PartialEq, Eq, Hash, Update)]
+pub struct SemanticBorrowDiagnostic<'db> {
+    pub kind: SemanticBorrowDiagKind,
+    pub instance: crate::analysis::semantic::SemanticInstance<'db>,
+    pub primary: SemanticBorrowDiagnosticLabel<'db>,
+    pub secondaries: Vec<SemanticBorrowDiagnosticLabel<'db>>,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Hash, Update)]
+pub struct SemanticBorrowDiagnosticLabel<'db> {
+    pub message: String,
+    pub span: SemanticBorrowDiagnosticSpan<'db>,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Hash, Update)]
+pub enum SemanticBorrowDiagnosticSpan<'db> {
+    Origin {
+        owner: BodyOwner<'db>,
+        origin: SemOrigin<'db>,
+    },
+    OriginWithTemplateFallback {
+        owner: BodyOwner<'db>,
+        template_owner: BodyOwner<'db>,
+        origin: SemOrigin<'db>,
+    },
+    LocalSourceOrBody {
+        instance: crate::analysis::semantic::SemanticInstance<'db>,
+        local: SLocalId,
+    },
+}
+
 #[salsa::interned]
 #[derive(Debug)]
 pub struct BorrowDiagnosticId<'db> {
-    pub diag: CompleteDiagnostic,
+    pub diag: SemanticBorrowDiagnostic<'db>,
 }
 
 #[salsa::interned]
@@ -534,7 +564,7 @@ pub enum SemanticNormalizeResult<'db> {
     Err(SemanticNormalizeErrorId<'db>),
 }
 
-#[derive(Clone, Debug, PartialEq, Eq, Hash)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, Update)]
 pub enum SemanticBorrowDiagKind {
     BorrowConflict,
     MoveConflict,

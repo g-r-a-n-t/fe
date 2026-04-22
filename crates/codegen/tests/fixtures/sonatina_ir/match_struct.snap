@@ -5,49 +5,49 @@ input_file: crates/codegen/tests/fixtures/match_struct.fe
 ---
 target = "evm-ethereum-osaka"
 
-type @__fe_layout_0 = {i8, i8};
-type @__fe_layout_1 = {i8, i8};
+type @layout_0 = {i8, i8};
+type @layout_1 = {i8, i8};
 
-func private %__fe_main_root() {
+func private %main() -> @layout_0 {
     block0:
         jump block1;
 
     block1:
-        v0.@__fe_layout_0 = call %main;
-        evm_stop;
-}
-
-func private %main() -> @__fe_layout_0 {
-    block0:
-        jump block1;
-
-    block1:
-        v2.objref<@__fe_layout_1> = obj.alloc @__fe_layout_1;
+        v2.objref<@layout_1> = obj.alloc @layout_1;
         v4.objref<i8> = obj.proj v2 0.i256;
         obj.store v4 1.i8;
         v6.objref<i8> = obj.proj v2 1.i256;
         obj.store v6 2.i8;
-        v7.@__fe_layout_1 = obj.load v2;
+        v7.@layout_1 = obj.load v2;
         v8.i8 = call %match_struct_fields v7;
-        v10.objref<@__fe_layout_1> = obj.alloc @__fe_layout_1;
+        v10.objref<@layout_1> = obj.alloc @layout_1;
         v11.objref<i8> = obj.proj v10 0.i256;
         obj.store v11 0.i8;
         v12.objref<i8> = obj.proj v10 1.i256;
         obj.store v12 1.i8;
-        v13.@__fe_layout_1 = obj.load v10;
+        v13.@layout_1 = obj.load v10;
         v14.i8 = call %match_struct_wildcard v13;
-        v15.objref<@__fe_layout_0> = obj.alloc @__fe_layout_0;
+        v15.objref<@layout_0> = obj.alloc @layout_0;
         v16.objref<i8> = obj.proj v15 0.i256;
         obj.store v16 v8;
         v17.objref<i8> = obj.proj v15 1.i256;
         obj.store v17 v14;
-        v18.@__fe_layout_0 = obj.load v15;
+        v18.@layout_0 = obj.load v15;
         return v18;
 }
 
-func private %match_struct_fields(v0.@__fe_layout_1) -> i8 {
+func private %main_root() {
     block0:
-        v1.objref<@__fe_layout_1> = obj.alloc @__fe_layout_1;
+        jump block1;
+
+    block1:
+        v0.@layout_0 = call %main;
+        evm_stop;
+}
+
+func private %match_struct_fields(v0.@layout_1) -> i8 {
+    block0:
+        v1.objref<@layout_1> = obj.alloc @layout_1;
         v2.*i8 = alloca i8;
         v3.*i8 = alloca i8;
         v4.*i8 = alloca i8;
@@ -151,9 +151,9 @@ func private %match_struct_fields(v0.@__fe_layout_1) -> i8 {
         jump block2;
 }
 
-func private %match_struct_wildcard(v0.@__fe_layout_1) -> i8 {
+func private %match_struct_wildcard(v0.@layout_1) -> i8 {
     block0:
-        v1.objref<@__fe_layout_1> = obj.alloc @__fe_layout_1;
+        v1.objref<@layout_1> = obj.alloc @layout_1;
         v2.*i8 = alloca i8;
         v3.*i8 = alloca i8;
         v5.objref<i8> = obj.proj v1 0.i256;
@@ -210,6 +210,6 @@ func private %match_struct_wildcard(v0.@__fe_layout_1) -> i8 {
 
 object @main {
     section main {
-        entry %__fe_main_root;
+        entry %main_root;
     }
 }

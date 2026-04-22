@@ -5,16 +5,7 @@ input_file: crates/codegen/tests/fixtures/for_range.fe
 ---
 target = "evm-ethereum-osaka"
 
-type @__fe_layout_0 = {i256, i256};
-
-func private %__fe_main_root() {
-    block0:
-        jump block1;
-
-    block1:
-        v0.i256 = call %for_range_sum;
-        evm_stop;
-}
+type @layout_0 = {i256, i256};
 
 func private %for_range_sum() -> i256 {
     block0:
@@ -22,12 +13,12 @@ func private %for_range_sum() -> i256 {
         jump block1;
 
     block1:
-        v3.objref<@__fe_layout_0> = obj.alloc @__fe_layout_0;
+        v3.objref<@layout_0> = obj.alloc @layout_0;
         v4.objref<i256> = obj.proj v3 0.i256;
         obj.store v4 0.i256;
         v6.objref<i256> = obj.proj v3 1.i256;
         obj.store v6 10.i256;
-        v7.@__fe_layout_0 = obj.load v3;
+        v7.@layout_0 = obj.load v3;
         v8.i256 = call %len v7;
         jump block2;
 
@@ -60,9 +51,9 @@ func private %for_range_sum() -> i256 {
         jump block2;
 }
 
-func private %get(v0.@__fe_layout_0, v1.i256) -> i256 {
+func private %get(v0.@layout_0, v1.i256) -> i256 {
     block0:
-        v2.objref<@__fe_layout_0> = obj.alloc @__fe_layout_0;
+        v2.objref<@layout_0> = obj.alloc @layout_0;
         v3.*i256 = alloca i256;
         v5.objref<i256> = obj.proj v2 0.i256;
         v6.i256 = extract_value v0 0.i256;
@@ -89,9 +80,9 @@ func private %get(v0.@__fe_layout_0, v1.i256) -> i256 {
         return v13;
 }
 
-func private %len(v0.@__fe_layout_0) -> i256 {
+func private %len(v0.@layout_0) -> i256 {
     block0:
-        v1.objref<@__fe_layout_0> = obj.alloc @__fe_layout_0;
+        v1.objref<@layout_0> = obj.alloc @layout_0;
         v2.*i256 = alloca i256;
         v4.objref<i256> = obj.proj v1 0.i256;
         v5.i256 = extract_value v0 0.i256;
@@ -135,9 +126,18 @@ func private %len(v0.@__fe_layout_0) -> i256 {
         jump block4;
 }
 
+func private %main_root() {
+    block0:
+        jump block1;
+
+    block1:
+        v0.i256 = call %for_range_sum;
+        evm_stop;
+}
+
 
 object @main {
     section main {
-        entry %__fe_main_root;
+        entry %main_root;
     }
 }

@@ -5,10 +5,6 @@ input_file: tests/fixtures/while.fe
 ---
 object "main" {
   code {
-    function $__fe_main_root() {
-      let v0 := $do_while()
-      stop()
-    }
     function $do_while() -> ret {
       let v0 := 0
       let v7 := 0x00
@@ -41,6 +37,10 @@ object "main" {
       ret := and(v0, 0xffffffffffffffff)
       leave
     }
-    $__fe_main_root()
+    function $main_root() {
+      let v0 := $do_while()
+      stop()
+    }
+    $main_root()
   }
 }

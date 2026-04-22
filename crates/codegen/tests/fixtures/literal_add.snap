@@ -5,10 +5,6 @@ input_file: tests/fixtures/literal_add.fe
 ---
 object "main" {
   code {
-    function $__fe_main_root() {
-      let v0 := $main()
-      stop()
-    }
     function $main() -> ret {
       let v4 := 0x0a
       let v1 := and(v4, 0xffffffffffffffff)
@@ -21,6 +17,10 @@ object "main" {
       ret := and(v0, 0xffffffffffffffff)
       leave
     }
-    $__fe_main_root()
+    function $main_root() {
+      let v0 := $main()
+      stop()
+    }
+    $main_root()
   }
 }

@@ -5,10 +5,6 @@ input_file: tests/fixtures/bit_ops.fe
 ---
 object "main" {
   code {
-    function $__fe_main_root() {
-      let v0 := $main()
-      stop()
-    }
     function $bit_ops(p0, p1) -> ret {
       let v7 := p0
       let v8 := p1
@@ -68,6 +64,10 @@ object "main" {
       ret := v5
       leave
     }
+    function $main_root() {
+      let v0 := $main()
+      stop()
+    }
     function $pow_op(p0, p1) -> ret {
       let v2 := p0
       let v3 := p1
@@ -86,6 +86,6 @@ object "main" {
       ret := v4
       leave
     }
-    $__fe_main_root()
+    $main_root()
   }
 }

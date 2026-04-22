@@ -5,15 +5,6 @@ input_file: crates/codegen/tests/fixtures/array_mut.fe
 ---
 target = "evm-ethereum-osaka"
 
-func private %__fe_main_root() {
-    block0:
-        jump block1;
-
-    block1:
-        v0.[i8; 4] = call %main;
-        evm_stop;
-}
-
 func private %array_mut(v0.i8) -> [i8; 4] {
     block0:
         v1.*i8 = alloca i8;
@@ -45,9 +36,18 @@ func private %main() -> [i8; 4] {
         return v1;
 }
 
+func private %main_root() {
+    block0:
+        jump block1;
+
+    block1:
+        v0.[i8; 4] = call %main;
+        evm_stop;
+}
+
 
 object @main {
     section main {
-        entry %__fe_main_root;
+        entry %main_root;
     }
 }

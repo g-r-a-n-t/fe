@@ -5,15 +5,6 @@ input_file: crates/codegen/tests/fixtures/for_array.fe
 ---
 target = "evm-ethereum-osaka"
 
-func private %__fe_main_root() {
-    block0:
-        jump block1;
-
-    block1:
-        v0.i64 = call %for_array_sum;
-        evm_stop;
-}
-
 func private %for_array_sum() -> i64 {
     block0:
         v0.*i64 = alloca i64;
@@ -262,9 +253,18 @@ func private %len(v0.[i64; 25]) -> i256 {
         return 25.i256;
 }
 
+func private %main_root() {
+    block0:
+        jump block1;
+
+    block1:
+        v0.i64 = call %for_array_sum;
+        evm_stop;
+}
+
 
 object @main {
     section main {
-        entry %__fe_main_root;
+        entry %main_root;
     }
 }

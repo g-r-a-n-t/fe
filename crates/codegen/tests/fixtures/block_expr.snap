@@ -5,10 +5,6 @@ input_file: tests/fixtures/block_expr.fe
 ---
 object "main" {
   code {
-    function $__fe_main_root() {
-      let v0 := $block_expr()
-      stop()
-    }
     function $block_expr() -> ret {
       let v3 := 0x01
       let v0 := and(v3, 0xffffffffffffffff)
@@ -19,6 +15,10 @@ object "main" {
       ret := and(v2, 0xffffffffffffffff)
       leave
     }
-    $__fe_main_root()
+    function $main_root() {
+      let v0 := $block_expr()
+      stop()
+    }
+    $main_root()
   }
 }

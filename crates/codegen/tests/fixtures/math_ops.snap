@@ -5,7 +5,7 @@ input_file: tests/fixtures/math_ops.fe
 ---
 object "main" {
   code {
-    function $__fe_main_root() {
+    function $main_root() {
       let v0 := $math_ops()
       stop()
     }
@@ -31,6 +31,6 @@ object "main" {
       ret := and(v8, 0xffffffffffffffff)
       leave
     }
-    $__fe_main_root()
+    $main_root()
   }
 }

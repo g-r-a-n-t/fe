@@ -5,15 +5,6 @@ input_file: crates/codegen/tests/fixtures/const_string_literal_large.fe
 ---
 target = "evm-ethereum-osaka"
 
-func private %__fe_main_root() {
-    block0:
-        jump block1;
-
-    block1:
-        v0.i256 = call %large_string_const;
-        evm_stop;
-}
-
 func private %large_string_const() -> i256 {
     block0:
         jump block1;
@@ -22,9 +13,18 @@ func private %large_string_const() -> i256 {
         return 172063216033151516844329818169388221396727601204421676283161692387156386917.i256;
 }
 
+func private %main_root() {
+    block0:
+        jump block1;
+
+    block1:
+        v0.i256 = call %large_string_const;
+        evm_stop;
+}
+
 
 object @main {
     section main {
-        entry %__fe_main_root;
+        entry %main_root;
     }
 }

@@ -165,23 +165,15 @@ fn test_param_local_collision() -> u32 {
 }
 
 // =============================================================================
-// 6. Cast shim pattern collision
+// 6. User-defined conversion-pattern name
 // =============================================================================
-// try_collapse_cast_shim is purely string-pattern based on `__{src}_as_{dst}`.
-// A user-defined function matching this pattern would be "optimized away".
 
 fn __u32_as_u256(_ x: u32) -> u256 {
-    // This function name matches the cast shim pattern and might be
-    // incorrectly optimized away or have its call replaced with just
-    // returning the argument.
-    // Intentionally doing something different than a simple cast:
     let result: u256 = 999
     result
 }
 
-fn test_cast_shim_collision() -> u256 {
-    // This call might be incorrectly collapsed to just return 42
-    // instead of calling our custom function that returns 999
+fn test_user_defined_conversion_pattern_name() -> u256 {
     __u32_as_u256(42)
 }
 
@@ -223,7 +215,7 @@ pub fn main() -> u32 {
     let _ = test_impl_method_collision()
     let _ = test_trait_method_collision()
     let _ = test_param_local_collision()
-    let _ = test_cast_shim_collision()
+    let _ = test_user_defined_conversion_pattern_name()
     let _ = test_ret_param_collision()
     let _ = test_yul_reserved_fn_collision()
     0

@@ -5,10 +5,6 @@ input_file: tests/fixtures/aug_assign_bit_ops.fe
 ---
 object "main" {
   code {
-    function $__fe_main_root() {
-      let v0 := $main()
-      stop()
-    }
     function $aug_assign_bit_ops(p0, p1) -> ret {
       let v3 := p0
       let r2 := mload(0x40)
@@ -87,6 +83,10 @@ object "main" {
       ret := v2
       leave
     }
-    $__fe_main_root()
+    function $main_root() {
+      let v0 := $main()
+      stop()
+    }
+    $main_root()
   }
 }

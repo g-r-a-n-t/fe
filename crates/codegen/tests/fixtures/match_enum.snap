@@ -5,10 +5,6 @@ input_file: tests/fixtures/match_enum.fe
 ---
 object "main" {
   code {
-    function $__fe_main_root() {
-      let v0 := $main()
-      stop()
-    }
     function $main() -> ret {
       let t4 := mload(0x40)
       if iszero(t4) {
@@ -22,6 +18,10 @@ object "main" {
       let v1 := and(v3, 0xff)
       ret := and(v1, 0xff)
       leave
+    }
+    function $main_root() {
+      let v0 := $main()
+      stop()
     }
     function $match_enum(p0) -> ret {
       let v1 := 0
@@ -52,6 +52,6 @@ object "main" {
       ret := and(v1, 0xff)
       leave
     }
-    $__fe_main_root()
+    $main_root()
   }
 }

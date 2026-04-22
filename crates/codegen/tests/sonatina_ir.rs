@@ -10,7 +10,7 @@ use common::InputDb;
 use dir_test::{Fixture, dir_test};
 use driver::DriverDataBase;
 use fe_codegen::emit_module_sonatina_ir;
-use std::path::Path;
+use std::{collections::HashSet, path::Path};
 use test_utils::_macro_support::_insta::{self, Settings};
 use url::Url;
 
@@ -29,6 +29,97 @@ fn with_top_mod_for_source<T>(
         .expect("file should be loaded");
     let top_mod = db.top_mod(file);
     f(&db, top_mod)
+}
+
+fn sonatina_function_names(ir: &str) -> Vec<String> {
+    ir.lines()
+        .filter_map(|line| {
+            let rest = line.trim_start().strip_prefix("func ")?;
+            let (_, rest) = rest.split_once('%')?;
+            let end = rest.find('(')?;
+            Some(rest[..end].to_string())
+        })
+        .collect()
+}
+
+#[test]
+fn sonatina_function_names_disambiguate_module_conflicts() {
+    let ir = with_top_mod_for_source(
+        "sonatina_function_names_disambiguate_module_conflicts.fe",
+        r#"
+pub mod left {
+    pub fn same() -> u8 {
+        1
+    }
+}
+
+pub mod right {
+    pub fn same() -> u8 {
+        2
+    }
+}
+
+pub fn main() -> u8 {
+    left::same() + right::same()
+}
+"#,
+        |db, top_mod| emit_module_sonatina_ir(db, top_mod).expect("Sonatina IR should emit"),
+    );
+
+    let names = sonatina_function_names(&ir);
+    let unique_names = names.iter().collect::<HashSet<_>>();
+    assert_eq!(
+        names.len(),
+        unique_names.len(),
+        "Sonatina function names must be unique across source modules:\n{ir}"
+    );
+    assert!(
+        names
+            .iter()
+            .filter(|name| name.ends_with("__same") || name.contains("__same_"))
+            .all(|name| name.contains("__left__same") || name.contains("__right__same")),
+        "colliding module functions should include their module paths:\n{ir}"
+    );
+}
+
+#[test]
+fn sonatina_function_names_disambiguate_generic_specializations() {
+    let ir = with_top_mod_for_source(
+        "sonatina_function_names_disambiguate_generic_specializations.fe",
+        r#"
+fn identity<T>(_ value: own T) -> T {
+    value
+}
+
+fn bool_score(value: bool) -> u32 {
+    if value {
+        1
+    } else {
+        0
+    }
+}
+
+pub fn main() -> u32 {
+    identity(7) + bool_score(identity(true))
+}
+"#,
+        |db, top_mod| emit_module_sonatina_ir(db, top_mod).expect("Sonatina IR should emit"),
+    );
+
+    let names = sonatina_function_names(&ir);
+    let unique_names = names.iter().collect::<HashSet<_>>();
+    assert_eq!(
+        names.len(),
+        unique_names.len(),
+        "Sonatina function names must be unique across generic specializations:\n{ir}"
+    );
+    assert!(
+        names
+            .iter()
+            .filter(|name| name.starts_with("identity"))
+            .all(|name| name.starts_with("identity__g")),
+        "colliding generic specializations should include generic identity components:\n{ir}"
+    );
 }
 
 #[test]

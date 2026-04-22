@@ -2,6 +2,7 @@ mod doc;
 mod emitter;
 mod errors;
 mod legalize;
+mod names;
 mod state;
 
 use common::ingot::Ingot;

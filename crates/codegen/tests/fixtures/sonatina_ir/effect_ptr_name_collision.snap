@@ -5,9 +5,30 @@ input_file: crates/codegen/tests/fixtures/effect_ptr_name_collision.fe
 ---
 target = "evm-ethereum-osaka"
 
-type @__fe_layout_0 = {i256, i256};
+type @layout_0 = {i256, i256};
 
-func private %__fe_main_root() {
+func private %effect_ptr_name_collision() -> i256 {
+    block0:
+        jump block1;
+
+    block1:
+        v2.objref<@layout_0> = obj.alloc @layout_0;
+        v4.objref<i256> = obj.proj v2 0.i256;
+        obj.store v4 1.i256;
+        v5.objref<i256> = obj.proj v2 1.i256;
+        obj.store v5 7.i256;
+        v6.@layout_0 = obj.load v2;
+        v7.objref<@layout_0> = obj.alloc @layout_0;
+        v8.objref<i256> = obj.proj v7 0.i256;
+        obj.store v8 1.i256;
+        v9.objref<i256> = obj.proj v7 1.i256;
+        obj.store v9 7.i256;
+        v10.@layout_0 = obj.load v7;
+        v11.i256 = call %read_tag v10;
+        return v11;
+}
+
+func private %main_root() {
     block0:
         jump block1;
 
@@ -16,30 +37,9 @@ func private %__fe_main_root() {
         evm_stop;
 }
 
-func private %effect_ptr_name_collision() -> i256 {
+func private %read_tag(v0.@layout_0) -> i256 {
     block0:
-        jump block1;
-
-    block1:
-        v2.objref<@__fe_layout_0> = obj.alloc @__fe_layout_0;
-        v4.objref<i256> = obj.proj v2 0.i256;
-        obj.store v4 1.i256;
-        v5.objref<i256> = obj.proj v2 1.i256;
-        obj.store v5 7.i256;
-        v6.@__fe_layout_0 = obj.load v2;
-        v7.objref<@__fe_layout_0> = obj.alloc @__fe_layout_0;
-        v8.objref<i256> = obj.proj v7 0.i256;
-        obj.store v8 1.i256;
-        v9.objref<i256> = obj.proj v7 1.i256;
-        obj.store v9 7.i256;
-        v10.@__fe_layout_0 = obj.load v7;
-        v11.i256 = call %read_tag v10;
-        return v11;
-}
-
-func private %read_tag(v0.@__fe_layout_0) -> i256 {
-    block0:
-        v1.objref<@__fe_layout_0> = obj.alloc @__fe_layout_0;
+        v1.objref<@layout_0> = obj.alloc @layout_0;
         v3.objref<i256> = obj.proj v1 0.i256;
         v4.i256 = extract_value v0 0.i256;
         obj.store v3 v4;
@@ -57,6 +57,6 @@ func private %read_tag(v0.@__fe_layout_0) -> i256 {
 
 object @main {
     section main {
-        entry %__fe_main_root;
+        entry %main_root;
     }
 }

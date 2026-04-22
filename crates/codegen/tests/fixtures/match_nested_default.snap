@@ -5,10 +5,6 @@ input_file: tests/fixtures/match_nested_default.fe
 ---
 object "main" {
   code {
-    function $__fe_main_root() {
-      let v0 := $main()
-      stop()
-    }
     function $deeply_nested_wildcard(p0) -> ret {
       let r0 := mload(0x40)
       if iszero(r0) {
@@ -261,6 +257,10 @@ object "main" {
       ret := v13
       leave
     }
+    function $main_root() {
+      let v0 := $main()
+      stop()
+    }
     function $nested_with_defaults(p0) -> ret {
       let r0 := mload(0x40)
       if iszero(r0) {
@@ -370,6 +370,6 @@ object "main" {
       ret := and(v1, 0xff)
       leave
     }
-    $__fe_main_root()
+    $main_root()
   }
 }

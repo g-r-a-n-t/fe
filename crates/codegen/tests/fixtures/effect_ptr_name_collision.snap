@@ -5,10 +5,6 @@ input_file: tests/fixtures/effect_ptr_name_collision.fe
 ---
 object "main" {
   code {
-    function $__fe_main_root() {
-      let v0 := $effect_ptr_name_collision()
-      stop()
-    }
     function $effect_ptr_name_collision() -> ret {
       let v5 := 0x01
       let v1 := v5
@@ -27,6 +23,10 @@ object "main" {
       ret := v4
       leave
     }
+    function $main_root() {
+      let v0 := $effect_ptr_name_collision()
+      stop()
+    }
     function $read_tag_arg0_root_code(p0) -> ret {
       let t2 := mload(0x40)
       if iszero(t2) {
@@ -39,7 +39,7 @@ object "main" {
       ret := v1
       leave
     }
-    $__fe_main_root()
+    $main_root()
   }
   data "const_0" hex"00000000000000000000000000000000000000000000000000000000000000010000000000000000000000000000000000000000000000000000000000000007"
 }

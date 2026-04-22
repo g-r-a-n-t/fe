@@ -5,38 +5,29 @@ input_file: crates/codegen/tests/fixtures/method_infer_by_constraints.fe
 ---
 target = "evm-ethereum-osaka"
 
-type @__fe_layout_0 = {i64, i64};
-type @__fe_layout_1 = {i64};
+type @layout_0 = {i64, i64};
+type @layout_1 = {i64};
 
-func private %__fe_main_root() {
+func private %call() -> @layout_0 {
     block0:
         jump block1;
 
     block1:
-        v0.@__fe_layout_0 = call %call;
-        evm_stop;
-}
-
-func private %call() -> @__fe_layout_0 {
-    block0:
-        jump block1;
-
-    block1:
-        v1.objref<@__fe_layout_1> = obj.alloc @__fe_layout_1;
+        v1.objref<@layout_1> = obj.alloc @layout_1;
         v3.objref<i64> = obj.proj v1 0.i256;
         obj.store v3 10.i64;
-        v4.@__fe_layout_1 = obj.load v1;
-        v5.objref<@__fe_layout_1> = obj.alloc @__fe_layout_1;
+        v4.@layout_1 = obj.load v1;
+        v5.objref<@layout_1> = obj.alloc @layout_1;
         v6.objref<i64> = obj.proj v5 0.i256;
         obj.store v6 10.i64;
-        v7.@__fe_layout_1 = obj.load v5;
-        v8.@__fe_layout_0 = call %foo v7;
+        v7.@layout_1 = obj.load v5;
+        v8.@layout_0 = call %foo v7;
         return v8;
 }
 
-func private %foo(v0.@__fe_layout_1) -> @__fe_layout_0 {
+func private %foo(v0.@layout_1) -> @layout_0 {
     block0:
-        v1.objref<@__fe_layout_1> = obj.alloc @__fe_layout_1;
+        v1.objref<@layout_1> = obj.alloc @layout_1;
         v3.objref<i64> = obj.proj v1 0.i256;
         v4.i64 = extract_value v0 0.i256;
         obj.store v3 v4;
@@ -45,18 +36,27 @@ func private %foo(v0.@__fe_layout_1) -> @__fe_layout_0 {
     block1:
         v5.objref<i64> = obj.proj v1 0.i256;
         v6.i64 = obj.load v5;
-        v8.objref<@__fe_layout_0> = obj.alloc @__fe_layout_0;
+        v8.objref<@layout_0> = obj.alloc @layout_0;
         v9.objref<i64> = obj.proj v8 0.i256;
         obj.store v9 v6;
         v11.objref<i64> = obj.proj v8 1.i256;
         obj.store v11 1.i64;
-        v12.@__fe_layout_0 = obj.load v8;
+        v12.@layout_0 = obj.load v8;
         return v12;
+}
+
+func private %main_root() {
+    block0:
+        jump block1;
+
+    block1:
+        v0.@layout_0 = call %call;
+        evm_stop;
 }
 
 
 object @main {
     section main {
-        entry %__fe_main_root;
+        entry %main_root;
     }
 }

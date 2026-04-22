@@ -5,17 +5,6 @@ input_file: tests/fixtures/full_contract.fe
 ---
 object "ShapeDispatcher" {
   code {
-    function $__fe_manual_contract_init_root_ShapeDispatcher() {
-      let t3 := mload(0x40)
-      if iszero(t3) {
-        t3 := 0x80
-      }
-      mstore(0x40, add(t3, 0))
-      let v0 := t3
-      let v1 := v0
-      $init(v1)
-      stop()
-    }
     function $codecopy(p0, p1, p2, p3) {
       let v4 := p1
       let v5 := p2
@@ -35,29 +24,29 @@ object "ShapeDispatcher" {
       $codecopy(v5, v6, v2, v1)
       let v14 := 0x00
       let v8 := v14
-      $return_data_1(v8, v1)
+      $std$lib$evm$effects$impl_trait$Evm$0098$return_data_0(v8, v1)
       invalid()
     }
-    function $return_data_1(p0, p1) {
+    function $manual_contract_init_root_ShapeDispatcher() {
+      let t3 := mload(0x40)
+      if iszero(t3) {
+        t3 := 0x80
+      }
+      mstore(0x40, add(t3, 0))
+      let v0 := t3
+      let v1 := v0
+      $init(v1)
+      stop()
+    }
+    function $std$lib$evm$effects$impl_trait$Evm$0098$return_data_0(p0, p1) {
       let v3 := p0
       let v4 := p1
       return(v3, v4)
     }
-    $__fe_manual_contract_init_root_ShapeDispatcher()
+    $manual_contract_init_root_ShapeDispatcher()
   }
   object "__ShapeDispatcher_runtime" {
     code {
-      function $__fe_manual_contract_runtime_root_ShapeDispatcher() {
-        let t3 := mload(0x40)
-        if iszero(t3) {
-          t3 := 0x80
-        }
-        mstore(0x40, add(t3, 0))
-        let v0 := t3
-        let v1 := v0
-        $dispatch(v1)
-        stop()
-      }
       function $abi_encode(p0, p1) {
         let v9 := 0x00
         let v3 := v9
@@ -69,10 +58,10 @@ object "ShapeDispatcher" {
         $mstore(v4, v2, v5)
         let v14 := 0x20
         let v7 := v14
-        $return_data_2(v2, v7)
+        $std$lib$evm$effects$impl_trait$Evm$0098$return_data_1(v2, v7)
         invalid()
       }
-      function $area_0(p0) -> ret {
+      function $impl$Point$area(p0) -> ret {
         let r0 := mload(0x40)
         if iszero(r0) {
           r0 := 0x80
@@ -95,7 +84,7 @@ object "ShapeDispatcher" {
         ret := v3
         leave
       }
-      function $area_1(p0) -> ret {
+      function $impl$Square$area(p0) -> ret {
         let r0 := mload(0x40)
         if iszero(r0) {
           r0 := 0x80
@@ -187,7 +176,7 @@ object "ShapeDispatcher" {
           let v27 := v63
           mstore(add(v4, 32), v27)
           let v64 := v4
-          let v65 := $area_0(v64)
+          let v65 := $impl$Point$area(v64)
           let v29 := v65
           let v5 := v29
           $abi_encode(v5, p0)
@@ -228,7 +217,7 @@ object "ShapeDispatcher" {
             mstore(v7, v40)
             let t92 := mload(v7)
             let v76 := t92
-            let v77 := $area_1(v76)
+            let v77 := $impl$Square$area(v76)
             let v42 := v77
             let v8 := v42
             $abi_encode(v8, p0)
@@ -239,10 +228,21 @@ object "ShapeDispatcher" {
             let v45 := v80
             let v81 := 0x00
             let v46 := v81
-            $return_data_0(v45, v46)
+            $std$lib$evm$effects$impl_trait$Evm$0098$return_data_2(v45, v46)
             invalid()
           }
         }
+      }
+      function $manual_contract_runtime_root_ShapeDispatcher() {
+        let t3 := mload(0x40)
+        if iszero(t3) {
+          t3 := 0x80
+        }
+        mstore(0x40, add(t3, 0))
+        let v0 := t3
+        let v1 := v0
+        $dispatch(v1)
+        stop()
       }
       function $mstore(p0, p1, p2) {
         let v3 := p1
@@ -250,17 +250,17 @@ object "ShapeDispatcher" {
         mstore(v3, v4)
         leave
       }
-      function $return_data_0(p0, p1) {
+      function $std$lib$evm$effects$impl_trait$Evm$0098$return_data_1(p0, p1) {
         let v3 := p0
         let v4 := p1
         return(v3, v4)
       }
-      function $return_data_2(p0, p1) {
+      function $std$lib$evm$effects$impl_trait$Evm$0098$return_data_2(p0, p1) {
         let v3 := p0
         let v4 := p1
         return(v3, v4)
       }
-      $__fe_manual_contract_runtime_root_ShapeDispatcher()
+      $manual_contract_runtime_root_ShapeDispatcher()
     }
   }
 }

@@ -5,34 +5,14 @@ input_file: crates/codegen/tests/fixtures/enum_variant_contract.fe
 ---
 target = "evm-ethereum-osaka"
 
-type @__fe_layout_0 = {};
-type @__fe_layout_1 = {@__fe_layout_0};
-type @__fe_layout_2 = enum {
+type @layout_0 = {};
+type @layout_1 = {@layout_0};
+type @layout_2 = enum {
     #None,
     #Some(i256),
 };
 
-func private %__fe_manual_contract_init_root_EnumContract() {
-    block0:
-        jump block1;
-
-    block1:
-        v0.objref<@__fe_layout_1> = obj.alloc @__fe_layout_1;
-        call %init v0;
-        evm_stop;
-}
-
-func private %__fe_manual_contract_runtime_root_EnumContract() {
-    block0:
-        jump block1;
-
-    block1:
-        v0.objref<@__fe_layout_1> = obj.alloc @__fe_layout_1;
-        call %runtime v0;
-        evm_stop;
-}
-
-func private %abi_encode_u256(v0.i256, v1.objref<@__fe_layout_1>) {
+func private %abi_encode_u256(v0.i256, v1.objref<@layout_1>) {
     block0:
         v2.*i256 = alloca i256;
         mstore v2 v0 i256;
@@ -41,7 +21,7 @@ func private %abi_encode_u256(v0.i256, v1.objref<@__fe_layout_1>) {
     block1:
         v5.i256 = mload v2 i256;
         call %mstore v1 0.i256 v5;
-        call %return_data_1 0.i256 32.i256;
+        call %std__lib__evm__effects__impl_trait_Evm_0098__return_data_2 0.i256 32.i256;
         unreachable;
 }
 
@@ -57,7 +37,7 @@ func private %calldataload(v0.i256) -> i256 {
         return v3;
 }
 
-func private %codecopy(v0.objref<@__fe_layout_1>, v1.i256, v2.i256, v3.i256) {
+func private %codecopy(v0.objref<@layout_1>, v1.i256, v2.i256, v3.i256) {
     block0:
         v4.*i256 = alloca i256;
         v5.*i256 = alloca i256;
@@ -75,7 +55,7 @@ func private %codecopy(v0.objref<@__fe_layout_1>, v1.i256, v2.i256, v3.i256) {
         return;
 }
 
-func private %init(v0.objref<@__fe_layout_1>) {
+func private %init(v0.objref<@layout_1>) {
     block0:
         jump block1;
 
@@ -83,11 +63,31 @@ func private %init(v0.objref<@__fe_layout_1>) {
         v1.i256 = sym_size &__EnumContract_runtime;
         v2.i256 = sym_addr &__EnumContract_runtime;
         call %codecopy v0 0.i256 v2 v1;
-        call %return_data_2 0.i256 v1;
+        call %std__lib__evm__effects__impl_trait_Evm_0098__return_data_0 0.i256 v1;
         unreachable;
 }
 
-func private %mstore(v0.objref<@__fe_layout_1>, v1.i256, v2.i256) {
+func private %manual_contract_init_root_EnumContract() {
+    block0:
+        jump block1;
+
+    block1:
+        v0.objref<@layout_1> = obj.alloc @layout_1;
+        call %init v0;
+        evm_stop;
+}
+
+func private %manual_contract_runtime_root_EnumContract() {
+    block0:
+        jump block1;
+
+    block1:
+        v0.objref<@layout_1> = obj.alloc @layout_1;
+        call %runtime v0;
+        evm_stop;
+}
+
+func private %mstore(v0.objref<@layout_1>, v1.i256, v2.i256) {
     block0:
         v3.*i256 = alloca i256;
         v4.*i256 = alloca i256;
@@ -102,7 +102,7 @@ func private %mstore(v0.objref<@__fe_layout_1>, v1.i256, v2.i256) {
         return;
 }
 
-func private %return_data_0(v0.i256, v1.i256) {
+func private %std__lib__evm__effects__impl_trait_Evm_0098__return_data_0(v0.i256, v1.i256) {
     block0:
         v2.*i256 = alloca i256;
         v3.*i256 = alloca i256;
@@ -116,7 +116,7 @@ func private %return_data_0(v0.i256, v1.i256) {
         evm_return v4 v5;
 }
 
-func private %return_data_1(v0.i256, v1.i256) {
+func private %std__lib__evm__effects__impl_trait_Evm_0098__return_data_1(v0.i256, v1.i256) {
     block0:
         v2.*i256 = alloca i256;
         v3.*i256 = alloca i256;
@@ -130,7 +130,7 @@ func private %return_data_1(v0.i256, v1.i256) {
         evm_return v4 v5;
 }
 
-func private %return_data_2(v0.i256, v1.i256) {
+func private %std__lib__evm__effects__impl_trait_Evm_0098__return_data_2(v0.i256, v1.i256) {
     block0:
         v2.*i256 = alloca i256;
         v3.*i256 = alloca i256;
@@ -144,10 +144,10 @@ func private %return_data_2(v0.i256, v1.i256) {
         evm_return v4 v5;
 }
 
-func private %runtime(v0.objref<@__fe_layout_1>) {
+func private %runtime(v0.objref<@layout_1>) {
     block0:
-        v1.objref<@__fe_layout_2> = obj.alloc @__fe_layout_2;
-        v2.objref<@__fe_layout_2> = obj.alloc @__fe_layout_2;
+        v1.objref<@layout_2> = obj.alloc @layout_2;
+        v2.objref<@layout_2> = obj.alloc @layout_2;
         jump block1;
 
     block1:
@@ -158,9 +158,9 @@ func private %runtime(v0.objref<@__fe_layout_1>) {
 
     block2:
         v10.i256 = call %calldataload 4.i256;
-        v11.@__fe_layout_2 = enum.make @__fe_layout_2 #Some v10;
-        v12.enumtag(@__fe_layout_2) = enum.tag v11;
-        br_table v12 block21 (0.enumtag(@__fe_layout_2) block22) (1.enumtag(@__fe_layout_2) block23);
+        v11.@layout_2 = enum.make @layout_2 #Some v10;
+        v12.enumtag(@layout_2) = enum.tag v11;
+        br_table v12 block21 (0.enumtag(@layout_2) block22) (1.enumtag(@layout_2) block23);
 
     block3:
         jump block4;
@@ -175,7 +175,7 @@ func private %runtime(v0.objref<@__fe_layout_1>) {
         unreachable;
 
     block6:
-        v24.@__fe_layout_2 = obj.load v1;
+        v24.@layout_2 = obj.load v1;
         enum.assert_variant v24 #Some;
         v25.i256 = enum.extract v24 #Some 0.i256;
         jump block5;
@@ -184,10 +184,10 @@ func private %runtime(v0.objref<@__fe_layout_1>) {
         jump block5;
 
     block8:
-        v26.@__fe_layout_2 = enum.make @__fe_layout_2 #None;
-        v27.@__fe_layout_2 = enum.make @__fe_layout_2 #None;
-        v28.enumtag(@__fe_layout_2) = enum.tag v27;
-        br_table v28 block25 (0.enumtag(@__fe_layout_2) block26) (1.enumtag(@__fe_layout_2) block27);
+        v26.@layout_2 = enum.make @layout_2 #None;
+        v27.@layout_2 = enum.make @layout_2 #None;
+        v28.enumtag(@layout_2) = enum.tag v27;
+        br_table v28 block25 (0.enumtag(@layout_2) block26) (1.enumtag(@layout_2) block27);
 
     block9:
         jump block10;
@@ -202,7 +202,7 @@ func private %runtime(v0.objref<@__fe_layout_1>) {
         unreachable;
 
     block12:
-        v38.@__fe_layout_2 = obj.load v2;
+        v38.@layout_2 = obj.load v2;
         enum.assert_variant v38 #Some;
         v39.i256 = enum.extract v38 #Some 0.i256;
         jump block11;
@@ -212,15 +212,15 @@ func private %runtime(v0.objref<@__fe_layout_1>) {
 
     block14:
         v40.i256 = call %calldataload 4.i256;
-        v41.@__fe_layout_2 = enum.make @__fe_layout_2 #Some v40;
-        v42.enumtag(@__fe_layout_2) = enum.tag v41;
-        br_table v42 (1.enumtag(@__fe_layout_2) block18) (0.enumtag(@__fe_layout_2) block19);
+        v41.@layout_2 = enum.make @layout_2 #Some v40;
+        v42.enumtag(@layout_2) = enum.tag v41;
+        br_table v42 (1.enumtag(@layout_2) block18) (0.enumtag(@layout_2) block19);
 
     block15:
         jump block16;
 
     block16:
-        call %return_data_0 0.i256 0.i256;
+        call %std__lib__evm__effects__impl_trait_Evm_0098__return_data_1 0.i256 0.i256;
         unreachable;
 
     block17:
@@ -235,9 +235,9 @@ func private %runtime(v0.objref<@__fe_layout_1>) {
         jump block17;
 
     block20:
-        v17.@__fe_layout_2 = obj.load v1;
-        v18.enumtag(@__fe_layout_2) = enum.tag v17;
-        br_table v18 (1.enumtag(@__fe_layout_2) block6) (0.enumtag(@__fe_layout_2) block7);
+        v17.@layout_2 = obj.load v1;
+        v18.enumtag(@layout_2) = enum.tag v17;
+        br_table v18 (1.enumtag(@layout_2) block6) (0.enumtag(@layout_2) block7);
 
     block21:
         unreachable;
@@ -255,9 +255,9 @@ func private %runtime(v0.objref<@__fe_layout_1>) {
         jump block20;
 
     block24:
-        v31.@__fe_layout_2 = obj.load v2;
-        v32.enumtag(@__fe_layout_2) = enum.tag v31;
-        br_table v32 (1.enumtag(@__fe_layout_2) block12) (0.enumtag(@__fe_layout_2) block13);
+        v31.@layout_2 = obj.load v2;
+        v32.enumtag(@layout_2) = enum.tag v31;
+        br_table v32 (1.enumtag(@layout_2) block12) (0.enumtag(@layout_2) block13);
 
     block25:
         unreachable;
@@ -278,10 +278,10 @@ func private %runtime(v0.objref<@__fe_layout_1>) {
 
 object @EnumContract {
     section init {
-        entry %__fe_manual_contract_init_root_EnumContract;
+        entry %manual_contract_init_root_EnumContract;
         embed .runtime as &__EnumContract_runtime;
     }
     section runtime {
-        entry %__fe_manual_contract_runtime_root_EnumContract;
+        entry %manual_contract_runtime_root_EnumContract;
     }
 }

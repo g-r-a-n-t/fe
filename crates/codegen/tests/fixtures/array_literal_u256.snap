@@ -5,10 +5,6 @@ input_file: tests/fixtures/array_literal_u256.fe
 ---
 object "main" {
   code {
-    function $__fe_main_root() {
-      let v0 := $fixed_u256_array_literal()
-      stop()
-    }
     function $fixed_u256_array_literal() -> ret {
       let v6 := 0x01
       let v1 := v6
@@ -43,7 +39,11 @@ object "main" {
       ret := v0
       leave
     }
-    $__fe_main_root()
+    function $main_root() {
+      let v0 := $fixed_u256_array_literal()
+      stop()
+    }
+    $main_root()
   }
   data "const_0" hex"0000000000000000000000000000000000000000000000000000000000000001000000000000000000000000000000000000000000000000000000000000000200000000000000000000000000000000000000000000000000000000000000030000000000000000000000000000000000000000000000000000000000000004"
 }

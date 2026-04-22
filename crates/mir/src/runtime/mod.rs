@@ -5,6 +5,7 @@ pub mod lower;
 pub(crate) mod package;
 pub mod pretty;
 pub(crate) mod root_effects;
+pub mod stable_key;
 pub(crate) mod synthetic;
 
 pub use ir::*;

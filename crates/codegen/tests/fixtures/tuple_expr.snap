@@ -5,7 +5,7 @@ input_file: tests/fixtures/tuple_expr.fe
 ---
 object "main" {
   code {
-    function $__fe_main_root() {
+    function $main_root() {
       let v0 := $tuple_expr()
       stop()
     }
@@ -35,6 +35,6 @@ object "main" {
       ret := v5
       leave
     }
-    $__fe_main_root()
+    $main_root()
   }
 }

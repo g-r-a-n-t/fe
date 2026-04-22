@@ -5,20 +5,8 @@ input_file: crates/codegen/tests/fixtures/intrinsic_ops.fe
 ---
 target = "evm-ethereum-osaka"
 
-type @__fe_layout_0 = {};
-type @__fe_layout_1 = {@__fe_layout_0};
-
-func private %__fe_main_root() {
-    block0:
-        jump block1;
-
-    block1:
-        v0.objref<@__fe_layout_1> = obj.alloc @__fe_layout_1;
-        v1.objref<@__fe_layout_1> = obj.alloc @__fe_layout_1;
-        v2.objref<@__fe_layout_1> = obj.alloc @__fe_layout_1;
-        v3.i256 = call %main v0 v1 v2;
-        evm_stop;
-}
+type @layout_0 = {};
+type @layout_1 = {@layout_0};
 
 func private %calldataload(v0.i256) -> i256 {
     block0:
@@ -32,7 +20,7 @@ func private %calldataload(v0.i256) -> i256 {
         return v3;
 }
 
-func private %load_calldata(v0.i256, v1.objref<@__fe_layout_1>) -> i256 {
+func private %load_calldata(v0.i256, v1.objref<@layout_1>) -> i256 {
     block0:
         v2.*i256 = alloca i256;
         mstore v2 v0 i256;
@@ -44,7 +32,7 @@ func private %load_calldata(v0.i256, v1.objref<@__fe_layout_1>) -> i256 {
         return v4;
 }
 
-func private %load_slot(v0.i256, v1.objref<@__fe_layout_1>) -> i256 {
+func private %load_slot(v0.i256, v1.objref<@layout_1>) -> i256 {
     block0:
         v2.*i256 = alloca i256;
         mstore v2 v0 i256;
@@ -56,7 +44,7 @@ func private %load_slot(v0.i256, v1.objref<@__fe_layout_1>) -> i256 {
         return v4;
 }
 
-func private %load_word(v0.i256, v1.objref<@__fe_layout_1>) -> i256 {
+func private %load_word(v0.i256, v1.objref<@layout_1>) -> i256 {
     block0:
         v2.*i256 = alloca i256;
         mstore v2 v0 i256;
@@ -68,7 +56,7 @@ func private %load_word(v0.i256, v1.objref<@__fe_layout_1>) -> i256 {
         return v4;
 }
 
-func private %main(v0.objref<@__fe_layout_1>, v1.objref<@__fe_layout_1>, v2.objref<@__fe_layout_1>) -> i256 {
+func private %main(v0.objref<@layout_1>, v1.objref<@layout_1>, v2.objref<@layout_1>) -> i256 {
     block0:
         jump block1;
 
@@ -95,6 +83,18 @@ func private %main(v0.objref<@__fe_layout_1>, v1.objref<@__fe_layout_1>, v2.objr
         return v24;
 }
 
+func private %main_root() {
+    block0:
+        jump block1;
+
+    block1:
+        v0.objref<@layout_1> = obj.alloc @layout_1;
+        v1.objref<@layout_1> = obj.alloc @layout_1;
+        v2.objref<@layout_1> = obj.alloc @layout_1;
+        v3.i256 = call %main v0 v1 v2;
+        evm_stop;
+}
+
 func private %mload(v0.i256) -> i256 {
     block0:
         v1.*i256 = alloca i256;
@@ -107,7 +107,7 @@ func private %mload(v0.i256) -> i256 {
         return v3;
 }
 
-func private %mstore(v0.objref<@__fe_layout_1>, v1.i256, v2.i256) {
+func private %mstore(v0.objref<@layout_1>, v1.i256, v2.i256) {
     block0:
         v3.*i256 = alloca i256;
         v4.*i256 = alloca i256;
@@ -122,7 +122,7 @@ func private %mstore(v0.objref<@__fe_layout_1>, v1.i256, v2.i256) {
         return;
 }
 
-func private %mstore8(v0.objref<@__fe_layout_1>, v1.i256, v2.i8) {
+func private %mstore8(v0.objref<@layout_1>, v1.i256, v2.i8) {
     block0:
         v3.*i256 = alloca i256;
         v4.*i8 = alloca i8;
@@ -150,7 +150,7 @@ func private %sload(v0.i256) -> i256 {
         return v3;
 }
 
-func private %sstore(v0.objref<@__fe_layout_1>, v1.i256, v2.i256) {
+func private %sstore(v0.objref<@layout_1>, v1.i256, v2.i256) {
     block0:
         v3.*i256 = alloca i256;
         v4.*i256 = alloca i256;
@@ -165,7 +165,7 @@ func private %sstore(v0.objref<@__fe_layout_1>, v1.i256, v2.i256) {
         return;
 }
 
-func private %store_byte(v0.i256, v1.i8, v2.objref<@__fe_layout_1>) {
+func private %store_byte(v0.i256, v1.i8, v2.objref<@layout_1>) {
     block0:
         v3.*i256 = alloca i256;
         v4.*i8 = alloca i8;
@@ -181,7 +181,7 @@ func private %store_byte(v0.i256, v1.i8, v2.objref<@__fe_layout_1>) {
         return;
 }
 
-func private %store_slot(v0.i256, v1.i256, v2.objref<@__fe_layout_1>) {
+func private %store_slot(v0.i256, v1.i256, v2.objref<@layout_1>) {
     block0:
         v3.*i256 = alloca i256;
         v4.*i256 = alloca i256;
@@ -196,7 +196,7 @@ func private %store_slot(v0.i256, v1.i256, v2.objref<@__fe_layout_1>) {
         return;
 }
 
-func private %store_word(v0.i256, v1.i256, v2.objref<@__fe_layout_1>) {
+func private %store_word(v0.i256, v1.i256, v2.objref<@layout_1>) {
     block0:
         v3.*i256 = alloca i256;
         v4.*i256 = alloca i256;
@@ -214,6 +214,6 @@ func private %store_word(v0.i256, v1.i256, v2.objref<@__fe_layout_1>) {
 
 object @main {
     section main {
-        entry %__fe_main_root;
+        entry %main_root;
     }
 }

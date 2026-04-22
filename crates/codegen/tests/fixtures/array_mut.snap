@@ -5,10 +5,6 @@ input_file: tests/fixtures/array_mut.fe
 ---
 object "main" {
   code {
-    function $__fe_main_root() {
-      let v0 := $main()
-      stop()
-    }
     function $array_mut(p0) -> ret {
       let v2 := and(p0, 0xff)
       let v7 := 0x02
@@ -40,6 +36,10 @@ object "main" {
       ret := v1
       leave
     }
-    $__fe_main_root()
+    function $main_root() {
+      let v0 := $main()
+      stop()
+    }
+    $main_root()
   }
 }

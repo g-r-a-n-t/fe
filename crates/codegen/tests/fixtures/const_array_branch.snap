@@ -5,10 +5,6 @@ input_file: tests/fixtures/const_array_branch.fe
 ---
 object "main" {
   code {
-    function $__fe_main_root() {
-      let v0 := $main()
-      stop()
-    }
     function $const_array_branch(p0) -> ret {
       let v1 := 0
       let v2 := iszero(iszero(p0))
@@ -45,6 +41,10 @@ object "main" {
       ret := v1
       leave
     }
-    $__fe_main_root()
+    function $main_root() {
+      let v0 := $main()
+      stop()
+    }
+    $main_root()
   }
 }

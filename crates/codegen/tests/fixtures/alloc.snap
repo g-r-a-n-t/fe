@@ -5,10 +5,6 @@ input_file: tests/fixtures/alloc.fe
 ---
 object "main" {
   code {
-    function $__fe_main_root() {
-      let v0 := $bump_const()
-      stop()
-    }
     function $bump_const() -> ret {
       let v2 := 0x40
       let v0 := v2
@@ -22,6 +18,10 @@ object "main" {
       ret := v1
       leave
     }
-    $__fe_main_root()
+    function $main_root() {
+      let v0 := $bump_const()
+      stop()
+    }
+    $main_root()
   }
 }

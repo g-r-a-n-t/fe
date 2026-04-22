@@ -5,7 +5,7 @@ input_file: tests/fixtures/string_literal.fe
 ---
 object "main" {
   code {
-    function $__fe_main_root() {
+    function $main_root() {
       let v0 := $string_literal()
       stop()
     }
@@ -15,6 +15,6 @@ object "main" {
       ret := and(v0, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff)
       leave
     }
-    $__fe_main_root()
+    $main_root()
   }
 }

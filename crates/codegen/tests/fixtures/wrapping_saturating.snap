@@ -5,10 +5,6 @@ input_file: tests/fixtures/wrapping_saturating.fe
 ---
 object "main" {
   code {
-    function $__fe_main_root() {
-      let v0 := $main()
-      stop()
-    }
     function $main() -> ret {
       let v13 := 0x01
       let v0 := and(v13, 0xffffffffffffffff)
@@ -56,7 +52,11 @@ object "main" {
       ret := v12
       leave
     }
-    function $saturating_add_0(p0, p1) -> ret {
+    function $main_root() {
+      let v0 := $main()
+      stop()
+    }
+    function $impl_trait$u256$saturating_add(p0, p1) -> ret {
       let v2 := p0
       let v3 := p1
       let t6 := add(v2, v3)
@@ -68,7 +68,7 @@ object "main" {
       ret := v4
       leave
     }
-    function $saturating_add_1(p0, p1) -> ret {
+    function $impl_trait$u64$saturating_add(p0, p1) -> ret {
       let v2 := and(p0, 0xffffffffffffffff)
       let v3 := and(p1, 0xffffffffffffffff)
       let t6 := and(add(and(v2, 0xffffffffffffffff), and(v3, 0xffffffffffffffff)), 0xffffffffffffffff)
@@ -80,19 +80,7 @@ object "main" {
       ret := and(v4, 0xffffffffffffffff)
       leave
     }
-    function $saturating_mul_0(p0, p1) -> ret {
-      let v2 := p0
-      let v3 := p1
-      let t6 := mul(v2, v3)
-      if and(iszero(iszero(v2)), iszero(eq(div(t6, v2), v3))) {
-        t6 := 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
-      }
-      let v5 := t6
-      let v4 := v5
-      ret := v4
-      leave
-    }
-    function $saturating_mul_1(p0, p1) -> ret {
+    function $impl_trait$u64$saturating_mul(p0, p1) -> ret {
       let v2 := and(p0, 0xffffffffffffffff)
       let v3 := and(p1, 0xffffffffffffffff)
       let t6 := and(mul(and(v2, 0xffffffffffffffff), and(v3, 0xffffffffffffffff)), 0xffffffffffffffff)
@@ -104,18 +92,30 @@ object "main" {
       ret := and(v4, 0xffffffffffffffff)
       leave
     }
+    function $impl_trait$u256$saturating_mul(p0, p1) -> ret {
+      let v2 := p0
+      let v3 := p1
+      let t6 := mul(v2, v3)
+      if and(iszero(iszero(v2)), iszero(eq(div(t6, v2), v3))) {
+        t6 := 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+      }
+      let v5 := t6
+      let v4 := v5
+      ret := v4
+      leave
+    }
     function $saturating_ops_u256(p0, p1) -> ret {
       let v2 := p0
       let v3 := p1
-      let v12 := $saturating_add_0(v2, v3)
+      let v12 := $impl_trait$u256$saturating_add(v2, v3)
       let v4 := v12
       let v5 := p0
       let v6 := p1
-      let v13 := $saturating_sub_0(v5, v6)
+      let v13 := $impl_trait$u256$saturating_sub(v5, v6)
       let v7 := v13
       let v8 := p0
       let v9 := p1
-      let v14 := $saturating_mul_0(v8, v9)
+      let v14 := $impl_trait$u256$saturating_mul(v8, v9)
       let v10 := v14
       let t16 := mload(0x40)
       if iszero(t16) {
@@ -133,15 +133,15 @@ object "main" {
     function $saturating_ops_u64(p0, p1) -> ret {
       let v2 := and(p0, 0xffffffffffffffff)
       let v3 := and(p1, 0xffffffffffffffff)
-      let v12 := $saturating_add_1(and(v2, 0xffffffffffffffff), and(v3, 0xffffffffffffffff))
+      let v12 := $impl_trait$u64$saturating_add(and(v2, 0xffffffffffffffff), and(v3, 0xffffffffffffffff))
       let v4 := and(v12, 0xffffffffffffffff)
       let v5 := and(p0, 0xffffffffffffffff)
       let v6 := and(p1, 0xffffffffffffffff)
-      let v13 := $saturating_sub_1(and(v5, 0xffffffffffffffff), and(v6, 0xffffffffffffffff))
+      let v13 := $impl_trait$u64$saturating_sub(and(v5, 0xffffffffffffffff), and(v6, 0xffffffffffffffff))
       let v7 := and(v13, 0xffffffffffffffff)
       let v8 := and(p0, 0xffffffffffffffff)
       let v9 := and(p1, 0xffffffffffffffff)
-      let v14 := $saturating_mul_1(and(v8, 0xffffffffffffffff), and(v9, 0xffffffffffffffff))
+      let v14 := $impl_trait$u64$saturating_mul(and(v8, 0xffffffffffffffff), and(v9, 0xffffffffffffffff))
       let v10 := and(v14, 0xffffffffffffffff)
       let t16 := mload(0x40)
       if iszero(t16) {
@@ -156,7 +156,7 @@ object "main" {
       ret := v11
       leave
     }
-    function $saturating_sub_0(p0, p1) -> ret {
+    function $impl_trait$u256$saturating_sub(p0, p1) -> ret {
       let v2 := p0
       let v3 := p1
       let t6 := sub(v2, v3)
@@ -168,7 +168,7 @@ object "main" {
       ret := v4
       leave
     }
-    function $saturating_sub_1(p0, p1) -> ret {
+    function $impl_trait$u64$saturating_sub(p0, p1) -> ret {
       let v2 := and(p0, 0xffffffffffffffff)
       let v3 := and(p1, 0xffffffffffffffff)
       let t6 := and(sub(and(v2, 0xffffffffffffffff), and(v3, 0xffffffffffffffff)), 0xffffffffffffffff)
@@ -180,15 +180,7 @@ object "main" {
       ret := and(v4, 0xffffffffffffffff)
       leave
     }
-    function $wrapping_add_0(p0, p1) -> ret {
-      let v2 := and(p0, 0xffffffffffffffff)
-      let v3 := and(p1, 0xffffffffffffffff)
-      let v5 := and(add(and(v2, 0xffffffffffffffff), and(v3, 0xffffffffffffffff)), 0xffffffffffffffff)
-      let v4 := and(v5, 0xffffffffffffffff)
-      ret := and(v4, 0xffffffffffffffff)
-      leave
-    }
-    function $wrapping_add_1(p0, p1) -> ret {
+    function $impl_trait$u256$wrapping_add(p0, p1) -> ret {
       let v2 := p0
       let v3 := p1
       let v5 := add(v2, v3)
@@ -196,7 +188,15 @@ object "main" {
       ret := v4
       leave
     }
-    function $wrapping_mul_0(p0, p1) -> ret {
+    function $impl_trait$u64$wrapping_add(p0, p1) -> ret {
+      let v2 := and(p0, 0xffffffffffffffff)
+      let v3 := and(p1, 0xffffffffffffffff)
+      let v5 := and(add(and(v2, 0xffffffffffffffff), and(v3, 0xffffffffffffffff)), 0xffffffffffffffff)
+      let v4 := and(v5, 0xffffffffffffffff)
+      ret := and(v4, 0xffffffffffffffff)
+      leave
+    }
+    function $impl_trait$u256$wrapping_mul(p0, p1) -> ret {
       let v2 := p0
       let v3 := p1
       let v5 := mul(v2, v3)
@@ -204,7 +204,7 @@ object "main" {
       ret := v4
       leave
     }
-    function $wrapping_mul_1(p0, p1) -> ret {
+    function $impl_trait$u64$wrapping_mul(p0, p1) -> ret {
       let v2 := and(p0, 0xffffffffffffffff)
       let v3 := and(p1, 0xffffffffffffffff)
       let v5 := and(mul(and(v2, 0xffffffffffffffff), and(v3, 0xffffffffffffffff)), 0xffffffffffffffff)
@@ -215,15 +215,15 @@ object "main" {
     function $wrapping_ops_u256(p0, p1) -> ret {
       let v2 := p0
       let v3 := p1
-      let v12 := $wrapping_add_1(v2, v3)
+      let v12 := $impl_trait$u256$wrapping_add(v2, v3)
       let v4 := v12
       let v5 := p0
       let v6 := p1
-      let v13 := $wrapping_sub_0(v5, v6)
+      let v13 := $impl_trait$u256$wrapping_sub(v5, v6)
       let v7 := v13
       let v8 := p0
       let v9 := p1
-      let v14 := $wrapping_mul_0(v8, v9)
+      let v14 := $impl_trait$u256$wrapping_mul(v8, v9)
       let v10 := v14
       let t16 := mload(0x40)
       if iszero(t16) {
@@ -241,15 +241,15 @@ object "main" {
     function $wrapping_ops_u64(p0, p1) -> ret {
       let v2 := and(p0, 0xffffffffffffffff)
       let v3 := and(p1, 0xffffffffffffffff)
-      let v12 := $wrapping_add_0(and(v2, 0xffffffffffffffff), and(v3, 0xffffffffffffffff))
+      let v12 := $impl_trait$u64$wrapping_add(and(v2, 0xffffffffffffffff), and(v3, 0xffffffffffffffff))
       let v4 := and(v12, 0xffffffffffffffff)
       let v5 := and(p0, 0xffffffffffffffff)
       let v6 := and(p1, 0xffffffffffffffff)
-      let v13 := $wrapping_sub_1(and(v5, 0xffffffffffffffff), and(v6, 0xffffffffffffffff))
+      let v13 := $impl_trait$u64$wrapping_sub(and(v5, 0xffffffffffffffff), and(v6, 0xffffffffffffffff))
       let v7 := and(v13, 0xffffffffffffffff)
       let v8 := and(p0, 0xffffffffffffffff)
       let v9 := and(p1, 0xffffffffffffffff)
-      let v14 := $wrapping_mul_1(and(v8, 0xffffffffffffffff), and(v9, 0xffffffffffffffff))
+      let v14 := $impl_trait$u64$wrapping_mul(and(v8, 0xffffffffffffffff), and(v9, 0xffffffffffffffff))
       let v10 := and(v14, 0xffffffffffffffff)
       let t16 := mload(0x40)
       if iszero(t16) {
@@ -264,7 +264,7 @@ object "main" {
       ret := v11
       leave
     }
-    function $wrapping_sub_0(p0, p1) -> ret {
+    function $impl_trait$u256$wrapping_sub(p0, p1) -> ret {
       let v2 := p0
       let v3 := p1
       let v5 := sub(v2, v3)
@@ -272,7 +272,7 @@ object "main" {
       ret := v4
       leave
     }
-    function $wrapping_sub_1(p0, p1) -> ret {
+    function $impl_trait$u64$wrapping_sub(p0, p1) -> ret {
       let v2 := and(p0, 0xffffffffffffffff)
       let v3 := and(p1, 0xffffffffffffffff)
       let v5 := and(sub(and(v2, 0xffffffffffffffff), and(v3, 0xffffffffffffffff)), 0xffffffffffffffff)
@@ -280,6 +280,6 @@ object "main" {
       ret := and(v4, 0xffffffffffffffff)
       leave
     }
-    $__fe_main_root()
+    $main_root()
   }
 }

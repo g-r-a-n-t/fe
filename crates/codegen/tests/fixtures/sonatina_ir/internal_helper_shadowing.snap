@@ -5,19 +5,10 @@ input_file: crates/codegen/tests/fixtures/internal_helper_shadowing.fe
 ---
 target = "evm-ethereum-osaka"
 
-type @__fe_layout_0 = {i64, i64};
-type @__fe_layout_1 = {@__fe_layout_0, @__fe_layout_0};
+type @layout_0 = {i64, i64};
+type @layout_1 = {@layout_0, @layout_0};
 
-func private %__fe_main_root() {
-    block0:
-        jump block1;
-
-    block1:
-        v0.@__fe_layout_1 = call %main;
-        evm_stop;
-}
-
-func private %call_internal_helpers(v0.i64, v1.i64) -> @__fe_layout_0 {
+func private %call_internal_helpers(v0.i64, v1.i64) -> @layout_0 {
     block0:
         v2.*i64 = alloca i64;
         v3.*i64 = alloca i64;
@@ -44,16 +35,16 @@ func private %call_internal_helpers(v0.i64, v1.i64) -> @__fe_layout_0 {
         v17.i256 = mload v3 i256;
         v18.i64 = trunc v17 i64;
         v19.i64 = call %saturating_add v16 v18;
-        v20.objref<@__fe_layout_0> = obj.alloc @__fe_layout_0;
+        v20.objref<@layout_0> = obj.alloc @layout_0;
         v21.objref<i64> = obj.proj v20 0.i256;
         obj.store v21 v8;
         v23.objref<i64> = obj.proj v20 1.i256;
         obj.store v23 v19;
-        v24.@__fe_layout_0 = obj.load v20;
+        v24.@layout_0 = obj.load v20;
         return v24;
 }
 
-func private %call_user_helpers(v0.i64, v1.i64) -> @__fe_layout_0 {
+func private %call_user_helpers(v0.i64, v1.i64) -> @layout_0 {
     block0:
         v2.*i64 = alloca i64;
         v3.*i64 = alloca i64;
@@ -72,12 +63,12 @@ func private %call_user_helpers(v0.i64, v1.i64) -> @__fe_layout_0 {
         v11.i256 = mload v3 i256;
         v12.i64 = trunc v11 i64;
         v13.i64 = call %saturating_add_u64 v10 v12;
-        v14.objref<@__fe_layout_0> = obj.alloc @__fe_layout_0;
+        v14.objref<@layout_0> = obj.alloc @layout_0;
         v16.objref<i64> = obj.proj v14 0.i256;
         obj.store v16 v8;
         v18.objref<i64> = obj.proj v14 1.i256;
         obj.store v18 v13;
-        v19.@__fe_layout_0 = obj.load v14;
+        v19.@layout_0 = obj.load v14;
         return v19;
 }
 
@@ -89,30 +80,39 @@ func private %checked_add_u64(v0.i64, v1.i64) -> i64 {
         return 77.i64;
 }
 
-func private %main() -> @__fe_layout_1 {
+func private %main() -> @layout_1 {
     block0:
         jump block1;
 
     block1:
-        v2.@__fe_layout_0 = call %call_user_helpers 1.i64 2.i64;
-        v3.@__fe_layout_0 = call %call_internal_helpers 1.i64 2.i64;
-        v4.objref<@__fe_layout_1> = obj.alloc @__fe_layout_1;
-        v6.objref<@__fe_layout_0> = obj.proj v4 0.i256;
+        v2.@layout_0 = call %call_user_helpers 1.i64 2.i64;
+        v3.@layout_0 = call %call_internal_helpers 1.i64 2.i64;
+        v4.objref<@layout_1> = obj.alloc @layout_1;
+        v6.objref<@layout_0> = obj.proj v4 0.i256;
         v7.objref<i64> = obj.proj v6 0.i256;
         v8.i64 = extract_value v2 0.i256;
         obj.store v7 v8;
         v10.objref<i64> = obj.proj v6 1.i256;
         v11.i64 = extract_value v2 1.i256;
         obj.store v10 v11;
-        v12.objref<@__fe_layout_0> = obj.proj v4 1.i256;
+        v12.objref<@layout_0> = obj.proj v4 1.i256;
         v13.objref<i64> = obj.proj v12 0.i256;
         v14.i64 = extract_value v3 0.i256;
         obj.store v13 v14;
         v15.objref<i64> = obj.proj v12 1.i256;
         v16.i64 = extract_value v3 1.i256;
         obj.store v15 v16;
-        v17.@__fe_layout_1 = obj.load v4;
+        v17.@layout_1 = obj.load v4;
         return v17;
+}
+
+func private %main_root() {
+    block0:
+        jump block1;
+
+    block1:
+        v0.@layout_1 = call %main;
+        evm_stop;
 }
 
 func private %saturating_add(v0.i64, v1.i64) -> i64 {
@@ -143,6 +143,6 @@ func private %saturating_add_u64(v0.i64, v1.i64) -> i64 {
 
 object @main {
     section main {
-        entry %__fe_main_root;
+        entry %main_root;
     }
 }

@@ -5,10 +5,6 @@ input_file: tests/fixtures/match_nested_enum.fe
 ---
 object "main" {
   code {
-    function $__fe_main_root() {
-      let v0 := $main()
-      stop()
-    }
     function $main() -> ret {
       let v4 := 0x07
       let v0 := and(v4, 0xff)
@@ -45,6 +41,10 @@ object "main" {
       let v3 := and(v10, 0xff)
       ret := and(v3, 0xff)
       leave
+    }
+    function $main_root() {
+      let v0 := $main()
+      stop()
     }
     function $match_nested_enum(p0) -> ret {
       let r0 := mload(0x40)
@@ -92,6 +92,6 @@ object "main" {
       ret := and(v3, 0xff)
       leave
     }
-    $__fe_main_root()
+    $main_root()
   }
 }

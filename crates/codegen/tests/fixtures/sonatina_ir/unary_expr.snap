@@ -5,7 +5,7 @@ input_file: crates/codegen/tests/fixtures/unary_expr.fe
 ---
 target = "evm-ethereum-osaka"
 
-func private %__fe_main_root() {
+func private %main_root() {
     block0:
         jump block1;
 
@@ -25,6 +25,6 @@ func private %unary_expr() -> i64 {
 
 object @main {
     section main {
-        entry %__fe_main_root;
+        entry %main_root;
     }
 }

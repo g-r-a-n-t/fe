@@ -5,76 +5,11 @@ input_file: crates/codegen/tests/fixtures/effect_ptr_domains.fe
 ---
 target = "evm-ethereum-osaka"
 
-type @__fe_layout_0 = {i256, i256};
-type @__fe_layout_1 = {};
-type @__fe_layout_2 = {@__fe_layout_1};
+type @layout_0 = {i256, i256};
+type @layout_1 = {};
+type @layout_2 = {@layout_1};
 
-func private %__fe_main_root() {
-    block0:
-        jump block1;
-
-    block1:
-        v0.objref<@__fe_layout_2> = obj.alloc @__fe_layout_2;
-        v1.objref<@__fe_layout_2> = obj.alloc @__fe_layout_2;
-        call %test_effect_ptr_domains v0 v1;
-        evm_stop;
-}
-
-func private %bump_0(v0.i256) {
-    block0:
-        jump block1;
-
-    block1:
-        v2.i256 = evm_sload v0;
-        (v4.i256, v5.i1) = uaddo v2 1.i256;
-        br v5 block2 block3;
-
-    block2:
-        mstore 0.i256 35408467139433450592217433187231851964531694900788300625387963629091585785856.i256 i256;
-        mstore 4.i256 17.i256 i256;
-        evm_revert 0.i256 36.i256;
-
-    block3:
-        evm_sstore v0 v4;
-        v12.i256 = add v0 1.i256;
-        v13.i256 = evm_sload v12;
-        (v15.i256, v16.i1) = uaddo v13 2.i256;
-        br v16 block2 block4;
-
-    block4:
-        v18.i256 = add v0 1.i256;
-        evm_sstore v18 v15;
-        return;
-}
-
-func private %bump_1(v0.i256) {
-    block0:
-        jump block1;
-
-    block1:
-        v2.i256 = mload v0 i256;
-        (v4.i256, v5.i1) = uaddo v2 1.i256;
-        br v5 block2 block3;
-
-    block2:
-        mstore 0.i256 35408467139433450592217433187231851964531694900788300625387963629091585785856.i256 i256;
-        mstore 4.i256 17.i256 i256;
-        evm_revert 0.i256 36.i256;
-
-    block3:
-        mstore v0 v4 i256;
-        v13.i256 = add v0 32.i256;
-        v14.i256 = mload v13 i256;
-        (v16.i256, v17.i1) = uaddo v14 2.i256;
-        br v17 block2 block4;
-
-    block4:
-        v19.i256 = add v0 32.i256;
-        mstore v19 v16 i256;
-        return;
-}
-
-func private %bump_2(v0.objref<@__fe_layout_0>) {
+func private %bump__gb2d8(v0.objref<@layout_0>) {
     block0:
         jump block1;
 
@@ -103,7 +38,61 @@ func private %bump_2(v0.objref<@__fe_layout_0>) {
         return;
 }
 
-func private %from_raw_0(v0.i256) -> i256 {
+func private %bump__gaab0(v0.i256) {
+    block0:
+        jump block1;
+
+    block1:
+        v2.i256 = mload v0 i256;
+        (v4.i256, v5.i1) = uaddo v2 1.i256;
+        br v5 block2 block3;
+
+    block2:
+        mstore 0.i256 35408467139433450592217433187231851964531694900788300625387963629091585785856.i256 i256;
+        mstore 4.i256 17.i256 i256;
+        evm_revert 0.i256 36.i256;
+
+    block3:
+        mstore v0 v4 i256;
+        v13.i256 = add v0 32.i256;
+        v14.i256 = mload v13 i256;
+        (v16.i256, v17.i1) = uaddo v14 2.i256;
+        br v17 block2 block4;
+
+    block4:
+        v19.i256 = add v0 32.i256;
+        mstore v19 v16 i256;
+        return;
+}
+
+func private %bump__gc323(v0.i256) {
+    block0:
+        jump block1;
+
+    block1:
+        v2.i256 = evm_sload v0;
+        (v4.i256, v5.i1) = uaddo v2 1.i256;
+        br v5 block2 block3;
+
+    block2:
+        mstore 0.i256 35408467139433450592217433187231851964531694900788300625387963629091585785856.i256 i256;
+        mstore 4.i256 17.i256 i256;
+        evm_revert 0.i256 36.i256;
+
+    block3:
+        evm_sstore v0 v4;
+        v12.i256 = add v0 1.i256;
+        v13.i256 = evm_sload v12;
+        (v15.i256, v16.i1) = uaddo v13 2.i256;
+        br v16 block2 block4;
+
+    block4:
+        v18.i256 = add v0 1.i256;
+        evm_sstore v18 v15;
+        return;
+}
+
+func private %impl_trait_StorPtr__from_raw__gb2d8(v0.i256) -> i256 {
     block0:
         v1.*i256 = alloca i256;
         mstore v1 v0 i256;
@@ -114,7 +103,7 @@ func private %from_raw_0(v0.i256) -> i256 {
         return v2;
 }
 
-func private %from_raw_1(v0.i256) -> i256 {
+func private %impl_trait_MemPtr__from_raw__gb2d8(v0.i256) -> i256 {
     block0:
         v1.*i256 = alloca i256;
         mstore v1 v0 i256;
@@ -123,6 +112,17 @@ func private %from_raw_1(v0.i256) -> i256 {
     block1:
         v2.i256 = mload v1 i256;
         return v2;
+}
+
+func private %main_root() {
+    block0:
+        jump block1;
+
+    block1:
+        v0.objref<@layout_2> = obj.alloc @layout_2;
+        v1.objref<@layout_2> = obj.alloc @layout_2;
+        call %test_effect_ptr_domains v0 v1;
+        evm_stop;
 }
 
 func private %mem_ptr(v0.i256) -> i256 {
@@ -133,7 +133,7 @@ func private %mem_ptr(v0.i256) -> i256 {
 
     block1:
         v2.i256 = mload v1 i256;
-        v3.i256 = call %from_raw_0 v2;
+        v3.i256 = call %impl_trait_MemPtr__from_raw__gb2d8 v2;
         return v3;
 }
 
@@ -145,37 +145,37 @@ func private %stor_ptr(v0.i256) -> i256 {
 
     block1:
         v2.i256 = mload v1 i256;
-        v3.i256 = call %from_raw_1 v2;
+        v3.i256 = call %impl_trait_StorPtr__from_raw__gb2d8 v2;
         return v3;
 }
 
-func private %test_effect_ptr_domains(v0.objref<@__fe_layout_2>, v1.objref<@__fe_layout_2>) {
+func private %test_effect_ptr_domains(v0.objref<@layout_2>, v1.objref<@layout_2>) {
     block0:
         jump block1;
 
     block1:
         v3.i256 = call %mem_ptr 256.i256;
-        call %bump_1 v3;
+        call %bump__gaab0 v3;
         v6.i256 = call %stor_ptr 0.i256;
-        call %bump_0 v6;
-        v10.objref<@__fe_layout_0> = obj.alloc @__fe_layout_0;
+        call %bump__gc323 v6;
+        v10.objref<@layout_0> = obj.alloc @layout_0;
         v11.objref<i256> = obj.proj v10 0.i256;
         obj.store v11 10.i256;
         v13.objref<i256> = obj.proj v10 1.i256;
         obj.store v13 20.i256;
-        v14.@__fe_layout_0 = obj.load v10;
-        v15.objref<@__fe_layout_0> = obj.alloc @__fe_layout_0;
+        v14.@layout_0 = obj.load v10;
+        v15.objref<@layout_0> = obj.alloc @layout_0;
         v16.objref<i256> = obj.proj v15 0.i256;
         obj.store v16 10.i256;
         v17.objref<i256> = obj.proj v15 1.i256;
         obj.store v17 20.i256;
-        call %bump_2 v15;
+        call %bump__gb2d8 v15;
         return;
 }
 
 
 object @main {
     section main {
-        entry %__fe_main_root;
+        entry %main_root;
     }
 }

@@ -5,7 +5,7 @@ input_file: tests/fixtures/tuple_literal_field_access.fe
 ---
 object "main" {
   code {
-    function $__fe_main_root() {
+    function $main_root() {
       let v0 := $tuple_literal_field_access()
       stop()
     }
@@ -27,7 +27,7 @@ object "main" {
       ret := v5
       leave
     }
-    $__fe_main_root()
+    $main_root()
   }
   data "const_0" hex"00000000000000000000000000000000000000000000000000000000000000010000000000000000000000000000000000000000000000000000000000000002"
 }

@@ -5,15 +5,6 @@ input_file: crates/codegen/tests/fixtures/function_call.fe
 ---
 target = "evm-ethereum-osaka"
 
-func private %__fe_main_root() {
-    block0:
-        jump block1;
-
-    block1:
-        v0.i64 = call %call_add_one;
-        evm_stop;
-}
-
 func private %add_one(v0.i64) -> i64 {
     block0:
         v1.*i64 = alloca i64;
@@ -44,9 +35,18 @@ func private %call_add_one() -> i64 {
         return v1;
 }
 
+func private %main_root() {
+    block0:
+        jump block1;
+
+    block1:
+        v0.i64 = call %call_add_one;
+        evm_stop;
+}
+
 
 object @main {
     section main {
-        entry %__fe_main_root;
+        entry %main_root;
     }
 }

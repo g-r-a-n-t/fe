@@ -5,7 +5,7 @@ input_file: crates/codegen/tests/fixtures/string_literal.fe
 ---
 target = "evm-ethereum-osaka"
 
-func private %__fe_main_root() {
+func private %main_root() {
     block0:
         jump block1;
 
@@ -26,6 +26,6 @@ func private %string_literal() -> i256 {
 
 object @main {
     section main {
-        entry %__fe_main_root;
+        entry %main_root;
     }
 }

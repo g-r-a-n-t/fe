@@ -5,7 +5,7 @@ input_file: tests/fixtures/packed_struct_u8_array_field.fe
 ---
 object "main" {
   code {
-    function $__fe_main_root() {
+    function $main_root() {
       let v0 := $packed_field_offset()
       stop()
     }
@@ -37,7 +37,7 @@ object "main" {
       ret := v6
       leave
     }
-    $__fe_main_root()
+    $main_root()
   }
   data "const_0" hex"0102000000000000000000000000000000000000000000000000000000000000"
   data "const_1" hex"0102000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000002a"

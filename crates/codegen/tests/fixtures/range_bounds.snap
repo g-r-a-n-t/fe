@@ -5,10 +5,6 @@ input_file: tests/fixtures/range_bounds.fe
 ---
 object "main" {
   code {
-    function $__fe_main_root() {
-      let v0 := $sum_const()
-      stop()
-    }
     function $get(p0) -> ret {
       let v5 := 0x00
       let v2 := v5
@@ -50,6 +46,10 @@ object "main" {
       }
       ret := v1
       leave
+    }
+    function $main_root() {
+      let v0 := $sum_const()
+      stop()
     }
     function $sum_const() -> ret {
       let v0 := 0
@@ -101,6 +101,6 @@ object "main" {
       ret := v0
       leave
     }
-    $__fe_main_root()
+    $main_root()
   }
 }

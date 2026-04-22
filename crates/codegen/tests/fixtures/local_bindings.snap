@@ -5,10 +5,6 @@ input_file: tests/fixtures/local_bindings.fe
 ---
 object "main" {
   code {
-    function $__fe_main_root() {
-      let v0 := $local_bindings()
-      stop()
-    }
     function $local_bindings() -> ret {
       let v6 := 0x01
       let v2 := and(v6, 0xffffffffffffffff)
@@ -25,6 +21,10 @@ object "main" {
       ret := and(v1, 0xffffffffffffffff)
       leave
     }
-    $__fe_main_root()
+    function $main_root() {
+      let v0 := $local_bindings()
+      stop()
+    }
+    $main_root()
   }
 }

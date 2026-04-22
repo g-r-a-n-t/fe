@@ -5,11 +5,7 @@ input_file: tests/fixtures/name_collisions.fe
 ---
 object "main" {
   code {
-    function $__fe_main_root() {
-      let v0 := $main()
-      stop()
-    }
-    function $__u32_as_u256_0(p0) -> ret {
+    function $__u32_as_u256(p0) -> ret {
       let v3 := 0x03e7
       let v2 := v3
       let v4 := 0x03e7
@@ -17,55 +13,59 @@ object "main" {
       ret := v1
       leave
     }
-    function $add_2() -> ret {
+    function $add() -> ret {
       let v1 := 0x7b
       let v0 := and(v1, 0xffffffff)
       ret := and(v0, 0xffffffff)
       leave
     }
-    function $flattened_fn_2() -> ret {
-      let v1 := 0x02
-      let v0 := and(v1, 0xffffffff)
-      ret := and(v0, 0xffffffff)
-      leave
-    }
-    function $flattened_fn_4() -> ret {
+    function $name_collisions$a$b$flattened_fn() -> ret {
       let v1 := 0x01
       let v0 := and(v1, 0xffffffff)
       ret := and(v0, 0xffffffff)
       leave
     }
-    function $generic_fn_0(p0) -> ret {
-      ret := and(p0, 0xffffffffffffffff)
+    function $name_collisions$a_b$flattened_fn() -> ret {
+      let v1 := 0x02
+      let v0 := and(v1, 0xffffffff)
+      ret := and(v0, 0xffffffff)
       leave
     }
-    function $generic_fn_2(p0) -> ret {
+    function $generic_fn$gb148(p0) -> ret {
       ret := and(p0, 0xffffffff)
       leave
     }
+    function $generic_fn$gf088(p0) -> ret {
+      ret := and(p0, 0xffffffffffffffff)
+      leave
+    }
     function $main() -> ret {
-      let v9 := $test_module_qualifier_flatten_collision_1()
+      let v9 := $test_module_qualifier_flatten_collision()
       let v0 := and(v9, 0xffffffff)
-      let v10 := $test_generic_type_collision_0()
+      let v10 := $test_generic_type_collision()
       let v1 := and(v10, 0xffffffff)
-      let v11 := $test_impl_method_collision_1()
+      let v11 := $test_impl_method_collision()
       let v2 := and(v11, 0xffffffff)
-      let v12 := $test_trait_method_collision_1()
+      let v12 := $test_trait_method_collision()
       let v3 := and(v12, 0xffffffff)
-      let v13 := $test_param_local_collision_0()
+      let v13 := $test_param_local_collision()
       let v4 := and(v13, 0xffffffff)
-      let v14 := $test_cast_shim_collision_1()
+      let v14 := $test_user_defined_conversion_pattern_name()
       let v5 := v14
-      let v15 := $test_ret_param_collision_1()
+      let v15 := $test_ret_param_collision()
       let v6 := and(v15, 0xffffffff)
-      let v16 := $test_yul_reserved_fn_collision_1()
+      let v16 := $test_yul_reserved_fn_collision()
       let v7 := and(v16, 0xffffffff)
       let v17 := 0x00
       let v8 := and(v17, 0xffffffff)
       ret := and(v8, 0xffffffff)
       leave
     }
-    function $param_local_collision_0(p0) -> ret {
+    function $main_root() {
+      let v0 := $main()
+      stop()
+    }
+    function $param_local_collision(p0) -> ret {
       let v3 := and(p0, 0xffffffff)
       let v8 := 0x01
       let v4 := and(v8, 0xffffffff)
@@ -92,7 +92,7 @@ object "main" {
       ret := and(v2, 0xffffffff)
       leave
     }
-    function $process_0(p0) -> ret {
+    function $name_collisions$impl_a$impl$Widget$process(p0) -> ret {
       let r0 := mload(0x40)
       if iszero(r0) {
         r0 := 0x80
@@ -114,7 +114,7 @@ object "main" {
       ret := and(v3, 0xffffffff)
       leave
     }
-    function $process_2(p0) -> ret {
+    function $name_collisions$impl_b$impl$Widget$process(p0) -> ret {
       let r0 := mload(0x40)
       if iszero(r0) {
         r0 := 0x80
@@ -136,7 +136,7 @@ object "main" {
       ret := and(v3, 0xffffffffffffffff)
       leave
     }
-    function $ret_param_collision_1(p0) -> ret {
+    function $ret_param_collision(p0) -> ret {
       let v1 := and(p0, 0xffffffff)
       let v4 := 0x01
       let v2 := and(v4, 0xffffffff)
@@ -151,7 +151,29 @@ object "main" {
       ret := and(v3, 0xffffffff)
       leave
     }
-    function $same_method_1(p0) -> ret {
+    function $impl_trait$MultiTraitImpl$5bd8$same_method(p0) -> ret {
+      let r0 := mload(0x40)
+      if iszero(r0) {
+        r0 := 0x80
+      }
+      mstore(0x40, add(r0, 32))
+      mstore(r0, and(p0, 0xffffffff))
+      let t6 := and(mload(r0), 0xffffffff)
+      let v1 := t6
+      let v4 := 0x01
+      let v2 := and(v4, 0xffffffff)
+      let t7 := and(add(and(v1, 0xffffffff), and(v2, 0xffffffff)), 0xffffffff)
+      if lt(t7, and(v1, 0xffffffff)) {
+        mstore(0, 0x4e487b7100000000000000000000000000000000000000000000000000000000)
+        mstore(4, 0x11)
+        revert(0, 36)
+      }
+      let v5 := t7
+      let v3 := and(v5, 0xffffffff)
+      ret := and(v3, 0xffffffff)
+      leave
+    }
+    function $impl_trait$MultiTraitImpl$b140$same_method(p0) -> ret {
       let r0 := mload(0x40)
       if iszero(r0) {
         r0 := 0x80
@@ -173,37 +195,7 @@ object "main" {
       ret := and(v3, 0xffffffff)
       leave
     }
-    function $same_method_3(p0) -> ret {
-      let r0 := mload(0x40)
-      if iszero(r0) {
-        r0 := 0x80
-      }
-      mstore(0x40, add(r0, 32))
-      mstore(r0, and(p0, 0xffffffff))
-      let t6 := and(mload(r0), 0xffffffff)
-      let v1 := t6
-      let v4 := 0x01
-      let v2 := and(v4, 0xffffffff)
-      let t7 := and(add(and(v1, 0xffffffff), and(v2, 0xffffffff)), 0xffffffff)
-      if lt(t7, and(v1, 0xffffffff)) {
-        mstore(0, 0x4e487b7100000000000000000000000000000000000000000000000000000000)
-        mstore(4, 0x11)
-        revert(0, 36)
-      }
-      let v5 := t7
-      let v3 := and(v5, 0xffffffff)
-      ret := and(v3, 0xffffffff)
-      leave
-    }
-    function $test_cast_shim_collision_1() -> ret {
-      let v2 := 0x2a
-      let v0 := and(v2, 0xffffffff)
-      let v3 := $__u32_as_u256_0(and(v0, 0xffffffff))
-      let v1 := v3
-      ret := v1
-      leave
-    }
-    function $test_generic_type_collision_0() -> ret {
+    function $test_generic_type_collision() -> ret {
       let v9 := 0x01
       let v2 := and(v9, 0xffffffff)
       let v10 := 0x01
@@ -220,16 +212,16 @@ object "main" {
       let v20 := 0x02
       let v21 := and(v20, 0xffffffffffffffff)
       let v1 := and(v21, 0xffffffffffffffff)
-      let v23 := $generic_fn_2(and(v0, 0xffffffff))
+      let v23 := $generic_fn$gb148(and(v0, 0xffffffff))
       let v6 := and(v23, 0xffffffff)
-      let v24 := $generic_fn_0(and(v1, 0xffffffffffffffff))
+      let v24 := $generic_fn$gf088(and(v1, 0xffffffffffffffff))
       let v7 := and(v24, 0xffffffffffffffff)
       let v25 := 0x2a
       let v8 := and(v25, 0xffffffff)
       ret := and(v8, 0xffffffff)
       leave
     }
-    function $test_impl_method_collision_1() -> ret {
+    function $test_impl_method_collision() -> ret {
       let v10 := 0x0a
       let v4 := and(v10, 0xffffffff)
       let v11 := 0x0a
@@ -246,19 +238,19 @@ object "main" {
       let v21 := 0x14
       let v22 := and(v21, 0xffffffffffffffff)
       let v1 := and(v22, 0xffffffffffffffff)
-      let v24 := $process_0(and(v0, 0xffffffff))
+      let v24 := $name_collisions$impl_a$impl$Widget$process(and(v0, 0xffffffff))
       let v8 := and(v24, 0xffffffff)
       let v2 := and(v8, 0xffffffff)
-      let v25 := $process_2(and(v1, 0xffffffffffffffff))
+      let v25 := $name_collisions$impl_b$impl$Widget$process(and(v1, 0xffffffffffffffff))
       let v9 := and(v25, 0xffffffffffffffff)
       let v3 := and(v9, 0xffffffffffffffff)
       ret := and(v2, 0xffffffff)
       leave
     }
-    function $test_module_qualifier_flatten_collision_1() -> ret {
-      let v3 := $flattened_fn_4()
+    function $test_module_qualifier_flatten_collision() -> ret {
+      let v3 := $name_collisions$a$b$flattened_fn()
       let v0 := and(v3, 0xffffffff)
-      let v4 := $flattened_fn_2()
+      let v4 := $name_collisions$a_b$flattened_fn()
       let v1 := and(v4, 0xffffffff)
       let t6 := and(add(and(v0, 0xffffffff), and(v1, 0xffffffff)), 0xffffffff)
       if lt(t6, and(v0, 0xffffffff)) {
@@ -271,23 +263,23 @@ object "main" {
       ret := and(v2, 0xffffffff)
       leave
     }
-    function $test_param_local_collision_0() -> ret {
+    function $test_param_local_collision() -> ret {
       let v2 := 0x0a
       let v0 := and(v2, 0xffffffff)
-      let v3 := $param_local_collision_0(and(v0, 0xffffffff))
+      let v3 := $param_local_collision(and(v0, 0xffffffff))
       let v1 := and(v3, 0xffffffff)
       ret := and(v1, 0xffffffff)
       leave
     }
-    function $test_ret_param_collision_1() -> ret {
+    function $test_ret_param_collision() -> ret {
       let v2 := 0x0a
       let v0 := and(v2, 0xffffffff)
-      let v3 := $ret_param_collision_1(and(v0, 0xffffffff))
+      let v3 := $ret_param_collision(and(v0, 0xffffffff))
       let v1 := and(v3, 0xffffffff)
       ret := and(v1, 0xffffffff)
       leave
     }
-    function $test_trait_method_collision_1() -> ret {
+    function $test_trait_method_collision() -> ret {
       let v11 := 0x64
       let v4 := and(v11, 0xffffffff)
       let v12 := 0x64
@@ -296,7 +288,7 @@ object "main" {
       let v15 := 0x64
       let v16 := and(v15, 0xffffffff)
       let v0 := and(v16, 0xffffffff)
-      let v18 := $same_method_3(and(v0, 0xffffffff))
+      let v18 := $impl_trait$MultiTraitImpl$5bd8$same_method(and(v0, 0xffffffff))
       let v6 := and(v18, 0xffffffff)
       let v1 := and(v6, 0xffffffff)
       let v19 := 0x64
@@ -307,7 +299,7 @@ object "main" {
       let v23 := 0x64
       let v24 := and(v23, 0xffffffff)
       let v2 := and(v24, 0xffffffff)
-      let v26 := $same_method_1(and(v2, 0xffffffff))
+      let v26 := $impl_trait$MultiTraitImpl$b140$same_method(and(v2, 0xffffffff))
       let v9 := and(v26, 0xffffffff)
       let v3 := and(v9, 0xffffffff)
       let t28 := and(add(and(v1, 0xffffffff), and(v3, 0xffffffff)), 0xffffffff)
@@ -321,12 +313,20 @@ object "main" {
       ret := and(v10, 0xffffffff)
       leave
     }
-    function $test_yul_reserved_fn_collision_1() -> ret {
-      let v1 := $add_2()
+    function $test_user_defined_conversion_pattern_name() -> ret {
+      let v2 := 0x2a
+      let v0 := and(v2, 0xffffffff)
+      let v3 := $__u32_as_u256(and(v0, 0xffffffff))
+      let v1 := v3
+      ret := v1
+      leave
+    }
+    function $test_yul_reserved_fn_collision() -> ret {
+      let v1 := $add()
       let v0 := and(v1, 0xffffffff)
       ret := and(v0, 0xffffffff)
       leave
     }
-    $__fe_main_root()
+    $main_root()
   }
 }

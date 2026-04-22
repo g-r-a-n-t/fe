@@ -5,15 +5,6 @@ input_file: crates/codegen/tests/fixtures/const_nested_u8_array.fe
 ---
 target = "evm-ethereum-osaka"
 
-func private %__fe_main_root() {
-    block0:
-        jump block1;
-
-    block1:
-        v0.i8 = call %const_nested_u8_array;
-        evm_stop;
-}
-
 func private %const_nested_u8_array() -> i8 {
     block0:
         v0.objref<[[i8; 2]; 2]> = obj.alloc [[i8; 2]; 2];
@@ -73,9 +64,18 @@ func private %const_nested_u8_array() -> i8 {
         return 3.i8;
 }
 
+func private %main_root() {
+    block0:
+        jump block1;
+
+    block1:
+        v0.i8 = call %const_nested_u8_array;
+        evm_stop;
+}
+
 
 object @main {
     section main {
-        entry %__fe_main_root;
+        entry %main_root;
     }
 }

@@ -58,7 +58,10 @@ use sonatina_ir::{
 };
 
 use super::{LowerError, create_module_ctx};
-use crate::TargetDataLayout;
+use crate::{
+    TargetDataLayout,
+    function_symbols::{FunctionSymbolInput, FunctionSymbolStyle, assign_function_symbols},
+};
 
 const PANIC_OVERFLOW: u64 = 0x11;
 const PANIC_DIVISION_BY_ZERO: u64 = 0x12;
@@ -85,6 +88,7 @@ struct ModuleLowerer<'db, 'a> {
     isa: &'a sonatina_ir::isa::evm::Evm,
     package: &'a RuntimePackage<'db>,
     func_map: FxHashMap<mir::RuntimeInstance<'db>, FuncRef>,
+    func_symbols: FxHashMap<mir::RuntimeInstance<'db>, String>,
     section_membership: FxHashMap<mir::RuntimeInstance<'db>, Vec<mir::RuntimeSectionRef<'db>>>,
     type_cache: FxHashMap<LayoutId<'db>, Type>,
     layout_names: FxHashMap<LayoutId<'db>, String>,
@@ -105,6 +109,7 @@ impl<'db, 'a> ModuleLowerer<'db, 'a> {
             isa,
             package,
             func_map: FxHashMap::default(),
+            func_symbols: assign_sonatina_function_symbols(db, package),
             section_membership: compute_section_membership(db, package),
             type_cache: FxHashMap::default(),
             layout_names: FxHashMap::default(),
@@ -122,11 +127,16 @@ impl<'db, 'a> ModuleLowerer<'db, 'a> {
     }
 
     fn function_symbol(&self, instance: RuntimeInstance<'db>) -> String {
-        self.package
-            .functions(self.db)
-            .into_iter()
-            .find(|function| function.instance(self.db) == instance)
-            .map(|function| function.symbol(self.db).clone())
+        self.func_symbols
+            .get(&instance)
+            .cloned()
+            .or_else(|| {
+                self.package
+                    .functions(self.db)
+                    .into_iter()
+                    .find(|function| function.instance(self.db) == instance)
+                    .map(|function| function.symbol(self.db).clone())
+            })
             .unwrap_or_else(|| format!("{:?}", instance.key(self.db)))
     }
 
@@ -169,15 +179,16 @@ impl<'db, 'a> ModuleLowerer<'db, 'a> {
             .as_ref()
             .map(|class| self.ty_for_class(class))
             .transpose()?;
+        let symbol = self.function_symbol(function.instance(self.db));
         Ok(match ret {
             Some(ret) => Signature::new_single(
-                function.symbol(self.db).as_str(),
+                &symbol,
                 linkage_for_runtime(function.linkage(self.db)),
                 &args,
                 ret,
             ),
             None => Signature::new_unit(
-                function.symbol(self.db).as_str(),
+                &symbol,
                 linkage_for_runtime(function.linkage(self.db)),
                 &args,
             ),
@@ -384,7 +395,7 @@ impl<'db, 'a> ModuleLowerer<'db, 'a> {
         if let Some(name) = self.const_names.get(&region) {
             return name.clone();
         }
-        let name = format!("__fe_const_region_{}", self.const_names.len());
+        let name = format!("const_region_{}", self.const_names.len());
         self.const_names.insert(region, name.clone());
         name
     }
@@ -393,7 +404,7 @@ impl<'db, 'a> ModuleLowerer<'db, 'a> {
         if let Some(name) = self.layout_names.get(&layout) {
             return name.clone();
         }
-        let name = format!("__fe_layout_{}", self.layout_names.len());
+        let name = format!("layout_{}", self.layout_names.len());
         self.layout_names.insert(layout, name.clone());
         name
     }
@@ -493,6 +504,68 @@ impl<'db, 'a> ModuleLowerer<'db, 'a> {
             value: I256::from(value as u64),
         })
     }
+}
+
+const SONATINA_FUNCTION_SYMBOL_STYLE: FunctionSymbolStyle = FunctionSymbolStyle {
+    segment_separator: "__",
+    variant_separator: "_",
+    fallback_separator: "_",
+    sanitize_segment: sanitize_sonatina_ident_segment,
+    namespace_key: sonatina_symbol_namespace_key,
+};
+
+fn assign_sonatina_function_symbols<'db>(
+    db: &'db DriverDataBase,
+    package: &RuntimePackage<'db>,
+) -> FxHashMap<mir::RuntimeInstance<'db>, String> {
+    let functions = package
+        .functions(db)
+        .into_iter()
+        .filter(|function| runtime_intrinsic(db, function.instance(db)).is_none())
+        .collect::<Vec<_>>();
+    let inputs = functions
+        .iter()
+        .map(|function| FunctionSymbolInput {
+            owner: function.owner(db).clone(),
+            fallback_symbol: function.symbol(db).clone(),
+            variant_suffix: String::new(),
+        })
+        .collect::<Vec<_>>();
+    functions
+        .into_iter()
+        .zip(assign_function_symbols(
+            db,
+            &inputs,
+            &SONATINA_FUNCTION_SYMBOL_STYLE,
+        ))
+        .map(|(function, symbol)| (function.instance(db), symbol))
+        .collect()
+}
+
+fn sanitize_sonatina_ident_segment(value: &str) -> String {
+    let sanitized = value
+        .chars()
+        .map(|ch| {
+            if ch.is_ascii_alphanumeric() || ch == '_' {
+                ch
+            } else {
+                '_'
+            }
+        })
+        .collect::<String>();
+    if sanitized
+        .chars()
+        .next()
+        .is_some_and(|ch| ch.is_ascii_alphabetic() || ch == '_')
+    {
+        sanitized
+    } else {
+        format!("_{sanitized}")
+    }
+}
+
+fn sonatina_symbol_namespace_key(symbol: &str) -> String {
+    symbol.to_string()
 }
 
 fn describe_runtime_instance<'db>(

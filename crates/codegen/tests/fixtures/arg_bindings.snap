@@ -5,10 +5,6 @@ input_file: tests/fixtures/arg_bindings.fe
 ---
 object "main" {
   code {
-    function $__fe_main_root() {
-      let v0 := $main()
-      stop()
-    }
     function $arg_bindings(p0, p1) -> ret {
       let v3 := and(p0, 0xffffffffffffffff)
       let v4 := and(p1, 0xffffffffffffffff)
@@ -34,6 +30,10 @@ object "main" {
       ret := and(v2, 0xffffffffffffffff)
       leave
     }
-    $__fe_main_root()
+    function $main_root() {
+      let v0 := $main()
+      stop()
+    }
+    $main_root()
   }
 }

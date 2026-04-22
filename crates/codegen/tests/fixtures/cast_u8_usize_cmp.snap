@@ -5,10 +5,6 @@ input_file: tests/fixtures/cast_u8_usize_cmp.fe
 ---
 object "main" {
   code {
-    function $__fe_main_root() {
-      let v0 := $main()
-      stop()
-    }
     function $cast_u8_usize_cmp_arg0_root_code(p0, p1, p2) -> ret {
       let v3 := 0
       let v4 := p1
@@ -98,7 +94,11 @@ object "main" {
       ret := and(v11, 0xff)
       leave
     }
-    $__fe_main_root()
+    function $main_root() {
+      let v0 := $main()
+      stop()
+    }
+    $main_root()
   }
   data "const_0" hex"0102030405060708000000000000000000000000000000000000000000000000"
 }

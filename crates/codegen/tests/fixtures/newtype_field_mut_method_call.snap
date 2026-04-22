@@ -5,10 +5,6 @@ input_file: tests/fixtures/newtype_field_mut_method_call.fe
 ---
 object "main" {
   code {
-    function $__fe_main_root() {
-      let v0 := $main()
-      stop()
-    }
     function $bump(p0) {
       let v4 := p0
       let v1 := v4
@@ -33,6 +29,10 @@ object "main" {
       let v1 := v3
       ret := v1
       leave
+    }
+    function $main_root() {
+      let v0 := $main()
+      stop()
     }
     function $newtype_field_mut_method_call(p0) -> ret {
       let v11 := 0x00
@@ -78,6 +78,6 @@ object "main" {
       ret := v10
       leave
     }
-    $__fe_main_root()
+    $main_root()
   }
 }

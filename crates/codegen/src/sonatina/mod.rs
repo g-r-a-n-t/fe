@@ -524,13 +524,20 @@ mod tests {
         let mut module = compile_runtime_package_sonatina(&db, &package, crate::EVM_LAYOUT)
             .expect("test runtime package should lower to Sonatina IR");
         let dumped = ModuleWriter::new(&module).dump_string();
-        assert!(
-            dumped.contains("func private %map_0"),
-            "expected map_0 helper in test runtime package:\n{dumped}"
+        let map_helpers = dumped
+            .lines()
+            .filter(|line| line.starts_with("func private %map"))
+            .collect::<Vec<_>>();
+        assert_eq!(
+            map_helpers.len(),
+            2,
+            "expected two map helpers in test runtime package:\n{dumped}"
         );
         assert!(
-            dumped.contains("func private %map_1"),
-            "expected map_1 helper in test runtime package:\n{dumped}"
+            map_helpers
+                .iter()
+                .all(|line| line.starts_with("func private %map__g")),
+            "expected colliding map helpers to include generic discriminators:\n{dumped}"
         );
         assert!(
             dumped.contains("func private %unwrap"),

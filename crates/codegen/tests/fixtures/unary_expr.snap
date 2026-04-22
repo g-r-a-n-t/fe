@@ -5,7 +5,7 @@ input_file: tests/fixtures/unary_expr.fe
 ---
 object "main" {
   code {
-    function $__fe_main_root() {
+    function $main_root() {
       let v0 := $unary_expr()
       stop()
     }
@@ -21,6 +21,6 @@ object "main" {
       ret := signextend(7, and(v3, 0xffffffffffffffff))
       leave
     }
-    $__fe_main_root()
+    $main_root()
   }
 }

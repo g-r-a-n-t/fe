@@ -5,10 +5,6 @@ input_file: tests/fixtures/unit_method_call.fe
 ---
 object "main" {
   code {
-    function $__fe_main_root() {
-      $main()
-      stop()
-    }
     function $call_unit_method(p0) {
       $increment(p0)
       leave
@@ -25,6 +21,10 @@ object "main" {
       $call_unit_method(v1)
       leave
     }
-    $__fe_main_root()
+    function $main_root() {
+      $main()
+      stop()
+    }
+    $main_root()
   }
 }

@@ -5,35 +5,26 @@ input_file: crates/codegen/tests/fixtures/match_arm_return.fe
 ---
 target = "evm-ethereum-osaka"
 
-type @__fe_layout_0 = enum {
+type @layout_0 = enum {
     #A(i256),
     #B,
 };
 
-func private %__fe_main_root() {
+func private %f(v0.@layout_0) -> i256 {
     block0:
-        jump block1;
-
-    block1:
-        v0.i256 = call %main;
-        evm_stop;
-}
-
-func private %f(v0.@__fe_layout_0) -> i256 {
-    block0:
-        v1.objref<@__fe_layout_0> = obj.alloc @__fe_layout_0;
+        v1.objref<@layout_0> = obj.alloc @layout_0;
         v2.*i256 = alloca i256;
         v3.*i256 = alloca i256;
-        v4.enumtag(@__fe_layout_0) = enum.tag v0;
-        br_table v4 block5 (0.enumtag(@__fe_layout_0) block6) (1.enumtag(@__fe_layout_0) block7);
+        v4.enumtag(@layout_0) = enum.tag v0;
+        br_table v4 block5 (0.enumtag(@layout_0) block6) (1.enumtag(@layout_0) block7);
 
     block1:
-        v10.@__fe_layout_0 = obj.load v1;
-        v11.enumtag(@__fe_layout_0) = enum.tag v10;
-        br_table v11 (0.enumtag(@__fe_layout_0) block2) (1.enumtag(@__fe_layout_0) block3);
+        v10.@layout_0 = obj.load v1;
+        v11.enumtag(@layout_0) = enum.tag v10;
+        br_table v11 (0.enumtag(@layout_0) block2) (1.enumtag(@layout_0) block3);
 
     block2:
-        v12.@__fe_layout_0 = obj.load v1;
+        v12.@layout_0 = obj.load v1;
         enum.assert_variant v12 #A;
         v13.i256 = enum.extract v12 #A 0.i256;
         mstore v3 v13 i256;
@@ -69,14 +60,23 @@ func private %main() -> i256 {
         jump block1;
 
     block1:
-        v0.@__fe_layout_0 = enum.make @__fe_layout_0 #B;
+        v0.@layout_0 = enum.make @layout_0 #B;
         v1.i256 = call %f v0;
         return v1;
+}
+
+func private %main_root() {
+    block0:
+        jump block1;
+
+    block1:
+        v0.i256 = call %main;
+        evm_stop;
 }
 
 
 object @main {
     section main {
-        entry %__fe_main_root;
+        entry %main_root;
     }
 }

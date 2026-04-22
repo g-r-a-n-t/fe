@@ -34,12 +34,15 @@ use crate::{
     runtime::lower::interface::runtime_visible_binding_plans,
     runtime::lower::type_info::{RuntimeTypeEnv, top_level_class_for_ty_in_env},
     runtime::root_effects::{EntryEffectContext, entry_effect_arg_plans},
+    runtime::stable_key::{item_identity, semantic_instance_identity, type_identity},
     runtime::{
         AddressSpaceKind, ConstRegionId, ContractInitAbiPlan, ContractRecvAbiPlan, DispatchArm,
-        DispatchDefault, InitArgsPlan, ResolvedCodeRegion, RuntimeCodeRegion, RuntimeCodeRegionKey,
-        RuntimeFunction, RuntimeFunctionOwner, RuntimeInlineHint, RuntimeInputPlan, RuntimeLinkage,
-        RuntimeObject, RuntimePackage, RuntimePackagePlan, RuntimeReturnPlan, RuntimeSection,
-        RuntimeSectionName, RuntimeSectionRef, RuntimeSyntheticSpec,
+        DispatchDefault, EntryEffectArgPlan, InitArgsPlan, LayoutId, LayoutKey, RefKind, RefView,
+        ResolvedCodeRegion, RuntimeClass, RuntimeCodeRegion, RuntimeCodeRegionKey, RuntimeFunction,
+        RuntimeFunctionOwner, RuntimeInlineHint, RuntimeInputPlan, RuntimeLinkage, RuntimeObject,
+        RuntimePackage, RuntimePackagePlan, RuntimeReturnPlan, RuntimeSection, RuntimeSectionName,
+        RuntimeSectionRef, RuntimeSyntheticSpec, ScalarClass, ScalarRepr, ScalarRole,
+        TargetRootProviderMaterialization,
     },
     verify::verify_runtime_package,
 };
@@ -1805,41 +1808,335 @@ fn runtime_function_for_instance<'db>(
 }
 
 fn runtime_instance_sort_key<'db>(db: &'db dyn MirDb, instance: RuntimeInstance<'db>) -> String {
-    match instance.key(db).source(db) {
-        RuntimeInstanceSource::Semantic(_) => {
-            format!("semantic:{}", runtime_instance_symbol_base(db, instance))
+    let key = instance.key(db);
+    let source = runtime_instance_source_sort_key(db, key.source(db));
+    let params = key
+        .params(db)
+        .iter()
+        .map(|param| runtime_class_sort_key(db, param))
+        .collect::<Vec<_>>()
+        .join(",");
+    format!("{source}:params[{params}]")
+}
+
+fn runtime_instance_source_sort_key<'db>(
+    db: &'db dyn MirDb,
+    source: RuntimeInstanceSource<'db>,
+) -> String {
+    match source {
+        RuntimeInstanceSource::Semantic(semantic) => {
+            format!("semantic:{}", semantic_instance_identity(db, semantic))
         }
-        RuntimeInstanceSource::Synthetic(synthetic) => match synthetic.spec(db).clone() {
-            RuntimeSyntheticSpec::MainRoot { .. } => "__synthetic:main_root".to_string(),
-            RuntimeSyntheticSpec::TestRoot { name, .. } => {
-                format!("__synthetic:test_root:{name}")
-            }
-            RuntimeSyntheticSpec::ManualContractRoot { func, .. } => format!(
-                "__synthetic:manual_contract_root:{}",
-                func_display_name(db, func)
+        RuntimeInstanceSource::Synthetic(synthetic) => {
+            runtime_synthetic_spec_sort_key(db, synthetic.spec(db))
+        }
+    }
+}
+
+fn runtime_synthetic_spec_sort_key<'db>(
+    db: &'db dyn MirDb,
+    spec: RuntimeSyntheticSpec<'db>,
+) -> String {
+    match spec {
+        RuntimeSyntheticSpec::MainRoot {
+            callee,
+            entry_effect_args,
+        } => format!(
+            "__synthetic:main_root:{}:{}",
+            runtime_instance_sort_key(db, callee),
+            entry_effect_args_sort_key(db, entry_effect_args.as_ref())
+        ),
+        RuntimeSyntheticSpec::TestRoot {
+            name,
+            callee,
+            entry_effect_args,
+        } => format!(
+            "__synthetic:test_root:{name}:{}:{}",
+            runtime_instance_sort_key(db, callee),
+            entry_effect_args_sort_key(db, entry_effect_args.as_ref())
+        ),
+        RuntimeSyntheticSpec::ManualContractRoot {
+            func,
+            callee,
+            entry_effect_args,
+        } => format!(
+            "__synthetic:manual_contract_root:{}:{}:{}",
+            item_identity(db, func.into()),
+            runtime_instance_sort_key(db, callee),
+            entry_effect_args_sort_key(db, entry_effect_args.as_ref())
+        ),
+        RuntimeSyntheticSpec::ContractInitAbi { plan } => format!(
+            "__synthetic:contract_init_abi:{}:{}:{}:{}",
+            item_identity(db, plan.contract.into()),
+            plan.payable,
+            plan.user_init
+                .map(|instance| runtime_instance_sort_key(db, instance))
+                .unwrap_or_default(),
+            init_args_plan_sort_key(db, &plan.init_args)
+        ),
+        RuntimeSyntheticSpec::ContractRecvAbi { plan } => format!(
+            "__synthetic:contract_recv_abi:{}:{}:{}:{}:{}",
+            item_identity(db, plan.contract.into()),
+            plan.selector
+                .map_or_else(|| "fallback".to_string(), |selector| selector.to_string()),
+            plan.payable,
+            runtime_instance_sort_key(db, plan.user_recv),
+            runtime_input_plan_sort_key(db, &plan.input)
+        ),
+        RuntimeSyntheticSpec::ContractInitRoot {
+            contract,
+            init_abi,
+            runtime_region,
+        } => format!(
+            "__synthetic:contract_init_root:{}:{}:{}",
+            item_identity(db, contract.into()),
+            runtime_instance_sort_key(db, init_abi),
+            runtime_code_region_sort_key(db, runtime_region)
+        ),
+        RuntimeSyntheticSpec::ContractRuntimeRoot {
+            contract,
+            dispatch,
+            default,
+        } => format!(
+            "__synthetic:contract_runtime_root:{}:{}:{}",
+            item_identity(db, contract.into()),
+            dispatch
+                .iter()
+                .map(|arm| format!(
+                    "{}:{}",
+                    arm.selector,
+                    runtime_instance_sort_key(db, arm.wrapper)
+                ))
+                .collect::<Vec<_>>()
+                .join(","),
+            dispatch_default_sort_key(db, &default)
+        ),
+        RuntimeSyntheticSpec::CodeRegionRoot { symbol, callee } => {
+            format!(
+                "__synthetic:code_region_root:{symbol}:{}",
+                runtime_instance_sort_key(db, callee)
+            )
+        }
+    }
+}
+
+fn entry_effect_args_sort_key<'db>(db: &'db dyn MirDb, args: &[EntryEffectArgPlan<'db>]) -> String {
+    args.iter()
+        .map(|arg| match arg {
+            EntryEffectArgPlan::ContractField(binding) => format!(
+                "field:{}:{}:{}:{}",
+                binding.slot,
+                type_identity(db, binding.declared_ty),
+                runtime_class_sort_key(db, &binding.class),
+                ref_kind_sort_key(db, &binding.kind)
             ),
-            RuntimeSyntheticSpec::ContractInitAbi { plan } => format!(
-                "__synthetic:contract_init_abi:{}",
-                contract_name(db, plan.contract)
+            EntryEffectArgPlan::TargetRootProvider(binding) => format!(
+                "root:{}:{}:{}",
+                type_identity(db, binding.declared_ty),
+                runtime_class_sort_key(db, &binding.class),
+                target_root_provider_materialization_sort_key(db, binding.materialization)
             ),
-            RuntimeSyntheticSpec::ContractRecvAbi { plan } => format!(
-                "__synthetic:contract_recv_abi:{}:{}",
-                contract_name(db, plan.contract),
-                plan.selector
-                    .map_or_else(|| "fallback".to_string(), |selector| selector.to_string())
-            ),
-            RuntimeSyntheticSpec::ContractInitRoot { contract, .. } => format!(
-                "__synthetic:contract_init_root:{}",
-                contract_name(db, contract)
-            ),
-            RuntimeSyntheticSpec::ContractRuntimeRoot { contract, .. } => format!(
-                "__synthetic:contract_runtime_root:{}",
-                contract_name(db, contract)
-            ),
-            RuntimeSyntheticSpec::CodeRegionRoot { symbol, .. } => {
-                format!("__synthetic:code_region_root:{symbol}")
-            }
-        },
+        })
+        .collect::<Vec<_>>()
+        .join(",")
+}
+
+fn init_args_plan_sort_key<'db>(db: &'db dyn MirDb, plan: &InitArgsPlan<'db>) -> String {
+    match plan {
+        InitArgsPlan::None => "none".to_string(),
+        InitArgsPlan::DecodeInitTail {
+            tuple_ty,
+            decode_fn,
+            projected_fields,
+        } => format!(
+            "decode:{}:{}:{projected_fields:?}",
+            type_identity(db, *tuple_ty),
+            runtime_instance_sort_key(db, *decode_fn)
+        ),
+    }
+}
+
+fn runtime_input_plan_sort_key<'db>(db: &'db dyn MirDb, plan: &RuntimeInputPlan<'db>) -> String {
+    match plan {
+        RuntimeInputPlan::None => "none".to_string(),
+        RuntimeInputPlan::DecodeCalldataPayload {
+            msg_ty,
+            decode_fn,
+            projected_fields,
+        } => format!(
+            "decode:{}:{}:{projected_fields:?}",
+            type_identity(db, *msg_ty),
+            runtime_instance_sort_key(db, *decode_fn)
+        ),
+    }
+}
+
+fn dispatch_default_sort_key<'db>(db: &'db dyn MirDb, default: &DispatchDefault<'db>) -> String {
+    match default {
+        DispatchDefault::RevertEmpty => "revert_empty".to_string(),
+        DispatchDefault::Call { wrapper } => {
+            format!("call:{}", runtime_instance_sort_key(db, *wrapper))
+        }
+    }
+}
+
+fn runtime_code_region_sort_key<'db>(db: &'db dyn MirDb, region: RuntimeCodeRegion<'db>) -> String {
+    match region.key(db) {
+        RuntimeCodeRegionKey::ContractInit { contract } => {
+            format!("contract_init:{}", item_identity(db, contract.into()))
+        }
+        RuntimeCodeRegionKey::ContractRuntime { contract } => {
+            format!("contract_runtime:{}", item_identity(db, contract.into()))
+        }
+        RuntimeCodeRegionKey::ManualContractRoot { func } => {
+            format!("manual_root:{}", item_identity(db, func.into()))
+        }
+        RuntimeCodeRegionKey::FunctionRoot { symbol, callee } => {
+            format!(
+                "function_root:{symbol}:{}",
+                runtime_instance_sort_key(db, callee)
+            )
+        }
+    }
+}
+
+fn runtime_class_sort_key<'db>(db: &'db dyn MirDb, class: &RuntimeClass<'db>) -> String {
+    match class {
+        RuntimeClass::Scalar(class) => scalar_class_sort_key(db, class),
+        RuntimeClass::AggregateValue { layout } => {
+            format!("agg:{}", layout_sort_key(db, *layout))
+        }
+        RuntimeClass::Ref {
+            pointee,
+            kind,
+            view,
+        } => format!(
+            "ref:{}:{}:{}",
+            ref_kind_sort_key(db, kind),
+            ref_view_sort_key(db, view),
+            runtime_class_sort_key(db, pointee)
+        ),
+        RuntimeClass::RawAddr { space, target } => format!(
+            "raw:{}:{}",
+            address_space_sort_key(*space),
+            target
+                .map(|layout| layout_sort_key(db, layout))
+                .unwrap_or_default()
+        ),
+    }
+}
+
+fn scalar_class_sort_key<'db>(db: &'db dyn MirDb, class: &ScalarClass<'db>) -> String {
+    format!(
+        "{}:{}",
+        scalar_repr_sort_key(class.repr),
+        scalar_role_sort_key(db, &class.role)
+    )
+}
+
+fn scalar_repr_sort_key(repr: ScalarRepr) -> String {
+    match repr {
+        ScalarRepr::Bool => "bool".to_string(),
+        ScalarRepr::Int { bits, signed } => format!("int:{bits}:{signed}"),
+        ScalarRepr::FixedBytes { len } => format!("bytes:{len}"),
+        ScalarRepr::Address { bits } => format!("address:{bits}"),
+    }
+}
+
+fn scalar_role_sort_key<'db>(db: &'db dyn MirDb, role: &ScalarRole<'db>) -> String {
+    match role {
+        ScalarRole::Plain => "plain".to_string(),
+        ScalarRole::EnumTag { enum_layout } => {
+            format!("enum_tag:{}", layout_sort_key(db, *enum_layout))
+        }
+    }
+}
+
+fn ref_kind_sort_key<'db>(db: &'db dyn MirDb, kind: &RefKind<'db>) -> String {
+    match kind {
+        RefKind::Const => "const".to_string(),
+        RefKind::Object => "object".to_string(),
+        RefKind::Provider { provider_ty, space } => {
+            format!(
+                "provider:{}:{}",
+                type_identity(db, *provider_ty),
+                address_space_sort_key(*space)
+            )
+        }
+    }
+}
+
+fn ref_view_sort_key<'db>(db: &'db dyn MirDb, view: &RefView<'db>) -> String {
+    match view {
+        RefView::Whole => "whole".to_string(),
+        RefView::EnumVariant(variant) => format!(
+            "variant:{}:{}",
+            layout_sort_key(db, variant.enum_layout),
+            variant.index
+        ),
+    }
+}
+
+fn target_root_provider_materialization_sort_key<'db>(
+    db: &'db dyn MirDb,
+    materialization: TargetRootProviderMaterialization<'db>,
+) -> String {
+    match materialization {
+        TargetRootProviderMaterialization::MemoryObject { layout } => {
+            format!("memory_object:{}", layout_sort_key(db, layout))
+        }
+        TargetRootProviderMaterialization::MemoryRawAddr { layout } => {
+            format!("memory_raw_addr:{}", layout_sort_key(db, layout))
+        }
+    }
+}
+
+fn layout_sort_key<'db>(db: &'db dyn MirDb, layout: LayoutId<'db>) -> String {
+    match layout.key(db) {
+        LayoutKey::Struct(layout) => format!(
+            "struct:{}:[{}]",
+            type_identity(db, layout.source_ty),
+            layout
+                .fields
+                .iter()
+                .map(|field| runtime_class_sort_key(db, field))
+                .collect::<Vec<_>>()
+                .join(",")
+        ),
+        LayoutKey::Array(layout) => format!(
+            "array:{}:{}:{}",
+            type_identity(db, layout.source_ty),
+            runtime_class_sort_key(db, &layout.elem),
+            layout.len
+        ),
+        LayoutKey::Enum(layout) => format!(
+            "enum:{}:[{}]",
+            type_identity(db, layout.source_ty),
+            layout
+                .variants
+                .iter()
+                .map(|variant| format!(
+                    "{}:[{}]",
+                    variant.name,
+                    variant
+                        .fields
+                        .iter()
+                        .map(|field| runtime_class_sort_key(db, field))
+                        .collect::<Vec<_>>()
+                        .join(",")
+                ))
+                .collect::<Vec<_>>()
+                .join(",")
+        ),
+    }
+}
+
+fn address_space_sort_key(space: AddressSpaceKind) -> &'static str {
+    match space {
+        AddressSpaceKind::Memory => "memory",
+        AddressSpaceKind::Storage => "storage",
+        AddressSpaceKind::Transient => "transient",
+        AddressSpaceKind::Calldata => "calldata",
     }
 }
 
@@ -1909,9 +2206,9 @@ fn symbol_base_for_runtime_instance<'db>(
     spec: &RuntimeSyntheticSpec<'db>,
 ) -> String {
     match spec {
-        RuntimeSyntheticSpec::MainRoot { .. } => "__fe_main_root".to_string(),
+        RuntimeSyntheticSpec::MainRoot { .. } => "main_root".to_string(),
         RuntimeSyntheticSpec::TestRoot { name, .. } => {
-            format!("__fe_test_root_{}", sanitize_symbol(name))
+            format!("test_root_{}", sanitize_symbol(name))
         }
         RuntimeSyntheticSpec::ManualContractRoot { func, .. } => {
             let (contract_name, section) = match func.manual_contract_root_attr(db) {
@@ -1922,7 +2219,7 @@ fn symbol_base_for_runtime_instance<'db>(
                     (contract_name.data(db), ManualContractSection::Runtime)
                 }
                 Some(ManualContractRootAttr::Error(_)) | None => {
-                    return "__fe_manual_contract_root".to_string();
+                    return "manual_contract_root".to_string();
                 }
             };
             let section = match section {
@@ -1930,33 +2227,27 @@ fn symbol_base_for_runtime_instance<'db>(
                 ManualContractSection::Runtime => "runtime",
             };
             format!(
-                "__fe_manual_contract_{section}_root_{}",
+                "manual_contract_{section}_root_{}",
                 sanitize_symbol(contract_name)
             )
         }
         RuntimeSyntheticSpec::ContractInitAbi { plan } => {
-            format!(
-                "__fe_contract_init_abi_{}",
-                contract_name(db, plan.contract)
-            )
+            format!("contract_init_abi_{}", contract_name(db, plan.contract))
         }
         RuntimeSyntheticSpec::ContractRecvAbi { plan } => format!(
-            "__fe_contract_recv_abi_{}_{}",
+            "contract_recv_abi_{}_{}",
             contract_name(db, plan.contract),
             plan.selector
                 .map_or_else(|| "fallback".to_string(), |selector| selector.to_string()),
         ),
         RuntimeSyntheticSpec::ContractInitRoot { contract, .. } => {
-            format!("__fe_contract_init_root_{}", contract_name(db, *contract))
+            format!("contract_init_root_{}", contract_name(db, *contract))
         }
         RuntimeSyntheticSpec::ContractRuntimeRoot { contract, .. } => {
-            format!(
-                "__fe_contract_runtime_root_{}",
-                contract_name(db, *contract)
-            )
+            format!("contract_runtime_root_{}", contract_name(db, *contract))
         }
         RuntimeSyntheticSpec::CodeRegionRoot { symbol, .. } => {
-            format!("__fe_code_region_root_{}", sanitize_symbol(symbol))
+            format!("code_region_root_{}", sanitize_symbol(symbol))
         }
     }
 }

@@ -5,21 +5,12 @@ input_file: crates/codegen/tests/fixtures/generic_identity.fe
 ---
 target = "evm-ethereum-osaka"
 
-func private %__fe_main_root() {
-    block0:
-        jump block1;
-
-    block1:
-        v0.i1 = call %call_identity_bool;
-        evm_stop;
-}
-
 func private %call_identity_bool() -> i1 {
     block0:
         jump block1;
 
     block1:
-        v1.i1 = call %identity_0 1.i1;
+        v1.i1 = call %identity__gda9b 1.i1;
         return v1;
 }
 
@@ -28,11 +19,11 @@ func private %call_identity_u32() -> i32 {
         jump block1;
 
     block1:
-        v1.i32 = call %identity_1 7.i32;
+        v1.i32 = call %identity__g6338 7.i32;
         return v1;
 }
 
-func private %identity_0(v0.i1) -> i1 {
+func private %identity__gda9b(v0.i1) -> i1 {
     block0:
         jump block1;
 
@@ -40,17 +31,26 @@ func private %identity_0(v0.i1) -> i1 {
         return v0;
 }
 
-func private %identity_1(v0.i32) -> i32 {
+func private %identity__g6338(v0.i32) -> i32 {
     block0:
         jump block1;
 
     block1:
         return v0;
+}
+
+func private %main_root() {
+    block0:
+        jump block1;
+
+    block1:
+        v0.i1 = call %call_identity_bool;
+        evm_stop;
 }
 
 
 object @main {
     section main {
-        entry %__fe_main_root;
+        entry %main_root;
     }
 }

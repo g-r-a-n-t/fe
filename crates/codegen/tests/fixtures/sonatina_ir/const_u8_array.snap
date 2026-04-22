@@ -5,15 +5,6 @@ input_file: crates/codegen/tests/fixtures/const_u8_array.fe
 ---
 target = "evm-ethereum-osaka"
 
-func private %__fe_main_root() {
-    block0:
-        jump block1;
-
-    block1:
-        v0.i8 = call %alias_then_index;
-        evm_stop;
-}
-
 func private %alias_then_index() -> i8 {
     block0:
         v0.objref<[i8; 2]> = obj.alloc [i8; 2];
@@ -583,6 +574,15 @@ func private %index_direct() -> i8 {
         return 2.i8;
 }
 
+func private %main_root() {
+    block0:
+        jump block1;
+
+    block1:
+        v0.i8 = call %alias_then_index;
+        evm_stop;
+}
+
 func private %pass_then_index() -> i8 {
     block0:
         jump block1;
@@ -601,6 +601,6 @@ func private %pass_then_index() -> i8 {
 
 object @main {
     section main {
-        entry %__fe_main_root;
+        entry %main_root;
     }
 }

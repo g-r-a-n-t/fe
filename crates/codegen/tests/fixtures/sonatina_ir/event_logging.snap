@@ -5,22 +5,12 @@ input_file: crates/codegen/tests/fixtures/event_logging.fe
 ---
 target = "evm-ethereum-osaka"
 
-type @__fe_layout_0 = {i256};
-type @__fe_layout_1 = {i256, i256};
-type @__fe_layout_2 = {@__fe_layout_0, @__fe_layout_0, i256};
-type @__fe_layout_3 = {};
-type @__fe_layout_4 = {@__fe_layout_3};
-type @__fe_layout_5 = {i256, i256};
-
-func private %__fe_main_root() {
-    block0:
-        jump block1;
-
-    block1:
-        v0.objref<@__fe_layout_4> = obj.alloc @__fe_layout_4;
-        call %main v0;
-        evm_stop;
-}
+type @layout_0 = {i256};
+type @layout_1 = {i256, i256};
+type @layout_2 = {@layout_0, @layout_0, i256};
+type @layout_3 = {};
+type @layout_4 = {@layout_3};
+type @layout_5 = {i256, i256};
 
 func private %abi_payload_size(v0.i256) -> i256 {
     block0:
@@ -31,9 +21,9 @@ func private %abi_payload_size(v0.i256) -> i256 {
         return v2;
 }
 
-func private %as_topic(v0.@__fe_layout_0) -> i256 {
+func private %as_topic(v0.@layout_0) -> i256 {
     block0:
-        v1.objref<@__fe_layout_0> = obj.alloc @__fe_layout_0;
+        v1.objref<@layout_0> = obj.alloc @layout_0;
         v3.objref<i256> = obj.proj v1 0.i256;
         v4.i256 = extract_value v0 0.i256;
         obj.store v3 v4;
@@ -45,9 +35,9 @@ func private %as_topic(v0.@__fe_layout_0) -> i256 {
         return v6;
 }
 
-func private %base(v0.@__fe_layout_1) -> i256 {
+func private %base(v0.@layout_1) -> i256 {
     block0:
-        v1.objref<@__fe_layout_1> = obj.alloc @__fe_layout_1;
+        v1.objref<@layout_1> = obj.alloc @layout_1;
         v3.objref<i256> = obj.proj v1 0.i256;
         v4.i256 = extract_value v0 0.i256;
         obj.store v3 v4;
@@ -62,16 +52,16 @@ func private %base(v0.@__fe_layout_1) -> i256 {
         return v9;
 }
 
-func private %emit(v0.@__fe_layout_2, v1.objref<@__fe_layout_4>) {
+func private %emit(v0.@layout_2, v1.objref<@layout_4>) {
     block0:
-        v2.objref<@__fe_layout_2> = obj.alloc @__fe_layout_2;
-        v4.objref<@__fe_layout_0> = obj.proj v2 0.i256;
-        v5.@__fe_layout_0 = extract_value v0 0.i256;
+        v2.objref<@layout_2> = obj.alloc @layout_2;
+        v4.objref<@layout_0> = obj.proj v2 0.i256;
+        v5.@layout_0 = extract_value v0 0.i256;
         v6.objref<i256> = obj.proj v4 0.i256;
         v7.i256 = extract_value v5 0.i256;
         obj.store v6 v7;
-        v9.objref<@__fe_layout_0> = obj.proj v2 1.i256;
-        v10.@__fe_layout_0 = extract_value v0 1.i256;
+        v9.objref<@layout_0> = obj.proj v2 1.i256;
+        v10.@layout_0 = extract_value v0 1.i256;
         v11.objref<i256> = obj.proj v9 0.i256;
         v12.i256 = extract_value v10 0.i256;
         obj.store v11 v12;
@@ -83,8 +73,8 @@ func private %emit(v0.@__fe_layout_2, v1.objref<@__fe_layout_4>) {
     block1:
         v16.objref<i256> = obj.proj v2 2.i256;
         v17.i256 = obj.load v16;
-        v18.@__fe_layout_5 = call %encode_abi_payload v17;
-        v19.objref<@__fe_layout_5> = obj.alloc @__fe_layout_5;
+        v18.@layout_5 = call %encode_abi_payload v17;
+        v19.objref<@layout_5> = obj.alloc @layout_5;
         v20.objref<i256> = obj.proj v19 0.i256;
         v21.i256 = extract_value v18 0.i256;
         obj.store v20 v21;
@@ -95,20 +85,20 @@ func private %emit(v0.@__fe_layout_2, v1.objref<@__fe_layout_4>) {
         v25.i256 = obj.load v24;
         v26.objref<i256> = obj.proj v19 1.i256;
         v27.i256 = obj.load v26;
-        v29.objref<@__fe_layout_0> = obj.proj v2 0.i256;
-        v30.@__fe_layout_0 = obj.load v29;
+        v29.objref<@layout_0> = obj.proj v2 0.i256;
+        v30.@layout_0 = obj.load v29;
         v31.i256 = call %as_topic v30;
-        v32.objref<@__fe_layout_0> = obj.proj v2 1.i256;
-        v33.@__fe_layout_0 = obj.load v32;
+        v32.objref<@layout_0> = obj.proj v2 1.i256;
+        v33.@layout_0 = obj.load v32;
         v34.i256 = call %as_topic v33;
         call %log3 v1 v25 v27 -15402802100530019096323380498944738953123845089667699673314898783681816316945.i256 v31 v34;
         return;
 }
 
-func private %emit_transfer(v0.objref<@__fe_layout_4>, v1.@__fe_layout_0, v2.@__fe_layout_0, v3.i256) {
+func private %emit_transfer(v0.objref<@layout_4>, v1.@layout_0, v2.@layout_0, v3.i256) {
     block0:
-        v4.objref<@__fe_layout_0> = obj.alloc @__fe_layout_0;
-        v5.objref<@__fe_layout_0> = obj.alloc @__fe_layout_0;
+        v4.objref<@layout_0> = obj.alloc @layout_0;
+        v5.objref<@layout_0> = obj.alloc @layout_0;
         v6.*i256 = alloca i256;
         v8.objref<i256> = obj.proj v4 0.i256;
         v9.i256 = extract_value v1 0.i256;
@@ -120,35 +110,26 @@ func private %emit_transfer(v0.objref<@__fe_layout_4>, v1.@__fe_layout_0, v2.@__
         jump block1;
 
     block1:
-        v12.@__fe_layout_0 = obj.load v4;
-        v13.@__fe_layout_0 = obj.load v5;
+        v12.@layout_0 = obj.load v4;
+        v13.@layout_0 = obj.load v5;
         v14.i256 = mload v6 i256;
-        v15.objref<@__fe_layout_2> = obj.alloc @__fe_layout_2;
-        v16.objref<@__fe_layout_0> = obj.proj v15 0.i256;
+        v15.objref<@layout_2> = obj.alloc @layout_2;
+        v16.objref<@layout_0> = obj.proj v15 0.i256;
         v17.objref<i256> = obj.proj v16 0.i256;
         v18.i256 = extract_value v12 0.i256;
         obj.store v17 v18;
-        v20.objref<@__fe_layout_0> = obj.proj v15 1.i256;
+        v20.objref<@layout_0> = obj.proj v15 1.i256;
         v21.objref<i256> = obj.proj v20 0.i256;
         v22.i256 = extract_value v13 0.i256;
         obj.store v21 v22;
         v24.objref<i256> = obj.proj v15 2.i256;
         obj.store v24 v14;
-        v25.@__fe_layout_2 = obj.load v15;
+        v25.@layout_2 = obj.load v15;
         call %emit v25 v0;
         return;
 }
 
-func private %encode_abi_payload(v0.i256) -> @__fe_layout_5 {
-    block0:
-        jump block1;
-
-    block1:
-        v2.@__fe_layout_5 = call %encode_alloc v0;
-        return v2;
-}
-
-func private %encode(v0.i256, v1.objref<@__fe_layout_1>) {
+func private %encode(v0.i256, v1.objref<@layout_1>) {
     block0:
         jump block1;
 
@@ -157,33 +138,42 @@ func private %encode(v0.i256, v1.objref<@__fe_layout_1>) {
         return;
 }
 
-func private %encode_alloc(v0.i256) -> @__fe_layout_5 {
+func private %encode_abi_payload(v0.i256) -> @layout_5 {
+    block0:
+        jump block1;
+
+    block1:
+        v2.@layout_5 = call %encode_alloc v0;
+        return v2;
+}
+
+func private %encode_alloc(v0.i256) -> @layout_5 {
     block0:
         jump block1;
 
     block1:
         v2.i256 = call %abi_payload_size v0;
-        v3.@__fe_layout_1 = call %encoder_new v2;
-        v4.objref<@__fe_layout_1> = obj.alloc @__fe_layout_1;
+        v3.@layout_1 = call %encoder_new v2;
+        v4.objref<@layout_1> = obj.alloc @layout_1;
         v6.objref<i256> = obj.proj v4 0.i256;
         v7.i256 = extract_value v3 0.i256;
         obj.store v6 v7;
         v9.objref<i256> = obj.proj v4 1.i256;
         v10.i256 = extract_value v3 1.i256;
         obj.store v9 v10;
-        v11.@__fe_layout_1 = obj.load v4;
+        v11.@layout_1 = obj.load v4;
         v12.i256 = call %base v11;
         call %encode v0 v4;
-        v14.objref<@__fe_layout_5> = obj.alloc @__fe_layout_5;
+        v14.objref<@layout_5> = obj.alloc @layout_5;
         v15.objref<i256> = obj.proj v14 0.i256;
         obj.store v15 v12;
         v16.objref<i256> = obj.proj v14 1.i256;
         obj.store v16 v2;
-        v17.@__fe_layout_5 = obj.load v14;
+        v17.@layout_5 = obj.load v14;
         return v17;
 }
 
-func private %encoder_new(v0.i256) -> @__fe_layout_1 {
+func private %encoder_new(v0.i256) -> @layout_1 {
     block0:
         v1.*i256 = alloca i256;
         mstore v1 v0 i256;
@@ -191,11 +181,11 @@ func private %encoder_new(v0.i256) -> @__fe_layout_1 {
 
     block1:
         v2.i256 = mload v1 i256;
-        v3.@__fe_layout_1 = call %new v2;
+        v3.@layout_1 = call %new v2;
         return v3;
 }
 
-func private %log3(v0.objref<@__fe_layout_4>, v1.i256, v2.i256, v3.i256, v4.i256, v5.i256) {
+func private %log3(v0.objref<@layout_4>, v1.i256, v2.i256, v3.i256, v4.i256, v5.i256) {
     block0:
         v6.*i256 = alloca i256;
         v7.*i256 = alloca i256;
@@ -219,24 +209,34 @@ func private %log3(v0.objref<@__fe_layout_4>, v1.i256, v2.i256, v3.i256, v4.i256
         return;
 }
 
-func private %main(v0.objref<@__fe_layout_4>) {
+func private %main(v0.objref<@layout_4>) {
     block0:
         jump block1;
 
     block1:
-        v2.objref<@__fe_layout_0> = obj.alloc @__fe_layout_0;
+        v2.objref<@layout_0> = obj.alloc @layout_0;
         v4.objref<i256> = obj.proj v2 0.i256;
         obj.store v4 1.i256;
-        v5.@__fe_layout_0 = obj.load v2;
-        v7.objref<@__fe_layout_0> = obj.alloc @__fe_layout_0;
+        v5.@layout_0 = obj.load v2;
+        v7.objref<@layout_0> = obj.alloc @layout_0;
         v8.objref<i256> = obj.proj v7 0.i256;
         obj.store v8 2.i256;
-        v9.@__fe_layout_0 = obj.load v7;
+        v9.@layout_0 = obj.load v7;
         call %emit_transfer v0 v5 v9 100.i256;
         return;
 }
 
-func private %new(v0.i256) -> @__fe_layout_1 {
+func private %main_root() {
+    block0:
+        jump block1;
+
+    block1:
+        v0.objref<@layout_4> = obj.alloc @layout_4;
+        call %main v0;
+        evm_stop;
+}
+
+func private %new(v0.i256) -> @layout_1 {
     block0:
         v1.*i256 = alloca i256;
         mstore v1 v0 i256;
@@ -258,12 +258,12 @@ func private %new(v0.i256) -> @__fe_layout_1 {
 
     block4:
         v8.i256 = phi (0.i256 block2) (v7 block3);
-        v9.objref<@__fe_layout_1> = obj.alloc @__fe_layout_1;
+        v9.objref<@layout_1> = obj.alloc @layout_1;
         v10.objref<i256> = obj.proj v9 0.i256;
         obj.store v10 v8;
         v12.objref<i256> = obj.proj v9 1.i256;
         obj.store v12 v8;
-        v13.@__fe_layout_1 = obj.load v9;
+        v13.@layout_1 = obj.load v9;
         return v13;
 }
 
@@ -275,7 +275,7 @@ func private %payload_size(v0.i256) -> i256 {
         return 32.i256;
 }
 
-func private %write_word(v0.objref<@__fe_layout_1>, v1.i256) {
+func private %write_word(v0.objref<@layout_1>, v1.i256) {
     block0:
         v2.*i256 = alloca i256;
         mstore v2 v1 i256;
@@ -295,6 +295,6 @@ func private %write_word(v0.objref<@__fe_layout_1>, v1.i256) {
 
 object @main {
     section main {
-        entry %__fe_main_root;
+        entry %main_root;
     }
 }

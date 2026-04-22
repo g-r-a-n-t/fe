@@ -5,9 +5,24 @@ input_file: crates/codegen/tests/fixtures/momo.fe
 ---
 target = "evm-ethereum-osaka"
 
-type @__fe_layout_0 = {i8, i8};
+type @layout_0 = {i8, i8};
 
-func private %__fe_main_root() {
+func private %main() -> i8 {
+    block0:
+        jump block1;
+
+    block1:
+        v2.objref<@layout_0> = obj.alloc @layout_0;
+        v4.objref<i8> = obj.proj v2 0.i256;
+        obj.store v4 1.i8;
+        v6.objref<i8> = obj.proj v2 1.i256;
+        obj.store v6 2.i8;
+        v7.@layout_0 = obj.load v2;
+        v8.i8 = call %read_x v7;
+        return v8;
+}
+
+func private %main_root() {
     block0:
         jump block1;
 
@@ -16,24 +31,9 @@ func private %__fe_main_root() {
         evm_stop;
 }
 
-func private %main() -> i8 {
+func private %read_x(v0.@layout_0) -> i8 {
     block0:
-        jump block1;
-
-    block1:
-        v2.objref<@__fe_layout_0> = obj.alloc @__fe_layout_0;
-        v4.objref<i8> = obj.proj v2 0.i256;
-        obj.store v4 1.i8;
-        v6.objref<i8> = obj.proj v2 1.i256;
-        obj.store v6 2.i8;
-        v7.@__fe_layout_0 = obj.load v2;
-        v8.i8 = call %read_x v7;
-        return v8;
-}
-
-func private %read_x(v0.@__fe_layout_0) -> i8 {
-    block0:
-        v1.objref<@__fe_layout_0> = obj.alloc @__fe_layout_0;
+        v1.objref<@layout_0> = obj.alloc @layout_0;
         v3.objref<i8> = obj.proj v1 0.i256;
         v4.i8 = extract_value v0 0.i256;
         obj.store v3 v4;
@@ -62,6 +62,6 @@ func private %read_x(v0.@__fe_layout_0) -> i8 {
 
 object @main {
     section main {
-        entry %__fe_main_root;
+        entry %main_root;
     }
 }

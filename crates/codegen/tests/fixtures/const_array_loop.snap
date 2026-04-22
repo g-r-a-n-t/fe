@@ -5,10 +5,6 @@ input_file: tests/fixtures/const_array_loop.fe
 ---
 object "main" {
   code {
-    function $__fe_main_root() {
-      let v0 := $main()
-      stop()
-    }
     function $main() -> ret {
       let v2 := 0x03
       let v0 := v2
@@ -16,6 +12,10 @@ object "main" {
       let v1 := v3
       ret := v1
       leave
+    }
+    function $main_root() {
+      let v0 := $main()
+      stop()
     }
     function $sum_loop(p0) -> ret {
       let v1 := 0
@@ -87,6 +87,6 @@ object "main" {
       ret := v2
       leave
     }
-    $__fe_main_root()
+    $main_root()
   }
 }

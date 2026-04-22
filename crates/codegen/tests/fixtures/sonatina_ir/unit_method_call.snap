@@ -5,18 +5,9 @@ input_file: crates/codegen/tests/fixtures/unit_method_call.fe
 ---
 target = "evm-ethereum-osaka"
 
-type @__fe_layout_0 = {i256};
+type @layout_0 = {i256};
 
-func private %__fe_main_root() {
-    block0:
-        jump block1;
-
-    block1:
-        call %main;
-        evm_stop;
-}
-
-func private %call_unit_method(v0.@__fe_layout_0) {
+func private %call_unit_method(v0.@layout_0) {
     block0:
         jump block1;
 
@@ -25,7 +16,7 @@ func private %call_unit_method(v0.@__fe_layout_0) {
         return;
 }
 
-func private %increment(v0.@__fe_layout_0) {
+func private %increment(v0.@layout_0) {
     block0:
         jump block1;
 
@@ -38,17 +29,26 @@ func private %main() {
         jump block1;
 
     block1:
-        v1.objref<@__fe_layout_0> = obj.alloc @__fe_layout_0;
+        v1.objref<@layout_0> = obj.alloc @layout_0;
         v3.objref<i256> = obj.proj v1 0.i256;
         obj.store v3 1.i256;
-        v4.@__fe_layout_0 = obj.load v1;
+        v4.@layout_0 = obj.load v1;
         call %call_unit_method v4;
         return;
+}
+
+func private %main_root() {
+    block0:
+        jump block1;
+
+    block1:
+        call %main;
+        evm_stop;
 }
 
 
 object @main {
     section main {
-        entry %__fe_main_root;
+        entry %main_root;
     }
 }

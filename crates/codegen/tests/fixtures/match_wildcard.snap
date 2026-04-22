@@ -5,10 +5,6 @@ input_file: tests/fixtures/match_wildcard.fe
 ---
 object "main" {
   code {
-    function $__fe_main_root() {
-      let v0 := $main()
-      stop()
-    }
     function $main() -> ret {
       let t14 := mload(0x40)
       if iszero(t14) {
@@ -46,6 +42,10 @@ object "main" {
       let v6 := v13
       ret := v6
       leave
+    }
+    function $main_root() {
+      let v0 := $main()
+      stop()
     }
     function $match_with_wildcard(p0) -> ret {
       let v1 := 0
@@ -114,6 +114,6 @@ object "main" {
       ret := and(v2, 0xff)
       leave
     }
-    $__fe_main_root()
+    $main_root()
   }
 }

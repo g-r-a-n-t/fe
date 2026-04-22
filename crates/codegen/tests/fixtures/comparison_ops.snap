@@ -5,10 +5,6 @@ input_file: tests/fixtures/comparison_ops.fe
 ---
 object "main" {
   code {
-    function $__fe_main_root() {
-      let v0 := $comparison_ops()
-      stop()
-    }
     function $comparison_ops() -> ret {
       let v19 := 0x01
       let v3 := v19
@@ -69,6 +65,10 @@ object "main" {
       ret := v18
       leave
     }
-    $__fe_main_root()
+    function $main_root() {
+      let v0 := $comparison_ops()
+      stop()
+    }
+    $main_root()
   }
 }

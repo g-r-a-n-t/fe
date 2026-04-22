@@ -5,15 +5,6 @@ input_file: crates/codegen/tests/fixtures/range_bounds.fe
 ---
 target = "evm-ethereum-osaka"
 
-func private %__fe_main_root() {
-    block0:
-        jump block1;
-
-    block1:
-        v0.i256 = call %sum_const;
-        evm_stop;
-}
-
 func private %get(v0.i256) -> i256 {
     block0:
         v1.*i256 = alloca i256;
@@ -50,6 +41,15 @@ func private %len() -> i256 {
     block4:
         v3.i256 = phi (0.i256 block2) (4.i256 block3);
         return v3;
+}
+
+func private %main_root() {
+    block0:
+        jump block1;
+
+    block1:
+        v0.i256 = call %sum_const;
+        evm_stop;
 }
 
 func private %sum_const() -> i256 {
@@ -93,6 +93,6 @@ func private %sum_const() -> i256 {
 
 object @main {
     section main {
-        entry %__fe_main_root;
+        entry %main_root;
     }
 }

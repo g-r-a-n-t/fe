@@ -5,10 +5,6 @@ input_file: tests/fixtures/const_nested_u8_array.fe
 ---
 object "main" {
   code {
-    function $__fe_main_root() {
-      let v0 := $const_nested_u8_array()
-      stop()
-    }
     function $const_nested_u8_array() -> ret {
       let v5 := 0x01
       let v6 := 0x02
@@ -31,7 +27,11 @@ object "main" {
       ret := and(v4, 0xff)
       leave
     }
-    $__fe_main_root()
+    function $main_root() {
+      let v0 := $const_nested_u8_array()
+      stop()
+    }
+    $main_root()
   }
   data "const_0" hex"0102000000000000000000000000000000000000000000000000000000000000"
   data "const_1" hex"0304000000000000000000000000000000000000000000000000000000000000"

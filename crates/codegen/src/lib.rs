@@ -1,4 +1,5 @@
 mod backend;
+mod function_symbols;
 mod layout;
 mod runtime_package;
 mod sonatina;

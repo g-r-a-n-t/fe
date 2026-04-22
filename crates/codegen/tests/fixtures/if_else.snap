@@ -5,10 +5,6 @@ input_file: tests/fixtures/if_else.fe
 ---
 object "main" {
   code {
-    function $__fe_main_root() {
-      let v0 := $main()
-      stop()
-    }
     function $helper(p0) -> ret {
       let v1 := and(p0, 0xffffffffffffffff)
       let v4 := 0x01
@@ -52,6 +48,10 @@ object "main" {
       ret := and(v1, 0xffffffffffffffff)
       leave
     }
-    $__fe_main_root()
+    function $main_root() {
+      let v0 := $main()
+      stop()
+    }
+    $main_root()
   }
 }

@@ -5,10 +5,6 @@ input_file: tests/fixtures/internal_helper_shadowing.fe
 ---
 object "main" {
   code {
-    function $__fe_main_root() {
-      let v0 := $main()
-      stop()
-    }
     function $call_internal_helpers(p0, p1) -> ret {
       let v2 := and(p0, 0xffffffffffffffff)
       let v3 := and(p1, 0xffffffffffffffff)
@@ -90,6 +86,10 @@ object "main" {
       ret := v6
       leave
     }
+    function $main_root() {
+      let v0 := $main()
+      stop()
+    }
     function $saturating_add(p0, p1) -> ret {
       let v2 := and(p0, 0xffffffffffffffff)
       let v3 := and(p1, 0xffffffffffffffff)
@@ -108,6 +108,6 @@ object "main" {
       ret := and(v2, 0xffffffffffffffff)
       leave
     }
-    $__fe_main_root()
+    $main_root()
   }
 }

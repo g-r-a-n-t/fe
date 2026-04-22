@@ -5,10 +5,6 @@ input_file: tests/fixtures/newtype_word_mut_method_call.fe
 ---
 object "main" {
   code {
-    function $__fe_main_root() {
-      let v0 := $main()
-      stop()
-    }
     function $bump(p0) -> ret {
       let r0 := mload(0x40)
       if iszero(r0) {
@@ -41,6 +37,10 @@ object "main" {
       ret := v1
       leave
     }
+    function $main_root() {
+      let v0 := $main()
+      stop()
+    }
     function $newtype_word_mut_method_call(p0) -> ret {
       let v3 := p0
       let v4 := v3
@@ -60,6 +60,6 @@ object "main" {
       ret := v6
       leave
     }
-    $__fe_main_root()
+    $main_root()
   }
 }

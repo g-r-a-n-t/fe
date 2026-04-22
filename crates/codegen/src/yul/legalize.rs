@@ -18,7 +18,13 @@ use mir::{
 };
 use rustc_hash::FxHashMap;
 
-use crate::yul::errors::YulError;
+use crate::{
+    function_symbols::{FunctionSymbolInput, FunctionSymbolStyle, assign_function_symbols},
+    yul::{
+        errors::YulError,
+        names::{prefix_yul_name, sanitize_yul_ident},
+    },
+};
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub struct YLocalId(pub u32);
@@ -178,6 +184,7 @@ pub struct YulFunctionPlan<'db> {
     pub id: YFunctionId,
     pub runtime_function: RuntimeFunction<'db>,
     pub symbol: String,
+    variant_suffix: String,
     pub linkage: RuntimeLinkage,
     pub inline_hint: RuntimeInlineHint,
     pub param_kinds: Vec<YulParamKind>,
@@ -724,6 +731,32 @@ fn function_variant_suffix<'db>(key: &YulFunctionKey<'db>) -> String {
     parts.join("_")
 }
 
+const YUL_FUNCTION_SYMBOL_STYLE: FunctionSymbolStyle = FunctionSymbolStyle {
+    segment_separator: "$",
+    variant_separator: "_",
+    fallback_separator: "_",
+    sanitize_segment: sanitize_yul_ident,
+    namespace_key: prefix_yul_name,
+};
+
+fn assign_yul_function_symbols<'db>(
+    db: &'db DriverDataBase,
+    functions: &mut [YulFunctionPlan<'db>],
+) {
+    let inputs = functions
+        .iter()
+        .map(|func| FunctionSymbolInput {
+            owner: func.runtime_function.owner(db).clone(),
+            fallback_symbol: func.runtime_function.symbol(db).clone(),
+            variant_suffix: func.variant_suffix.clone(),
+        })
+        .collect::<Vec<_>>();
+    let symbols = assign_function_symbols(db, &inputs, &YUL_FUNCTION_SYMBOL_STYLE);
+    for (func, symbol) in functions.iter_mut().zip(symbols) {
+        func.symbol = symbol;
+    }
+}
+
 fn specialize_yul_class_root<'db>(
     class: YulValueClass<'db>,
     root_alias: Option<YulAddressSpace>,
@@ -945,6 +978,7 @@ impl<'pkg, 'db> YulLegalizer<'pkg, 'db> {
                 })
             })
             .collect::<Result<Vec<_>, _>>()?;
+        assign_yul_function_symbols(self.db, &mut functions);
         functions.sort_by(|lhs, rhs| lhs.symbol.cmp(&rhs.symbol));
         Ok(YulPackage {
             top_mod: self.package.top_mod(self.db),
@@ -1299,10 +1333,17 @@ impl<'pkg, 'db> YulLegalizer<'pkg, 'db> {
             })
             .collect();
 
+        let variant_suffix = function_variant_suffix(key);
+        let symbol = if variant_suffix.is_empty() {
+            runtime_function.symbol(self.db).clone()
+        } else {
+            format!("{}_{variant_suffix}", runtime_function.symbol(self.db))
+        };
         Ok(YulFunctionPlan {
             id,
             runtime_function,
-            symbol: self.function_symbol_for_key(key),
+            symbol,
+            variant_suffix,
             linkage: runtime_function.linkage(self.db).clone(),
             inline_hint: runtime_function.inline_hint(self.db),
             param_kinds,
@@ -2071,15 +2112,6 @@ impl<'pkg, 'db> YulLegalizer<'pkg, 'db> {
                     .into_boxed_slice(),
             }),
             Layout::Enum(_) => None,
-        }
-    }
-
-    fn function_symbol_for_key(&self, key: &YulFunctionKey<'db>) -> String {
-        let suffix = function_variant_suffix(key);
-        if suffix.is_empty() {
-            key.runtime_function.symbol(self.db).clone()
-        } else {
-            format!("{}_{}", key.runtime_function.symbol(self.db), suffix)
         }
     }
 

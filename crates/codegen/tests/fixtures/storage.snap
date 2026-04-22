@@ -5,17 +5,6 @@ input_file: tests/fixtures/storage.fe
 ---
 object "Coin" {
   code {
-    function $__fe_manual_contract_init_root_Coin() {
-      let t3 := mload(0x40)
-      if iszero(t3) {
-        t3 := 0x80
-      }
-      mstore(0x40, add(t3, 0))
-      let v0 := t3
-      let v1 := v0
-      $init(v1)
-      stop()
-    }
     function $codecopy(p0, p1, p2, p3) {
       let v4 := p1
       let v5 := p2
@@ -35,29 +24,29 @@ object "Coin" {
       $codecopy(v5, v6, v2, v1)
       let v14 := 0x00
       let v8 := v14
-      $return_data_1(v8, v1)
+      $std$lib$evm$effects$impl_trait$Evm$0098$return_data_0(v8, v1)
       invalid()
     }
-    function $return_data_1(p0, p1) {
+    function $manual_contract_init_root_Coin() {
+      let t3 := mload(0x40)
+      if iszero(t3) {
+        t3 := 0x80
+      }
+      mstore(0x40, add(t3, 0))
+      let v0 := t3
+      let v1 := v0
+      $init(v1)
+      stop()
+    }
+    function $std$lib$evm$effects$impl_trait$Evm$0098$return_data_0(p0, p1) {
       let v3 := p0
       let v4 := p1
       return(v3, v4)
     }
-    $__fe_manual_contract_init_root_Coin()
+    $manual_contract_init_root_Coin()
   }
   object "__Coin_runtime" {
     code {
-      function $__fe_manual_contract_runtime_root_Coin() {
-        let t3 := mload(0x40)
-        if iszero(t3) {
-          t3 := 0x80
-        }
-        mstore(0x40, add(t3, 0))
-        let v0 := t3
-        let v1 := v0
-        $runtime(v1)
-        stop()
-      }
       function $abi_encode(p0, p1) {
         let v9 := 0x00
         let v3 := v9
@@ -69,7 +58,7 @@ object "Coin" {
         $mstore(v4, v2, v5)
         let v14 := 0x20
         let v7 := v14
-        $return_data_2(v2, v7)
+        $std$lib$evm$effects$impl_trait$Evm$0098$return_data_1(v2, v7)
         invalid()
       }
       function $abi_encode_arg0_root_stor(p0, p1) {
@@ -83,7 +72,7 @@ object "Coin" {
         $mstore_arg2_root_stor(v4, v2, v5)
         let v14 := 0x20
         let v7 := v14
-        $return_data_2(v2, v7)
+        $std$lib$evm$effects$impl_trait$Evm$0098$return_data_1(v2, v7)
         invalid()
       }
       function $balance_of_raw_eff0_stor(p0, p1) -> ret {
@@ -172,7 +161,7 @@ object "Coin" {
         ret := v11
         leave
       }
-      function $from_raw_0(p0) -> ret {
+      function $from_raw$g9438(p0) -> ret {
         let v1 := p0
         let v3 := v1
         let v4 := v3
@@ -180,13 +169,24 @@ object "Coin" {
         ret := v2
         leave
       }
-      function $from_raw_1(p0) -> ret {
+      function $from_raw$gf198(p0) -> ret {
         let v1 := p0
         let v3 := v1
         let v4 := v3
         let v2 := v4
         ret := v2
         leave
+      }
+      function $manual_contract_runtime_root_Coin() {
+        let t3 := mload(0x40)
+        if iszero(t3) {
+          t3 := 0x80
+        }
+        mstore(0x40, add(t3, 0))
+        let v0 := t3
+        let v1 := v0
+        $runtime(v1)
+        stop()
       }
       function $mstore(p0, p1, p2) {
         let v3 := p1
@@ -200,12 +200,12 @@ object "Coin" {
         mstore(v3, v4)
         leave
       }
-      function $return_data_0(p0, p1) {
+      function $std$lib$evm$effects$impl_trait$Evm$0098$return_data_2(p0, p1) {
         let v3 := p0
         let v4 := p1
         return(v3, v4)
       }
-      function $return_data_2(p0, p1) {
+      function $std$lib$evm$effects$impl_trait$Evm$0098$return_data_1(p0, p1) {
         let v3 := p0
         let v4 := p1
         return(v3, v4)
@@ -220,12 +220,12 @@ object "Coin" {
         let v49 := 0
         let v61 := 0x00
         let v14 := v61
-        let v62 := $stor_ptr_1(v14)
+        let v62 := $stor_ptr$g2c78(v14)
         let v15 := v62
         v1 := v15
         let v63 := 0x02
         let v16 := v63
-        let v64 := $stor_ptr_0(v16)
+        let v64 := $stor_ptr$gd216(v16)
         let v17 := v64
         v2 := v17
         let v65 := 0x00
@@ -335,23 +335,23 @@ object "Coin" {
                 let v58 := v88
                 let v89 := 0x00
                 let v59 := v89
-                $return_data_0(v58, v59)
+                $std$lib$evm$effects$impl_trait$Evm$0098$return_data_2(v58, v59)
                 invalid()
               }
             }
           }
         }
       }
-      function $stor_ptr_0(p0) -> ret {
+      function $stor_ptr$g2c78(p0) -> ret {
         let v2 := p0
-        let v4 := $from_raw_0(v2)
+        let v4 := $from_raw$g9438(v2)
         let v3 := v4
         ret := v3
         leave
       }
-      function $stor_ptr_1(p0) -> ret {
+      function $stor_ptr$gd216(p0) -> ret {
         let v2 := p0
-        let v4 := $from_raw_1(v2)
+        let v4 := $from_raw$gf198(v2)
         let v3 := v4
         ret := v3
         leave
@@ -493,7 +493,7 @@ object "Coin" {
         ret := v1
         leave
       }
-      $__fe_manual_contract_runtime_root_Coin()
+      $manual_contract_runtime_root_Coin()
     }
   }
 }

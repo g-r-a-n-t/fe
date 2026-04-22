@@ -5,7 +5,7 @@ input_file: tests/fixtures/struct_init.fe
 ---
 object "main" {
   code {
-    function $__fe_main_root() {
+    function $main_root() {
       let v0 := $make_dummy()
       stop()
     }
@@ -33,7 +33,7 @@ object "main" {
       ret := v0
       leave
     }
-    $__fe_main_root()
+    $main_root()
   }
   data "const_0" hex"000000000000000000000000000000000000000000000000000000000000002a0000000000000000000000000000000000000000000000000000000000000063"
 }

@@ -5,10 +5,6 @@ input_file: tests/fixtures/borrow_handles_readback.fe
 ---
 object "main" {
   code {
-    function $__fe_main_root() {
-      let v0 := $borrow_handles_readback()
-      stop()
-    }
     function $borrow_handles_readback() -> ret {
       let v6 := 0x00
       let v2 := v6
@@ -28,6 +24,10 @@ object "main" {
       ret := mload(r0)
       leave
     }
-    $__fe_main_root()
+    function $main_root() {
+      let v0 := $borrow_handles_readback()
+      stop()
+    }
+    $main_root()
   }
 }

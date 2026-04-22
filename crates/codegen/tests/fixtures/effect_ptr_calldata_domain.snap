@@ -1,12 +1,11 @@
 ---
 source: crates/codegen/tests/yul.rs
-assertion_line: 31
 expression: output
 input_file: tests/fixtures/effect_ptr_calldata_domain.fe
 ---
 object "main" {
   code {
-    function $__fe_main_root() {
+    function $main_root() {
       $test_calldata_ptr_domain()
       stop()
     }
@@ -34,6 +33,6 @@ object "main" {
       let v1 := v4
       leave
     }
-    $__fe_main_root()
+    $main_root()
   }
 }

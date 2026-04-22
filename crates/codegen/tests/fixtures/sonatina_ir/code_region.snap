@@ -5,51 +5,11 @@ input_file: crates/codegen/tests/fixtures/code_region.fe
 ---
 target = "evm-ethereum-osaka"
 
-type @__fe_layout_0 = {};
-type @__fe_layout_1 = {@__fe_layout_0};
-type @__fe_layout_2 = {i256};
+type @layout_0 = {};
+type @layout_1 = {@layout_0};
+type @layout_2 = {i256};
 
-func private %__fe_manual_contract_init_root_Child() {
-    block0:
-        jump block1;
-
-    block1:
-        v0.objref<@__fe_layout_1> = obj.alloc @__fe_layout_1;
-        call %child_init v0;
-        evm_stop;
-}
-
-func private %__fe_manual_contract_init_root_Foo() {
-    block0:
-        jump block1;
-
-    block1:
-        v0.objref<@__fe_layout_1> = obj.alloc @__fe_layout_1;
-        call %init v0;
-        evm_stop;
-}
-
-func private %__fe_manual_contract_runtime_root_Child() {
-    block0:
-        jump block1;
-
-    block1:
-        v0.objref<@__fe_layout_1> = obj.alloc @__fe_layout_1;
-        call %child_runtime v0;
-        evm_stop;
-}
-
-func private %__fe_manual_contract_runtime_root_Foo() {
-    block0:
-        jump block1;
-
-    block1:
-        v0.objref<@__fe_layout_1> = obj.alloc @__fe_layout_1;
-        call %runtime v0;
-        evm_stop;
-}
-
-func private %allocate(v0.i256, v1.objref<@__fe_layout_1>) -> i256 {
+func private %allocate(v0.i256, v1.objref<@layout_1>) -> i256 {
     block0:
         v2.*i256 = alloca i256;
         mstore v2 v0 i256;
@@ -82,16 +42,16 @@ func private %allocate(v0.i256, v1.objref<@__fe_layout_1>) -> i256 {
         return v10;
 }
 
-func private %balance(v0.objref<@__fe_layout_1>) {
+func private %balance(v0.objref<@layout_1>) {
     block0:
         jump block1;
 
     block1:
-        call %return_data_3 0.i256 0.i256;
+        call %std__lib__evm__effects__impl_trait_Evm_0098__return_data_3 0.i256 0.i256;
         unreachable;
 }
 
-func private %calldatacopy(v0.objref<@__fe_layout_1>, v1.i256, v2.i256, v3.i256) {
+func private %calldatacopy(v0.objref<@layout_1>, v1.i256, v2.i256, v3.i256) {
     block0:
         v4.*i256 = alloca i256;
         v5.*i256 = alloca i256;
@@ -121,29 +81,29 @@ func private %calldataload(v0.i256) -> i256 {
         return v3;
 }
 
-func private %child_init(v0.objref<@__fe_layout_1>) {
+func private %child_init(v0.objref<@layout_1>) {
     block0:
         jump block1;
 
     block1:
         v1.i256 = sym_size &__Child_runtime;
         v2.i256 = sym_addr &__Child_runtime;
-        call %codecopy_0 v0 0.i256 v2 v1;
-        call %return_data_4 0.i256 v1;
+        call %std__lib__evm__effects__impl_trait_Evm_0098__codecopy_0 v0 0.i256 v2 v1;
+        call %std__lib__evm__effects__impl_trait_Evm_0098__return_data_4 0.i256 v1;
         unreachable;
 }
 
-func private %child_runtime(v0.objref<@__fe_layout_1>) {
+func private %child_runtime(v0.objref<@layout_1>) {
     block0:
         jump block1;
 
     block1:
         call %calldatacopy v0 0.i256 0.i256 4.i256;
-        call %return_data_0 0.i256 4.i256;
+        call %std__lib__evm__effects__impl_trait_Evm_0098__return_data_0 0.i256 4.i256;
         unreachable;
 }
 
-func private %codecopy_0(v0.objref<@__fe_layout_1>, v1.i256, v2.i256, v3.i256) {
+func private %std__lib__evm__effects__impl_trait_Evm_0098__codecopy_0(v0.objref<@layout_1>, v1.i256, v2.i256, v3.i256) {
     block0:
         v4.*i256 = alloca i256;
         v5.*i256 = alloca i256;
@@ -161,7 +121,7 @@ func private %codecopy_0(v0.objref<@__fe_layout_1>, v1.i256, v2.i256, v3.i256) {
         return;
 }
 
-func private %codecopy_1(v0.objref<@__fe_layout_1>, v1.i256, v2.i256, v3.i256) {
+func private %std__lib__evm__effects__impl_trait_Evm_0098__codecopy_1(v0.objref<@layout_1>, v1.i256, v2.i256, v3.i256) {
     block0:
         v4.*i256 = alloca i256;
         v5.*i256 = alloca i256;
@@ -179,7 +139,7 @@ func private %codecopy_1(v0.objref<@__fe_layout_1>, v1.i256, v2.i256, v3.i256) {
         return;
 }
 
-func private %create2_raw(v0.objref<@__fe_layout_1>, v1.i256, v2.i256, v3.i256, v4.i256) -> @__fe_layout_2 {
+func private %create2_raw(v0.objref<@layout_1>, v1.i256, v2.i256, v3.i256, v4.i256) -> @layout_2 {
     block0:
         v5.*i256 = alloca i256;
         v6.*i256 = alloca i256;
@@ -197,14 +157,14 @@ func private %create2_raw(v0.objref<@__fe_layout_1>, v1.i256, v2.i256, v3.i256, 
         v11.i256 = mload v7 i256;
         v12.i256 = mload v8 i256;
         v13.i256 = evm_create2 v9 v10 v11 v12;
-        v14.objref<@__fe_layout_2> = obj.alloc @__fe_layout_2;
+        v14.objref<@layout_2> = obj.alloc @layout_2;
         v16.objref<i256> = obj.proj v14 0.i256;
         obj.store v16 v13;
-        v17.@__fe_layout_2 = obj.load v14;
+        v17.@layout_2 = obj.load v14;
         return v17;
 }
 
-func private %init(v0.objref<@__fe_layout_1>) {
+func private %init(v0.objref<@layout_1>) {
     block0:
         jump block1;
 
@@ -212,14 +172,54 @@ func private %init(v0.objref<@__fe_layout_1>) {
         v1.i256 = sym_size &__Child_init;
         v2.i256 = sym_addr &__Child_init;
         v4.i256 = call %allocate v1 v0;
-        call %codecopy_1 v0 v4 v2 v1;
-        v8.@__fe_layout_2 = call %create2_raw v0 0.i256 v4 v1 4660.i256;
+        call %std__lib__evm__effects__impl_trait_Evm_0098__codecopy_1 v0 v4 v2 v1;
+        v8.@layout_2 = call %create2_raw v0 0.i256 v4 v1 4660.i256;
         v9.i256 = sym_size &__Foo_runtime;
         v10.i256 = sym_addr &__Foo_runtime;
         v11.i256 = call %allocate v9 v0;
-        call %codecopy_1 v0 v11 v10 v9;
-        call %return_data_1 v11 v9;
+        call %std__lib__evm__effects__impl_trait_Evm_0098__codecopy_1 v0 v11 v10 v9;
+        call %std__lib__evm__effects__impl_trait_Evm_0098__return_data_1 v11 v9;
         unreachable;
+}
+
+func private %manual_contract_init_root_Child() {
+    block0:
+        jump block1;
+
+    block1:
+        v0.objref<@layout_1> = obj.alloc @layout_1;
+        call %child_init v0;
+        evm_stop;
+}
+
+func private %manual_contract_init_root_Foo() {
+    block0:
+        jump block1;
+
+    block1:
+        v0.objref<@layout_1> = obj.alloc @layout_1;
+        call %init v0;
+        evm_stop;
+}
+
+func private %manual_contract_runtime_root_Child() {
+    block0:
+        jump block1;
+
+    block1:
+        v0.objref<@layout_1> = obj.alloc @layout_1;
+        call %child_runtime v0;
+        evm_stop;
+}
+
+func private %manual_contract_runtime_root_Foo() {
+    block0:
+        jump block1;
+
+    block1:
+        v0.objref<@layout_1> = obj.alloc @layout_1;
+        call %runtime v0;
+        evm_stop;
 }
 
 func private %mload(v0.i256) -> i256 {
@@ -234,7 +234,7 @@ func private %mload(v0.i256) -> i256 {
         return v3;
 }
 
-func private %mstore(v0.objref<@__fe_layout_1>, v1.i256, v2.i256) {
+func private %mstore(v0.objref<@layout_1>, v1.i256, v2.i256) {
     block0:
         v3.*i256 = alloca i256;
         v4.*i256 = alloca i256;
@@ -249,7 +249,7 @@ func private %mstore(v0.objref<@__fe_layout_1>, v1.i256, v2.i256) {
         return;
 }
 
-func private %read_selector(v0.objref<@__fe_layout_1>) -> i256 {
+func private %read_selector(v0.objref<@layout_1>) -> i256 {
     block0:
         jump block1;
 
@@ -259,7 +259,7 @@ func private %read_selector(v0.objref<@__fe_layout_1>) -> i256 {
         return v4;
 }
 
-func private %return_data_0(v0.i256, v1.i256) {
+func private %std__lib__evm__effects__impl_trait_Evm_0098__return_data_0(v0.i256, v1.i256) {
     block0:
         v2.*i256 = alloca i256;
         v3.*i256 = alloca i256;
@@ -273,7 +273,7 @@ func private %return_data_0(v0.i256, v1.i256) {
         evm_return v4 v5;
 }
 
-func private %return_data_1(v0.i256, v1.i256) {
+func private %std__lib__evm__effects__impl_trait_Evm_0098__return_data_1(v0.i256, v1.i256) {
     block0:
         v2.*i256 = alloca i256;
         v3.*i256 = alloca i256;
@@ -287,7 +287,7 @@ func private %return_data_1(v0.i256, v1.i256) {
         evm_return v4 v5;
 }
 
-func private %return_data_2(v0.i256, v1.i256) {
+func private %std__lib__evm__effects__impl_trait_Evm_0098__return_data_2(v0.i256, v1.i256) {
     block0:
         v2.*i256 = alloca i256;
         v3.*i256 = alloca i256;
@@ -301,7 +301,7 @@ func private %return_data_2(v0.i256, v1.i256) {
         evm_return v4 v5;
 }
 
-func private %return_data_3(v0.i256, v1.i256) {
+func private %std__lib__evm__effects__impl_trait_Evm_0098__return_data_3(v0.i256, v1.i256) {
     block0:
         v2.*i256 = alloca i256;
         v3.*i256 = alloca i256;
@@ -315,7 +315,7 @@ func private %return_data_3(v0.i256, v1.i256) {
         evm_return v4 v5;
 }
 
-func private %return_data_4(v0.i256, v1.i256) {
+func private %std__lib__evm__effects__impl_trait_Evm_0098__return_data_4(v0.i256, v1.i256) {
     block0:
         v2.*i256 = alloca i256;
         v3.*i256 = alloca i256;
@@ -329,7 +329,7 @@ func private %return_data_4(v0.i256, v1.i256) {
         evm_return v4 v5;
 }
 
-func private %runtime(v0.objref<@__fe_layout_1>) {
+func private %runtime(v0.objref<@layout_1>) {
     block0:
         jump block1;
 
@@ -339,7 +339,7 @@ func private %runtime(v0.objref<@__fe_layout_1>) {
         br v4 block3 block6;
 
     block2:
-        call %return_data_2 0.i256 0.i256;
+        call %std__lib__evm__effects__impl_trait_Evm_0098__return_data_2 0.i256 0.i256;
         unreachable;
 
     block3:
@@ -361,33 +361,33 @@ func private %runtime(v0.objref<@__fe_layout_1>) {
         jump block5;
 }
 
-func private %transfer(v0.objref<@__fe_layout_1>) {
+func private %transfer(v0.objref<@layout_1>) {
     block0:
         jump block1;
 
     block1:
-        call %return_data_3 0.i256 0.i256;
+        call %std__lib__evm__effects__impl_trait_Evm_0098__return_data_3 0.i256 0.i256;
         unreachable;
 }
 
 
 object @Child {
     section init {
-        entry %__fe_manual_contract_init_root_Child;
+        entry %manual_contract_init_root_Child;
         embed .runtime as &__Child_runtime;
     }
     section runtime {
-        entry %__fe_manual_contract_runtime_root_Child;
+        entry %manual_contract_runtime_root_Child;
     }
 }
 
 object @Foo {
     section init {
-        entry %__fe_manual_contract_init_root_Foo;
+        entry %manual_contract_init_root_Foo;
         embed @Child.init as &__Child_init;
         embed .runtime as &__Foo_runtime;
     }
     section runtime {
-        entry %__fe_manual_contract_runtime_root_Foo;
+        entry %manual_contract_runtime_root_Foo;
     }
 }

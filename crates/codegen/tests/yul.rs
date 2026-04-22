@@ -2,7 +2,7 @@ use common::InputDb;
 use dir_test::{Fixture, dir_test};
 use driver::DriverDataBase;
 use fe_codegen::{EmitModuleError, emit_module_object_yul, emit_module_yul};
-use std::fs;
+use std::{collections::HashSet, fs};
 use test_utils::snap_test;
 use url::Url;
 
@@ -65,15 +65,50 @@ fn emit_fixture_yul(path: &str) -> String {
 }
 
 fn yul_function_body<'a>(yul: &'a str, name: &str) -> &'a str {
-    let exact_marker = format!("function ${name}(");
-    let specialized_marker = format!("function ${name}_");
-    let start = yul
-        .find(&exact_marker)
-        .or_else(|| yul.find(&specialized_marker))
-        .unwrap_or_else(|| panic!("missing function `{name}` in emitted Yul:\n{yul}"));
-    let tail = &yul[start..];
-    let end = tail.find("\n      function $").unwrap_or(tail.len());
-    &tail[..end]
+    let exact_name = format!("${name}");
+    let specialized_prefixes = [format!("${name}_"), format!("${name}$")];
+    let qualified_segments = [format!("${name}_"), format!("${name}$")];
+    yul_function_bodies(yul)
+        .into_iter()
+        .find_map(|(function_name, body)| {
+            (function_name == exact_name
+                || specialized_prefixes
+                    .iter()
+                    .any(|prefix| function_name.starts_with(prefix))
+                || qualified_segments
+                    .iter()
+                    .any(|segment| function_name.contains(segment)))
+            .then_some(body)
+        })
+        .unwrap_or_else(|| panic!("missing function `{name}` in emitted Yul:\n{yul}"))
+}
+
+fn yul_function_bodies(yul: &str) -> Vec<(&str, &str)> {
+    let starts = yul
+        .match_indices("function $")
+        .map(|(idx, _)| idx)
+        .collect::<Vec<_>>();
+    starts
+        .iter()
+        .enumerate()
+        .filter_map(|(idx, start)| {
+            let line = yul[*start..].lines().next()?;
+            let function_name = line
+                .trim_start()
+                .strip_prefix("function ")?
+                .split_once('(')?
+                .0;
+            let end = starts.get(idx + 1).copied().unwrap_or(yul.len());
+            Some((function_name, &yul[*start..end]))
+        })
+        .collect()
+}
+
+fn yul_function_names(yul: &str) -> Vec<String> {
+    yul_function_bodies(yul)
+        .into_iter()
+        .map(|(name, _)| name.to_string())
+        .collect()
 }
 
 fn emit_fixture_object_yul(path: &str, object_name: &str) -> String {
@@ -90,6 +125,232 @@ fn emit_fixture_object_yul(path: &str, object_name: &str) -> String {
         .expect("file should be loaded");
     let top_mod = db.top_mod(file);
     emit_module_object_yul(&db, top_mod, object_name).expect("selected Yul should emit")
+}
+
+#[test]
+fn yul_specialized_function_names_do_not_collide_with_user_symbols() {
+    let yul = emit_inline_yul(
+        "file:///yul_specialized_function_names_do_not_collide_with_user_symbols.fe",
+        r#"
+struct MyStruct {
+    x: u8,
+    y: u8,
+}
+
+pub fn read_x(val: MyStruct) -> u8 {
+    val.x + val.y
+}
+
+pub fn read_x_arg0_root_code(value: u8) -> u8 {
+    value
+}
+
+pub fn main() -> u8 {
+    read_x(MyStruct { x: 1, y: 2 }) + read_x_arg0_root_code(99)
+}
+"#,
+    );
+
+    let names = yul_function_names(&yul);
+    let unique_names = names.iter().collect::<HashSet<_>>();
+    assert_eq!(
+        names.len(),
+        unique_names.len(),
+        "Yul function names must be unique after specialization:\n{yul}"
+    );
+    assert!(
+        names.iter().any(|name| {
+            name != "$read_x_arg0_root_code" && name.contains("$read_x_arg0_root_code")
+        }),
+        "colliding specializations should receive qualified symbols:\n{yul}"
+    );
+}
+
+#[test]
+fn yul_function_names_disambiguate_module_conflicts() {
+    let yul = emit_inline_yul(
+        "file:///yul_function_names_disambiguate_module_conflicts.fe",
+        r#"
+pub mod left {
+    pub fn same() -> u8 {
+        1
+    }
+}
+
+pub mod right {
+    pub fn same() -> u8 {
+        2
+    }
+}
+
+pub fn main() -> u8 {
+    left::same() + right::same()
+}
+"#,
+    );
+
+    let names = yul_function_names(&yul);
+    let unique_names = names.iter().collect::<HashSet<_>>();
+    assert_eq!(
+        names.len(),
+        unique_names.len(),
+        "Yul function names must be unique across source modules:\n{yul}"
+    );
+    assert!(
+        names
+            .iter()
+            .filter(|name| name.ends_with("$same") || name.contains("$same_"))
+            .all(|name| name.contains("$left$same") || name.contains("$right$same")),
+        "colliding module functions should include their module paths:\n{yul}"
+    );
+}
+
+#[test]
+fn yul_function_names_disambiguate_generic_specializations() {
+    let yul = emit_inline_yul(
+        "file:///yul_function_names_disambiguate_generic_specializations.fe",
+        r#"
+fn identity<T>(_ value: own T) -> T {
+    value
+}
+
+fn bool_score(value: bool) -> u32 {
+    if value {
+        1
+    } else {
+        0
+    }
+}
+
+pub fn main() -> u32 {
+    identity(7) + bool_score(identity(true))
+}
+"#,
+    );
+
+    let names = yul_function_names(&yul);
+    let unique_names = names.iter().collect::<HashSet<_>>();
+    assert_eq!(
+        names.len(),
+        unique_names.len(),
+        "Yul function names must be unique across generic specializations:\n{yul}"
+    );
+    assert!(
+        names
+            .iter()
+            .filter(|name| name.starts_with("$identity"))
+            .all(|name| name.starts_with("$identity$g")),
+        "colliding generic specializations should include generic identity components:\n{yul}"
+    );
+}
+
+#[test]
+fn yul_function_names_are_stable_across_absolute_source_paths() {
+    let src = r#"
+struct Left { value: u8 }
+struct Right { value: u8 }
+
+impl Left {
+    fn same(self) -> u8 {
+        self.value
+    }
+}
+
+impl Right {
+    fn same(self) -> u8 {
+        self.value + 1
+    }
+}
+
+pub fn main() -> u8 {
+    let left = Left { value: 1 }
+    let right = Right { value: 2 }
+    left.same() + right.same()
+}
+"#;
+
+    let left = emit_inline_yul("file:///tmp/fe-codegen-path-a/stable_source_path.fe", src);
+    let right = emit_inline_yul(
+        "file:///var/tmp/fe-codegen-path-b/stable_source_path.fe",
+        src,
+    );
+    let left_names = yul_function_names(&left);
+    let right_names = yul_function_names(&right);
+
+    assert_eq!(
+        left_names, right_names,
+        "function names should not depend on absolute fixture paths"
+    );
+    assert!(
+        left_names.iter().any(|name| name == "$impl$Left$same")
+            && left_names.iter().any(|name| name == "$impl$Right$same"),
+        "inherent impl methods should prefer readable owner contexts:\n{left}"
+    );
+}
+
+#[test]
+fn yul_function_names_hash_readable_impl_context_only_on_conflict() {
+    let yul = emit_inline_yul(
+        "file:///yul_function_names_hash_readable_impl_context_only_on_conflict.fe",
+        r#"
+mod left {
+    pub trait Trait {
+        fn same(self) -> u8
+    }
+}
+
+mod right {
+    pub trait Trait {
+        fn same(self) -> u8
+    }
+}
+
+struct Thing {
+    value: u8
+}
+
+impl left::Trait for Thing {
+    fn same(self) -> u8 {
+        self.value
+    }
+}
+
+impl right::Trait for Thing {
+    fn same(self) -> u8 {
+        self.value + 1
+    }
+}
+
+pub fn main() -> u8 {
+    let left = Thing { value: 1 }
+    let right = Thing { value: 2 }
+    left::Trait::same(left) + right::Trait::same(right)
+}
+"#,
+    );
+
+    let names = yul_function_names(&yul);
+    let trait_method_names = names
+        .iter()
+        .filter(|name| name.starts_with("$impl_trait$Thing$") && name.ends_with("$same"))
+        .collect::<Vec<_>>();
+    assert_eq!(
+        trait_method_names.len(),
+        2,
+        "conflicting trait impl methods should use readable type contexts with short hashes:\n{yul}"
+    );
+    for name in trait_method_names {
+        let Some((hash, "same")) = name
+            .strip_prefix("$impl_trait$Thing$")
+            .and_then(|suffix| suffix.split_once('$'))
+        else {
+            panic!("unexpected trait impl method name `{name}` in emitted Yul:\n{yul}");
+        };
+        assert!(
+            hash.len() == 4 && hash.chars().all(|ch| ch.is_ascii_hexdigit()),
+            "trait impl ambiguity should add a 4-char hash, got `{name}`:\n{yul}"
+        );
+    }
 }
 
 #[test]
@@ -227,7 +488,11 @@ fn use_add_assign() {
     );
 
     assert!(
-        yul.contains("function $add_assign_1(") && yul.contains("function $add_assign_0("),
+        yul_function_names(&yul)
+            .iter()
+            .filter(|name| name.contains("add_assign"))
+            .count()
+            >= 2,
         "aggregate ref roots should keep pointer/layout shape through field projection lowering:\n{yul}"
     );
 }
@@ -420,7 +685,7 @@ fn call() -> u256 {
 #[test]
 fn sol_decoder_keeps_byte_input_fields_aggregate_backed_in_yul() {
     let yul = emit_fixture_yul("effect_handle_field_deref.fe");
-    let body = yul_function_body(&yul, "read_word_0");
+    let body = yul_function_body(&yul, "read_word");
 
     assert!(
         !body.contains("mload(p0)"),
@@ -631,11 +896,19 @@ fn runtime() uses (evm: mut Evm) {
     );
 
     assert!(
-        yul.contains("function $return_data_1(p0, p1) {\n      let v3 := p0\n      let v4 := p1\n      return(v3, v4)"),
+        yul_function_bodies(&yul)
+            .into_iter()
+            .filter(|(name, _)| name.contains("return_data"))
+            .any(
+                |(_, body)| body.contains("let v3 := p0\n      let v4 := p1\n      return(v3, v4)")
+            ),
         "create_contract return-data helpers should stay value-backed and forward scalar params without spilling through memory slots:\n{yul}"
     );
     assert!(
-        !yul.contains("function $return_data_1(p0, p1) {\n      let r1 := mload(0x40)"),
+        yul_function_bodies(&yul)
+            .into_iter()
+            .filter(|(name, _)| name.contains("return_data"))
+            .all(|(_, body)| !body.contains("let r1 := mload(0x40)")),
         "create_contract return-data helpers must not allocate scalar root slots from mload(0x40):\n{yul}"
     );
 }
@@ -683,7 +956,7 @@ fn read_word() -> u256 {
 "#,
     );
 
-    let body = yul_function_body(&yul, "word_at_0");
+    let body = yul_function_body(&yul, "word_at");
     assert!(
         body.contains("mload(r0)"),
         "collapsed aggregate field loads should materialize the field word before forwarding it:\n{body}"

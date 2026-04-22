@@ -5,15 +5,6 @@ input_file: crates/codegen/tests/fixtures/while_cond_call.fe
 ---
 target = "evm-ethereum-osaka"
 
-func private %__fe_main_root() {
-    block0:
-        jump block1;
-
-    block1:
-        v0.i64 = call %while_cond_call;
-        evm_stop;
-}
-
 func private %lt_ten(v0.i64) -> i1 {
     block0:
         v1.*i64 = alloca i64;
@@ -25,6 +16,15 @@ func private %lt_ten(v0.i64) -> i1 {
         v3.i64 = trunc v2 i64;
         v5.i1 = lt v3 10.i64;
         return v5;
+}
+
+func private %main_root() {
+    block0:
+        jump block1;
+
+    block1:
+        v0.i64 = call %while_cond_call;
+        evm_stop;
 }
 
 func private %while_cond_call() -> i64 {
@@ -62,6 +62,6 @@ func private %while_cond_call() -> i64 {
 
 object @main {
     section main {
-        entry %__fe_main_root;
+        entry %main_root;
     }
 }

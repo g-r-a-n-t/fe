@@ -5,10 +5,6 @@ input_file: tests/fixtures/match_struct.fe
 ---
 object "main" {
   code {
-    function $__fe_main_root() {
-      let v0 := $main()
-      stop()
-    }
     function $main() -> ret {
       let v9 := 0x01
       let v0 := and(v9, 0xff)
@@ -41,6 +37,10 @@ object "main" {
       let v8 := v23
       ret := v8
       leave
+    }
+    function $main_root() {
+      let v0 := $main()
+      stop()
     }
     function $match_struct_fields_arg0_root_code(p0) -> ret {
       let v5 := 0
@@ -165,7 +165,7 @@ object "main" {
       ret := and(v2, 0xff)
       leave
     }
-    $__fe_main_root()
+    $main_root()
   }
   data "const_0" hex"00000000000000000000000000000000000000000000000000000000000000010000000000000000000000000000000000000000000000000000000000000002"
   data "const_1" hex"00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000001"

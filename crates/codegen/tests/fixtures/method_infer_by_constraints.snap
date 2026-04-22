@@ -5,10 +5,6 @@ input_file: tests/fixtures/method_infer_by_constraints.fe
 ---
 object "main" {
   code {
-    function $__fe_main_root() {
-      let v0 := $call()
-      stop()
-    }
     function $call() -> ret {
       let v4 := 0x0a
       let v1 := and(v4, 0xffffffffffffffff)
@@ -46,6 +42,10 @@ object "main" {
       ret := v3
       leave
     }
-    $__fe_main_root()
+    function $main_root() {
+      let v0 := $call()
+      stop()
+    }
+    $main_root()
   }
 }

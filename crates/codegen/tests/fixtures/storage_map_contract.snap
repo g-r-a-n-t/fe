@@ -5,17 +5,6 @@ input_file: tests/fixtures/storage_map_contract.fe
 ---
 object "BalanceMap" {
   code {
-    function $__fe_manual_contract_init_root_BalanceMap() {
-      let t3 := mload(0x40)
-      if iszero(t3) {
-        t3 := 0x80
-      }
-      mstore(0x40, add(t3, 0))
-      let v0 := t3
-      let v1 := v0
-      $init(v1)
-      stop()
-    }
     function $codecopy(p0, p1, p2, p3) {
       let v4 := p1
       let v5 := p2
@@ -35,29 +24,29 @@ object "BalanceMap" {
       $codecopy(v5, v6, v2, v1)
       let v14 := 0x00
       let v8 := v14
-      $return_data_1(v8, v1)
+      $std$lib$evm$effects$impl_trait$Evm$0098$return_data_0(v8, v1)
       invalid()
     }
-    function $return_data_1(p0, p1) {
+    function $manual_contract_init_root_BalanceMap() {
+      let t3 := mload(0x40)
+      if iszero(t3) {
+        t3 := 0x80
+      }
+      mstore(0x40, add(t3, 0))
+      let v0 := t3
+      let v1 := v0
+      $init(v1)
+      stop()
+    }
+    function $std$lib$evm$effects$impl_trait$Evm$0098$return_data_0(p0, p1) {
       let v3 := p0
       let v4 := p1
       return(v3, v4)
     }
-    $__fe_manual_contract_init_root_BalanceMap()
+    $manual_contract_init_root_BalanceMap()
   }
   object "__BalanceMap_runtime" {
     code {
-      function $__fe_manual_contract_runtime_root_BalanceMap() {
-        let t3 := mload(0x40)
-        if iszero(t3) {
-          t3 := 0x80
-        }
-        mstore(0x40, add(t3, 0))
-        let v0 := t3
-        let v1 := v0
-        $runtime(v1)
-        stop()
-      }
       function $abi_encode(p0, p1) {
         let v9 := 0x00
         let v3 := v9
@@ -69,7 +58,7 @@ object "BalanceMap" {
         $mstore(v4, v2, v5)
         let v14 := 0x20
         let v7 := v14
-        $return_data_2(v2, v7)
+        $std$lib$evm$effects$impl_trait$Evm$0098$return_data_1(v2, v7)
         invalid()
       }
       function $calldataload(p0) -> ret {
@@ -84,7 +73,7 @@ object "BalanceMap" {
         ret := v1
         leave
       }
-      function $get_0(p0) -> ret {
+      function $get$g7fdf(p0) -> ret {
         let v5 := 0x01
         let v2 := v5
         let v6 := $storagemap_get_word_with_salt(p0, v2)
@@ -94,7 +83,7 @@ object "BalanceMap" {
         ret := v4
         leave
       }
-      function $get_1(p0) -> ret {
+      function $get$gcbe1(p0) -> ret {
         let v5 := 0x00
         let v2 := v5
         let v6 := $storagemap_get_word_with_salt(p0, v2)
@@ -106,17 +95,28 @@ object "BalanceMap" {
       }
       function $get_allowance(p0, p1) -> ret {
         let v2 := p0
-        let v4 := $get_0(v2)
+        let v4 := $get$g7fdf(v2)
         let v3 := v4
         ret := v3
         leave
       }
       function $get_balance(p0, p1) -> ret {
         let v2 := p0
-        let v4 := $get_1(v2)
+        let v4 := $get$gcbe1(v2)
         let v3 := v4
         ret := v3
         leave
+      }
+      function $manual_contract_runtime_root_BalanceMap() {
+        let t3 := mload(0x40)
+        if iszero(t3) {
+          t3 := 0x80
+        }
+        mstore(0x40, add(t3, 0))
+        let v0 := t3
+        let v1 := v0
+        $runtime(v1)
+        stop()
       }
       function $mstore(p0, p1, p2) {
         let v3 := p1
@@ -124,18 +124,18 @@ object "BalanceMap" {
         mstore(v3, v4)
         leave
       }
-      function $new_0() {
+      function $new$g7fdf() {
         leave
       }
-      function $new_1() {
+      function $new$gcbe1() {
         leave
       }
-      function $return_data_0(p0, p1) {
+      function $std$lib$evm$effects$impl_trait$Evm$0098$return_data_2(p0, p1) {
         let v3 := p0
         let v4 := p1
         return(v3, v4)
       }
-      function $return_data_2(p0, p1) {
+      function $std$lib$evm$effects$impl_trait$Evm$0098$return_data_1(p0, p1) {
         let v3 := p0
         let v4 := p1
         return(v3, v4)
@@ -152,8 +152,8 @@ object "BalanceMap" {
         }
         mstore(0x40, add(r2, 0))
         let v3 := 0
-        $new_1()
-        $new_0()
+        $new$gcbe1()
+        $new$g7fdf()
         let v70 := 0x00
         let v18 := v70
         let v71 := $calldataload(v18)
@@ -277,7 +277,7 @@ object "BalanceMap" {
                   let v63 := v122
                   let v123 := 0x00
                   let v64 := v123
-                  $return_data_0(v63, v64)
+                  $std$lib$evm$effects$impl_trait$Evm$0098$return_data_2(v63, v64)
                   invalid()
                 }
               }
@@ -285,7 +285,7 @@ object "BalanceMap" {
           }
         }
       }
-      function $set_0(p0, p1) {
+      function $set$g7fdf(p0, p1) {
         let v6 := 0x01
         let v3 := v6
         let v7 := $to_word(p1)
@@ -293,7 +293,7 @@ object "BalanceMap" {
         $storagemap_set_word_with_salt(p0, v3, v4)
         leave
       }
-      function $set_1(p0, p1) {
+      function $set$gcbe1(p0, p1) {
         let v6 := 0x00
         let v3 := v6
         let v7 := $to_word(p1)
@@ -304,13 +304,13 @@ object "BalanceMap" {
       function $set_allowance(p0, p1, p2) {
         let v3 := p0
         let v4 := p1
-        $set_0(v3, v4)
+        $set$g7fdf(v3, v4)
         leave
       }
       function $set_balance(p0, p1, p2) {
         let v3 := p0
         let v4 := p1
-        $set_1(v3, v4)
+        $set$gcbe1(v3, v4)
         leave
       }
       function $storagemap_get_word_with_salt(p0, p1) -> ret {
@@ -378,7 +378,7 @@ object "BalanceMap" {
       function $transfer(p0, p1, p2, p3) -> ret {
         let v4 := 0
         let v6 := p0
-        let v24 := $get_1(v6)
+        let v24 := $get$gcbe1(v6)
         let v7 := v24
         v4 := v7
         let v25 := iszero(iszero(lt(v4, p2)))
@@ -391,7 +391,7 @@ object "BalanceMap" {
         }
         if iszero(iszero(iszero(v9))) {
           let v13 := p1
-          let v27 := $get_1(v13)
+          let v27 := $get$gcbe1(v13)
           let v14 := v27
           let v5 := v14
           let v15 := p0
@@ -404,7 +404,7 @@ object "BalanceMap" {
           }
           let v28 := t35
           let v17 := v28
-          $set_1(v15, v17)
+          $set$gcbe1(v15, v17)
           let v19 := p1
           let v20 := p2
           let t36 := add(v5, v20)
@@ -415,7 +415,7 @@ object "BalanceMap" {
           }
           let v31 := t36
           let v21 := v31
-          $set_1(v19, v21)
+          $set$gcbe1(v19, v21)
           let v34 := 0x00
           let v23 := v34
           ret := v23
@@ -431,7 +431,7 @@ object "BalanceMap" {
         ret := v5
         leave
       }
-      $__fe_manual_contract_runtime_root_BalanceMap()
+      $manual_contract_runtime_root_BalanceMap()
     }
   }
 }

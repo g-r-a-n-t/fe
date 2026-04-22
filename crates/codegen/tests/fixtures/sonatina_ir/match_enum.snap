@@ -5,13 +5,23 @@ input_file: crates/codegen/tests/fixtures/match_enum.fe
 ---
 target = "evm-ethereum-osaka"
 
-type @__fe_layout_0 = enum {
+type @layout_0 = enum {
     #A,
     #B,
     #C,
 };
 
-func private %__fe_main_root() {
+func private %main() -> i8 {
+    block0:
+        jump block1;
+
+    block1:
+        v0.@layout_0 = enum.make @layout_0 #B;
+        v1.i8 = call %match_enum v0;
+        return v1;
+}
+
+func private %main_root() {
     block0:
         jump block1;
 
@@ -20,23 +30,13 @@ func private %__fe_main_root() {
         evm_stop;
 }
 
-func private %main() -> i8 {
+func private %match_enum(v0.@layout_0) -> i8 {
     block0:
         jump block1;
 
     block1:
-        v0.@__fe_layout_0 = enum.make @__fe_layout_0 #B;
-        v1.i8 = call %match_enum v0;
-        return v1;
-}
-
-func private %match_enum(v0.@__fe_layout_0) -> i8 {
-    block0:
-        jump block1;
-
-    block1:
-        v2.enumtag(@__fe_layout_0) = enum.tag v0;
-        br_table v2 (0.enumtag(@__fe_layout_0) block3) (1.enumtag(@__fe_layout_0) block4) (2.enumtag(@__fe_layout_0) block5);
+        v2.enumtag(@layout_0) = enum.tag v0;
+        br_table v2 (0.enumtag(@layout_0) block3) (1.enumtag(@layout_0) block4) (2.enumtag(@layout_0) block5);
 
     block2:
         v6.i8 = phi (1.i8 block3) (2.i8 block4) (3.i8 block5);
@@ -55,6 +55,6 @@ func private %match_enum(v0.@__fe_layout_0) -> i8 {
 
 object @main {
     section main {
-        entry %__fe_main_root;
+        entry %main_root;
     }
 }

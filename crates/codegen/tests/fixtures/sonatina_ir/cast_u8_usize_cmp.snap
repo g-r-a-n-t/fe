@@ -5,15 +5,6 @@ input_file: crates/codegen/tests/fixtures/cast_u8_usize_cmp.fe
 ---
 target = "evm-ethereum-osaka"
 
-func private %__fe_main_root() {
-    block0:
-        jump block1;
-
-    block1:
-        v0.i8 = call %main;
-        evm_stop;
-}
-
 func private %cast_u8_usize_cmp(v0.[i8; 8], v1.i256, v2.i256) -> i8 {
     block0:
         v3.objref<[i8; 8]> = obj.alloc [i8; 8];
@@ -125,9 +116,18 @@ func private %main() -> i8 {
         return v26;
 }
 
+func private %main_root() {
+    block0:
+        jump block1;
+
+    block1:
+        v0.i8 = call %main;
+        evm_stop;
+}
+
 
 object @main {
     section main {
-        entry %__fe_main_root;
+        entry %main_root;
     }
 }

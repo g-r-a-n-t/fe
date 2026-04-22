@@ -5,10 +5,6 @@ input_file: tests/fixtures/tuple_single_element_peeling.fe
 ---
 object "main" {
   code {
-    function $__fe_main_root() {
-      let v0 := $main()
-      stop()
-    }
     function $main() -> ret {
       let v10 := 0x01
       let v0 := v10
@@ -42,6 +38,10 @@ object "main" {
       let v9 := v21
       ret := v9
       leave
+    }
+    function $main_root() {
+      let v0 := $main()
+      stop()
     }
     function $match_single_element_tuple(p0) -> ret {
       let r0 := mload(0x40)
@@ -129,6 +129,6 @@ object "main" {
       ret := v5
       leave
     }
-    $__fe_main_root()
+    $main_root()
   }
 }

@@ -44,6 +44,22 @@ fn function_body<'a>(yul: &'a str, signature: &str) -> &'a str {
     &tail[..end]
 }
 
+fn function_bodies(yul: &str) -> Vec<(&str, &str)> {
+    let starts = yul
+        .match_indices("function $")
+        .map(|(idx, _)| idx)
+        .collect::<Vec<_>>();
+    starts
+        .iter()
+        .enumerate()
+        .filter_map(|(idx, start)| {
+            let signature = yul[*start..].lines().next()?;
+            let end = starts.get(idx + 1).copied().unwrap_or(yul.len());
+            Some((signature.trim_start(), &yul[*start..end]))
+        })
+        .collect()
+}
+
 #[test]
 fn readonly_call_results_keep_yul_locals_code_backed() {
     let yul = emit_inline_yul(
@@ -136,7 +152,14 @@ fn transparent_wrapper_get_loads_base_handle_before_inner_get() {
         "file:///transparent_wrapper_get_loads_base_handle_before_inner_get.fe",
         &src,
     );
-    let get_reverse = function_body(&yul, "function $get_0_arg0_f0_code(p0, p1) -> ret {");
+    let get_reverse = function_bodies(&yul)
+        .into_iter()
+        .find_map(|(signature, body)| {
+            (signature.starts_with("function $get")
+                && signature.ends_with("_arg0_f0_code(p0, p1) -> ret {"))
+            .then_some(body)
+        })
+        .unwrap_or_else(|| panic!("expected code-specialized get helper in emitted Yul:\n{yul}"));
 
     assert!(
         get_reverse.contains("mload(p0)") && get_reverse.contains("$get_"),

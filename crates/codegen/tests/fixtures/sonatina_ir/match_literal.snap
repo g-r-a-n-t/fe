@@ -5,15 +5,6 @@ input_file: crates/codegen/tests/fixtures/match_literal.fe
 ---
 target = "evm-ethereum-osaka"
 
-func private %__fe_main_root() {
-    block0:
-        jump block1;
-
-    block1:
-        call %main;
-        evm_stop;
-}
-
 func private %main() {
     block0:
         jump block1;
@@ -33,6 +24,15 @@ func private %main() {
         v21.i128 = call %match_i128 1.i128;
         v22.i256 = call %match_i256 1.i256;
         return;
+}
+
+func private %main_root() {
+    block0:
+        jump block1;
+
+    block1:
+        call %main;
+        evm_stop;
 }
 
 func private %match_bool(v0.i1) -> i64 {
@@ -458,6 +458,6 @@ func private %match_u8(v0.i8) -> i8 {
 
 object @main {
     section main {
-        entry %__fe_main_root;
+        entry %main_root;
     }
 }

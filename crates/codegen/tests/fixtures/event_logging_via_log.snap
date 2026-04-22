@@ -5,17 +5,6 @@ input_file: tests/fixtures/event_logging_via_log.fe
 ---
 object "main" {
   code {
-    function $__fe_main_root() {
-      let t3 := mload(0x40)
-      if iszero(t3) {
-        t3 := 0x80
-      }
-      mstore(0x40, add(t3, 0))
-      let v0 := t3
-      let v1 := v0
-      $main(v1)
-      stop()
-    }
     function $abi_payload_size(p0) -> ret {
       let v2 := $payload_size(p0)
       let v1 := v2
@@ -47,11 +36,7 @@ object "main" {
       ret := v1
       leave
     }
-    function $emit_0(p0, p1) {
-      $emit_1(p1, p0)
-      leave
-    }
-    function $emit_1(p0, p1) {
+    function $emit$gcd5c(p0, p1) {
       let r0 := mload(0x40)
       if iszero(r0) {
         r0 := 0x80
@@ -84,6 +69,10 @@ object "main" {
       $log3(p1, v2, v3, v8, v10, v12)
       leave
     }
+    function $emit$g4f95(p0, p1) {
+      $emit$gcd5c(p1, p0)
+      leave
+    }
     function $emit_transfer(p0, p1, p2, p3) {
       let v4 := p1
       let v5 := p2
@@ -98,17 +87,17 @@ object "main" {
       mstore(add(v9, 32), v5)
       mstore(add(v9, 64), v6)
       let v7 := v9
-      $emit_0(p0, v7)
+      $emit$g4f95(p0, v7)
+      leave
+    }
+    function $encode(p0, p1) {
+      $write_word(p1, p0)
       leave
     }
     function $encode_abi_payload(p0) -> ret {
       let v2 := $encode_alloc(p0)
       let v1 := v2
       ret := v1
-      leave
-    }
-    function $encode(p0, p1) {
-      $write_word(p1, p0)
       leave
     }
     function $encode_alloc(p0) -> ret {
@@ -170,6 +159,17 @@ object "main" {
       $emit_transfer(p0, v2, v4, v5)
       leave
     }
+    function $main_root() {
+      let t3 := mload(0x40)
+      if iszero(t3) {
+        t3 := 0x80
+      }
+      mstore(0x40, add(t3, 0))
+      let v0 := t3
+      let v1 := v0
+      $main(v1)
+      stop()
+    }
     function $new(p0) -> ret {
       let v2 := 0
       let v3 := p0
@@ -226,6 +226,6 @@ object "main" {
       mstore(add(p0, 32), v7)
       leave
     }
-    $__fe_main_root()
+    $main_root()
   }
 }

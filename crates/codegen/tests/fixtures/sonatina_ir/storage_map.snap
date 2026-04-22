@@ -5,16 +5,7 @@ input_file: crates/codegen/tests/fixtures/storage_map.fe
 ---
 target = "evm-ethereum-osaka"
 
-type @__fe_layout_0 = {};
-
-func private %__fe_main_root() {
-    block0:
-        jump block1;
-
-    block1:
-        v0.i256 = call %main;
-        evm_stop;
-}
+type @layout_0 = {};
 
 func private %from_word(v0.i256) -> i256 {
     block0:
@@ -37,7 +28,7 @@ func private %get(v0.i256) -> i256 {
         return v4;
 }
 
-func private %get_balance(v0.i256, v1.objref<@__fe_layout_0>) -> i256 {
+func private %get_balance(v0.i256, v1.objref<@layout_0>) -> i256 {
     block0:
         v2.*i256 = alloca i256;
         mstore v2 v0 i256;
@@ -51,18 +42,27 @@ func private %get_balance(v0.i256, v1.objref<@__fe_layout_0>) -> i256 {
 
 func private %main() -> i256 {
     block0:
-        v0.objref<@__fe_layout_0> = obj.alloc @__fe_layout_0;
+        v0.objref<@layout_0> = obj.alloc @layout_0;
         jump block1;
 
     block1:
         call %new;
-        v4.@__fe_layout_0 = obj.load v0;
-        v5.objref<@__fe_layout_0> = obj.alloc @__fe_layout_0;
+        v4.@layout_0 = obj.load v0;
+        v5.objref<@layout_0> = obj.alloc @layout_0;
         call %set_balance 1.i256 2.i256 v5;
-        v7.@__fe_layout_0 = obj.load v0;
-        v8.objref<@__fe_layout_0> = obj.alloc @__fe_layout_0;
+        v7.@layout_0 = obj.load v0;
+        v8.objref<@layout_0> = obj.alloc @layout_0;
         v9.i256 = call %get_balance 1.i256 v8;
         return v9;
+}
+
+func private %main_root() {
+    block0:
+        jump block1;
+
+    block1:
+        v0.i256 = call %main;
+        evm_stop;
 }
 
 func private %new() {
@@ -83,7 +83,7 @@ func private %set(v0.i256, v1.i256) {
         return;
 }
 
-func private %set_balance(v0.i256, v1.i256, v2.objref<@__fe_layout_0>) {
+func private %set_balance(v0.i256, v1.i256, v2.objref<@layout_0>) {
     block0:
         v3.*i256 = alloca i256;
         v4.*i256 = alloca i256;
@@ -182,6 +182,6 @@ func private %write_key(v0.i256, v1.i256) -> i256 {
 
 object @main {
     section main {
-        entry %__fe_main_root;
+        entry %main_root;
     }
 }

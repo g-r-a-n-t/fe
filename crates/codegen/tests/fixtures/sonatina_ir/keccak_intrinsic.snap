@@ -5,20 +5,10 @@ input_file: crates/codegen/tests/fixtures/keccak_intrinsic.fe
 ---
 target = "evm-ethereum-osaka"
 
-type @__fe_layout_0 = {};
-type @__fe_layout_1 = {@__fe_layout_0};
+type @layout_0 = {};
+type @layout_1 = {@layout_0};
 
-func private %__fe_main_root() {
-    block0:
-        jump block1;
-
-    block1:
-        v0.objref<@__fe_layout_1> = obj.alloc @__fe_layout_1;
-        v1.i256 = call %main v0;
-        evm_stop;
-}
-
-func private %hash(v0.i256, v1.i256, v2.objref<@__fe_layout_1>) -> i256 {
+func private %hash(v0.i256, v1.i256, v2.objref<@layout_1>) -> i256 {
     block0:
         v3.*i256 = alloca i256;
         v4.*i256 = alloca i256;
@@ -48,7 +38,7 @@ func private %keccak256(v0.i256, v1.i256) -> i256 {
         return v6;
 }
 
-func private %main(v0.objref<@__fe_layout_1>) -> i256 {
+func private %main(v0.objref<@layout_1>) -> i256 {
     block0:
         jump block1;
 
@@ -57,9 +47,19 @@ func private %main(v0.objref<@__fe_layout_1>) -> i256 {
         return v4;
 }
 
+func private %main_root() {
+    block0:
+        jump block1;
+
+    block1:
+        v0.objref<@layout_1> = obj.alloc @layout_1;
+        v1.i256 = call %main v0;
+        evm_stop;
+}
+
 
 object @main {
     section main {
-        entry %__fe_main_root;
+        entry %main_root;
     }
 }

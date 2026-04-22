@@ -5,10 +5,6 @@ input_file: tests/fixtures/tuple_construction.fe
 ---
 object "main" {
   code {
-    function $__fe_main_root() {
-      let v0 := $access_tuple()
-      stop()
-    }
     function $access_tuple() -> ret {
       let v6 := 0x01
       let v1 := v6
@@ -31,7 +27,11 @@ object "main" {
       ret := v5
       leave
     }
-    $__fe_main_root()
+    function $main_root() {
+      let v0 := $access_tuple()
+      stop()
+    }
+    $main_root()
   }
   data "const_0" hex"000000000000000000000000000000000000000000000000000000000000000100000000000000000000000000000000000000000000000000000000000000020000000000000000000000000000000000000000000000000000000000000003"
 }

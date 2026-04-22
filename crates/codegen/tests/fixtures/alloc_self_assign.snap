@@ -5,10 +5,6 @@ input_file: tests/fixtures/alloc_self_assign.fe
 ---
 object "main" {
   code {
-    function $__fe_main_root() {
-      let v0 := $main()
-      stop()
-    }
     function $bump_self_assign(p0) -> ret {
       let v2 := p0
       let v1 := v2
@@ -31,6 +27,10 @@ object "main" {
       ret := v1
       leave
     }
-    $__fe_main_root()
+    function $main_root() {
+      let v0 := $main()
+      stop()
+    }
+    $main_root()
   }
 }

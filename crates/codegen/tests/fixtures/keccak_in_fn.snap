@@ -5,10 +5,6 @@ input_file: tests/fixtures/keccak_in_fn.fe
 ---
 object "main" {
   code {
-    function $__fe_main_root() {
-      let v0 := $main()
-      stop()
-    }
     function $main() -> ret {
       let v2 := 0x68
       let v3 := 0x65
@@ -22,7 +18,11 @@ object "main" {
       ret := v1
       leave
     }
-    $__fe_main_root()
+    function $main_root() {
+      let v0 := $main()
+      stop()
+    }
+    $main_root()
   }
   data "const_0" hex"68656c6c6f000000000000000000000000000000000000000000000000000000"
 }

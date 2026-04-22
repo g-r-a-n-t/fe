@@ -5,10 +5,6 @@ input_file: tests/fixtures/match_mixed_return.fe
 ---
 object "main" {
   code {
-    function $__fe_main_root() {
-      let v0 := $main()
-      stop()
-    }
     function $f(p0) -> ret {
       let t15 := and(byte(0, mload(p0)), 0xff)
       let v8 := t15
@@ -51,6 +47,10 @@ object "main" {
       ret := v1
       leave
     }
-    $__fe_main_root()
+    function $main_root() {
+      let v0 := $main()
+      stop()
+    }
+    $main_root()
   }
 }

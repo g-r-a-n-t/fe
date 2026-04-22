@@ -1,7 +1,5 @@
 type Words = [u256; 4]
 
-pub fn main() {}
-
 fn rewrite(mut arr: own Words, idx: usize, value: u256) -> Words {
     arr[idx] = value
     arr[3] = arr[0] + arr[1] + arr[2]

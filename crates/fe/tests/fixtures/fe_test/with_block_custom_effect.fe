@@ -2,8 +2,6 @@ pub struct Counter {
     pub value: u256,
 }
 
-pub fn main() {}
-
 fn inc() uses (counter: mut Counter) {
     counter.value = counter.value + 1
 }

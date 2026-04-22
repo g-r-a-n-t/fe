@@ -2,7 +2,7 @@ use common::InputDb;
 use dir_test::{Fixture, dir_test};
 use driver::DriverDataBase;
 use fmt::{Config, format_str};
-use mir::build_runtime_package;
+use mir::build_test_runtime_package;
 use url::Url;
 
 #[dir_test(
@@ -27,9 +27,9 @@ fn test_fmt_fe_test_fixtures_semantic_roundtrip(fixture: Fixture<&str>) {
         diagnostics.format_diags(&db),
     );
 
-    if let Err(err) = build_runtime_package(&db, top_mod) {
+    if let Err(err) = build_test_runtime_package(&db, top_mod, None) {
         panic!(
-            "formatted output failed runtime package lowering/analysis for {}:\n{}",
+            "formatted output failed test package lowering/analysis for {}:\n{}",
             fixture.path(),
             err,
         );

@@ -1580,7 +1580,7 @@ fn runtime_class_for_explicit_root_provider_param<'db>(
         .as_capability(db)
         .map_or(binding_ty, |(_, inner)| canonical(inner));
     registered_root_providers(db, EffectParamSite::Func(func))
-        .into_iter()
+        .iter()
         .find(|provider| canonical(provider.provider_ty) == binding_ty)
         .map(|provider| {
             provider_class_for_target_in_env(

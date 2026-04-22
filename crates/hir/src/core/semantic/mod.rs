@@ -430,7 +430,8 @@ fn func_provider_bindings_canonical<'db>(
     let base_provider_idx = providers.len();
     providers.extend(
         registered_root_providers(db, EffectParamSite::Func(func))
-            .into_iter()
+            .iter()
+            .cloned()
             .enumerate()
             .map(|(idx, registration)| {
                 let provider_ty = registration.provider_ty;
@@ -453,8 +454,9 @@ fn func_effect_resolutions_canonical<'db>(
     db: &'db dyn HirAnalysisDb,
     func: Func<'db>,
 ) -> Vec<ResolvedEffectBinding> {
-    let explicit_provider_idx = func_provider_bindings_canonical(db, func)
-        .into_iter()
+    let providers = provider_bindings_for_site(db, EffectParamSite::Func(func));
+    let explicit_provider_idx = providers
+        .iter()
         .filter_map(|provider| match provider.source {
             ProviderSource::UsesParam {
                 requirement_idx, ..
@@ -465,12 +467,10 @@ fn func_effect_resolutions_canonical<'db>(
             ProviderSource::RootProvider { .. } | ProviderSource::ContractField { .. } => None,
         })
         .collect::<FxHashMap<_, _>>();
-    let root_provider_idx = provider_bindings_for_site(db, EffectParamSite::Func(func))
-        .into_iter()
-        .find_map(|provider| match provider.source {
-            ProviderSource::RootProvider { .. } => Some(provider.provider_idx),
-            ProviderSource::UsesParam { .. } | ProviderSource::ContractField { .. } => None,
-        });
+    let root_provider_idx = providers.iter().find_map(|provider| match provider.source {
+        ProviderSource::RootProvider { .. } => Some(provider.provider_idx),
+        ProviderSource::UsesParam { .. } | ProviderSource::ContractField { .. } => None,
+    });
 
     func_effect_requirements_canonical(db, func)
         .into_iter()
@@ -1729,11 +1729,11 @@ impl<'db> EffectEnvView<'db> {
     }
 
     pub fn providers(self, db: &'db dyn HirAnalysisDb) -> Vec<ProviderBinding<'db>> {
-        provider_bindings_for_site(db, self.site)
+        provider_bindings_for_site(db, self.site).to_vec()
     }
 
     pub fn resolutions(self, db: &'db dyn HirAnalysisDb) -> Vec<ResolvedEffectBinding> {
-        effect_resolutions_for_site(db, self.site)
+        effect_resolutions_for_site(db, self.site).to_vec()
     }
 }
 
@@ -2255,7 +2255,16 @@ pub fn effect_requirements_for_site<'db>(
 pub fn provider_bindings_for_site<'db>(
     db: &'db dyn HirAnalysisDb,
     site: EffectParamSite<'db>,
+) -> &'db [ProviderBinding<'db>] {
+    provider_bindings_for_site_query(db, EffectEnvSite::new(db, site)).as_slice()
+}
+
+#[salsa::tracked(return_ref)]
+fn provider_bindings_for_site_query<'db>(
+    db: &'db dyn HirAnalysisDb,
+    site: EffectEnvSite<'db>,
 ) -> Vec<ProviderBinding<'db>> {
+    let site = site.site(db);
     match site {
         EffectParamSite::Func(func) => func_provider_bindings_canonical(db, func),
         EffectParamSite::Contract(contract)
@@ -2269,7 +2278,16 @@ pub fn provider_bindings_for_site<'db>(
 pub fn effect_resolutions_for_site<'db>(
     db: &'db dyn HirAnalysisDb,
     site: EffectParamSite<'db>,
+) -> &'db [ResolvedEffectBinding] {
+    effect_resolutions_for_site_query(db, EffectEnvSite::new(db, site)).as_slice()
+}
+
+#[salsa::tracked(return_ref)]
+fn effect_resolutions_for_site_query<'db>(
+    db: &'db dyn HirAnalysisDb,
+    site: EffectEnvSite<'db>,
 ) -> Vec<ResolvedEffectBinding> {
+    let site = site.site(db);
     match site {
         EffectParamSite::Func(func) => func_effect_resolutions_canonical(db, func),
         EffectParamSite::Contract(contract) => {
@@ -2314,7 +2332,8 @@ pub fn resolved_effect_binding_infos_for_site<'db>(
         requirements_by_idx[idx] = Some(requirement);
     }
     let providers_by_idx = providers
-        .into_iter()
+        .iter()
+        .cloned()
         .map(|provider| (provider.provider_idx, provider))
         .collect::<FxHashMap<_, _>>();
     let mut resolved = vec![None; requirements_by_idx.len()];

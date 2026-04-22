@@ -10,7 +10,7 @@ use crate::{
             ty_def::{CapabilityKind, TyId},
         },
     },
-    hir_def::scope_graph::ScopeId,
+    hir_def::{Contract, Func, scope_graph::ScopeId},
 };
 
 use super::{effect_handle_metadata, resolve_default_root_effect_ty};
@@ -75,16 +75,50 @@ pub struct RootProviderRegistration<'db> {
 pub fn registered_root_providers<'db>(
     db: &'db dyn HirAnalysisDb,
     site: EffectParamSite<'db>,
+) -> &'db [RootProviderRegistration<'db>] {
+    match site {
+        EffectParamSite::Func(func) => registered_root_providers_for_func(db, func).as_slice(),
+        EffectParamSite::Contract(contract) => {
+            registered_root_providers_for_contract(db, contract, RootProviderSiteKind::Contract)
+                .as_slice()
+        }
+        EffectParamSite::ContractInit { contract } => {
+            registered_root_providers_for_contract(db, contract, RootProviderSiteKind::ContractInit)
+                .as_slice()
+        }
+        EffectParamSite::ContractRecvArm { contract, .. } => {
+            registered_root_providers_for_contract(
+                db,
+                contract,
+                RootProviderSiteKind::ContractRecvArm,
+            )
+            .as_slice()
+        }
+    }
+}
+
+#[salsa::tracked(return_ref)]
+fn registered_root_providers_for_func<'db>(
+    db: &'db dyn HirAnalysisDb,
+    func: Func<'db>,
 ) -> Vec<RootProviderRegistration<'db>> {
-    let Some(site_kind) = root_provider_site_kind(site) else {
-        return Vec::new();
-    };
-    let scope = match site {
-        EffectParamSite::Func(func) => func.scope(),
-        EffectParamSite::Contract(contract)
-        | EffectParamSite::ContractInit { contract }
-        | EffectParamSite::ContractRecvArm { contract, .. } => contract.scope(),
-    };
+    registered_root_providers_for_scope(db, RootProviderSiteKind::Func, func.scope())
+}
+
+#[salsa::tracked(return_ref)]
+fn registered_root_providers_for_contract<'db>(
+    db: &'db dyn HirAnalysisDb,
+    contract: Contract<'db>,
+    site_kind: RootProviderSiteKind,
+) -> Vec<RootProviderRegistration<'db>> {
+    registered_root_providers_for_scope(db, site_kind, contract.scope())
+}
+
+fn registered_root_providers_for_scope<'db>(
+    db: &'db dyn HirAnalysisDb,
+    site_kind: RootProviderSiteKind,
+    scope: ScopeId<'db>,
+) -> Vec<RootProviderRegistration<'db>> {
     let assumptions = PredicateListId::empty_list(db);
     let Some(provider_ty) = resolve_default_root_effect_ty(db, scope, assumptions) else {
         return Vec::new();
@@ -195,14 +229,5 @@ fn provider_kind_for_target_ty<'db>(
         ProviderKind::Handle
     } else {
         ProviderKind::RawAddress
-    }
-}
-
-fn root_provider_site_kind(site: EffectParamSite<'_>) -> Option<RootProviderSiteKind> {
-    match site {
-        EffectParamSite::Func(_) => Some(RootProviderSiteKind::Func),
-        EffectParamSite::Contract(_) => Some(RootProviderSiteKind::Contract),
-        EffectParamSite::ContractInit { .. } => Some(RootProviderSiteKind::ContractInit),
-        EffectParamSite::ContractRecvArm { .. } => Some(RootProviderSiteKind::ContractRecvArm),
     }
 }

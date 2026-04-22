@@ -465,6 +465,7 @@ impl ModuleAnalysisPass for ContractAnalysisPass {
     }
 }
 
+#[salsa::tracked]
 pub fn resolve_default_root_effect_ty<'db>(
     db: &'db dyn HirAnalysisDb,
     scope: ScopeId<'db>,

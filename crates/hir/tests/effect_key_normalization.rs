@@ -4619,6 +4619,110 @@ fn use_ctx_semantic_body_keeps_receiver_as_effect_binding_local() {
 }
 
 #[test]
+fn zero_effect_arg_method_calls_finalize_under_forwarded_witnesses() {
+    let mut db = HirAnalysisTestDb::default();
+    let file = db.new_stand_alone(
+        Utf8PathBuf::from("by_ref_trait_provider_storage_bug.fe"),
+        include_str!("../../codegen/tests/fixtures/by_ref_trait_provider_storage_bug.fe"),
+    );
+    let (top_mod, _) = db.top_mod(file);
+    db.assert_no_diags(top_mod);
+
+    let use_ctx = find_func(&db, top_mod, "use_ctx");
+    let method_call = find_method_call_expr(&db, use_ctx);
+    let typed_body = check_func_body(&db, use_ctx).1.clone();
+    assert!(
+        typed_body.call_effect_args(method_call).is_none(),
+        "ctx.sum() should remain a zero-effect-arg call"
+    );
+    let callable = typed_body
+        .callable_expr(method_call)
+        .expect("missing callable for ctx.sum()");
+    let CallableDef::Func(typed_target) = callable.callable_def() else {
+        panic!("ctx.sum() should lower to a function call");
+    };
+    assert!(
+        typed_target.containing_trait(&db).is_some(),
+        "typed ctx.sum() should still target the trait method declaration"
+    );
+
+    let impl_trait = top_mod
+        .all_impl_traits(&db)
+        .iter()
+        .copied()
+        .find(|impl_trait| {
+            impl_trait.methods(&db).any(|func| {
+                func.name(&db)
+                    .to_opt()
+                    .is_some_and(|name| name.data(&db) == "sum")
+            })
+        })
+        .expect("missing impl Ctx for Pair");
+    let expected_sum = impl_trait
+        .methods(&db)
+        .find(|func| {
+            func.name(&db)
+                .to_opt()
+                .is_some_and(|name| name.data(&db) == "sum")
+        })
+        .expect("missing impl sum method");
+
+    let contract = find_contract(&db, top_mod, "ByRefTraitProviderStorageBug");
+    let recv = get_or_build_semantic_instance(
+        &db,
+        fe_hir::analysis::semantic::identity_semantic_instance_key(
+            &db,
+            BodyOwner::ContractRecvArm {
+                contract,
+                recv_idx: 0,
+                arm_idx: 0,
+            },
+        ),
+    );
+    let use_ctx = recv
+        .callees(&db)
+        .iter()
+        .map(|callee| get_or_build_semantic_instance(&db, callee.key))
+        .find(|callee| {
+            matches!(
+                callee.key(&db).owner(&db),
+                BodyOwner::Func(func)
+                    if func
+                        .name(&db)
+                        .to_opt()
+                        .is_some_and(|name| name.data(&db) == "use_ctx")
+            )
+        })
+        .expect("missing instantiated use_ctx callee");
+    let sum = use_ctx
+        .callees(&db)
+        .iter()
+        .map(|callee| get_or_build_semantic_instance(&db, callee.key))
+        .find(|callee| {
+            matches!(
+                callee.key(&db).owner(&db),
+                BodyOwner::Func(func)
+                    if func
+                        .name(&db)
+                        .to_opt()
+                        .is_some_and(|name| name.data(&db) == "sum")
+            )
+        })
+        .expect("missing semantic sum callee");
+    let BodyOwner::Func(sum_owner) = sum.key(&db).owner(&db) else {
+        panic!("sum callee should be a function");
+    };
+    assert_eq!(
+        sum_owner, expected_sum,
+        "zero-effect-arg method call should resolve under final forwarded witnesses"
+    );
+    assert!(
+        sum_owner.containing_impl_trait(&db).is_some(),
+        "semantic sum callee should be the impl method, not the trait declaration"
+    );
+}
+
+#[test]
 fn impl_sum_semantic_body_uses_self_binding_directly() {
     let mut db = HirAnalysisTestDb::default();
     let file = db.new_stand_alone(

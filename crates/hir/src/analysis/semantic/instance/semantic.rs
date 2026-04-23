@@ -342,14 +342,15 @@ fn final_call_site_data<'db>(
 ) -> CallSiteFinalizationData<'db> {
     let mut call_sites = provisional_call_sites(db, instance).clone();
     let mut for_loop_call_sites = provisional_for_loop_call_sites(db, instance).clone();
-    if !call_sites_need_provider_finalization(&call_sites, &for_loop_call_sites) {
+    let typed_body = instance.key(db).typed_body(db);
+    let Some(body) = typed_body.body() else {
         return CallSiteFinalizationData {
             call_sites,
             for_loop_call_sites,
             diagnostic: None,
         };
-    }
-    let refinements =
+    };
+    let refinements = if call_sites_have_effect_args(&call_sites, &for_loop_call_sites) {
         match crate::analysis::semantic::borrowck::provisional_call_site_provider_refinements(
             db, instance,
         ) {
@@ -361,14 +362,9 @@ fn final_call_site_data<'db>(
                     diagnostic: Some(crate::analysis::semantic::BorrowDiagnosticId::new(db, diag)),
                 };
             }
-        };
-    let typed_body = instance.key(db).typed_body(db);
-    let Some(body) = typed_body.body() else {
-        return CallSiteFinalizationData {
-            call_sites,
-            for_loop_call_sites,
-            diagnostic: None,
-        };
+        }
+    } else {
+        Vec::new()
     };
     let mut by_site = FxHashMap::<CallSiteId, Vec<CallSiteProviderRefinement>>::default();
     for refinement in refinements {
@@ -484,7 +480,7 @@ fn for_loop_call_sites_cycle_recover<'db>(
     salsa::CycleRecoveryAction::Iterate
 }
 
-fn call_sites_need_provider_finalization<'db>(
+fn call_sites_have_effect_args<'db>(
     call_sites: &[Option<CallSiteLowering<'db>>],
     for_loop_call_sites: &[Option<ForLoopCallSites<'db>>],
 ) -> bool {

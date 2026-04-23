@@ -30,7 +30,7 @@ use super::{
         BlockAdjacency, BorrowCanonCx, BorrowRoot, CanonPlace, CfgAdjacency, Loan, LoanId,
         MoveSite, MovedPlaces, State, place_set_overlaps, places_overlap,
     },
-    diagnostics::{normalize_error_to_diag, operand_origin},
+    diagnostics::operand_origin,
     facts::NormalizedBodyFacts,
     ir::{
         BorrowDiagnosticId, BorrowInputRef, BorrowSummary, BorrowSummaryId, BorrowTransform,
@@ -76,10 +76,7 @@ fn provisional_borrow_summary_query<'db>(
     }
     let body = match normalize_provisional_semantic_body(db, instance) {
         Ok(body) => body,
-        Err(err) => {
-            let diag = normalize_error_to_diag(db, instance, err);
-            return SemanticBorrowSummaryResult::Err(BorrowDiagnosticId::new(db, diag));
-        }
+        Err(diag) => return SemanticBorrowSummaryResult::Err(BorrowDiagnosticId::new(db, diag)),
     };
     match Borrowck::new_with_body(db, instance, body, BorrowSummaryMode::Provisional)
         .and_then(Borrowck::borrow_summary)
@@ -137,9 +134,6 @@ fn semantic_borrow_check_query<'db>(
     db: &'db dyn HirAnalysisDb,
     instance: SemanticInstance<'db>,
 ) -> SemanticBorrowCheckResult<'db> {
-    if let Some(diag) = instance.call_site_finalization_diagnostic(db) {
-        return SemanticBorrowCheckResult::Err(diag);
-    }
     match Borrowck::new(db, instance).and_then(Borrowck::check) {
         Ok(()) => SemanticBorrowCheckResult::Ok,
         Err(diag) => SemanticBorrowCheckResult::Err(BorrowDiagnosticId::new(db, diag)),
@@ -164,7 +158,14 @@ pub fn collect_semantic_borrow_diagnostic_vouchers<'db>(
 ) -> Vec<Box<dyn DiagnosticVoucher + 'db>> {
     let mut diags = Vec::new();
     let mut seen_owners = FxHashSet::default();
-    collect_top_mod_semantic_borrow_diagnostic_vouchers(db, top_mod, &mut seen_owners, &mut diags);
+    let mut seen_diags = FxHashSet::default();
+    collect_top_mod_semantic_borrow_diagnostic_vouchers(
+        db,
+        top_mod,
+        &mut seen_owners,
+        &mut seen_diags,
+        &mut diags,
+    );
     diags
 }
 
@@ -172,6 +173,7 @@ fn collect_top_mod_semantic_borrow_diagnostic_vouchers<'db>(
     db: &'db dyn HirAnalysisDb,
     top_mod: TopLevelMod<'db>,
     seen_owners: &mut FxHashSet<BodyOwner<'db>>,
+    seen_diags: &mut FxHashSet<BorrowDiagnosticId<'db>>,
     diags: &mut Vec<Box<dyn DiagnosticVoucher + 'db>>,
 ) {
     for item in top_mod
@@ -180,10 +182,16 @@ fn collect_top_mod_semantic_borrow_diagnostic_vouchers<'db>(
         .filter(|item| item.top_mod(db) == top_mod)
     {
         match item {
-            ItemKind::Func(func) => collect_owner(db, BodyOwner::Func(*func), seen_owners, diags),
-            ItemKind::Const(const_) => {
-                collect_owner(db, BodyOwner::Const(*const_), seen_owners, diags)
+            ItemKind::Func(func) => {
+                collect_owner(db, BodyOwner::Func(*func), seen_owners, seen_diags, diags)
             }
+            ItemKind::Const(const_) => collect_owner(
+                db,
+                BodyOwner::Const(*const_),
+                seen_owners,
+                seen_diags,
+                diags,
+            ),
             ItemKind::Contract(contract) => {
                 collect_owner(
                     db,
@@ -191,6 +199,7 @@ fn collect_top_mod_semantic_borrow_diagnostic_vouchers<'db>(
                         contract: *contract,
                     },
                     seen_owners,
+                    seen_diags,
                     diags,
                 );
                 for (recv_idx, recv) in contract.recvs(db).data(db).iter().enumerate() {
@@ -203,6 +212,7 @@ fn collect_top_mod_semantic_borrow_diagnostic_vouchers<'db>(
                                 arm_idx: arm_idx as u32,
                             },
                             seen_owners,
+                            seen_diags,
                             diags,
                         );
                     }
@@ -226,6 +236,7 @@ fn collect_owner<'db>(
     db: &'db dyn HirAnalysisDb,
     owner: BodyOwner<'db>,
     seen_owners: &mut FxHashSet<BodyOwner<'db>>,
+    seen_diags: &mut FxHashSet<BorrowDiagnosticId<'db>>,
     diags: &mut Vec<Box<dyn DiagnosticVoucher + 'db>>,
 ) {
     if !seen_owners.insert(owner) {
@@ -233,10 +244,15 @@ fn collect_owner<'db>(
     }
     let key = identity_semantic_instance_key(db, owner);
     let instance = get_or_build_semantic_instance(db, key);
-    if let SemanticBorrowCheckResult::Err(diag) = semantic_borrow_check_query(db, instance) {
+    if let SemanticBorrowCheckResult::Err(diag) = semantic_borrow_check_query(db, instance)
+        && seen_diags.insert(diag)
+    {
         diags.push(Box::new(diag));
     }
-    if let Err(diag) = super::noesc::check_semantic_noesc_voucher(db, instance) {
+    if let super::ir::SemanticBorrowCheckResult::Err(diag) =
+        super::noesc::semantic_noesc_check_query(db, instance)
+        && seen_diags.insert(diag)
+    {
         diags.push(Box::new(diag));
     }
 }
@@ -265,8 +281,7 @@ impl<'db> Borrowck<'db> {
         db: &'db dyn HirAnalysisDb,
         instance: SemanticInstance<'db>,
     ) -> Result<Self, SemanticBorrowDiagnostic<'db>> {
-        let body = normalize_semantic_body(db, instance)
-            .map_err(|err| normalize_error_to_diag(db, instance, err))?;
+        let body = normalize_semantic_body(db, instance)?;
         Self::new_with_body(db, instance, body, BorrowSummaryMode::Final)
     }
 

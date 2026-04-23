@@ -541,12 +541,6 @@ pub struct NormalizedSemanticBodyId<'db> {
     pub body: NormalizedSemanticBody<'db>,
 }
 
-#[salsa::interned]
-#[derive(Debug)]
-pub struct SemanticNormalizeErrorId<'db> {
-    pub err: SemanticNormalizeError<'db>,
-}
-
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, Update)]
 pub enum SemanticBorrowSummaryResult<'db> {
     Ok(Option<BorrowSummaryId<'db>>),
@@ -562,7 +556,7 @@ pub enum SemanticBorrowCheckResult<'db> {
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, Update)]
 pub enum SemanticNormalizeResult<'db> {
     Ok(NormalizedSemanticBodyId<'db>),
-    Err(SemanticNormalizeErrorId<'db>),
+    Err(BorrowDiagnosticId<'db>),
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, Update)]

@@ -37,7 +37,7 @@ pub fn check_semantic_noesc_voucher<'db>(
 }
 
 #[salsa::tracked]
-fn semantic_noesc_check_query<'db>(
+pub(super) fn semantic_noesc_check_query<'db>(
     db: &'db dyn HirAnalysisDb,
     instance: SemanticInstance<'db>,
 ) -> SemanticBorrowCheckResult<'db> {

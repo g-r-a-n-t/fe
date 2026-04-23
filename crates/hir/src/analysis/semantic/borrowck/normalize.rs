@@ -17,31 +17,32 @@ use crate::{
     projection::{IndexSource, Projection, ProjectionPath},
 };
 
+use super::diagnostics::normalize_error_to_diag;
 use super::ir::{
     NBorrowRoot, NBorrowRootId, NEffectArg, NEffectArgValue, NExpr, NLocalFacts, NLocalOrigin,
     NLocalRootDemand, NOperand, NSBlock, NSLocal, NSPlace, NSPlaceRoot, NSStmt, NSStmtKind,
     NSTerminator, NSTerminatorKind, NormalizedBindingLowering, NormalizedSemanticBody,
-    NormalizedSemanticBodyId, ReadMode, SemanticNormalizeError, SemanticNormalizeErrorId,
+    NormalizedSemanticBodyId, ReadMode, SemanticBorrowDiagnostic, SemanticNormalizeError,
     SemanticNormalizeResult, empty_normalized_body, local_has_runtime_move_semantics,
 };
 
 pub fn normalize_semantic_body<'db>(
     db: &'db dyn HirAnalysisDb,
     instance: SemanticInstance<'db>,
-) -> Result<NormalizedSemanticBody<'db>, SemanticNormalizeError<'db>> {
+) -> Result<NormalizedSemanticBody<'db>, SemanticBorrowDiagnostic<'db>> {
     match normalized_semantic_body_query(db, instance) {
         SemanticNormalizeResult::Ok(body) => Ok(body.body(db).clone()),
-        SemanticNormalizeResult::Err(err) => Err(err.err(db).clone()),
+        SemanticNormalizeResult::Err(diag) => Err(diag.diag(db).clone()),
     }
 }
 
 pub(crate) fn normalize_provisional_semantic_body<'db>(
     db: &'db dyn HirAnalysisDb,
     instance: SemanticInstance<'db>,
-) -> Result<NormalizedSemanticBody<'db>, SemanticNormalizeError<'db>> {
+) -> Result<NormalizedSemanticBody<'db>, SemanticBorrowDiagnostic<'db>> {
     match provisional_normalized_semantic_body_query(db, instance) {
         SemanticNormalizeResult::Ok(body) => Ok(body.body(db).clone()),
-        SemanticNormalizeResult::Err(err) => Err(err.err(db).clone()),
+        SemanticNormalizeResult::Err(diag) => Err(diag.diag(db).clone()),
     }
 }
 
@@ -50,11 +51,11 @@ fn normalized_semantic_body_query<'db>(
     db: &'db dyn HirAnalysisDb,
     instance: SemanticInstance<'db>,
 ) -> SemanticNormalizeResult<'db> {
-    let raw = canonicalize_semantic_consts(db, instance);
-    match NormalizeCtxt::new(db, instance, raw, instance.assumptions(db)).normalize() {
-        Ok(body) => SemanticNormalizeResult::Ok(NormalizedSemanticBodyId::new(db, body)),
-        Err(err) => SemanticNormalizeResult::Err(SemanticNormalizeErrorId::new(db, err)),
+    if let Some(diag) = instance.call_site_finalization_diagnostic(db) {
+        return SemanticNormalizeResult::Err(diag);
     }
+    let raw = canonicalize_semantic_consts(db, instance);
+    normalize_semantic_body_result(db, instance, raw, instance.assumptions(db))
 }
 
 #[salsa::tracked]
@@ -68,9 +69,23 @@ fn provisional_normalized_semantic_body_query<'db>(
         instance.provisional_body(db),
     );
     let assumptions = semantic_instance_base_assumptions_for_key(db, instance.key(db));
+    normalize_semantic_body_result(db, instance, raw, assumptions)
+}
+
+fn normalize_semantic_body_result<'db>(
+    db: &'db dyn HirAnalysisDb,
+    instance: SemanticInstance<'db>,
+    raw: SemanticBody<'db>,
+    assumptions: crate::analysis::ty::trait_resolution::PredicateListId<'db>,
+) -> SemanticNormalizeResult<'db> {
     match NormalizeCtxt::new(db, instance, raw, assumptions).normalize() {
         Ok(body) => SemanticNormalizeResult::Ok(NormalizedSemanticBodyId::new(db, body)),
-        Err(err) => SemanticNormalizeResult::Err(SemanticNormalizeErrorId::new(db, err)),
+        Err(err) => {
+            SemanticNormalizeResult::Err(crate::analysis::semantic::BorrowDiagnosticId::new(
+                db,
+                normalize_error_to_diag(db, instance, err),
+            ))
+        }
     }
 }
 

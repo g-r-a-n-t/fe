@@ -16,7 +16,7 @@ use crate::analysis::{
 use super::{
     canon::{CanonPlace, State, address_space_for_borrow_root},
     check::Borrowck,
-    diagnostics::{normalize_error_to_diag, operand_origin},
+    diagnostics::operand_origin,
     ir::{
         NEffectArg, NEffectArgValue, NExpr, NOperand, NSStmt, NSStmtKind, SemanticBorrowDiagnostic,
     },
@@ -27,8 +27,7 @@ pub(crate) fn provisional_call_site_provider_refinements<'db>(
     db: &'db dyn HirAnalysisDb,
     instance: SemanticInstance<'db>,
 ) -> Result<Vec<CallSiteProviderRefinement>, SemanticBorrowDiagnostic<'db>> {
-    let body = normalize_provisional_semantic_body(db, instance)
-        .map_err(|err| normalize_error_to_diag(db, instance, err))?;
+    let body = normalize_provisional_semantic_body(db, instance)?;
     let mut borrowck = Borrowck::new_with_body(
         db,
         instance,

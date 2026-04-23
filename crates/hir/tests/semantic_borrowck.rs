@@ -6,8 +6,8 @@ use fe_hir::{
     analysis::{
         semantic::{
             BorrowInputRef, BorrowTransform, NBorrowRoot, NExpr, NLocalOrigin, NSStmtKind,
-            NormalizedBindingLowering, SStmtKind, SemanticInstance, SemanticLocalKind,
-            check_semantic_borrows, check_semantic_noesc,
+            NormalizedBindingLowering, SStmtKind, SemanticBorrowDiagKind, SemanticInstance,
+            SemanticLocalKind, check_semantic_borrows, check_semantic_noesc,
             collect_semantic_borrow_diagnostic_vouchers, get_or_build_semantic_instance,
             identity_semantic_instance_key, normalize_semantic_body, semantic_borrow_summary,
         },
@@ -29,6 +29,71 @@ fn borrow_diags(src: &str) -> String {
         &db,
         &collect_semantic_borrow_diagnostic_vouchers(&db, top_mod),
     )
+}
+
+fn contract_init_instance<'db>(
+    db: &'db HirAnalysisTestDb,
+    top_mod: fe_hir::hir_def::TopLevelMod<'db>,
+    contract_name: &str,
+) -> SemanticInstance<'db> {
+    top_mod
+        .all_items(db)
+        .iter()
+        .find_map(|item| match item {
+            ItemKind::Contract(contract)
+                if contract
+                    .name(db)
+                    .to_opt()
+                    .is_some_and(|name| name.data(db) == contract_name) =>
+            {
+                Some(get_or_build_semantic_instance(
+                    db,
+                    identity_semantic_instance_key(
+                        db,
+                        BodyOwner::ContractInit {
+                            contract: *contract,
+                        },
+                    ),
+                ))
+            }
+            _ => None,
+        })
+        .unwrap_or_else(|| panic!("missing contract init `{contract_name}`"))
+}
+
+fn mixed_returned_borrow_provenance_src() -> &'static str {
+    r#"
+struct Ledger {
+    b: u256,
+}
+
+impl Ledger {
+    fn pick_mixed(mut self, cond: bool, value: mut u256) -> mut u256 {
+        if cond {
+            value
+        } else {
+            mut self.b
+        }
+    }
+}
+
+fn add(by: u256) -> u256 uses (value: mut u256) {
+    value += by
+    value
+}
+
+pub contract Mixed {
+    mut ledger: Ledger
+
+    init() uses (mut ledger) {
+        let mut local: u256 = 0
+        let target = ledger.pick_mixed(cond: true, value: mut local)
+        with (target) {
+            add(by: 1)
+        }
+    }
+}
+"#
 }
 
 fn for_each_fixture_instance(
@@ -320,40 +385,7 @@ fn returned_storage_borrow_effect_args_are_finalized_in_normalized_body() {
 
 #[test]
 fn mixed_returned_borrow_provenance_is_rejected_before_runtime_lowering() {
-    let diags = borrow_diags(
-        r#"
-struct Ledger {
-    b: u256,
-}
-
-impl Ledger {
-    fn pick_mixed(mut self, cond: bool, value: mut u256) -> mut u256 {
-        if cond {
-            value
-        } else {
-            mut self.b
-        }
-    }
-}
-
-fn add(by: u256) -> u256 uses (value: mut u256) {
-    value += by
-    value
-}
-
-pub contract Mixed {
-    mut ledger: Ledger
-
-    init() uses (mut ledger) {
-        let mut local: u256 = 0
-        let target = ledger.pick_mixed(cond: true, value: mut local)
-        with (target) {
-            add(by: 1)
-        }
-    }
-}
-"#,
-    );
+    let diags = borrow_diags(mixed_returned_borrow_provenance_src());
 
     assert!(
         diags.contains("provider provenance conflict in `fn Mixed::__init__`"),
@@ -362,6 +394,69 @@ pub contract Mixed {
     assert!(
         diags.contains("effect argument may come from multiple address spaces"),
         "{diags:?}"
+    );
+}
+
+#[test]
+fn mixed_returned_borrow_provenance_poison_normalization() {
+    let mut db = HirAnalysisTestDb::default();
+    let file = db.new_stand_alone(
+        "semantic_borrowck.fe".into(),
+        mixed_returned_borrow_provenance_src(),
+    );
+    let (top_mod, _) = db.top_mod(file);
+    let instance = contract_init_instance(&db, top_mod, "Mixed");
+
+    let err = normalize_semantic_body(&db, instance)
+        .expect_err("mixed provider provenance must poison normalization");
+    assert_eq!(err.kind, SemanticBorrowDiagKind::ProviderProvenanceConflict);
+    assert_eq!(
+        err.primary.message,
+        "effect argument may come from multiple address spaces: memory, storage"
+    );
+}
+
+#[test]
+fn mixed_returned_borrow_provenance_poison_noesc() {
+    let mut db = HirAnalysisTestDb::default();
+    let file = db.new_stand_alone(
+        "semantic_borrowck.fe".into(),
+        mixed_returned_borrow_provenance_src(),
+    );
+    let (top_mod, _) = db.top_mod(file);
+    let instance = contract_init_instance(&db, top_mod, "Mixed");
+
+    let err = check_semantic_noesc(&db, instance)
+        .expect_err("mixed provider provenance must poison noesc");
+    assert_eq!(
+        err.message,
+        "provider provenance conflict in `fn Mixed::__init__`"
+    );
+    assert_eq!(
+        err.sub_diagnostics[0].message,
+        "effect argument may come from multiple address spaces: memory, storage"
+    );
+}
+
+#[test]
+fn mixed_returned_borrow_provenance_collects_one_diagnostic() {
+    let mut db = HirAnalysisTestDb::default();
+    let file = db.new_stand_alone(
+        "semantic_borrowck.fe".into(),
+        mixed_returned_borrow_provenance_src(),
+    );
+    let (top_mod, _) = db.top_mod(file);
+    let diags = collect_semantic_borrow_diagnostic_vouchers(&db, top_mod);
+    assert_eq!(
+        diags.len(),
+        1,
+        "unexpected diagnostics: {:#?}",
+        borrow_diags(mixed_returned_borrow_provenance_src())
+    );
+    let rendered = format_diagnostics(&db, &diags);
+    assert!(
+        rendered.contains("provider provenance conflict in `fn Mixed::__init__`"),
+        "{rendered:?}"
     );
 }
 

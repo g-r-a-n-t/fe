@@ -551,6 +551,7 @@ impl<'db> CtfeMachine<'db> {
                 callee,
                 args,
                 effect_args,
+                ..
             } => {
                 if !effect_args.is_empty() {
                     return Err(CtfeError::NotConstEvaluable { origin });

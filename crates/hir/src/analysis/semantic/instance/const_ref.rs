@@ -1,5 +1,6 @@
 use super::{
     EffectProviderSubst, GenericSubst, ImplEnv, SemanticInstance, SemanticInstanceKey,
+    provisional_provider_binding_for_instance_effect, provisional_provider_idx_for_requirement,
     resolved_provider_binding_for_instance_effect,
 };
 use crate::{
@@ -12,7 +13,7 @@ use crate::{
             trait_def::{
                 assoc_const_body_and_impl_args_for_trait_inst, resolve_trait_method_instance,
             },
-            trait_resolution::TraitSolveCx,
+            trait_resolution::{PredicateListId, TraitSolveCx},
             ty_check::{
                 BodyOwner, Callable, ConstRef, EffectParamSite, EffectProviderSpecialization,
             },
@@ -20,19 +21,60 @@ use crate::{
             ty_lower::instantiate_callable_effect_layout_args,
         },
     },
-    core::semantic::EffectEnvView,
+    core::semantic::{EffectEnvView, ProviderBinding},
     hir_def::{CallableDef, Const},
 };
 use common::indexmap::IndexSet;
 use rustc_hash::FxHashMap;
 
-pub(crate) fn semantic_callee_key<'db>(
+#[derive(Clone, Copy)]
+enum ProviderResolutionMode {
+    Final,
+    Provisional,
+}
+
+pub(crate) fn semantic_callee_key_with_effect_providers<'db>(
     db: &'db dyn HirAnalysisDb,
     caller_key: SemanticInstanceKey<'db>,
     callable: &Callable<'db>,
+    effect_providers: &[EffectProviderSpecialization<'db>],
+) -> Option<SemanticInstanceKey<'db>> {
+    let assumptions = SemanticInstance::new(db, caller_key).assumptions(db);
+    semantic_callee_key_with_assumptions(
+        db,
+        caller_key,
+        callable,
+        effect_providers,
+        assumptions,
+        ProviderResolutionMode::Final,
+    )
+}
+
+pub(crate) fn provisional_semantic_callee_key<'db>(
+    db: &'db dyn HirAnalysisDb,
+    caller_key: SemanticInstanceKey<'db>,
+    callable: &Callable<'db>,
+    assumptions: PredicateListId<'db>,
+) -> Option<SemanticInstanceKey<'db>> {
+    semantic_callee_key_with_assumptions(
+        db,
+        caller_key,
+        callable,
+        callable.effect_providers(),
+        assumptions,
+        ProviderResolutionMode::Provisional,
+    )
+}
+
+fn semantic_callee_key_with_assumptions<'db>(
+    db: &'db dyn HirAnalysisDb,
+    caller_key: SemanticInstanceKey<'db>,
+    callable: &Callable<'db>,
+    effect_providers: &[EffectProviderSpecialization<'db>],
+    assumptions: PredicateListId<'db>,
+    provider_resolution_mode: ProviderResolutionMode,
 ) -> Option<SemanticInstanceKey<'db>> {
     let impl_env = caller_key.impl_env(db);
-    let assumptions = SemanticInstance::new(db, caller_key).assumptions(db);
     let (owner, mut subst_args) = match callable.callable_def() {
         CallableDef::Func(func) => {
             let mut subst_args = callable.generic_args().to_vec();
@@ -60,8 +102,14 @@ pub(crate) fn semantic_callee_key<'db>(
         }
         CallableDef::VariantCtor(_) => return None,
     };
-    let effect_providers =
-        resolve_callable_effect_providers(db, caller_key, owner, &mut subst_args, callable);
+    let effect_providers = resolve_callable_effect_providers(
+        db,
+        caller_key,
+        owner,
+        &mut subst_args,
+        effect_providers,
+        provider_resolution_mode,
+    );
 
     let mut witnesses: IndexSet<_> = impl_env.witnesses(db).iter().copied().collect();
     if let Some(witness) = callable.trait_inst() {
@@ -88,11 +136,11 @@ fn resolve_callable_effect_providers<'db>(
     caller_key: SemanticInstanceKey<'db>,
     owner: BodyOwner<'db>,
     subst_args: &mut [TyId<'db>],
-    callable: &Callable<'db>,
+    effect_providers: &[EffectProviderSpecialization<'db>],
+    provider_resolution_mode: ProviderResolutionMode,
 ) -> Vec<EffectProviderSpecialization<'db>> {
     let caller = SemanticInstance::new(db, caller_key);
-    let mut providers = callable
-        .effect_providers()
+    let mut providers = effect_providers
         .iter()
         .map(|specialization| {
             let provider_idx = specialization.provider.provider_idx;
@@ -100,7 +148,8 @@ fn resolve_callable_effect_providers<'db>(
                 crate::analysis::ty::ty_check::EffectProviderProvenance::Binding {
                     binding,
                     ..
-                } => resolved_provider_binding_for_instance_effect(db, caller, binding)
+                } => provider_resolution_mode
+                    .resolve_binding(db, caller, binding)
                     .map(|provider| crate::semantic::ProviderBinding {
                         provider_idx,
                         ..provider
@@ -118,11 +167,26 @@ fn resolve_callable_effect_providers<'db>(
         .collect::<Vec<_>>();
     providers.sort_by_key(|provider| provider.provider.provider_idx);
     if let BodyOwner::Func(func) = owner {
-        let resolution_by_req = EffectEnvView::new(EffectParamSite::Func(func))
-            .resolutions(db)
-            .into_iter()
-            .map(|resolution| (resolution.requirement_idx as usize, resolution.provider_idx))
-            .collect::<FxHashMap<_, _>>();
+        let effect_env = EffectEnvView::new(EffectParamSite::Func(func));
+        let resolution_by_req = match provider_resolution_mode {
+            ProviderResolutionMode::Final => effect_env
+                .resolutions(db)
+                .into_iter()
+                .map(|resolution| (resolution.requirement_idx as usize, resolution.provider_idx))
+                .collect::<FxHashMap<_, _>>(),
+            ProviderResolutionMode::Provisional => effect_env
+                .requirements(db)
+                .into_iter()
+                .filter_map(|requirement| {
+                    provisional_provider_idx_for_requirement(
+                        db,
+                        EffectParamSite::Func(func),
+                        requirement.binding_idx,
+                    )
+                    .map(|provider_idx| (requirement.binding_idx as usize, provider_idx))
+                })
+                .collect::<FxHashMap<_, _>>(),
+        };
         let provider_by_idx = providers
             .iter()
             .map(|provider| (provider.provider.provider_idx, provider))
@@ -158,6 +222,22 @@ fn resolve_callable_effect_providers<'db>(
         }
     }
     providers
+}
+
+impl ProviderResolutionMode {
+    fn resolve_binding<'db>(
+        self,
+        db: &'db dyn HirAnalysisDb,
+        caller: SemanticInstance<'db>,
+        binding: crate::analysis::ty::ty_check::LocalBinding<'db>,
+    ) -> Option<ProviderBinding<'db>> {
+        match self {
+            Self::Final => resolved_provider_binding_for_instance_effect(db, caller, binding),
+            Self::Provisional => {
+                provisional_provider_binding_for_instance_effect(db, caller, binding)
+            }
+        }
+    }
 }
 
 pub(crate) fn resolve_semantic_const_ref<'db>(

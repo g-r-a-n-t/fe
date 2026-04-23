@@ -152,6 +152,7 @@ impl DiagnosticVoucher for SemanticBorrowDiagnostic<'_> {
             SemanticBorrowDiagKind::InvalidReturnBorrow => 3,
             SemanticBorrowDiagKind::Internal => 4,
             SemanticBorrowDiagKind::NoEscViolation => 5,
+            SemanticBorrowDiagKind::ProviderProvenanceConflict => 6,
         };
         CompleteDiagnostic::new(
             Severity::Error,
@@ -196,6 +197,12 @@ impl SemanticBorrowDiagKind {
             }
             Self::NoEscViolation => {
                 format!("noesc violation in `fn {}`", checker_name(db, instance))
+            }
+            Self::ProviderProvenanceConflict => {
+                format!(
+                    "provider provenance conflict in `fn {}`",
+                    checker_name(db, instance)
+                )
             }
         }
     }

@@ -4,15 +4,15 @@ use rustc_hash::FxHashMap;
 
 use crate::{
     analysis::semantic::instance::{
-        CallLoweringPlan, ForLoopCalleeRefs, SemanticInstance, resolve_semantic_const_ref,
+        CallSiteLowering, ForLoopCallSites, SemanticInstance, resolve_semantic_const_ref,
     },
     analysis::{
         HirAnalysisDb,
         semantic::{
-            FieldIndex, Mutability, SBlock, SBlockId, SConst, SExpr, SLocal, SLocalId, SOperand,
-            SPlace, SStmt, SStmtKind, STerminator, STerminatorKind, SValueId, SemOrigin,
-            SemanticBody, VariantIndex, bool_const, bytes_const, int_const, runtime_size_bytes,
-            sem_const_from_ty, unit_const,
+            CallSiteId, FieldIndex, Mutability, SBlock, SBlockId, SConst, SExpr, SLocal, SLocalId,
+            SOperand, SPlace, SStmt, SStmtKind, STerminator, STerminatorKind, SValueId, SemOrigin,
+            SemanticBody, SemanticLocalRole, VariantIndex, bool_const, bytes_const, int_const,
+            runtime_size_bytes, sem_const_from_ty, unit_const,
         },
         ty::{
             const_ty::const_ty_or_abstract_from_assoc_const_use,
@@ -33,9 +33,15 @@ use crate::{
 };
 
 use super::{
-    effects::owner_effect_bindings,
+    effects::{owner_effect_bindings, provisional_owner_effect_bindings},
     local_facts::{initial_snapshot_source, ordinary_direct_value_role},
 };
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) enum BindingRoleMode {
+    Final,
+    Provisional,
+}
 
 pub fn lower_to_smir<'db>(
     db: &'db dyn HirAnalysisDb,
@@ -43,13 +49,41 @@ pub fn lower_to_smir<'db>(
     template_owner: BodyOwner<'db>,
     typed_body: &'db TypedBody<'db>,
 ) -> SemanticBody<'db> {
+    let call_sites = instance.call_sites(db);
+    let for_loop_call_sites = instance.for_loop_call_sites(db);
+    lower_to_smir_with_call_sites(
+        db,
+        instance,
+        template_owner,
+        typed_body,
+        call_sites,
+        for_loop_call_sites,
+        BindingRoleMode::Final,
+    )
+}
+
+pub(crate) fn lower_to_smir_with_call_sites<'a, 'db>(
+    db: &'db dyn HirAnalysisDb,
+    instance: SemanticInstance<'db>,
+    template_owner: BodyOwner<'db>,
+    typed_body: &'db TypedBody<'db>,
+    call_sites: &'a [Option<CallSiteLowering<'db>>],
+    for_loop_call_sites: &'a [Option<ForLoopCallSites<'db>>],
+    binding_role_mode: BindingRoleMode,
+) -> SemanticBody<'db> {
     let Some(body) = typed_body.body() else {
         let mut locals = Vec::new();
         let mut push_binding_local = |binding| {
-            let role = instance.binding_role(db, binding);
+            let role = match binding_role_mode {
+                BindingRoleMode::Final => instance.binding_role(db, binding),
+                BindingRoleMode::Provisional => instance.provisional_binding_role(db, binding),
+            };
             let snapshot_source = initial_snapshot_source(&role);
             locals.push(SLocal {
-                ty: instance.binding_ty(db, binding),
+                ty: match binding_role_mode {
+                    BindingRoleMode::Final => instance.binding_ty(db, binding),
+                    BindingRoleMode::Provisional => instance.provisional_binding_ty(db, binding),
+                },
                 mutability: if binding.is_mut() {
                     Mutability::Mutable
                 } else {
@@ -65,7 +99,7 @@ pub fn lower_to_smir<'db>(
             push_binding_local(binding);
             idx += 1;
         }
-        for binding in owner_effect_bindings(db, template_owner) {
+        for binding in owner_effect_bindings_for_mode(db, template_owner, binding_role_mode) {
             push_binding_local(binding);
         }
         return SemanticBody {
@@ -87,9 +121,12 @@ pub fn lower_to_smir<'db>(
         instance,
         template_owner,
         typed_body,
-        body,
-        instance.call_lowering_plans(db),
-        instance.for_loop_callee_refs(db),
+        SmirLowerInputs {
+            body,
+            call_sites,
+            for_loop_call_sites,
+            binding_role_mode,
+        },
     );
     let result = cx.lower_expr(body.expr(db));
     if !cx.is_terminated(cx.current) {
@@ -107,14 +144,26 @@ pub fn lower_to_smir<'db>(
     cx.finish()
 }
 
-pub(super) struct SmirLowerCtxt<'db> {
+fn owner_effect_bindings_for_mode<'db>(
+    db: &'db dyn HirAnalysisDb,
+    owner: BodyOwner<'db>,
+    binding_role_mode: BindingRoleMode,
+) -> Vec<LocalBinding<'db>> {
+    match binding_role_mode {
+        BindingRoleMode::Final => owner_effect_bindings(db, owner),
+        BindingRoleMode::Provisional => provisional_owner_effect_bindings(db, owner),
+    }
+}
+
+pub(super) struct SmirLowerCtxt<'a, 'db> {
     pub(super) db: &'db dyn HirAnalysisDb,
     pub(super) instance: SemanticInstance<'db>,
     pub(super) template_owner: BodyOwner<'db>,
     pub(super) typed_body: &'db TypedBody<'db>,
     pub(super) body: Body<'db>,
-    pub(super) call_lowering_plans: &'db [Option<CallLoweringPlan<'db>>],
-    pub(super) for_loop_callee_refs: &'db [Option<ForLoopCalleeRefs<'db>>],
+    pub(super) call_sites: &'a [Option<CallSiteLowering<'db>>],
+    pub(super) for_loop_call_sites: &'a [Option<ForLoopCallSites<'db>>],
+    pub(super) binding_role_mode: BindingRoleMode,
     pub(super) assumptions: crate::analysis::ty::trait_resolution::PredicateListId<'db>,
     pub(super) locals: Vec<SLocal<'db>>,
     pub(super) assigned_snapshots: Vec<bool>,
@@ -130,31 +179,45 @@ pub(super) struct BlockState<'db> {
     pub(super) terminator: Option<STerminator<'db>>,
 }
 
+struct SmirLowerInputs<'a, 'db> {
+    body: Body<'db>,
+    call_sites: &'a [Option<CallSiteLowering<'db>>],
+    for_loop_call_sites: &'a [Option<ForLoopCallSites<'db>>],
+    binding_role_mode: BindingRoleMode,
+}
+
 #[derive(Clone, Copy)]
 pub(super) struct LoopScope {
     pub(super) continue_bb: SBlockId,
     pub(super) break_bb: SBlockId,
 }
 
-impl<'db> SmirLowerCtxt<'db> {
+impl<'a, 'db> SmirLowerCtxt<'a, 'db> {
     fn new(
         db: &'db dyn HirAnalysisDb,
         instance: SemanticInstance<'db>,
         template_owner: BodyOwner<'db>,
         typed_body: &'db TypedBody<'db>,
-        body: Body<'db>,
-        call_lowering_plans: &'db [Option<CallLoweringPlan<'db>>],
-        for_loop_callee_refs: &'db [Option<ForLoopCalleeRefs<'db>>],
+        inputs: SmirLowerInputs<'a, 'db>,
     ) -> Self {
         let mut cx = Self {
             db,
             instance,
             template_owner,
             typed_body,
-            body,
-            call_lowering_plans,
-            for_loop_callee_refs,
-            assumptions: instance.assumptions(db),
+            body: inputs.body,
+            call_sites: inputs.call_sites,
+            for_loop_call_sites: inputs.for_loop_call_sites,
+            binding_role_mode: inputs.binding_role_mode,
+            assumptions: match inputs.binding_role_mode {
+                BindingRoleMode::Final => instance.assumptions(db),
+                BindingRoleMode::Provisional => {
+                    crate::analysis::semantic::semantic_instance_base_assumptions_for_key(
+                        db,
+                        instance.key(db),
+                    )
+                }
+            },
             locals: Vec::new(),
             assigned_snapshots: Vec::new(),
             blocks: Vec::new(),
@@ -209,7 +272,7 @@ impl<'db> SmirLowerCtxt<'db> {
                 }
             }
         }
-        for binding in owner_effect_bindings(self.db, self.template_owner) {
+        for binding in self.owner_effect_bindings() {
             self.alloc_binding_local(binding);
         }
 
@@ -225,7 +288,7 @@ impl<'db> SmirLowerCtxt<'db> {
             return local;
         }
         let local = self.alloc_local(
-            self.instance.binding_ty(self.db, binding),
+            self.binding_ty(binding),
             if binding.is_mut() {
                 Mutability::Mutable
             } else {
@@ -245,7 +308,7 @@ impl<'db> SmirLowerCtxt<'db> {
     ) -> SLocalId {
         let id = SLocalId::from_u32(self.locals.len() as u32);
         let role = source.map_or_else(ordinary_direct_value_role, |binding| {
-            self.instance.binding_role(self.db, binding)
+            self.binding_role(binding)
         });
         let snapshot_source = initial_snapshot_source(&role);
         self.assigned_snapshots.push(snapshot_source.is_some());
@@ -257,6 +320,26 @@ impl<'db> SmirLowerCtxt<'db> {
             snapshot_source,
         });
         id
+    }
+
+    fn binding_ty(&self, binding: LocalBinding<'db>) -> TyId<'db> {
+        match self.binding_role_mode {
+            BindingRoleMode::Final => self.instance.binding_ty(self.db, binding),
+            BindingRoleMode::Provisional => self.instance.provisional_binding_ty(self.db, binding),
+        }
+    }
+
+    fn owner_effect_bindings(&self) -> Vec<LocalBinding<'db>> {
+        owner_effect_bindings_for_mode(self.db, self.template_owner, self.binding_role_mode)
+    }
+
+    fn binding_role(&self, binding: LocalBinding<'db>) -> SemanticLocalRole<'db> {
+        match self.binding_role_mode {
+            BindingRoleMode::Final => self.instance.binding_role(self.db, binding),
+            BindingRoleMode::Provisional => {
+                self.instance.provisional_binding_role(self.db, binding)
+            }
+        }
     }
 
     fn alloc_temp(&mut self, ty: TyId<'db>) -> SLocalId {
@@ -590,7 +673,7 @@ impl<'db> SmirLowerCtxt<'db> {
                         ),
                         normalize_ty(
                             self.db,
-                            self.instance.binding_ty(self.db, binding),
+                            self.binding_ty(binding),
                             self.body.scope(),
                             self.assumptions,
                         ),
@@ -800,20 +883,22 @@ impl<'db> SmirLowerCtxt<'db> {
                 },
             ),
             CallableDef::Func(_) => {
-                let callee = self
-                    .call_lowering_plans
+                let call_site = self
+                    .call_sites
                     .get(expr.index())
-                    .copied()
-                    .flatten()
-                    .and_then(|plan| plan.callee)
+                    .and_then(|site| site.as_ref())
                     .unwrap_or_else(|| {
                         panic!("call lowering plan missing semantic callee for {expr:?}")
                     });
-                let effect_args = self.lower_effect_args(expr);
+                let callee = call_site
+                    .callee
+                    .unwrap_or_else(|| panic!("call lowering plan missing callee for {expr:?}"));
+                let effect_args = self.lower_effect_arg_slice(&call_site.effect_args);
                 self.emit_expr_with_origin(
                     SemOrigin::Expr(expr),
                     ty,
                     SExpr::Call {
+                        call_site: CallSiteId::Expr(expr),
                         callee,
                         args: values.into_boxed_slice(),
                         effect_args,
@@ -825,10 +910,9 @@ impl<'db> SmirLowerCtxt<'db> {
 
     fn lower_callable_receiver(&mut self, call_expr: ExprId, receiver: ExprId) -> SValueId {
         if let Some(plan) = self
-            .call_lowering_plans
+            .call_sites
             .get(call_expr.index())
-            .copied()
-            .flatten()
+            .and_then(|site| site.as_ref())
             .and_then(|plan| plan.receiver)
         {
             let receiver_prop = self.typed_body.expr_prop(self.db, receiver);
@@ -996,11 +1080,10 @@ impl<'db> SmirLowerCtxt<'db> {
     }
 
     fn lower_for(&mut self, stmt: StmtId, pat: PatId, iter: ExprId, body_expr: ExprId) {
-        let for_loop_callee_refs = self
-            .for_loop_callee_refs
+        let for_loop_call_sites = self
+            .for_loop_call_sites
             .get(stmt.index())
-            .copied()
-            .flatten()
+            .and_then(|sites| sites.as_ref())
             .unwrap_or_else(|| panic!("missing staged callee refs for for-loop {stmt:?}"));
         let seq = self
             .typed_body
@@ -1019,11 +1102,15 @@ impl<'db> SmirLowerCtxt<'db> {
                 BigInt::default(),
             ))),
         });
-        let len_effect_args = self.lower_seq_effect_args(&seq.len_effect_args);
+        let len_effect_args = self.lower_effect_arg_slice(&for_loop_call_sites.len.effect_args);
         let len_value = self.emit_expr(
             usize_ty,
             SExpr::Call {
-                callee: for_loop_callee_refs.len_callee,
+                call_site: CallSiteId::ForLoopLen(stmt),
+                callee: for_loop_call_sites
+                    .len
+                    .callee
+                    .expect("Seq::len should lower to a semantic callee"),
                 args: vec![iter_operand].into_boxed_slice(),
                 effect_args: len_effect_args,
             },
@@ -1057,11 +1144,15 @@ impl<'db> SmirLowerCtxt<'db> {
             break_bb: exit_bb,
         });
         self.switch_to(body_bb);
-        let get_effect_args = self.lower_seq_effect_args(&seq.get_effect_args);
+        let get_effect_args = self.lower_effect_arg_slice(&for_loop_call_sites.get.effect_args);
         let elem = self.emit_expr(
             elem_ty,
             SExpr::Call {
-                callee: for_loop_callee_refs.get_callee,
+                call_site: CallSiteId::ForLoopGet(stmt),
+                callee: for_loop_call_sites
+                    .get
+                    .callee
+                    .expect("Seq::get should lower to a semantic callee"),
                 args: vec![iter_operand, SOperand::synthetic(idx_local)].into_boxed_slice(),
                 effect_args: get_effect_args,
             },
@@ -1218,10 +1309,7 @@ impl<'db> SmirLowerCtxt<'db> {
         ) {
             return true;
         }
-        self.instance
-            .binding_ty(self.db, binding)
-            .as_capability(self.db)
-            .is_some()
+        self.binding_ty(binding).as_capability(self.db).is_some()
     }
 
     fn place_can_assign_directly(&self, place: &SPlace<'db>) -> bool {

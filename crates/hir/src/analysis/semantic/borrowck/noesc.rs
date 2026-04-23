@@ -6,11 +6,11 @@ use crate::analysis::{
     HirAnalysisDb,
     diagnostics::{DiagnosticVoucher, SpannedHirAnalysisDb},
     semantic::{SemOrigin, SemanticCalleeRef, SemanticInstance},
-    ty::{ProviderAddressSpace, ProviderKind, ty_check::BodyOwner, ty_def::TyId, ty_is_noesc},
+    ty::{ProviderAddressSpace, ty_check::BodyOwner, ty_def::TyId, ty_is_noesc},
 };
 
 use super::{
-    canon::{BorrowRoot, CanonPlace, State},
+    canon::{BorrowRoot, CanonPlace, State, address_space_for_borrow_root},
     check::Borrowck,
     diagnostics::{normalized_body_internal_diag, operand_origin},
     ir::{
@@ -82,6 +82,7 @@ impl<'db> NoEsc<'db> {
                         callee,
                         args,
                         effect_args: _,
+                        ..
                     },
                 ..
             } => self.check_call_args(state, stmt.origin, *callee, args),
@@ -209,22 +210,13 @@ impl<'db> NoEsc<'db> {
         root: &BorrowRoot<'db>,
         origin: SemOrigin<'db>,
     ) -> Result<ProviderAddressSpace, SemanticBorrowDiagnostic<'db>> {
-        match root {
-            BorrowRoot::Param(_) | BorrowRoot::Local(_) => Ok(ProviderAddressSpace::Memory),
-            BorrowRoot::Provider(binding) => match binding.semantics.address_space {
-                Some(space) => Ok(space),
-                None if matches!(binding.semantics.kind, ProviderKind::RootObject) => {
-                    Ok(ProviderAddressSpace::Memory)
-                }
-                None => Err(self.internal_diag(
-                    origin,
-                    format!(
-                        "provider `{}` has no noesc address space",
-                        binding.provider_ty.pretty_print(self.borrowck.db)
-                    ),
-                )),
-            },
-        }
+        address_space_for_borrow_root(
+            self.borrowck.db,
+            self.borrowck.instance,
+            &self.borrowck.body,
+            root,
+            origin,
+        )
     }
 
     fn noesc_diag(&self, origin: SemOrigin<'db>, message: String) -> SemanticBorrowDiagnostic<'db> {

@@ -593,9 +593,11 @@ pub(super) fn local_place_root_class<'db>(
             cx.env.root_place_fallback_class(local)
         }
         SemanticLocalKind::PlaceCarrier => {
-            if let Some(carrier_class) = carrier_value_class_for_runtime(carrier) {
-                return actual_aggregate_class_from_runtime_source(&carrier_class)
-                    .or(Some(carrier_class));
+            if let Some(carrier_class) = carrier_value_class_for_runtime(carrier)
+                && let Some(place_class) =
+                    materialized_place_class_from_runtime_source(&carrier_class)
+            {
+                return Some(place_class);
             }
             cx.env.root_place_fallback_class(local)
         }
@@ -607,9 +609,11 @@ pub(super) fn local_place_root_class<'db>(
             )
             .or_else(|| cx.env.root_place_fallback_class(local)),
         SemanticLocalKind::DirectCarrier => {
-            if let Some(carrier_class) = carrier_value_class_for_runtime(carrier) {
-                return actual_aggregate_class_from_runtime_source(&carrier_class)
-                    .or(Some(carrier_class));
+            if let Some(carrier_class) = carrier_value_class_for_runtime(carrier)
+                && let Some(place_class) =
+                    materialized_place_class_from_runtime_source(&carrier_class)
+            {
+                return Some(place_class);
             }
             cx.env.root_place_fallback_class(local)
         }

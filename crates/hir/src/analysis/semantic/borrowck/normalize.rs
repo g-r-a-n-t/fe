@@ -6,7 +6,10 @@ use crate::{
         semantic::{
             PlaceProvenance, SExpr, SLocalId, SOperand, SPlace, SStmtKind, STerminatorKind,
             SemanticBody, SemanticInstance, SemanticLocalKind, SemanticLocalRole, ValueProvenance,
-            ctfe::canonicalize_semantic_consts,
+            ctfe::{
+                canonicalize_provisional_semantic_consts_from_body, canonicalize_semantic_consts,
+            },
+            semantic_instance_base_assumptions_for_key,
         },
         ty::{ty_check::LocalBinding, ty_def::TyId, ty_is_copy},
     },
@@ -32,14 +35,40 @@ pub fn normalize_semantic_body<'db>(
     }
 }
 
+pub(crate) fn normalize_provisional_semantic_body<'db>(
+    db: &'db dyn HirAnalysisDb,
+    instance: SemanticInstance<'db>,
+) -> Result<NormalizedSemanticBody<'db>, SemanticNormalizeError<'db>> {
+    match provisional_normalized_semantic_body_query(db, instance) {
+        SemanticNormalizeResult::Ok(body) => Ok(body.body(db).clone()),
+        SemanticNormalizeResult::Err(err) => Err(err.err(db).clone()),
+    }
+}
+
 #[salsa::tracked]
 fn normalized_semantic_body_query<'db>(
     db: &'db dyn HirAnalysisDb,
     instance: SemanticInstance<'db>,
 ) -> SemanticNormalizeResult<'db> {
     let raw = canonicalize_semantic_consts(db, instance);
-    let cx = NormalizeCtxt::new(db, instance, raw, instance.assumptions(db));
-    match cx.normalize() {
+    match NormalizeCtxt::new(db, instance, raw, instance.assumptions(db)).normalize() {
+        Ok(body) => SemanticNormalizeResult::Ok(NormalizedSemanticBodyId::new(db, body)),
+        Err(err) => SemanticNormalizeResult::Err(SemanticNormalizeErrorId::new(db, err)),
+    }
+}
+
+#[salsa::tracked]
+fn provisional_normalized_semantic_body_query<'db>(
+    db: &'db dyn HirAnalysisDb,
+    instance: SemanticInstance<'db>,
+) -> SemanticNormalizeResult<'db> {
+    let raw = canonicalize_provisional_semantic_consts_from_body(
+        db,
+        instance,
+        instance.provisional_body(db),
+    );
+    let assumptions = semantic_instance_base_assumptions_for_key(db, instance.key(db));
+    match NormalizeCtxt::new(db, instance, raw, assumptions).normalize() {
         Ok(body) => SemanticNormalizeResult::Ok(NormalizedSemanticBodyId::new(db, body)),
         Err(err) => SemanticNormalizeResult::Err(SemanticNormalizeErrorId::new(db, err)),
     }
@@ -689,10 +718,12 @@ impl<'db> NormalizeCtxt<'db> {
                 region: region.clone(),
             },
             SExpr::Call {
+                call_site,
                 callee,
                 args,
                 effect_args,
             } => NExpr::Call {
+                call_site: *call_site,
                 callee: *callee,
                 args: args
                     .iter()

@@ -78,7 +78,7 @@ impl<'db> DecisionTreeProjectionCache<'db> {
     }
 }
 
-impl<'db> SmirLowerCtxt<'db> {
+impl<'a, 'db> SmirLowerCtxt<'a, 'db> {
     fn validated_pattern_is_irrefutable(&self, pat: ValidatedPatId) -> bool {
         self.typed_body.pattern_store().is_irrefutable(self.db, pat)
     }

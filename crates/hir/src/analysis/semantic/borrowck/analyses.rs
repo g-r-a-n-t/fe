@@ -16,9 +16,15 @@ use crate::analysis::{
 
 use super::{
     canon::{BorrowCanonCx, CanonPlace, CfgAdjacency, Loan, LoanId, MovedPlaces, State},
-    check::{Borrowck, semantic_borrow_summary_voucher},
+    check::{Borrowck, provisional_borrow_summary_voucher, semantic_borrow_summary_voucher},
     ir::{BorrowInputRef, NormalizedSemanticBody, SemanticBorrowDiagnostic},
 };
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(super) enum BorrowSummaryMode {
+    Final,
+    Provisional,
+}
 
 pub(super) struct BorrowLoanTargetState<'a, 'db> {
     pub(super) loans: &'a mut [Loan<'db>],
@@ -30,6 +36,7 @@ pub(super) struct BorrowLoanTargetAnalysis<'a, 'db> {
     body: &'a NormalizedSemanticBody<'db>,
     entry_state: &'a SecondaryMap<SBlockId, State>,
     loan_for_local: &'a FxHashMap<SLocalId, LoanId>,
+    summary_mode: BorrowSummaryMode,
 }
 
 impl<'a, 'db> BorrowLoanTargetAnalysis<'a, 'db> {
@@ -39,6 +46,7 @@ impl<'a, 'db> BorrowLoanTargetAnalysis<'a, 'db> {
         body: &'a NormalizedSemanticBody<'db>,
         entry_state: &'a SecondaryMap<SBlockId, State>,
         loan_for_local: &'a FxHashMap<SLocalId, LoanId>,
+        summary_mode: BorrowSummaryMode,
     ) -> Self {
         Self {
             db,
@@ -46,6 +54,7 @@ impl<'a, 'db> BorrowLoanTargetAnalysis<'a, 'db> {
             body,
             entry_state,
             loan_for_local,
+            summary_mode,
         }
     }
 
@@ -101,11 +110,17 @@ impl<'a, 'db> BorrowLoanTargetAnalysis<'a, 'db> {
                 callee,
                 args,
                 effect_args,
+                ..
             } => {
-                let summary = semantic_borrow_summary_voucher(
-                    self.db,
-                    get_or_build_semantic_instance(self.db, callee.key),
-                )?;
+                let callee_instance = get_or_build_semantic_instance(self.db, callee.key);
+                let summary = match self.summary_mode {
+                    BorrowSummaryMode::Final => {
+                        semantic_borrow_summary_voucher(self.db, callee_instance)
+                    }
+                    BorrowSummaryMode::Provisional => {
+                        provisional_borrow_summary_voucher(self.db, callee_instance)
+                    }
+                }?;
                 let Some(summary) = summary else {
                     return Ok(false);
                 };
@@ -149,6 +164,15 @@ impl<'a, 'db> BorrowLoanTargetAnalysis<'a, 'db> {
                     (targets, parents)
                 };
                 Ok(self.extend_loan(loans, loan_id, targets, parents))
+            }
+            NExpr::Use(value) => {
+                let canon = self.canon(loans);
+                Ok(self.extend_loan(
+                    loans,
+                    loan_id,
+                    canon.canonicalize_value_base(state, value.local),
+                    canon.mut_loans_for_value(state, value.local),
+                ))
             }
             _ => Ok(false),
         }

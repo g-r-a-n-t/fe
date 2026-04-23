@@ -9,7 +9,7 @@ use crate::analysis::{
 
 use super::body::SmirLowerCtxt;
 
-impl<'db> SmirLowerCtxt<'db> {
+impl<'a, 'db> SmirLowerCtxt<'a, 'db> {
     pub(super) fn update_stmt_local_facts(&mut self, kind: &SStmtKind<'db>) {
         let SStmtKind::Assign { dst, expr } = kind else {
             return;

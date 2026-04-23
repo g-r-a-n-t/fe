@@ -196,6 +196,13 @@ pub enum SemOrigin<'db> {
     Synthetic,
 }
 
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, Update)]
+pub enum CallSiteId {
+    Expr(ExprId),
+    ForLoopLen(StmtId),
+    ForLoopGet(StmtId),
+}
+
 #[salsa::interned]
 #[derive(Debug)]
 pub struct SemanticConstRef<'db> {
@@ -396,6 +403,7 @@ pub enum SExpr<'db> {
         region: SemanticCodeRegionRef<'db>,
     },
     Call {
+        call_site: CallSiteId,
         callee: SemanticCalleeRef<'db>,
         args: Box<[SOperand]>,
         effect_args: Box<[SEffectArg<'db>]>,

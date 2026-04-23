@@ -5,4 +5,5 @@ mod pattern;
 mod place;
 
 pub use body::lower_to_smir;
+pub(crate) use body::{BindingRoleMode, lower_to_smir_with_call_sites};
 pub use effects::{effect_param_site, owner_effect_bindings, same_owner_effect_binding};

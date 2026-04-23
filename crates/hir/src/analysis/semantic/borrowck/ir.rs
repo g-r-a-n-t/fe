@@ -320,6 +320,7 @@ pub enum NExpr<'db> {
         region: SemanticCodeRegionRef<'db>,
     },
     Call {
+        call_site: crate::analysis::semantic::CallSiteId,
         callee: SemanticCalleeRef<'db>,
         args: Box<[NOperand]>,
         effect_args: Box<[NEffectArg<'db>]>,
@@ -571,6 +572,7 @@ pub enum SemanticBorrowDiagKind {
     InvalidReturnBorrow,
     Internal,
     NoEscViolation,
+    ProviderProvenanceConflict,
 }
 
 pub fn empty_normalized_body<'db>(

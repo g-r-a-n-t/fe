@@ -9,6 +9,7 @@ mod verify;
 pub use borrowck::*;
 pub use consts::*;
 pub use ctfe::*;
+pub(crate) use instance::CallSiteProviderRefinement;
 pub use instance::{
     EffectProviderSubst, GenericSubst, ImplEnv, InstantiatedEffectEnv, RootSemanticInstanceError,
     SemanticEffectEnvInstantiationError, SemanticInstance, SemanticInstanceKey, TypedBodyTemplate,
@@ -16,6 +17,10 @@ pub use instance::{
     instantiate_with_generic_args, instantiated_effect_env,
     resolved_provider_binding_for_instance_effect, root_semantic_instance_key, typed_body_template,
     validate_instantiated_effect_env, validate_instantiated_effect_env_key,
+};
+pub(crate) use instance::{
+    provisional_provider_binding_for_instance_effect, provisional_provider_idx_for_requirement,
+    semantic_instance_base_assumptions_for_key,
 };
 pub use ir::*;
 pub use lower::{

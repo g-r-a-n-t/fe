@@ -1027,6 +1027,7 @@ fn build_expr_static_facts<'db>(
             callee,
             args,
             effect_args,
+            ..
         } => {
             let caller_key = body.owner.key(db);
             let callee_key = resolve_runtime_call_key(
@@ -1198,6 +1199,10 @@ fn provider_root_place_class<'db>(
     provider_class
         .deref_target()
         .unwrap_or_else(|| stored_class_for_ty_in_context(db, value_ty, scope, assumptions))
+}
+
+fn provider_root_value_ty<'db>(binding: &ProviderBinding<'db>) -> TyId<'db> {
+    binding.semantics.target_ty.unwrap_or(binding.provider_ty)
 }
 
 pub(crate) fn runtime_class_for_provider_binding<'db>(
@@ -2072,7 +2077,7 @@ fn normalized_place_root_class_in_context<'db>(
                     })?;
                 Some(provider_root_place_class(
                     env.db,
-                    binding.provider_ty,
+                    provider_root_value_ty(binding),
                     &provider_class,
                     env.scope(),
                     env.assumptions(),
@@ -2332,7 +2337,10 @@ pub(crate) fn default_return_class<'db>(
         typed_body.body().map(|body| body.scope()),
         typed_body.assumptions(),
     );
-    let return_borrow_provider = typed_body.return_borrow_provider();
+    let return_borrow_provider = typed_body
+        .result_ty()
+        .as_borrow(db)
+        .and(typed_body.return_borrow_provider());
     let default_space =
         return_borrow_provider.map_or(AddressSpaceKind::Memory, address_space_from_provider);
     if return_borrow_provider.is_some() {
@@ -2354,7 +2362,10 @@ pub(crate) fn desired_runtime_return_plan<'db>(
         typed_body.body().map(|body| body.scope()),
         typed_body.assumptions(),
     );
-    let return_borrow_provider = typed_body.return_borrow_provider();
+    let return_borrow_provider = typed_body
+        .result_ty()
+        .as_borrow(db)
+        .and(typed_body.return_borrow_provider());
     let default_space =
         return_borrow_provider.map_or(AddressSpaceKind::Memory, address_space_from_provider);
     let ty = typed_body.result_ty();
@@ -2884,6 +2895,7 @@ mod tests {
                     callee,
                     args,
                     effect_args,
+                    ..
                 } = expr
                 else {
                     continue;
@@ -3052,6 +3064,7 @@ mod tests {
                         callee,
                         args,
                         effect_args,
+                        ..
                     } = expr
                     else {
                         return None;
@@ -3195,6 +3208,7 @@ mod tests {
                         callee,
                         args,
                         effect_args,
+                        ..
                     } = expr
                     else {
                         return None;

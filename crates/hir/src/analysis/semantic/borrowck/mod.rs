@@ -1,4 +1,5 @@
 mod analyses;
+mod callsite;
 mod canon;
 mod check;
 mod diagnostics;
@@ -8,6 +9,7 @@ mod noesc;
 mod normalize;
 mod verify;
 
+pub(crate) use callsite::provisional_call_site_provider_refinements;
 pub use check::{
     SemanticBorrowAnalysisPass, check_semantic_borrows,
     collect_semantic_borrow_diagnostic_vouchers, semantic_borrow_summary,

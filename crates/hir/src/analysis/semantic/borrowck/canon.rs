@@ -7,7 +7,10 @@ use crate::{
     analysis::{
         HirAnalysisDb,
         semantic::{SBlockId, SLocalId, SemOrigin, SemanticInstance},
-        ty::ty_def::BorrowKind,
+        ty::{
+            provider::{ProviderAddressSpace, ProviderKind},
+            ty_def::BorrowKind,
+        },
     },
     projection::Aliasing,
 };
@@ -19,6 +22,34 @@ use super::{
         NSStmtKind, NormalizedBindingLowering, NormalizedSemanticBody, SemanticBorrowDiagnostic,
     },
 };
+
+pub(super) fn address_space_for_borrow_root<'db>(
+    db: &'db dyn HirAnalysisDb,
+    instance: SemanticInstance<'db>,
+    body: &NormalizedSemanticBody<'db>,
+    root: &BorrowRoot<'db>,
+    origin: SemOrigin<'db>,
+) -> Result<ProviderAddressSpace, SemanticBorrowDiagnostic<'db>> {
+    match root {
+        BorrowRoot::Param(_) | BorrowRoot::Local(_) => Ok(ProviderAddressSpace::Memory),
+        BorrowRoot::Provider(binding) => match binding.semantics.address_space {
+            Some(space) => Ok(space),
+            None if matches!(binding.semantics.kind, ProviderKind::RootObject) => {
+                Ok(ProviderAddressSpace::Memory)
+            }
+            None => Err(normalized_body_internal_diag(
+                db,
+                instance,
+                body,
+                origin,
+                format!(
+                    "provider `{}` has no address space",
+                    binding.provider_ty.pretty_print(db)
+                ),
+            )),
+        },
+    }
+}
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub(super) struct LoanId(pub(super) u32);
@@ -116,7 +147,18 @@ impl<'a, 'db> BorrowCanonCx<'a, 'db> {
             return;
         };
         let loans = match expr {
-            NExpr::Use(src) => state.loans_in(src.local),
+            NExpr::Use(src) => {
+                let loans = state.loans_in(src.local);
+                if loans.is_empty() {
+                    self.loan_for_local
+                        .get(dst)
+                        .copied()
+                        .map(|loan| FxHashSet::from_iter([loan]))
+                        .unwrap_or_default()
+                } else {
+                    loans
+                }
+            }
             NExpr::Borrow { .. } | NExpr::Call { .. } => self
                 .loan_for_local
                 .get(dst)

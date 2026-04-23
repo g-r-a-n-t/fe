@@ -139,6 +139,7 @@ fn check_runtime_body_supported<'db>(
                         callee,
                         args,
                         effect_args: _,
+                        ..
                     },
                 ..
             } = &stmt.kind
@@ -656,6 +657,7 @@ impl<'db> RmirEmitter<'db> {
                 callee,
                 args,
                 effect_args,
+                ..
             } = expr
             {
                 let _ = self.lower_call(bb, *callee, args, effect_args);
@@ -844,6 +846,7 @@ impl<'db> RmirEmitter<'db> {
                 callee,
                 args,
                 effect_args,
+                ..
             } => {
                 let value = self.lower_call(bb, *callee, args, effect_args);
                 if self.terminated_blocks[bb.index()] {
@@ -3555,12 +3558,14 @@ impl<'db> RmirEmitter<'db> {
             } => Some((*layout, layout.data(self.db), layout_source_ty(*layout))),
             RuntimeClass::Scalar(_) | RuntimeClass::RawAddr { target: None, .. } => None,
         };
+        let owner = self
+            .key
+            .semantic(self.db)
+            .map(|semantic| semantic.key(self.db).owner(self.db));
         panic!(
             "{kind} runtime class coercion in {:?} owner={:?} from {source:?} to {target:?}; source_layout={source_layout:?}; target_layout={target_layout:?}; src={src:?}; src_ty={}; locals={:?}",
             self.key.source(self.db),
-            self.key
-                .semantic(self.db)
-                .map(|semantic| semantic.key(self.db).owner(self.db)),
+            owner,
             self.locals[src.index()].semantic_ty.pretty_print(self.db),
             self.locals,
         )

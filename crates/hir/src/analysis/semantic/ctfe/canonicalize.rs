@@ -22,12 +22,53 @@ use super::{eval_const_ref, machine::try_eval_expr_to_const};
 type LocalConstMap<'db> = Vec<Option<SemConstId<'db>>>;
 type LocalDefs<'db> = Vec<Vec<SExpr<'db>>>;
 
+#[derive(Clone, Copy)]
+enum ConstCanonicalizationMode {
+    Final,
+    Provisional,
+}
+
 #[salsa::tracked]
 pub fn canonicalize_semantic_consts<'db>(
     db: &'db dyn HirAnalysisDb,
     instance: SemanticInstance<'db>,
 ) -> SemanticBody<'db> {
     let original = instance.body(db).clone();
+    canonicalize_semantic_consts_from_body(db, instance, original)
+}
+
+pub(crate) fn canonicalize_semantic_consts_from_body<'db>(
+    db: &'db dyn HirAnalysisDb,
+    instance: SemanticInstance<'db>,
+    original: SemanticBody<'db>,
+) -> SemanticBody<'db> {
+    canonicalize_semantic_consts_from_body_with_mode(
+        db,
+        instance,
+        original,
+        ConstCanonicalizationMode::Final,
+    )
+}
+
+pub(crate) fn canonicalize_provisional_semantic_consts_from_body<'db>(
+    db: &'db dyn HirAnalysisDb,
+    instance: SemanticInstance<'db>,
+    original: SemanticBody<'db>,
+) -> SemanticBody<'db> {
+    canonicalize_semantic_consts_from_body_with_mode(
+        db,
+        instance,
+        original,
+        ConstCanonicalizationMode::Provisional,
+    )
+}
+
+fn canonicalize_semantic_consts_from_body_with_mode<'db>(
+    db: &'db dyn HirAnalysisDb,
+    instance: SemanticInstance<'db>,
+    original: SemanticBody<'db>,
+    mode: ConstCanonicalizationMode,
+) -> SemanticBody<'db> {
     let mut body = original.clone();
     if body.blocks.is_empty() {
         return body;
@@ -49,6 +90,7 @@ pub fn canonicalize_semantic_consts<'db>(
             &mut locals,
             &original,
             &local_defs,
+            mode,
         );
         for succ in block_successors(&original.blocks[bb.index()].terminator.kind) {
             if merge_local_consts(&mut incoming[succ.index()], &locals) {
@@ -67,6 +109,7 @@ pub fn canonicalize_semantic_consts<'db>(
                 &mut unknown_locals,
                 &original,
                 &local_defs,
+                mode,
             );
             unknown_locals.fill(None);
         }
@@ -82,12 +125,13 @@ fn canonicalize_block<'db>(
     locals: &mut LocalConstMap<'db>,
     body: &SemanticBody<'db>,
     local_defs: &LocalDefs<'db>,
+    mode: ConstCanonicalizationMode,
 ) -> SBlock<'db> {
     SBlock {
         stmts: block
             .stmts
             .iter()
-            .map(|stmt| canonicalize_stmt(db, instance, stmt, locals, body, local_defs))
+            .map(|stmt| canonicalize_stmt(db, instance, stmt, locals, body, local_defs, mode))
             .collect(),
         terminator: block.terminator.clone(),
     }
@@ -100,11 +144,18 @@ fn canonicalize_stmt<'db>(
     locals: &mut LocalConstMap<'db>,
     body: &SemanticBody<'db>,
     local_defs: &LocalDefs<'db>,
+    mode: ConstCanonicalizationMode,
 ) -> SStmt<'db> {
     let kind = match &stmt.kind {
         SStmtKind::Assign { dst, expr } => {
-            let (expr, value) =
-                canonicalize_expr(db, instance, expr, body.locals[dst.index()].ty, locals);
+            let (expr, value) = canonicalize_expr(
+                db,
+                instance,
+                expr,
+                body.locals[dst.index()].ty,
+                locals,
+                mode,
+            );
             locals[dst.index()] = value;
             invalidate_mutated_call_locals(db, &expr, locals, body, local_defs);
             SStmtKind::Assign { dst: *dst, expr }
@@ -161,11 +212,13 @@ fn callee_arg_is_mutable<'db>(
     idx: usize,
 ) -> bool {
     let callee = SemanticInstance::new(db, callee.key);
-    callee
-        .body(db)
-        .locals
-        .get(idx)
-        .is_some_and(|local| matches!(local.ty.as_capability(db), Some((CapabilityKind::Mut, _))))
+    let typed_body = callee.key(db).typed_body(db);
+    typed_body.param_binding(idx).is_some_and(|binding| {
+        matches!(
+            typed_body.binding_ty(db, binding).as_capability(db),
+            Some((CapabilityKind::Mut, _))
+        )
+    })
 }
 
 fn writable_local_roots<'db>(
@@ -226,6 +279,7 @@ fn canonicalize_expr<'db>(
     expr: &SExpr<'db>,
     result_ty: TyId<'db>,
     locals: &LocalConstMap<'db>,
+    mode: ConstCanonicalizationMode,
 ) -> (SExpr<'db>, Option<SemConstId<'db>>) {
     if let SExpr::Const(SConst::Ref(cref)) = expr {
         let value = eval_const_ref(db, *cref)
@@ -236,7 +290,9 @@ fn canonicalize_expr<'db>(
         return (SExpr::Const(SConst::Value(value)), runtime);
     }
 
-    if let Some(value) = try_eval_expr_to_const(db, instance, result_ty, expr, locals, synthetic())
+    if matches!(mode, ConstCanonicalizationMode::Final)
+        && let Some(value) =
+            try_eval_expr_to_const(db, instance, result_ty, expr, locals, synthetic())
         && !matches!(value.value(db), SemConstValue::TypeLevel { .. })
     {
         let value = canonicalize_const_value(db, instance, value);

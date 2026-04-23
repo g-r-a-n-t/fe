@@ -24,7 +24,7 @@ use crate::{
 use super::{
     analyses::{
         BorrowEntryStateAnalysis, BorrowLivenessAnalysis, BorrowLoanTargetAnalysis,
-        BorrowLoanTargetState, BorrowMovedStateAnalysis,
+        BorrowLoanTargetState, BorrowMovedStateAnalysis, BorrowSummaryMode,
     },
     canon::{
         BlockAdjacency, BorrowCanonCx, BorrowRoot, CanonPlace, CfgAdjacency, Loan, LoanId,
@@ -40,7 +40,7 @@ use super::{
         SemanticBorrowDiagnosticSpan, SemanticBorrowSummaryResult,
         local_has_runtime_move_semantics,
     },
-    normalize::normalize_semantic_body,
+    normalize::{normalize_provisional_semantic_body, normalize_semantic_body},
     verify::verify_normalized_semantic_body,
 };
 
@@ -52,7 +52,38 @@ fn semantic_borrow_summary_query<'db>(
     db: &'db dyn HirAnalysisDb,
     instance: SemanticInstance<'db>,
 ) -> SemanticBorrowSummaryResult<'db> {
+    if !instance_returns_borrow(db, instance) {
+        return SemanticBorrowSummaryResult::Ok(None);
+    }
     match Borrowck::new(db, instance).and_then(Borrowck::borrow_summary) {
+        Ok(summary) => SemanticBorrowSummaryResult::Ok(
+            summary.map(|summary| BorrowSummaryId::new(db, summary)),
+        ),
+        Err(diag) => SemanticBorrowSummaryResult::Err(BorrowDiagnosticId::new(db, diag)),
+    }
+}
+
+#[salsa::tracked(
+    cycle_fn=semantic_borrow_summary_cycle_recover,
+    cycle_initial=semantic_borrow_summary_cycle_initial
+)]
+fn provisional_borrow_summary_query<'db>(
+    db: &'db dyn HirAnalysisDb,
+    instance: SemanticInstance<'db>,
+) -> SemanticBorrowSummaryResult<'db> {
+    if !instance_returns_borrow(db, instance) {
+        return SemanticBorrowSummaryResult::Ok(None);
+    }
+    let body = match normalize_provisional_semantic_body(db, instance) {
+        Ok(body) => body,
+        Err(err) => {
+            let diag = normalize_error_to_diag(db, instance, err);
+            return SemanticBorrowSummaryResult::Err(BorrowDiagnosticId::new(db, diag));
+        }
+    };
+    match Borrowck::new_with_body(db, instance, body, BorrowSummaryMode::Provisional)
+        .and_then(Borrowck::borrow_summary)
+    {
         Ok(summary) => SemanticBorrowSummaryResult::Ok(
             summary.map(|summary| BorrowSummaryId::new(db, summary)),
         ),
@@ -79,6 +110,18 @@ pub(super) fn semantic_borrow_summary_voucher<'db>(
     }
 }
 
+pub(super) fn provisional_borrow_summary_voucher<'db>(
+    db: &'db dyn HirAnalysisDb,
+    instance: SemanticInstance<'db>,
+) -> Result<Option<BorrowSummary<'db>>, SemanticBorrowDiagnostic<'db>> {
+    match provisional_borrow_summary_query(db, instance) {
+        SemanticBorrowSummaryResult::Ok(summary) => {
+            Ok(summary.map(|summary| summary.items(db).clone()))
+        }
+        SemanticBorrowSummaryResult::Err(diag) => Err(diag.diag(db).clone()),
+    }
+}
+
 pub fn check_semantic_borrows<'db>(
     db: &'db dyn SpannedHirAnalysisDb,
     instance: SemanticInstance<'db>,
@@ -94,6 +137,9 @@ fn semantic_borrow_check_query<'db>(
     db: &'db dyn HirAnalysisDb,
     instance: SemanticInstance<'db>,
 ) -> SemanticBorrowCheckResult<'db> {
+    if let Some(diag) = instance.call_site_finalization_diagnostic(db) {
+        return SemanticBorrowCheckResult::Err(diag);
+    }
     match Borrowck::new(db, instance).and_then(Borrowck::check) {
         Ok(()) => SemanticBorrowCheckResult::Ok,
         Err(diag) => SemanticBorrowCheckResult::Err(BorrowDiagnosticId::new(db, diag)),
@@ -200,6 +246,7 @@ pub(super) struct Borrowck<'db> {
     pub(super) instance: SemanticInstance<'db>,
     pub(super) body: NormalizedSemanticBody<'db>,
     pub(super) facts: NormalizedBodyFacts,
+    pub(super) summary_mode: BorrowSummaryMode,
     hir_body: Option<Body<'db>>,
     param_modes: Vec<FuncParamMode>,
     param_index_of_local: FxHashMap<crate::analysis::semantic::SLocalId, u32>,
@@ -220,6 +267,15 @@ impl<'db> Borrowck<'db> {
     ) -> Result<Self, SemanticBorrowDiagnostic<'db>> {
         let body = normalize_semantic_body(db, instance)
             .map_err(|err| normalize_error_to_diag(db, instance, err))?;
+        Self::new_with_body(db, instance, body, BorrowSummaryMode::Final)
+    }
+
+    pub(super) fn new_with_body(
+        db: &'db dyn HirAnalysisDb,
+        instance: SemanticInstance<'db>,
+        body: NormalizedSemanticBody<'db>,
+        summary_mode: BorrowSummaryMode,
+    ) -> Result<Self, SemanticBorrowDiagnostic<'db>> {
         verify_normalized_semantic_body(db, instance, &body)?;
         let owner = instance.key(db).owner(db);
         let param_modes = match owner {
@@ -267,6 +323,7 @@ impl<'db> Borrowck<'db> {
             hir_body: owner.body(db),
             body,
             facts,
+            summary_mode,
             param_modes,
             param_index_of_local,
             effect_input_of_root,
@@ -403,7 +460,10 @@ impl<'db> Borrowck<'db> {
                     .body
                     .local(*dst)
                     .is_some_and(|local| local.ty.as_borrow(self.db).is_some())
-                    && matches!(expr, NExpr::Borrow { .. } | NExpr::Call { .. })
+                    && matches!(
+                        expr,
+                        NExpr::Borrow { .. } | NExpr::Call { .. } | NExpr::Use(_)
+                    )
                 {
                     let kind = self
                         .body
@@ -435,6 +495,7 @@ impl<'db> Borrowck<'db> {
             &self.body,
             &self.entry_state,
             &self.loan_for_local,
+            self.summary_mode,
         );
         let mut state = BorrowLoanTargetState {
             loans: &mut self.loans,
@@ -1034,7 +1095,7 @@ impl<'db> Borrowck<'db> {
         self.diag(SemanticBorrowDiagKind::Internal, origin, message)
     }
 
-    fn diag(
+    pub(super) fn diag(
         &self,
         kind: SemanticBorrowDiagKind,
         origin: crate::analysis::semantic::SemOrigin<'db>,
@@ -1093,12 +1154,17 @@ fn semantic_borrow_summary_cycle_initial<'db>(
     db: &'db dyn HirAnalysisDb,
     instance: SemanticInstance<'db>,
 ) -> SemanticBorrowSummaryResult<'db> {
-    let owner = instance.key(db).owner(db);
-    let typed_body = instance.key(db).instantiate_typed_body(db);
     SemanticBorrowSummaryResult::Ok(
-        (typed_body.result_ty().as_borrow(db).is_some() && owner.body(db).is_some())
-            .then(|| BorrowSummaryId::new(db, Vec::new())),
+        instance_returns_borrow(db, instance).then(|| BorrowSummaryId::new(db, Vec::new())),
     )
+}
+
+fn instance_returns_borrow<'db>(
+    db: &'db dyn HirAnalysisDb,
+    instance: SemanticInstance<'db>,
+) -> bool {
+    let key = instance.key(db);
+    key.owner(db).body(db).is_some() && key.typed_body(db).result_ty().as_borrow(db).is_some()
 }
 
 fn semantic_borrow_summary_cycle_recover<'db>(

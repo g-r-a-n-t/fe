@@ -9,7 +9,7 @@ use crate::{
 
 use super::body::SmirLowerCtxt;
 
-impl<'db> SmirLowerCtxt<'db> {
+impl<'a, 'db> SmirLowerCtxt<'a, 'db> {
     pub(super) fn projectable_place_ty(&self, ty: TyId<'db>) -> TyId<'db> {
         projectable_place_ty(self.db, ty)
     }

@@ -3,6 +3,8 @@ use crate::{
         HirAnalysisDb,
         semantic::{
             SEffectArg, SEffectArgValue, SOperand, SPlace, SValueId,
+            provisional_provider_binding_for_instance_effect,
+            provisional_provider_idx_for_requirement,
             resolved_provider_binding_for_instance_effect,
         },
         ty::{
@@ -15,16 +17,12 @@ use crate::{
         },
     },
     hir_def::ExprId,
-    semantic::{EffectEnvSite, resolved_effect_binding_infos_for_site},
+    semantic::{EffectEnvSite, EffectEnvView, resolved_effect_binding_infos_for_site},
 };
 
 use super::body::SmirLowerCtxt;
 
-impl<'db> SmirLowerCtxt<'db> {
-    pub(super) fn lower_effect_args(&mut self, call_expr: ExprId) -> Box<[SEffectArg<'db>]> {
-        self.lower_effect_arg_slice(self.typed_body.call_effect_args(call_expr).unwrap_or(&[]))
-    }
-
+impl<'a, 'db> SmirLowerCtxt<'a, 'db> {
     pub(super) fn lower_with_expr(
         &mut self,
         bindings: &[crate::hir_def::expr::WithBinding<'db>],
@@ -51,13 +49,6 @@ impl<'db> SmirLowerCtxt<'db> {
         body_value
     }
 
-    pub(super) fn lower_seq_effect_args(
-        &mut self,
-        args: &[ResolvedEffectArg<'db>],
-    ) -> Box<[SEffectArg<'db>]> {
-        self.lower_effect_arg_slice(args)
-    }
-
     fn effect_arg_provider_space(
         &self,
         arg: &ResolvedEffectArg<'db>,
@@ -73,11 +64,18 @@ impl<'db> SmirLowerCtxt<'db> {
     }
 
     fn binding_provider_space(&self, binding: LocalBinding<'db>) -> Option<ProviderAddressSpace> {
-        resolved_provider_binding_for_instance_effect(self.db, self.instance, binding)
-            .and_then(|provider| provider.semantics.address_space)
+        match self.binding_role_mode {
+            super::body::BindingRoleMode::Final => {
+                resolved_provider_binding_for_instance_effect(self.db, self.instance, binding)
+            }
+            super::body::BindingRoleMode::Provisional => {
+                provisional_provider_binding_for_instance_effect(self.db, self.instance, binding)
+            }
+        }
+        .and_then(|provider| provider.semantics.address_space)
     }
 
-    fn lower_effect_arg_slice(
+    pub(super) fn lower_effect_arg_slice(
         &mut self,
         args: &[ResolvedEffectArg<'db>],
     ) -> Box<[SEffectArg<'db>]> {
@@ -132,6 +130,42 @@ pub fn owner_effect_bindings<'db>(
                     )
                 })
                 .map(LocalBinding::effect_param)
+                .collect::<Vec<_>>()
+        })
+        .collect()
+}
+
+pub(super) fn provisional_owner_effect_bindings<'db>(
+    db: &'db dyn HirAnalysisDb,
+    owner: BodyOwner<'db>,
+) -> Vec<LocalBinding<'db>> {
+    effect_param_site(owner)
+        .into_iter()
+        .flat_map(|site| {
+            EffectEnvView::new(site)
+                .requirements(db)
+                .into_iter()
+                .filter_map(move |requirement| {
+                    if !matches!(
+                        requirement.key.kind(),
+                        EffectKeyKind::Type | EffectKeyKind::Trait
+                    ) {
+                        return None;
+                    }
+                    let provider_idx = provisional_provider_idx_for_requirement(
+                        db,
+                        site,
+                        requirement.binding_idx,
+                    )?;
+                    Some(LocalBinding::EffectParam {
+                        site: requirement.binding_site,
+                        idx: requirement.binding_idx as usize,
+                        binding_name: requirement.binding_name,
+                        provider_idx,
+                        key_path: requirement.binding_path,
+                        is_mut: requirement.is_mut,
+                    })
+                })
                 .collect::<Vec<_>>()
         })
         .collect()

@@ -12,6 +12,7 @@ use fe_hir::{
             identity_semantic_instance_key, normalize_semantic_body, semantic_borrow_summary,
         },
         ty::{
+            ProviderAddressSpace,
             ty_check::BodyOwner,
             ty_def::{BorrowKind, TyData},
         },
@@ -268,6 +269,99 @@ fn contract_field_mut_borrow_matrix_fixture_borrowchecks() {
                 );
             }
         },
+    );
+}
+
+#[test]
+fn returned_storage_borrow_effect_args_are_finalized_in_normalized_body() {
+    let mut saw_storage_add_effect = false;
+    for_each_fixture_instance(
+        include_str!("../../fe/tests/fixtures/fe_test/contract_field_mut_borrow_matrix.fe"),
+        |db, instance| {
+            let normalized = normalize_semantic_body(db, instance).expect("normalized body");
+            for stmt in normalized
+                .blocks
+                .iter()
+                .flat_map(|block| block.stmts.iter())
+            {
+                let NSStmtKind::Assign {
+                    expr:
+                        NExpr::Call {
+                            callee,
+                            effect_args,
+                            ..
+                        },
+                    ..
+                } = &stmt.kind
+                else {
+                    continue;
+                };
+                let BodyOwner::Func(func) = callee.key.owner(db) else {
+                    continue;
+                };
+                if func
+                    .name(db)
+                    .to_opt()
+                    .is_some_and(|name| name.data(db) == "add")
+                    && effect_args
+                        .iter()
+                        .any(|arg| arg.provider == Some(ProviderAddressSpace::Storage))
+                {
+                    saw_storage_add_effect = true;
+                }
+            }
+        },
+    );
+    assert!(
+        saw_storage_add_effect,
+        "expected storage provider on normalized add effect arg"
+    );
+}
+
+#[test]
+fn mixed_returned_borrow_provenance_is_rejected_before_runtime_lowering() {
+    let diags = borrow_diags(
+        r#"
+struct Ledger {
+    b: u256,
+}
+
+impl Ledger {
+    fn pick_mixed(mut self, cond: bool, value: mut u256) -> mut u256 {
+        if cond {
+            value
+        } else {
+            mut self.b
+        }
+    }
+}
+
+fn add(by: u256) -> u256 uses (value: mut u256) {
+    value += by
+    value
+}
+
+pub contract Mixed {
+    mut ledger: Ledger
+
+    init() uses (mut ledger) {
+        let mut local: u256 = 0
+        let target = ledger.pick_mixed(cond: true, value: mut local)
+        with (target) {
+            add(by: 1)
+        }
+    }
+}
+"#,
+    );
+
+    assert!(
+        diags.contains("provider provenance conflict in `fn Mixed::__init__`"),
+        "{diags:?}"
+    );
+    assert!(
+        diags.contains("effect argument may come from multiple address spaces"),
+        "{diags:?}"
     );
 }
 

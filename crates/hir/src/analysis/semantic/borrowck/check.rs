@@ -190,6 +190,9 @@ fn collect_owner<'db>(
     if let SemanticBorrowCheckResult::Err(diag) = semantic_borrow_check_query(db, instance) {
         diags.push(Box::new(diag));
     }
+    if let Err(diag) = super::noesc::check_semantic_noesc_voucher(db, instance) {
+        diags.push(Box::new(diag));
+    }
 }
 
 pub(super) struct Borrowck<'db> {
@@ -211,7 +214,7 @@ pub(super) struct Borrowck<'db> {
 }
 
 impl<'db> Borrowck<'db> {
-    fn new(
+    pub(super) fn new(
         db: &'db dyn HirAnalysisDb,
         instance: SemanticInstance<'db>,
     ) -> Result<Self, SemanticBorrowDiagnostic<'db>> {
@@ -421,11 +424,11 @@ impl<'db> Borrowck<'db> {
         }
     }
 
-    fn compute_entry_states(&mut self) {
+    pub(super) fn compute_entry_states(&mut self) {
         self.entry_state = solve_forward_cfg(&mut BorrowEntryStateAnalysis::new(self));
     }
 
-    fn compute_loan_targets(&mut self) -> Result<(), SemanticBorrowDiagnostic<'db>> {
+    pub(super) fn compute_loan_targets(&mut self) -> Result<(), SemanticBorrowDiagnostic<'db>> {
         let mut analysis = BorrowLoanTargetAnalysis::new(
             self.db,
             self.instance,

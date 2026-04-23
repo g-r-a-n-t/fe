@@ -7,9 +7,9 @@ use fe_hir::{
         semantic::{
             BorrowInputRef, BorrowTransform, NBorrowRoot, NExpr, NLocalOrigin, NSStmtKind,
             NormalizedBindingLowering, SStmtKind, SemanticInstance, SemanticLocalKind,
-            check_semantic_borrows, collect_semantic_borrow_diagnostic_vouchers,
-            get_or_build_semantic_instance, identity_semantic_instance_key,
-            normalize_semantic_body, semantic_borrow_summary,
+            check_semantic_borrows, check_semantic_noesc,
+            collect_semantic_borrow_diagnostic_vouchers, get_or_build_semantic_instance,
+            identity_semantic_instance_key, normalize_semantic_body, semantic_borrow_summary,
         },
         ty::{
             ty_check::BodyOwner,
@@ -289,6 +289,266 @@ fn bad() {
     assert!(
         diags.contains("cannot mutably borrow") || diags.contains("mutable borrow"),
         "{diags:?}",
+    );
+}
+
+#[test]
+fn reports_noesc_storage_escape_through_whole_assignment() {
+    let diags = borrow_diags(
+        r#"
+struct Esc {
+    h: mut u256,
+    tag: u256,
+}
+
+pub contract NoEscStore {
+    mut slot: Esc
+
+    init() uses (mut slot) {
+        let mut x: u256 = 0
+        let e: Esc = Esc { h: mut x, tag: 0 }
+        slot = e
+    }
+}
+"#,
+    );
+
+    assert!(
+        diags.contains("noesc violation in `fn NoEscStore::__init__`"),
+        "{diags:?}"
+    );
+    assert!(diags.contains("cannot store `Esc` in storage"), "{diags:?}");
+}
+
+#[test]
+fn reports_noesc_storage_escape_through_field_assignment() {
+    let diags = borrow_diags(
+        r#"
+struct Esc {
+    h: mut u256,
+    tag: u256,
+}
+
+struct Wrapper {
+    e: Esc,
+}
+
+pub contract NoEscFieldStore {
+    mut slot: Wrapper
+
+    init() uses (mut slot) {
+        let mut x: u256 = 0
+        let e: Esc = Esc { h: mut x, tag: 0 }
+        slot.e = e
+    }
+}
+"#,
+    );
+
+    assert!(
+        diags.contains("noesc violation in `fn NoEscFieldStore::__init__`"),
+        "{diags:?}"
+    );
+    assert!(diags.contains("cannot store `Esc` in storage"), "{diags:?}");
+}
+
+#[test]
+fn reports_noesc_storage_escape_through_inline_aggregate_store() {
+    let diags = borrow_diags(
+        r#"
+struct Esc {
+    h: mut u256,
+    tag: u256,
+}
+
+pub contract NoEscInlineStore {
+    mut slot: Esc
+
+    init() uses (mut slot) {
+        let mut x: u256 = 0
+        slot = Esc { h: mut x, tag: 0 }
+    }
+}
+"#,
+    );
+
+    assert!(
+        diags.contains("noesc violation in `fn NoEscInlineStore::__init__`"),
+        "{diags:?}"
+    );
+    assert!(diags.contains("cannot store `Esc` in storage"), "{diags:?}");
+}
+
+#[test]
+fn reports_noesc_storage_escape_for_ref_handle_in_stored_aggregate() {
+    let diags = borrow_diags(
+        r#"
+struct Esc {
+    h: ref u256,
+    tag: u256,
+}
+
+pub contract NoEscRefStore {
+    mut slot: Esc
+
+    init() uses (mut slot) {
+        let x: u256 = 0
+        let e: Esc = Esc { h: ref x, tag: 0 }
+        slot = e
+    }
+}
+"#,
+    );
+
+    assert!(
+        diags.contains("noesc violation in `fn NoEscRefStore::__init__`"),
+        "{diags:?}"
+    );
+    assert!(diags.contains("cannot store `Esc` in storage"), "{diags:?}");
+}
+
+#[test]
+fn reports_storage_borrow_passed_as_regular_function_argument() {
+    let diags = borrow_diags(
+        r#"
+fn bump(_ handle: mut u256) {
+    handle += 1
+}
+
+pub contract NoEscCallArg {
+    mut slot: u256
+
+    init() uses (mut slot) {
+        bump(mut slot)
+    }
+}
+"#,
+    );
+
+    assert!(
+        diags.contains("noesc violation in `fn NoEscCallArg::__init__`"),
+        "{diags:?}"
+    );
+    assert!(
+        diags.contains("cannot pass `mut u256` from storage as function argument"),
+        "{diags:?}"
+    );
+}
+
+#[test]
+fn allows_memory_noesc_values_and_memory_borrow_call_args() {
+    let diags = borrow_diags(
+        r#"
+struct Esc {
+    h: mut u256,
+    tag: u256,
+}
+
+fn bump(_ handle: mut u256) {
+    handle += 1
+}
+
+fn ok() {
+    let mut x: u256 = 0
+    let e: Esc = Esc { h: mut x, tag: 0 }
+    let mut y: u256 = 1
+    let mut dst: Esc = Esc { h: mut y, tag: 1 }
+    dst = e
+    let mut z: u256 = 2
+    bump(mut z)
+}
+"#,
+    );
+
+    assert!(!diags.contains("noesc violation"), "{diags:?}");
+    assert!(
+        !diags.contains("internal borrow checking error"),
+        "{diags:?}"
+    );
+}
+
+#[test]
+fn generic_noesc_store_is_rejected_only_after_storage_specialization() {
+    let mut db = HirAnalysisTestDb::default();
+    let file = db.new_stand_alone(
+        "semantic_borrowck.fe".into(),
+        r#"
+struct Box<T> {
+    value: T,
+}
+
+fn store_generic<T>(value: own T) uses (slot: mut Box<T>) {
+    slot = Box<T> { value }
+}
+
+pub contract GenericNoEsc {
+    mut slot: Box<mut u256>
+
+    init() uses (mut slot) {
+        let mut x: u256 = 0
+        store_generic<mut u256>(mut x)
+    }
+}
+"#,
+    );
+    let (top_mod, _) = db.top_mod(file);
+    let store_generic = top_mod
+        .all_items(&db)
+        .iter()
+        .find_map(|item| match item {
+            ItemKind::Func(func)
+                if func
+                    .name(&db)
+                    .to_opt()
+                    .is_some_and(|name| name.data(&db) == "store_generic") =>
+            {
+                Some(*func)
+            }
+            _ => None,
+        })
+        .expect("store_generic function");
+    let identity = get_or_build_semantic_instance(
+        &db,
+        identity_semantic_instance_key(&db, BodyOwner::Func(store_generic)),
+    );
+    check_semantic_noesc(&db, identity).expect("generic identity noesc should be accepted");
+
+    let init = top_mod
+        .all_items(&db)
+        .iter()
+        .find_map(|item| match item {
+            ItemKind::Contract(contract) => Some(get_or_build_semantic_instance(
+                &db,
+                identity_semantic_instance_key(
+                    &db,
+                    BodyOwner::ContractInit {
+                        contract: *contract,
+                    },
+                ),
+            )),
+            _ => None,
+        })
+        .expect("contract init instance");
+    let specialized = init
+        .callees(&db)
+        .iter()
+        .find_map(|callee| match callee.key.owner(&db) {
+            BodyOwner::Func(func) if func == store_generic => {
+                Some(get_or_build_semantic_instance(&db, callee.key))
+            }
+            _ => None,
+        })
+        .expect("specialized store_generic callee");
+    let err = check_semantic_noesc(&db, specialized)
+        .expect_err("specialized noesc store should be rejected");
+    assert!(
+        err.message
+            .contains("noesc violation in `fn store_generic`"),
+        "{err:#?}"
+    );
+    assert!(
+        format!("{err:#?}").contains("cannot store `Box<mut u256>` in storage"),
+        "{err:#?}"
     );
 }
 

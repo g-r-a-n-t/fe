@@ -570,6 +570,7 @@ pub enum SemanticBorrowDiagKind {
     MoveConflict,
     InvalidReturnBorrow,
     Internal,
+    NoEscViolation,
 }
 
 pub fn empty_normalized_body<'db>(

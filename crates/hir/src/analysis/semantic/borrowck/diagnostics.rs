@@ -151,6 +151,7 @@ impl DiagnosticVoucher for SemanticBorrowDiagnostic<'_> {
             SemanticBorrowDiagKind::MoveConflict => 2,
             SemanticBorrowDiagKind::InvalidReturnBorrow => 3,
             SemanticBorrowDiagKind::Internal => 4,
+            SemanticBorrowDiagKind::NoEscViolation => 5,
         };
         CompleteDiagnostic::new(
             Severity::Error,
@@ -192,6 +193,9 @@ impl SemanticBorrowDiagKind {
                     "internal borrow checking error in `fn {}`",
                     checker_name(db, instance)
                 )
+            }
+            Self::NoEscViolation => {
+                format!("noesc violation in `fn {}`", checker_name(db, instance))
             }
         }
     }

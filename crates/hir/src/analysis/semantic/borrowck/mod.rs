@@ -4,6 +4,7 @@ mod check;
 mod diagnostics;
 mod facts;
 mod ir;
+mod noesc;
 mod normalize;
 mod verify;
 
@@ -13,5 +14,6 @@ pub use check::{
 };
 pub use facts::*;
 pub use ir::*;
+pub use noesc::{check_semantic_noesc, check_semantic_noesc_voucher};
 pub use normalize::normalize_semantic_body;
 pub use verify::verify_normalized_semantic_body;

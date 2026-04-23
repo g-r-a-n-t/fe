@@ -1,4 +1,4 @@
-use hir::analysis::semantic::{SemanticInstance, check_semantic_borrows};
+use hir::analysis::semantic::{SemanticInstance, check_semantic_borrows, check_semantic_noesc};
 use salsa::Update;
 
 use crate::{
@@ -109,6 +109,13 @@ fn lower_runtime_body<'db>(
             if let Err(diag) = check_semantic_borrows(db, semantic) {
                 return Err(LowerError::Unsupported(format!(
                     "semantic borrow checking failed for {:?}: {}",
+                    semantic.key(db),
+                    diag.message
+                )));
+            }
+            if let Err(diag) = check_semantic_noesc(db, semantic) {
+                return Err(LowerError::Unsupported(format!(
+                    "semantic noesc checking failed for {:?}: {}",
                     semantic.key(db),
                     diag.message
                 )));

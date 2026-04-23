@@ -36,24 +36,23 @@ impl Ledger {
     }
 }
 
-fn add(mut value: own u256, by: u256) -> u256 {
+fn add(by: u256) -> u256 uses (value: mut u256) {
     value += by
     value
 }
 
-fn add_forward(mut value: own u256, by: u256) -> u256 {
-    add(value, by: by)
+fn add_forward(by: u256) -> u256 uses (value: mut u256) {
+    add(by: by)
 }
 
-fn set_scaled(mut value: own u256, base: u256, mul: u256) -> u256 {
+fn set_scaled(base: u256, mul: u256) -> u256 uses (value: mut u256) {
     value = base * mul
     value
 }
 
-fn bump_twice(_ value: own u256) -> u256 {
-    let mut value = value
-    value = add_forward(value, by: 1)
-    add_forward(value, by: 1)
+fn bump_twice() -> u256 uses (value: mut u256) {
+    add_forward(by: 1)
+    add_forward(by: 1)
 }
 
 pub contract C {
@@ -68,19 +67,25 @@ pub contract C {
     recv Msg {
         MutateA { by } -> u256 uses (mut ledger) {
             let target = ledger.a_mut()
-            target = add(value: target, by: by)
+            with (target) {
+                add(by: by)
+            }
             ledger.a
         }
 
         MutateBForward { by } -> u256 uses (mut ledger) {
             let target = ledger.b_mut()
-            target = add_forward(value: target, by: by)
+            with (target) {
+                add_forward(by: by)
+            }
             ledger.b
         }
 
         SelectAndMutate { pick_c, base, mul } -> u256 uses (mut ledger) {
             let target = ledger.pick_ac_mut(pick_c: pick_c)
-            target = set_scaled(value: target, base: base, mul: mul)
+            with (target) {
+                set_scaled(base: base, mul: mul)
+            }
             if pick_c {
                 ledger.c
             } else {
@@ -90,10 +95,14 @@ pub contract C {
 
         DoubleMutate -> u256 uses (mut ledger) {
             let target_a = ledger.a_mut()
-            target_a = bump_twice(target_a)
+            with (target_a) {
+                bump_twice()
+            }
 
             let target_b = ledger.b_mut()
-            target_b = add(value: target_b, by: 3)
+            with (target_b) {
+                add(by: 3)
+            }
 
             ledger.a + ledger.b + ledger.c
         }

@@ -210,6 +210,41 @@ pub fn main() -> u256 {
 }
 
 #[test]
+fn generic_noesc_storage_specialization_is_rejected_during_runtime_lowering() {
+    let err = with_top_mod_for_source(
+        "generic_noesc_storage_specialization_is_rejected_during_runtime_lowering.fe",
+        r#"
+struct Box<T> {
+    value: T,
+}
+
+fn store_generic<T>(value: own T) uses (slot: mut Box<T>) {
+    slot = Box<T> { value }
+}
+
+pub contract GenericNoEsc {
+    mut slot: Box<mut u256>
+
+    init() uses (mut slot) {
+        let mut x: u256 = 0
+        store_generic<mut u256>(mut x)
+    }
+}
+"#,
+        |db, top_mod| {
+            emit_module_sonatina_ir(db, top_mod)
+                .expect_err("runtime lowering should reject specialized noesc storage escape")
+        },
+    );
+    let message = err.to_string();
+    assert!(
+        message.contains("semantic noesc checking failed")
+            && message.contains("noesc violation in `fn store_generic`"),
+        "unexpected error message:\n{message}"
+    );
+}
+
+#[test]
 fn sonatina_ir_rejects_target_only_output() {
     let err = with_top_mod_for_source(
         "sonatina_ir_rejects_target_only_output.fe",

@@ -12,10 +12,7 @@ use crate::{
             SBlockId, SemOrigin, SemanticInstance, get_or_build_semantic_instance,
             identity_semantic_instance_key,
         },
-        ty::{
-            ty_check::{BodyOwner, ParamSite},
-            ty_def::BorrowKind,
-        },
+        ty::{ty_check::BodyOwner, ty_def::BorrowKind},
     },
     hir_def::{Body, Expr, FuncParamMode, ItemKind, Partial, TopLevelMod},
     projection::{IndexSource, Projection},
@@ -266,7 +263,6 @@ pub(super) struct Borrowck<'db> {
     hir_body: Option<Body<'db>>,
     param_modes: Vec<FuncParamMode>,
     param_index_of_local: FxHashMap<crate::analysis::semantic::SLocalId, u32>,
-    effect_input_of_root: FxHashMap<NBorrowRootId, u32>,
     pub(super) loan_for_local: FxHashMap<crate::analysis::semantic::SLocalId, LoanId>,
     pub(super) param_loan_for_local: FxHashMap<crate::analysis::semantic::SLocalId, LoanId>,
     loans: Vec<Loan<'db>>,
@@ -298,7 +294,6 @@ impl<'db> Borrowck<'db> {
             _ => Vec::new(),
         };
         let mut param_index_of_local = FxHashMap::default();
-        let mut effect_input_of_root = FxHashMap::default();
         for root_id in 0..body.borrow_roots.len() {
             let root_id = NBorrowRootId::from_u32(root_id as u32);
             match body.root(root_id).expect("borrow root") {
@@ -306,29 +301,6 @@ impl<'db> Borrowck<'db> {
                     param_index_of_local.insert(*local, *param_idx);
                 }
                 NBorrowRoot::Provider { .. } | NBorrowRoot::LocalSlot { .. } => {}
-            }
-        }
-        for local_id in 0..body.locals.len() {
-            let local_id = crate::analysis::semantic::SLocalId::from_u32(local_id as u32);
-            let Some(local) = body.local(local_id) else {
-                continue;
-            };
-            if let Some(root) = local.lowering.root()
-                && let Some(idx) = match local.source {
-                    Some(crate::analysis::ty::ty_check::LocalBinding::EffectParam {
-                        idx, ..
-                    })
-                    | Some(crate::analysis::ty::ty_check::LocalBinding::Param {
-                        site: ParamSite::EffectField(_),
-                        idx,
-                        ..
-                    }) => Some(idx as u32),
-                    Some(crate::analysis::ty::ty_check::LocalBinding::Param { .. })
-                    | Some(crate::analysis::ty::ty_check::LocalBinding::Local { .. })
-                    | None => None,
-                }
-            {
-                effect_input_of_root.insert(root, idx);
             }
         }
         let facts = NormalizedBodyFacts::new(&body);
@@ -341,7 +313,6 @@ impl<'db> Borrowck<'db> {
             summary_mode,
             param_modes,
             param_index_of_local,
-            effect_input_of_root,
             loan_for_local: FxHashMap::default(),
             param_loan_for_local: FxHashMap::default(),
             loans: Vec::new(),
@@ -681,22 +652,11 @@ impl<'db> Borrowck<'db> {
                             out.push(transform);
                         }
                     }
-                    BorrowRoot::Provider(binding) => {
-                        let Some(idx) = self.effect_input_index_for_provider(binding.clone())
-                        else {
-                            return Err(self.invalid_return_diag(
-                                block.terminator.origin,
-                                "return borrows must be derived from explicit borrow inputs"
-                                    .to_string(),
-                            ));
-                        };
-                        let transform = BorrowTransform {
-                            input: BorrowInputRef::EffectArg(idx),
-                            proj: target.proj.clone(),
-                        };
-                        if !out.contains(&transform) {
-                            out.push(transform);
-                        }
+                    BorrowRoot::Provider(_) => {
+                        return Err(self.invalid_return_diag(
+                            block.terminator.origin,
+                            "cannot return a borrow derived from an effect parameter".to_string(),
+                        ));
                     }
                     BorrowRoot::Local(local) => {
                         let name = self.pretty_local_name(*local);
@@ -709,18 +669,6 @@ impl<'db> Borrowck<'db> {
             }
         }
         Ok(out)
-    }
-
-    fn effect_input_index_for_provider(
-        &self,
-        provider: crate::semantic::ProviderBinding<'db>,
-    ) -> Option<u32> {
-        self.effect_input_of_root
-            .iter()
-            .find_map(|(root, idx)| match self.body.root(*root) {
-                Some(NBorrowRoot::Provider { binding }) if *binding == provider => Some(*idx),
-                _ => None,
-            })
     }
 
     fn effective_loans(

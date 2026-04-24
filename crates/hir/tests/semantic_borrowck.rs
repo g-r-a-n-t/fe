@@ -768,6 +768,30 @@ fn bad() -> mut u256 {
 }
 
 #[test]
+fn rejects_return_borrow_derived_from_uses_effect_parameter() {
+    let diags = borrow_diags(
+        r#"
+struct Store {
+    value: u256,
+}
+
+fn bad() -> mut u256 uses (store: mut Store) {
+    mut store.value
+}
+"#,
+    );
+
+    assert!(
+        diags.contains("invalid return borrow in `fn bad`"),
+        "{diags:?}"
+    );
+    assert!(
+        diags.contains("cannot return a borrow derived from an effect parameter"),
+        "{diags:?}"
+    );
+}
+
+#[test]
 fn array_index_reads_do_not_hit_internal_borrowck_error() {
     let diags = borrow_diags(
         r#"

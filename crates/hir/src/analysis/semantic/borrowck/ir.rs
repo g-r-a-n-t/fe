@@ -479,7 +479,6 @@ pub enum SemanticNormalizeError<'db> {
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum BorrowInputRef {
     Param(u32),
-    EffectArg(u32),
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]

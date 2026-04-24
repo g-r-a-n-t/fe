@@ -8,10 +8,9 @@ use crate::analysis::{
     HirAnalysisDb,
     semantic::{
         SBlockId, SLocalId, SemanticInstance,
-        borrowck::ir::{NEffectArgValue, NExpr, NSStmtKind},
+        borrowck::ir::{NExpr, NSStmtKind},
         get_or_build_semantic_instance,
     },
-    ty::ty_check::EffectPassMode,
 };
 
 use super::{
@@ -106,12 +105,7 @@ impl<'a, 'db> BorrowLoanTargetAnalysis<'a, 'db> {
                 };
                 Ok(self.extend_loan(loans, loan_id, targets, parents))
             }
-            NExpr::Call {
-                callee,
-                args,
-                effect_args,
-                ..
-            } => {
+            NExpr::Call { callee, args, .. } => {
                 let callee_instance = get_or_build_semantic_instance(self.db, callee.key);
                 let summary = match self.summary_mode {
                     BorrowSummaryMode::Final => {
@@ -129,36 +123,15 @@ impl<'a, 'db> BorrowLoanTargetAnalysis<'a, 'db> {
                     let mut targets = FxHashSet::default();
                     let mut parents = FxHashSet::default();
                     for transform in &summary {
-                        match transform.input {
-                            BorrowInputRef::Param(idx) => {
-                                if let Some(arg) = args.get(idx as usize) {
-                                    for base in canon.canonicalize_value_base(state, arg.local) {
-                                        targets.insert(CanonPlace {
-                                            root: base.root,
-                                            proj: base.proj.concat(&transform.proj),
-                                        });
-                                    }
-                                    parents.extend(canon.mut_loans_for_value(state, arg.local));
-                                }
+                        let BorrowInputRef::Param(idx) = transform.input;
+                        if let Some(arg) = args.get(idx as usize) {
+                            for base in canon.canonicalize_value_base(state, arg.local) {
+                                targets.insert(CanonPlace {
+                                    root: base.root,
+                                    proj: base.proj.concat(&transform.proj),
+                                });
                             }
-                            BorrowInputRef::EffectArg(idx) => {
-                                let Some(effect_arg) = effect_args.get(idx as usize) else {
-                                    continue;
-                                };
-                                if matches!(effect_arg.pass_mode, EffectPassMode::ByPlace)
-                                    && let NEffectArgValue::Place(place) = &effect_arg.arg
-                                {
-                                    for base in
-                                        canon.canonicalize_place(state, place, stmt.origin)?
-                                    {
-                                        targets.insert(CanonPlace {
-                                            root: base.root,
-                                            proj: base.proj.concat(&transform.proj),
-                                        });
-                                    }
-                                    parents.extend(canon.mut_loans_for_place(state, place));
-                                }
-                            }
+                            parents.extend(canon.mut_loans_for_value(state, arg.local));
                         }
                     }
                     (targets, parents)

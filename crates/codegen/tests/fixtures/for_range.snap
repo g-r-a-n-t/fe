@@ -24,36 +24,46 @@ object "main" {
       let v2 := v22
       let v23 := 0x00
       let v24 := 0x0a
-      let v25 := dataoffset("const_0")
+      let t34 := mload(0x40)
+      if iszero(t34) {
+        t34 := 0x80
+      }
+      mstore(0x40, add(t34, 64))
+      let v26 := t34
+      mstore(v26, v23)
+      mstore(add(v26, 32), v24)
+      let v25 := v26
       v8 := v25
       let v27 := 0x00
       v9 := v27
-      let v28 := $len_arg0_root_code(v8)
-      v10 := v28
+      let v28 := v8
+      let v29 := $len(v28)
+      v10 := v29
       for {} 1 {} {
         let v11 := iszero(iszero(lt(v9, v10)))
         if iszero(iszero(v11)) {
-          let v29 := $get_arg0_root_code(v8, v9)
-          let v12 := v29
+          let v30 := v8
+          let v31 := $get(v30, v9)
+          let v12 := v31
           let v3 := v12
-          let t32 := add(v0, v3)
-          if lt(t32, v0) {
+          let t35 := add(v0, v3)
+          if lt(t35, v0) {
             mstore(0, 0x4e487b7100000000000000000000000000000000000000000000000000000000)
             mstore(4, 0x11)
             revert(0, 36)
           }
-          let v30 := t32
-          let v13 := v30
+          let v32 := t35
+          let v13 := v32
           v0 := v13
-          let v31 := 0x01
-          let v15 := v31
-          let t33 := add(v9, v15)
-          if lt(t33, v9) {
+          let v33 := 0x01
+          let v15 := v33
+          let t36 := add(v9, v15)
+          if lt(t36, v9) {
             mstore(0, 0x4e487b7100000000000000000000000000000000000000000000000000000000)
             mstore(4, 0x11)
             revert(0, 36)
           }
-          let v16 := t33
+          let v16 := t36
           v9 := v16
           continue
         }
@@ -64,14 +74,8 @@ object "main" {
       ret := v0
       leave
     }
-    function $get_arg0_root_code(p0, p1) -> ret {
-      let t6 := mload(0x40)
-      if iszero(t6) {
-        t6 := 0x80
-      }
-      mstore(0x40, add(t6, 32))
-      datacopy(t6, p0, 32)
-      t6 := mload(t6)
+    function $get(p0, p1) -> ret {
+      let t6 := mload(p0)
       let v2 := t6
       let v3 := p1
       let t7 := add(v2, v3)
@@ -85,58 +89,36 @@ object "main" {
       ret := v4
       leave
     }
-    function $len_arg0_root_code(p0) -> ret {
+    function $len(p0) -> ret {
       let v1 := 0
-      let t14 := mload(0x40)
-      if iszero(t14) {
-        t14 := 0x80
-      }
-      mstore(0x40, add(t14, 32))
-      datacopy(t14, add(p0, 32), 32)
-      t14 := mload(t14)
-      let v2 := t14
-      let t15 := mload(0x40)
-      if iszero(t15) {
-        t15 := 0x80
-      }
-      mstore(0x40, add(t15, 32))
-      datacopy(t15, p0, 32)
-      t15 := mload(t15)
-      let v3 := t15
-      let v9 := v3
-      let v10 := iszero(iszero(lt(v2, v9)))
-      let v4 := iszero(iszero(v10))
+      let t15 := mload(add(p0, 32))
+      let v2 := t15
+      let t16 := mload(p0)
+      let v9 := t16
+      mstore(p0, v9)
+      let t17 := mload(p0)
+      let v10 := t17
+      let v11 := iszero(iszero(lt(v2, v10)))
+      let v4 := iszero(iszero(v11))
       if iszero(iszero(v4)) {
-        let v11 := 0x00
-        let v5 := v11
         let v12 := 0x00
-        v1 := v12
+        let v5 := v12
+        let v13 := 0x00
+        v1 := v13
       }
       if iszero(iszero(iszero(v4))) {
-        let t16 := mload(0x40)
-        if iszero(t16) {
-          t16 := 0x80
-        }
-        mstore(0x40, add(t16, 32))
-        datacopy(t16, add(p0, 32), 32)
-        t16 := mload(t16)
-        let v6 := t16
-        let t17 := mload(0x40)
-        if iszero(t17) {
-          t17 := 0x80
-        }
-        mstore(0x40, add(t17, 32))
-        datacopy(t17, p0, 32)
-        t17 := mload(t17)
-        let v7 := t17
-        let t18 := sub(v6, v7)
+        let t18 := mload(add(p0, 32))
+        let v6 := t18
+        let t19 := mload(p0)
+        let v7 := t19
+        let t20 := sub(v6, v7)
         if gt(v7, v6) {
           mstore(0, 0x4e487b7100000000000000000000000000000000000000000000000000000000)
           mstore(4, 0x11)
           revert(0, 36)
         }
-        let v13 := t18
-        let v8 := v13
+        let v14 := t20
+        let v8 := v14
         v1 := v8
       }
       ret := v1
@@ -148,5 +130,4 @@ object "main" {
     }
     $main_root()
   }
-  data "const_0" hex"0000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000a"
 }

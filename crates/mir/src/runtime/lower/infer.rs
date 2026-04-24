@@ -8,7 +8,7 @@ use hir::{
             SLocalId, SemanticLocalKind,
             borrowck::{NLocalOrigin, NSLocal, NormalizedBindingLowering, NormalizedSemanticBody},
         },
-        ty::trait_resolution::PredicateListId,
+        ty::{trait_resolution::PredicateListId, ty_is_copy},
     },
     semantic::ProviderBinding,
 };
@@ -227,6 +227,17 @@ pub(crate) fn seed_root_provider_carriers<'a, 'db>(
                         env.assumptions(),
                     )
                 }),
+            (SemanticLocalKind::PlaceCarrier, NLocalOrigin::RootProvider(provider)) => env
+                .actual_runtime_visible_root_provider_class(carriers, provider)
+                .map(|(_, class)| class)
+                .or_else(|| {
+                    runtime_class_for_effect_binding_provider_in_context(
+                        env.db(),
+                        provider,
+                        env.scope(),
+                        env.assumptions(),
+                    )
+                }),
             _ => None,
         };
         if let Some(class) = class {
@@ -358,6 +369,35 @@ fn lower_semantic_locals<'db>(
                     provider_local,
                 ))
             }
+            (SemanticLocalKind::PlaceCarrier, NLocalOrigin::RootProvider(provider)) => {
+                let NormalizedBindingLowering::CarrierLocal { .. } = &local.lowering else {
+                    panic!("place-carrier local missing carrier lowering: {idx}");
+                };
+                let (provider_local, provider_class) = cx
+                    .env
+                    .actual_runtime_visible_root_provider_class(carriers, provider)
+                    .or_else(|| {
+                        runtime_class_for_effect_binding_provider_in_context(
+                            db,
+                            provider,
+                            scope,
+                            assumptions,
+                        )
+                        .map(|class| (local_id, class))
+                    })
+                    .unwrap_or_else(|| {
+                        panic!(
+                            "missing place-carrier runtime class for semantic local {idx}: {}",
+                            local.ty.pretty_print(db),
+                        )
+                    });
+                Some((
+                    provider.clone(),
+                    provider_class,
+                    carrier_local_place_class(db, local, local_id, carriers, scope, assumptions),
+                    provider_local,
+                ))
+            }
             _ => None,
         };
         let Some((provider, provider_class, place_class, provider_local)) = binding else {
@@ -395,6 +435,17 @@ fn lower_semantic_locals<'db>(
                 }
             }
             (SemanticLocalKind::DirectValue, _) => RuntimeLocalLowering::DirectValue,
+            (SemanticLocalKind::PlaceCarrier, _)
+                if place_carrier_lowers_as_direct_value(
+                    db,
+                    local,
+                    &carriers[idx],
+                    scope,
+                    assumptions,
+                ) =>
+            {
+                RuntimeLocalLowering::DirectValue
+            }
             (SemanticLocalKind::PlaceCarrier, _) => RuntimeLocalLowering::PlaceCarrier {
                 place_class: carrier_local_place_class(
                     db,
@@ -461,6 +512,28 @@ fn lower_semantic_locals<'db>(
         })
         .collect();
     (lowerings, provider_bindings)
+}
+
+fn place_carrier_lowers_as_direct_value<'db>(
+    db: &'db dyn MirDb,
+    local: &NSLocal<'db>,
+    carrier: &RuntimeCarrier<'db>,
+    scope: Option<hir::hir_def::scope_graph::ScopeId<'db>>,
+    assumptions: PredicateListId<'db>,
+) -> bool {
+    let Some(class) = carrier_value_class_for_runtime(carrier) else {
+        return false;
+    };
+    if class.is_transport() {
+        return false;
+    }
+    if matches!(class, RuntimeClass::Scalar(_)) {
+        return true;
+    }
+    let NormalizedBindingLowering::CarrierLocal { target_ty, .. } = &local.lowering else {
+        panic!("place-carrier local missing carrier lowering");
+    };
+    scope.is_some_and(|scope| ty_is_copy(db, scope, *target_ty, assumptions))
 }
 
 fn runtime_provider_binding_id<'db>(
@@ -631,22 +704,36 @@ pub(super) fn fallback_root_transport_class<'db>(
             let NormalizedBindingLowering::CarrierLocal { target_ty, .. } = &local.lowering else {
                 panic!("place-carrier local missing carrier lowering");
             };
-            top_level_class_for_ty_in_context(
-                db,
-                local.ty,
-                AddressSpaceKind::Memory,
-                scope,
-                assumptions,
-            )
-            .or_else(|| {
-                Some(provider_class_for_target_in_context(
-                    db,
-                    Some(*target_ty),
-                    AddressSpaceKind::Memory,
-                    scope,
-                    assumptions,
-                ))
-            })
+            local
+                .facts
+                .origin
+                .root_provider()
+                .and_then(|provider| {
+                    runtime_class_for_effect_binding_provider_in_context(
+                        db,
+                        provider,
+                        scope,
+                        assumptions,
+                    )
+                })
+                .or_else(|| {
+                    top_level_class_for_ty_in_context(
+                        db,
+                        local.ty,
+                        AddressSpaceKind::Memory,
+                        scope,
+                        assumptions,
+                    )
+                })
+                .or_else(|| {
+                    Some(provider_class_for_target_in_context(
+                        db,
+                        Some(*target_ty),
+                        AddressSpaceKind::Memory,
+                        scope,
+                        assumptions,
+                    ))
+                })
         }
         SemanticLocalKind::DirectCarrier => {
             let provider = local.facts.origin.root_provider();

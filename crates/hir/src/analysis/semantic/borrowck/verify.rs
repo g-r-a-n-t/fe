@@ -306,6 +306,6 @@ fn place_move_is_valid<'db>(body: &NormalizedSemanticBody<'db>, place: &NSPlace<
             Some(NBorrowRoot::Provider { .. }) => false,
             None => false,
         },
-        NSPlaceRoot::CarrierDerefLocal(_) => false,
+        NSPlaceRoot::CarrierDerefLocal(_) => true,
     }
 }

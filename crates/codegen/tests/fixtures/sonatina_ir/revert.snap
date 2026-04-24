@@ -14,7 +14,7 @@ func private %standalone_revert__revert__fail__gcd5c_0(v0.objref<@layout_1>) {
 
     block1:
         call %std__lib__evm__effects__impl_trait_Evm_d0d8__mstore_1 v0 0.i256 42.i256;
-        call %std__lib__evm__effects__impl_trait_Evm_0098__revert_1 0.i256 32.i256;
+        call %std__lib__evm__effects__impl_trait_Evm_0098__revert_0 0.i256 32.i256;
         unreachable;
 }
 
@@ -24,7 +24,7 @@ func private %standalone_revert__revert__fail__gcd5c_1(v0.objref<@layout_1>) {
 
     block1:
         call %std__lib__evm__effects__impl_trait_Evm_d0d8__mstore_0 v0 0.i256 42.i256;
-        call %std__lib__evm__effects__impl_trait_Evm_0098__revert_0 0.i256 32.i256;
+        call %std__lib__evm__effects__impl_trait_Evm_0098__revert_1 0.i256 32.i256;
         unreachable;
 }
 

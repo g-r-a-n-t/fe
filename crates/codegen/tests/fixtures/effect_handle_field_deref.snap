@@ -123,59 +123,25 @@ object "EffectHandleFieldDeref" {
         leave
       }
       function $impl_trait$SolEncoder$base(p0) -> ret {
-        let r0 := mload(0x40)
-        if iszero(r0) {
-          r0 := 0x80
-        }
-        mstore(0x40, add(r0, 64))
-        mstore(r0, mload(p0))
-        mstore(add(r0, 32), mload(add(p0, 32)))
-        let t2 := mload(r0)
-        let v1 := t2
-        ret := v1
-        leave
-      }
-      function $std$lib$abi$sol$impl_trait$SolDecoder$68ab$base$g463e_2(p0) -> ret {
-        let r0 := mload(0x40)
-        if iszero(r0) {
-          r0 := 0x80
-        }
-        mstore(0x40, add(r0, 128))
-        mstore(r0, mload(p0))
-        mstore(add(r0, 32), mload(add(p0, 32)))
-        mstore(add(r0, 64), mload(add(p0, 64)))
-        mstore(add(r0, 96), mload(add(p0, 96)))
-        let t2 := mload(add(r0, 96))
-        let v1 := t2
-        ret := v1
-        leave
-      }
-      function $std$lib$abi$sol$impl_trait$SolDecoder$68ab$base$g463e_0(p0) -> ret {
-        let r0 := mload(0x40)
-        if iszero(r0) {
-          r0 := 0x80
-        }
-        mstore(0x40, add(r0, 128))
-        mstore(r0, mload(p0))
-        mstore(add(r0, 32), mload(add(p0, 32)))
-        mstore(add(r0, 64), mload(add(p0, 64)))
-        mstore(add(r0, 96), mload(add(p0, 96)))
-        let t2 := mload(add(r0, 96))
+        let t2 := mload(p0)
         let v1 := t2
         ret := v1
         leave
       }
       function $std$lib$abi$sol$impl_trait$SolDecoder$68ab$base$g463e_1(p0) -> ret {
-        let r0 := mload(0x40)
-        if iszero(r0) {
-          r0 := 0x80
-        }
-        mstore(0x40, add(r0, 128))
-        mstore(r0, mload(p0))
-        mstore(add(r0, 32), mload(add(p0, 32)))
-        mstore(add(r0, 64), mload(add(p0, 64)))
-        mstore(add(r0, 96), mload(add(p0, 96)))
-        let t2 := mload(add(r0, 96))
+        let t2 := mload(add(p0, 96))
+        let v1 := t2
+        ret := v1
+        leave
+      }
+      function $std$lib$abi$sol$impl_trait$SolDecoder$68ab$base$g463e_2(p0) -> ret {
+        let t2 := mload(add(p0, 96))
+        let v1 := t2
+        ret := v1
+        leave
+      }
+      function $std$lib$abi$sol$impl_trait$SolDecoder$68ab$base$g463e_0(p0) -> ret {
+        let t2 := mload(add(p0, 96))
         let v1 := t2
         ret := v1
         leave
@@ -213,65 +179,6 @@ object "EffectHandleFieldDeref" {
         }
         if iszero(iszero(iszero(v3))) {
           let v4 := calldatasize()
-          let t23 := sub(v4, v1)
-          if gt(v1, v4) {
-            mstore(0, 0x4e487b7100000000000000000000000000000000000000000000000000000000)
-            mstore(4, 0x11)
-            revert(0, 36)
-          }
-          let v5 := t23
-          let t24 := mload(0x40)
-          if iszero(t24) {
-            t24 := 0x80
-          }
-          mstore(0x40, add(t24, v5))
-          let v6 := t24
-          calldatacopy(v6, v1, v5)
-          let r8 := mload(0x40)
-          if iszero(r8) {
-            r8 := 0x80
-          }
-          mstore(0x40, add(r8, 64))
-          mstore(r8, v6)
-          mstore(add(r8, 32), v5)
-          let v9 := $decoder_new(r8)
-          let v10 := v9
-          let v11 := v10
-          let v12 := $impl_trait$SeedSlot$decode_payload$gf196(v11)
-          let v13 := v12
-          let t25 := mload(v13)
-          let v14 := t25
-          let t26 := mload(add(v13, 32))
-          let v15 := t26
-          let t27 := mload(0x40)
-          if iszero(t27) {
-            t27 := 0x80
-          }
-          mstore(0x40, add(t27, 0))
-          let v16 := t27
-          let v17 := v16
-          let v18 := $__EffectHandleFieldDeref_recv_0_0(v14, v15, v17)
-          let v19 := $encode_single_root_alloc_arg0_root_stor(v18)
-          let v20 := v19
-          let t28 := mload(v20)
-          let v21 := t28
-          let t29 := mload(add(v20, 32))
-          let v22 := t29
-          return(v21, v22)
-        }
-      }
-      function $contract_recv_abi_EffectHandleFieldDeref_2() {
-        let v0 := 0
-        let v1 := 0
-        v0 := 0
-        v1 := 0x04
-        let v2 := callvalue()
-        let v3 := iszero(iszero(iszero(eq(v2, v0))))
-        if iszero(iszero(v3)) {
-          revert(v0, v0)
-        }
-        if iszero(iszero(iszero(v3))) {
-          let v4 := calldatasize()
           let t22 := sub(v4, v1)
           if gt(v1, v4) {
             mstore(0, 0x4e487b7100000000000000000000000000000000000000000000000000000000)
@@ -293,18 +200,21 @@ object "EffectHandleFieldDeref" {
           mstore(0x40, add(r8, 64))
           mstore(r8, v6)
           mstore(add(r8, 32), v5)
-          let v9 := $decoder_new(r8)
-          let v10 := v9
-          let v11 := v10
-          let v12 := $impl_trait$ReadViaHolder$decode_payload$gf196(v11)
-          let t24 := mload(0x40)
-          if iszero(t24) {
-            t24 := 0x80
+          let r9 := mload(0x40)
+          if iszero(r9) {
+            r9 := 0x80
           }
-          mstore(0x40, add(t24, 32))
-          mstore(t24, v12)
+          mstore(0x40, add(r9, 128))
+          mstore(r9, mload($decoder_new(r8)))
+          mstore(add(r9, 32), mload(add($decoder_new(r8), 32)))
+          mstore(add(r9, 64), mload(add($decoder_new(r8), 64)))
+          mstore(add(r9, 96), mload(add($decoder_new(r8), 96)))
+          let v10 := r9
+          let v11 := $impl_trait$SeedSlot$decode_payload$gf196(v10)
+          let v12 := v11
+          let t24 := mload(v12)
           let v13 := t24
-          let t25 := mload(v13)
+          let t25 := mload(add(v12, 32))
           let v14 := t25
           let t26 := mload(0x40)
           if iszero(t26) {
@@ -313,7 +223,7 @@ object "EffectHandleFieldDeref" {
           mstore(0x40, add(t26, 0))
           let v15 := t26
           let v16 := v15
-          let v17 := $__EffectHandleFieldDeref_recv_0_1(v14, v16)
+          let v17 := $__EffectHandleFieldDeref_recv_0_0(v13, v14, v16)
           let v18 := $encode_single_root_alloc_arg0_root_stor(v17)
           let v19 := v18
           let t27 := mload(v19)
@@ -323,7 +233,7 @@ object "EffectHandleFieldDeref" {
           return(v20, v21)
         }
       }
-      function $contract_recv_abi_EffectHandleFieldDeref_3() {
+      function $contract_recv_abi_EffectHandleFieldDeref_2() {
         let v0 := 0
         let v1 := 0
         v0 := 0
@@ -356,28 +266,105 @@ object "EffectHandleFieldDeref" {
           mstore(0x40, add(r8, 64))
           mstore(r8, v6)
           mstore(add(r8, 32), v5)
-          let v9 := $decoder_new(r8)
-          let v10 := v9
-          let v11 := v10
-          let v12 := $impl_trait$BumpMover$decode_payload$gf196(v11)
+          let r9 := mload(0x40)
+          if iszero(r9) {
+            r9 := 0x80
+          }
+          mstore(0x40, add(r9, 128))
+          mstore(r9, mload($decoder_new(r8)))
+          mstore(add(r9, 32), mload(add($decoder_new(r8), 32)))
+          mstore(add(r9, 64), mload(add($decoder_new(r8), 64)))
+          mstore(add(r9, 96), mload(add($decoder_new(r8), 96)))
+          let v10 := r9
+          let v11 := $impl_trait$ReadViaHolder$decode_payload$gf196(v10)
           let t23 := mload(0x40)
           if iszero(t23) {
             t23 := 0x80
           }
           mstore(0x40, add(t23, 32))
-          mstore(t23, v12)
-          let v13 := t23
-          let t24 := mload(v13)
-          let v14 := t24
-          let v15 := 0
-          let v16 := $__EffectHandleFieldDeref_recv_0_2_eff0_stor(v14, v15)
+          mstore(t23, v11)
+          let v12 := t23
+          let t24 := mload(v12)
+          let v13 := t24
+          let t25 := mload(0x40)
+          if iszero(t25) {
+            t25 := 0x80
+          }
+          mstore(0x40, add(t25, 0))
+          let v14 := t25
+          let v15 := v14
+          let v16 := $__EffectHandleFieldDeref_recv_0_1(v13, v15)
           let v17 := $encode_single_root_alloc_arg0_root_stor(v16)
           let v18 := v17
-          let t25 := mload(v18)
-          let v19 := t25
-          let t26 := mload(add(v18, 32))
-          let v20 := t26
+          let t26 := mload(v18)
+          let v19 := t26
+          let t27 := mload(add(v18, 32))
+          let v20 := t27
           return(v19, v20)
+        }
+      }
+      function $contract_recv_abi_EffectHandleFieldDeref_3() {
+        let v0 := 0
+        let v1 := 0
+        v0 := 0
+        v1 := 0x04
+        let v2 := callvalue()
+        let v3 := iszero(iszero(iszero(eq(v2, v0))))
+        if iszero(iszero(v3)) {
+          revert(v0, v0)
+        }
+        if iszero(iszero(iszero(v3))) {
+          let v4 := calldatasize()
+          let t20 := sub(v4, v1)
+          if gt(v1, v4) {
+            mstore(0, 0x4e487b7100000000000000000000000000000000000000000000000000000000)
+            mstore(4, 0x11)
+            revert(0, 36)
+          }
+          let v5 := t20
+          let t21 := mload(0x40)
+          if iszero(t21) {
+            t21 := 0x80
+          }
+          mstore(0x40, add(t21, v5))
+          let v6 := t21
+          calldatacopy(v6, v1, v5)
+          let r8 := mload(0x40)
+          if iszero(r8) {
+            r8 := 0x80
+          }
+          mstore(0x40, add(r8, 64))
+          mstore(r8, v6)
+          mstore(add(r8, 32), v5)
+          let r9 := mload(0x40)
+          if iszero(r9) {
+            r9 := 0x80
+          }
+          mstore(0x40, add(r9, 128))
+          mstore(r9, mload($decoder_new(r8)))
+          mstore(add(r9, 32), mload(add($decoder_new(r8), 32)))
+          mstore(add(r9, 64), mload(add($decoder_new(r8), 64)))
+          mstore(add(r9, 96), mload(add($decoder_new(r8), 96)))
+          let v10 := r9
+          let v11 := $impl_trait$BumpMover$decode_payload$gf196(v10)
+          let t22 := mload(0x40)
+          if iszero(t22) {
+            t22 := 0x80
+          }
+          mstore(0x40, add(t22, 32))
+          mstore(t22, v11)
+          let v12 := t22
+          let t23 := mload(v12)
+          let v13 := t23
+          let v14 := 0
+          let v15 := $__EffectHandleFieldDeref_recv_0_2_eff0_stor(v13, v14)
+          let v16 := $encode_single_root_alloc_arg0_root_stor(v15)
+          let v17 := v16
+          let t24 := mload(v17)
+          let v18 := t24
+          let t25 := mload(add(v17, 32))
+          let v19 := t25
+          return(v18, v19)
         }
       }
       function $contract_runtime_root_EffectHandleFieldDeref() {
@@ -401,51 +388,6 @@ object "EffectHandleFieldDeref" {
             revert(v0, v0)
         }
       }
-      function $core$lib$abi$decode_field$g3854_2(p0) -> ret {
-        let v21 := 0
-        let v6 := iszero(iszero(v21))
-        if iszero(iszero(v6)) {
-          let v22 := $std$lib$abi$sol$impl_trait$SolDecoder$68ab$read_word$g463e_4(p0)
-          let v7 := v22
-          let v1 := v7
-          let v23 := p0
-          let v24 := $std$lib$abi$sol$impl_trait$SolDecoder$68ab$base$g463e_2(v23)
-          let v8 := v24
-          let v2 := v8
-          let v25 := p0
-          let v26 := $std$lib$abi$sol$impl_trait$SolDecoder$68ab$pos$g463e_2(v25)
-          let v9 := v26
-          let v3 := v9
-          let t41 := add(v2, v1)
-          if lt(t41, v2) {
-            mstore(0, 0x4e487b7100000000000000000000000000000000000000000000000000000000)
-            mstore(4, 0x11)
-            revert(0, 36)
-          }
-          let v27 := t41
-          let v10 := v27
-          $std$lib$abi$sol$impl_trait$SolDecoder$68ab$set_base$g463e_2(p0, v10)
-          let v30 := p0
-          let v31 := $std$lib$abi$sol$impl_trait$SolDecoder$68ab$base$g463e_2(v30)
-          let v12 := v31
-          $std$lib$abi$sol$impl_trait$SolDecoder$68ab$set_pos$g463e_2(p0, v12)
-          let v34 := p0
-          let v14 := v34
-          let v35 := $core$lib$abi$impl_trait$u256$85b6$decode_payload$g407e_2(v14)
-          let v15 := v35
-          let v4 := v15
-          $std$lib$abi$sol$impl_trait$SolDecoder$68ab$set_base$g463e_2(p0, v2)
-          $std$lib$abi$sol$impl_trait$SolDecoder$68ab$set_pos$g463e_2(p0, v3)
-          ret := v4
-          leave
-        }
-        if iszero(iszero(iszero(v6))) {
-          let v40 := $core$lib$abi$impl_trait$u256$85b6$decode_payload$g407e_2(p0)
-          let v20 := v40
-          ret := v20
-          leave
-        }
-      }
       function $core$lib$abi$decode_field$g3854_0(p0) -> ret {
         let v21 := 0
         let v6 := iszero(iszero(v21))
@@ -453,31 +395,28 @@ object "EffectHandleFieldDeref" {
           let v22 := $std$lib$abi$sol$impl_trait$SolDecoder$68ab$read_word$g463e_0(p0)
           let v7 := v22
           let v1 := v7
-          let v23 := p0
-          let v24 := $std$lib$abi$sol$impl_trait$SolDecoder$68ab$base$g463e_0(v23)
-          let v8 := v24
+          let v23 := $std$lib$abi$sol$impl_trait$SolDecoder$68ab$base$g463e_0(p0)
+          let v8 := v23
           let v2 := v8
-          let v25 := p0
-          let v26 := $std$lib$abi$sol$impl_trait$SolDecoder$68ab$pos$g463e_0(v25)
-          let v9 := v26
+          let v24 := $std$lib$abi$sol$impl_trait$SolDecoder$68ab$pos$g463e_0(p0)
+          let v9 := v24
           let v3 := v9
-          let t41 := add(v2, v1)
-          if lt(t41, v2) {
+          let t38 := add(v2, v1)
+          if lt(t38, v2) {
             mstore(0, 0x4e487b7100000000000000000000000000000000000000000000000000000000)
             mstore(4, 0x11)
             revert(0, 36)
           }
-          let v27 := t41
-          let v10 := v27
+          let v25 := t38
+          let v10 := v25
           $std$lib$abi$sol$impl_trait$SolDecoder$68ab$set_base$g463e_0(p0, v10)
-          let v30 := p0
-          let v31 := $std$lib$abi$sol$impl_trait$SolDecoder$68ab$base$g463e_0(v30)
-          let v12 := v31
+          let v28 := $std$lib$abi$sol$impl_trait$SolDecoder$68ab$base$g463e_0(p0)
+          let v12 := v28
           $std$lib$abi$sol$impl_trait$SolDecoder$68ab$set_pos$g463e_0(p0, v12)
-          let v34 := p0
-          let v14 := v34
-          let v35 := $core$lib$abi$impl_trait$u256$85b6$decode_payload$g407e_0(v14)
-          let v15 := v35
+          let v31 := p0
+          let v14 := v31
+          let v32 := $core$lib$abi$impl_trait$u256$85b6$decode_payload$g407e_0(v14)
+          let v15 := v32
           let v4 := v15
           $std$lib$abi$sol$impl_trait$SolDecoder$68ab$set_base$g463e_0(p0, v2)
           $std$lib$abi$sol$impl_trait$SolDecoder$68ab$set_pos$g463e_0(p0, v3)
@@ -485,8 +424,8 @@ object "EffectHandleFieldDeref" {
           leave
         }
         if iszero(iszero(iszero(v6))) {
-          let v40 := $core$lib$abi$impl_trait$u256$85b6$decode_payload$g407e_0(p0)
-          let v20 := v40
+          let v37 := $core$lib$abi$impl_trait$u256$85b6$decode_payload$g407e_0(p0)
+          let v20 := v37
           ret := v20
           leave
         }
@@ -498,31 +437,28 @@ object "EffectHandleFieldDeref" {
           let v22 := $std$lib$abi$sol$impl_trait$SolDecoder$68ab$read_word$g463e_2(p0)
           let v7 := v22
           let v1 := v7
-          let v23 := p0
-          let v24 := $std$lib$abi$sol$impl_trait$SolDecoder$68ab$base$g463e_1(v23)
-          let v8 := v24
+          let v23 := $std$lib$abi$sol$impl_trait$SolDecoder$68ab$base$g463e_1(p0)
+          let v8 := v23
           let v2 := v8
-          let v25 := p0
-          let v26 := $std$lib$abi$sol$impl_trait$SolDecoder$68ab$pos$g463e_1(v25)
-          let v9 := v26
+          let v24 := $std$lib$abi$sol$impl_trait$SolDecoder$68ab$pos$g463e_1(p0)
+          let v9 := v24
           let v3 := v9
-          let t41 := add(v2, v1)
-          if lt(t41, v2) {
+          let t38 := add(v2, v1)
+          if lt(t38, v2) {
             mstore(0, 0x4e487b7100000000000000000000000000000000000000000000000000000000)
             mstore(4, 0x11)
             revert(0, 36)
           }
-          let v27 := t41
-          let v10 := v27
+          let v25 := t38
+          let v10 := v25
           $std$lib$abi$sol$impl_trait$SolDecoder$68ab$set_base$g463e_1(p0, v10)
-          let v30 := p0
-          let v31 := $std$lib$abi$sol$impl_trait$SolDecoder$68ab$base$g463e_1(v30)
-          let v12 := v31
+          let v28 := $std$lib$abi$sol$impl_trait$SolDecoder$68ab$base$g463e_1(p0)
+          let v12 := v28
           $std$lib$abi$sol$impl_trait$SolDecoder$68ab$set_pos$g463e_1(p0, v12)
-          let v34 := p0
-          let v14 := v34
-          let v35 := $core$lib$abi$impl_trait$u256$85b6$decode_payload$g407e_1(v14)
-          let v15 := v35
+          let v31 := p0
+          let v14 := v31
+          let v32 := $core$lib$abi$impl_trait$u256$85b6$decode_payload$g407e_1(v14)
+          let v15 := v32
           let v4 := v15
           $std$lib$abi$sol$impl_trait$SolDecoder$68ab$set_base$g463e_1(p0, v2)
           $std$lib$abi$sol$impl_trait$SolDecoder$68ab$set_pos$g463e_1(p0, v3)
@@ -530,17 +466,53 @@ object "EffectHandleFieldDeref" {
           leave
         }
         if iszero(iszero(iszero(v6))) {
-          let v40 := $core$lib$abi$impl_trait$u256$85b6$decode_payload$g407e_1(p0)
-          let v20 := v40
+          let v37 := $core$lib$abi$impl_trait$u256$85b6$decode_payload$g407e_1(p0)
+          let v20 := v37
           ret := v20
           leave
         }
       }
-      function $core$lib$abi$impl_trait$u256$85b6$decode_payload$g407e_2(p0) -> ret {
-        let v2 := $std$lib$abi$sol$impl_trait$SolDecoder$68ab$read_word$g463e_5(p0)
-        let v1 := v2
-        ret := v1
-        leave
+      function $core$lib$abi$decode_field$g3854_2(p0) -> ret {
+        let v21 := 0
+        let v6 := iszero(iszero(v21))
+        if iszero(iszero(v6)) {
+          let v22 := $std$lib$abi$sol$impl_trait$SolDecoder$68ab$read_word$g463e_4(p0)
+          let v7 := v22
+          let v1 := v7
+          let v23 := $std$lib$abi$sol$impl_trait$SolDecoder$68ab$base$g463e_2(p0)
+          let v8 := v23
+          let v2 := v8
+          let v24 := $std$lib$abi$sol$impl_trait$SolDecoder$68ab$pos$g463e_2(p0)
+          let v9 := v24
+          let v3 := v9
+          let t38 := add(v2, v1)
+          if lt(t38, v2) {
+            mstore(0, 0x4e487b7100000000000000000000000000000000000000000000000000000000)
+            mstore(4, 0x11)
+            revert(0, 36)
+          }
+          let v25 := t38
+          let v10 := v25
+          $std$lib$abi$sol$impl_trait$SolDecoder$68ab$set_base$g463e_2(p0, v10)
+          let v28 := $std$lib$abi$sol$impl_trait$SolDecoder$68ab$base$g463e_2(p0)
+          let v12 := v28
+          $std$lib$abi$sol$impl_trait$SolDecoder$68ab$set_pos$g463e_2(p0, v12)
+          let v31 := p0
+          let v14 := v31
+          let v32 := $core$lib$abi$impl_trait$u256$85b6$decode_payload$g407e_2(v14)
+          let v15 := v32
+          let v4 := v15
+          $std$lib$abi$sol$impl_trait$SolDecoder$68ab$set_base$g463e_2(p0, v2)
+          $std$lib$abi$sol$impl_trait$SolDecoder$68ab$set_pos$g463e_2(p0, v3)
+          ret := v4
+          leave
+        }
+        if iszero(iszero(iszero(v6))) {
+          let v37 := $core$lib$abi$impl_trait$u256$85b6$decode_payload$g407e_2(p0)
+          let v20 := v37
+          ret := v20
+          leave
+        }
       }
       function $core$lib$abi$impl_trait$u256$85b6$decode_payload$g407e_0(p0) -> ret {
         let v2 := $std$lib$abi$sol$impl_trait$SolDecoder$68ab$read_word$g463e_1(p0)
@@ -550,6 +522,12 @@ object "EffectHandleFieldDeref" {
       }
       function $core$lib$abi$impl_trait$u256$85b6$decode_payload$g407e_1(p0) -> ret {
         let v2 := $std$lib$abi$sol$impl_trait$SolDecoder$68ab$read_word$g463e_3(p0)
+        let v1 := v2
+        ret := v1
+        leave
+      }
+      function $core$lib$abi$impl_trait$u256$85b6$decode_payload$g407e_2(p0) -> ret {
+        let v2 := $std$lib$abi$sol$impl_trait$SolDecoder$68ab$read_word$g463e_5(p0)
         let v1 := v2
         ret := v1
         leave
@@ -603,58 +581,56 @@ object "EffectHandleFieldDeref" {
         let v28 := 0
         let v8 := iszero(iszero(v28))
         if iszero(iszero(v8)) {
-          let v29 := p1
-          let v30 := $impl_trait$SolEncoder$base(v29)
-          let v9 := v30
+          let v29 := $impl_trait$SolEncoder$base(p1)
+          let v9 := v29
           let v3 := v9
           let v4 := p2
-          let v31 := $core$lib$abi$trait$AbiSize$payload_size$ge513_arg0_root_stor_1(p0)
-          let v10 := v31
+          let v30 := $core$lib$abi$trait$AbiSize$payload_size$ge513_arg0_root_stor_1(p0)
+          let v10 := v30
           let v5 := v10
           let v11 := v4
-          let t56 := mload(v11)
-          let v32 := t56
-          let t57 := sub(v32, v3)
-          if gt(v3, v32) {
+          let t54 := mload(v11)
+          let v31 := t54
+          let t55 := sub(v31, v3)
+          if gt(v3, v31) {
             mstore(0, 0x4e487b7100000000000000000000000000000000000000000000000000000000)
             mstore(4, 0x11)
             revert(0, 36)
           }
-          let v33 := t57
-          let v12 := v33
+          let v32 := t55
+          let v12 := v32
           $write_word(p1, v12)
-          let v36 := p1
-          let v37 := $impl_trait$SolEncoder$pos(v36)
-          let v14 := v37
+          let v35 := $impl_trait$SolEncoder$pos(p1)
+          let v14 := v35
           let v6 := v14
-          let t58 := mload(v4)
-          let v39 := t58
-          $impl_trait$SolEncoder$set_base(p1, v39)
-          let t59 := mload(v4)
-          let v42 := t59
-          $impl_trait$SolEncoder$set_pos(p1, v42)
-          let v44 := p1
-          let v17 := v44
+          let t56 := mload(v4)
+          let v37 := t56
+          $impl_trait$SolEncoder$set_base(p1, v37)
+          let t57 := mload(v4)
+          let v40 := t57
+          $impl_trait$SolEncoder$set_pos(p1, v40)
+          let v42 := p1
+          let v17 := v42
           $encode_arg0_root_stor(p0, v17)
           $impl_trait$SolEncoder$set_base(p1, v3)
           $impl_trait$SolEncoder$set_pos(p1, v6)
           let v21 := v4
-          let t60 := mload(v21)
-          let v51 := t60
-          let t61 := add(v51, v5)
-          if lt(t61, v51) {
+          let t58 := mload(v21)
+          let v49 := t58
+          let t59 := add(v49, v5)
+          if lt(t59, v49) {
             mstore(0, 0x4e487b7100000000000000000000000000000000000000000000000000000000)
             mstore(4, 0x11)
             revert(0, 36)
           }
-          let v52 := t61
-          let v22 := v52
+          let v50 := t59
+          let v22 := v50
           mstore(p2, v22)
           leave
         }
         if iszero(iszero(iszero(v8))) {
-          let v53 := p1
-          let v26 := v53
+          let v51 := p1
+          let v26 := v51
           $encode_arg0_root_stor(p0, v26)
           leave
         }
@@ -667,49 +643,47 @@ object "EffectHandleFieldDeref" {
         let v5 := v11
         let v12 := v5
         let v2 := v12
-        let v13 := v2
-        let v14 := $impl_trait$SolEncoder$base(v13)
-        let v6 := v14
+        let v13 := $impl_trait$SolEncoder$base(v2)
+        let v6 := v13
         let v3 := v6
-        let v15 := v2
-        let v7 := v15
+        let v14 := v2
+        let v7 := v14
         $encode_single_root_arg0_root_stor(p0, v7)
-        let t19 := mload(0x40)
-        if iszero(t19) {
-          t19 := 0x80
+        let t18 := mload(0x40)
+        if iszero(t18) {
+          t18 := 0x80
         }
-        mstore(0x40, add(t19, 64))
-        let v18 := t19
-        mstore(v18, v3)
-        mstore(add(v18, 32), v1)
-        let v9 := v18
+        mstore(0x40, add(t18, 64))
+        let v17 := t18
+        mstore(v17, v3)
+        mstore(add(v17, 32), v1)
+        let v9 := v17
         ret := v9
         leave
       }
       function $encode_single_root_arg0_root_stor(p0, p1) {
-        let v9 := p1
-        let v10 := $impl_trait$SolEncoder$base(v9)
-        let v3 := v10
-        let v11 := 0x20
-        let v4 := v11
-        let t17 := add(v3, v4)
-        if lt(t17, v3) {
+        let v9 := $impl_trait$SolEncoder$base(p1)
+        let v3 := v9
+        let v10 := 0x20
+        let v4 := v10
+        let t16 := add(v3, v4)
+        if lt(t16, v3) {
           mstore(0, 0x4e487b7100000000000000000000000000000000000000000000000000000000)
           mstore(4, 0x11)
           revert(0, 36)
         }
-        let v12 := t17
-        let v5 := v12
+        let v11 := t16
+        let v5 := v11
         let r2 := mload(0x40)
         if iszero(r2) {
           r2 := 0x80
         }
         mstore(0x40, add(r2, 32))
         mstore(r2, v5)
-        let v13 := p1
-        let v6 := v13
-        let v14 := r2
-        let v7 := v14
+        let v12 := p1
+        let v6 := v12
+        let v13 := r2
+        let v7 := v13
         $encode_field_arg0_root_stor(p0, v6, v7)
         leave
       }
@@ -741,6 +715,32 @@ object "EffectHandleFieldDeref" {
         ret := v2
         leave
       }
+      function $std$lib$evm$memory_input$impl_trait$MemoryBytes$c1cd$len_3(p0) -> ret {
+        let r0 := mload(0x40)
+        if iszero(r0) {
+          r0 := 0x80
+        }
+        mstore(0x40, add(r0, 64))
+        mstore(r0, mload(p0))
+        mstore(add(r0, 32), mload(add(p0, 32)))
+        let t2 := mload(add(r0, 32))
+        let v1 := t2
+        ret := v1
+        leave
+      }
+      function $std$lib$evm$memory_input$impl_trait$MemoryBytes$c1cd$len_5(p0) -> ret {
+        let r0 := mload(0x40)
+        if iszero(r0) {
+          r0 := 0x80
+        }
+        mstore(0x40, add(r0, 64))
+        mstore(r0, mload(p0))
+        mstore(add(r0, 32), mload(add(p0, 32)))
+        let t2 := mload(add(r0, 32))
+        let v1 := t2
+        ret := v1
+        leave
+      }
       function $std$lib$evm$memory_input$impl_trait$MemoryBytes$c1cd$len_0(p0) -> ret {
         let r0 := mload(0x40)
         if iszero(r0) {
@@ -767,7 +767,7 @@ object "EffectHandleFieldDeref" {
         ret := v1
         leave
       }
-      function $std$lib$evm$memory_input$impl_trait$MemoryBytes$c1cd$len_5(p0) -> ret {
+      function $std$lib$evm$memory_input$impl_trait$MemoryBytes$c1cd$len_4(p0) -> ret {
         let r0 := mload(0x40)
         if iszero(r0) {
           r0 := 0x80
@@ -781,32 +781,6 @@ object "EffectHandleFieldDeref" {
         leave
       }
       function $std$lib$evm$memory_input$impl_trait$MemoryBytes$c1cd$len_1(p0) -> ret {
-        let r0 := mload(0x40)
-        if iszero(r0) {
-          r0 := 0x80
-        }
-        mstore(0x40, add(r0, 64))
-        mstore(r0, mload(p0))
-        mstore(add(r0, 32), mload(add(p0, 32)))
-        let t2 := mload(add(r0, 32))
-        let v1 := t2
-        ret := v1
-        leave
-      }
-      function $std$lib$evm$memory_input$impl_trait$MemoryBytes$c1cd$len_3(p0) -> ret {
-        let r0 := mload(0x40)
-        if iszero(r0) {
-          r0 := 0x80
-        }
-        mstore(0x40, add(r0, 64))
-        mstore(r0, mload(p0))
-        mstore(add(r0, 32), mload(add(p0, 32)))
-        let t2 := mload(add(r0, 32))
-        let v1 := t2
-        ret := v1
-        leave
-      }
-      function $std$lib$evm$memory_input$impl_trait$MemoryBytes$c1cd$len_4(p0) -> ret {
         let r0 := mload(0x40)
         if iszero(r0) {
           r0 := 0x80
@@ -904,59 +878,25 @@ object "EffectHandleFieldDeref" {
         leave
       }
       function $impl_trait$SolEncoder$pos(p0) -> ret {
-        let r0 := mload(0x40)
-        if iszero(r0) {
-          r0 := 0x80
-        }
-        mstore(0x40, add(r0, 64))
-        mstore(r0, mload(p0))
-        mstore(add(r0, 32), mload(add(p0, 32)))
-        let t2 := mload(add(r0, 32))
-        let v1 := t2
-        ret := v1
-        leave
-      }
-      function $std$lib$abi$sol$impl_trait$SolDecoder$68ab$pos$g463e_2(p0) -> ret {
-        let r0 := mload(0x40)
-        if iszero(r0) {
-          r0 := 0x80
-        }
-        mstore(0x40, add(r0, 128))
-        mstore(r0, mload(p0))
-        mstore(add(r0, 32), mload(add(p0, 32)))
-        mstore(add(r0, 64), mload(add(p0, 64)))
-        mstore(add(r0, 96), mload(add(p0, 96)))
-        let t2 := mload(add(r0, 64))
+        let t2 := mload(add(p0, 32))
         let v1 := t2
         ret := v1
         leave
       }
       function $std$lib$abi$sol$impl_trait$SolDecoder$68ab$pos$g463e_0(p0) -> ret {
-        let r0 := mload(0x40)
-        if iszero(r0) {
-          r0 := 0x80
-        }
-        mstore(0x40, add(r0, 128))
-        mstore(r0, mload(p0))
-        mstore(add(r0, 32), mload(add(p0, 32)))
-        mstore(add(r0, 64), mload(add(p0, 64)))
-        mstore(add(r0, 96), mload(add(p0, 96)))
-        let t2 := mload(add(r0, 64))
+        let t2 := mload(add(p0, 64))
         let v1 := t2
         ret := v1
         leave
       }
       function $std$lib$abi$sol$impl_trait$SolDecoder$68ab$pos$g463e_1(p0) -> ret {
-        let r0 := mload(0x40)
-        if iszero(r0) {
-          r0 := 0x80
-        }
-        mstore(0x40, add(r0, 128))
-        mstore(r0, mload(p0))
-        mstore(add(r0, 32), mload(add(p0, 32)))
-        mstore(add(r0, 64), mload(add(p0, 64)))
-        mstore(add(r0, 96), mload(add(p0, 96)))
-        let t2 := mload(add(r0, 64))
+        let t2 := mload(add(p0, 64))
+        let v1 := t2
+        ret := v1
+        leave
+      }
+      function $std$lib$abi$sol$impl_trait$SolDecoder$68ab$pos$g463e_2(p0) -> ret {
+        let t2 := mload(add(p0, 64))
         let v1 := t2
         ret := v1
         leave
@@ -967,124 +907,6 @@ object "EffectHandleFieldDeref" {
         ret := v1
         leave
       }
-      function $std$lib$abi$sol$impl_trait$SolDecoder$68ab$read_word$g463e_4(p0) -> ret {
-        let v1 := 0
-        let v2 := 0
-        let v4 := p0
-        let v22 := $std$lib$evm$memory_input$impl_trait$MemoryBytes$c1cd$len_4(v4)
-        let v5 := v22
-        v1 := v5
-        let t35 := mload(add(p0, 64))
-        let v6 := t35
-        let v23 := 0x20
-        let v7 := v23
-        let t36 := add(v6, v7)
-        if lt(t36, v6) {
-          mstore(0, 0x4e487b7100000000000000000000000000000000000000000000000000000000)
-          mstore(4, 0x11)
-          revert(0, 36)
-        }
-        let v24 := t36
-        let v8 := v24
-        v2 := v8
-        let t37 := mload(add(p0, 64))
-        let v25 := t37
-        mstore(add(p0, 64), v25)
-        let t38 := mload(add(p0, 64))
-        let v26 := t38
-        let v27 := iszero(iszero(lt(v2, v26)))
-        let v11 := iszero(iszero(v27))
-        if iszero(iszero(v11)) {
-          let v28 := 0x00
-          let v14 := v28
-          let v29 := 0x00
-          let v15 := v29
-          revert(v14, v15)
-        }
-        if iszero(iszero(iszero(v11))) {
-          let v12 := v1
-          let v33 := v12
-          let v34 := iszero(iszero(gt(v2, v33)))
-          let v13 := iszero(iszero(v34))
-          if iszero(iszero(v13)) {
-            let v28 := 0x00
-            let v14 := v28
-            let v29 := 0x00
-            let v15 := v29
-            revert(v14, v15)
-          }
-          if iszero(iszero(iszero(v13))) {
-            let v18 := p0
-            let t39 := mload(add(p0, 64))
-            let v19 := t39
-            let v32 := $std$lib$evm$memory_input$impl_trait$MemoryBytes$c1cd$word_at_4(v18, v19)
-            let v20 := v32
-            let v3 := v20
-            mstore(add(p0, 64), v2)
-            ret := v3
-            leave
-          }
-        }
-      }
-      function $std$lib$abi$sol$impl_trait$SolDecoder$68ab$read_word$g463e_5(p0) -> ret {
-        let v1 := 0
-        let v2 := 0
-        let v4 := p0
-        let v22 := $std$lib$evm$memory_input$impl_trait$MemoryBytes$c1cd$len_5(v4)
-        let v5 := v22
-        v1 := v5
-        let t35 := mload(add(p0, 64))
-        let v6 := t35
-        let v23 := 0x20
-        let v7 := v23
-        let t36 := add(v6, v7)
-        if lt(t36, v6) {
-          mstore(0, 0x4e487b7100000000000000000000000000000000000000000000000000000000)
-          mstore(4, 0x11)
-          revert(0, 36)
-        }
-        let v24 := t36
-        let v8 := v24
-        v2 := v8
-        let t37 := mload(add(p0, 64))
-        let v25 := t37
-        mstore(add(p0, 64), v25)
-        let t38 := mload(add(p0, 64))
-        let v26 := t38
-        let v27 := iszero(iszero(lt(v2, v26)))
-        let v11 := iszero(iszero(v27))
-        if iszero(iszero(v11)) {
-          let v28 := 0x00
-          let v14 := v28
-          let v29 := 0x00
-          let v15 := v29
-          revert(v14, v15)
-        }
-        if iszero(iszero(iszero(v11))) {
-          let v12 := v1
-          let v33 := v12
-          let v34 := iszero(iszero(gt(v2, v33)))
-          let v13 := iszero(iszero(v34))
-          if iszero(iszero(v13)) {
-            let v28 := 0x00
-            let v14 := v28
-            let v29 := 0x00
-            let v15 := v29
-            revert(v14, v15)
-          }
-          if iszero(iszero(iszero(v13))) {
-            let v18 := p0
-            let t39 := mload(add(p0, 64))
-            let v19 := t39
-            let v32 := $std$lib$evm$memory_input$impl_trait$MemoryBytes$c1cd$word_at_5(v18, v19)
-            let v20 := v32
-            let v3 := v20
-            mstore(add(p0, 64), v2)
-            ret := v3
-            leave
-          }
-        }
-      }
       function $std$lib$abi$sol$impl_trait$SolDecoder$68ab$read_word$g463e_0(p0) -> ret {
         let v1 := 0
         let v2 := 0
@@ -1092,24 +914,24 @@ object "EffectHandleFieldDeref" {
         let v22 := $std$lib$evm$memory_input$impl_trait$MemoryBytes$c1cd$len_0(v4)
         let v5 := v22
         v1 := v5
-        let t35 := mload(add(p0, 64))
-        let v6 := t35
+        let t34 := mload(add(p0, 64))
+        let v6 := t34
         let v23 := 0x20
         let v7 := v23
-        let t36 := add(v6, v7)
-        if lt(t36, v6) {
+        let t35 := add(v6, v7)
+        if lt(t35, v6) {
           mstore(0, 0x4e487b7100000000000000000000000000000000000000000000000000000000)
           mstore(4, 0x11)
           revert(0, 36)
         }
-        let v24 := t36
+        let v24 := t35
         let v8 := v24
         v2 := v8
-        let t37 := mload(add(p0, 64))
-        let v25 := t37
+        let t36 := mload(add(p0, 64))
+        let v25 := t36
         mstore(add(p0, 64), v25)
-        let t38 := mload(add(p0, 64))
-        let v26 := t38
+        let t37 := mload(add(p0, 64))
+        let v26 := t37
         let v27 := iszero(iszero(lt(v2, v26)))
         let v11 := iszero(iszero(v27))
         if iszero(iszero(v11)) {
@@ -1121,9 +943,8 @@ object "EffectHandleFieldDeref" {
         }
         if iszero(iszero(iszero(v11))) {
           let v12 := v1
-          let v33 := v12
-          let v34 := iszero(iszero(gt(v2, v33)))
-          let v13 := iszero(iszero(v34))
+          let v33 := iszero(iszero(gt(v2, v12)))
+          let v13 := iszero(iszero(v33))
           if iszero(iszero(v13)) {
             let v28 := 0x00
             let v14 := v28
@@ -1133,8 +954,8 @@ object "EffectHandleFieldDeref" {
           }
           if iszero(iszero(iszero(v13))) {
             let v18 := p0
-            let t39 := mload(add(p0, 64))
-            let v19 := t39
+            let t38 := mload(add(p0, 64))
+            let v19 := t38
             let v32 := $std$lib$evm$memory_input$impl_trait$MemoryBytes$c1cd$word_at_0(v18, v19)
             let v20 := v32
             let v3 := v20
@@ -1151,24 +972,24 @@ object "EffectHandleFieldDeref" {
         let v22 := $std$lib$evm$memory_input$impl_trait$MemoryBytes$c1cd$len_1(v4)
         let v5 := v22
         v1 := v5
-        let t35 := mload(add(p0, 64))
-        let v6 := t35
+        let t34 := mload(add(p0, 64))
+        let v6 := t34
         let v23 := 0x20
         let v7 := v23
-        let t36 := add(v6, v7)
-        if lt(t36, v6) {
+        let t35 := add(v6, v7)
+        if lt(t35, v6) {
           mstore(0, 0x4e487b7100000000000000000000000000000000000000000000000000000000)
           mstore(4, 0x11)
           revert(0, 36)
         }
-        let v24 := t36
+        let v24 := t35
         let v8 := v24
         v2 := v8
-        let t37 := mload(add(p0, 64))
-        let v25 := t37
+        let t36 := mload(add(p0, 64))
+        let v25 := t36
         mstore(add(p0, 64), v25)
-        let t38 := mload(add(p0, 64))
-        let v26 := t38
+        let t37 := mload(add(p0, 64))
+        let v26 := t37
         let v27 := iszero(iszero(lt(v2, v26)))
         let v11 := iszero(iszero(v27))
         if iszero(iszero(v11)) {
@@ -1180,9 +1001,8 @@ object "EffectHandleFieldDeref" {
         }
         if iszero(iszero(iszero(v11))) {
           let v12 := v1
-          let v33 := v12
-          let v34 := iszero(iszero(gt(v2, v33)))
-          let v13 := iszero(iszero(v34))
+          let v33 := iszero(iszero(gt(v2, v12)))
+          let v13 := iszero(iszero(v33))
           if iszero(iszero(v13)) {
             let v28 := 0x00
             let v14 := v28
@@ -1192,8 +1012,8 @@ object "EffectHandleFieldDeref" {
           }
           if iszero(iszero(iszero(v13))) {
             let v18 := p0
-            let t39 := mload(add(p0, 64))
-            let v19 := t39
+            let t38 := mload(add(p0, 64))
+            let v19 := t38
             let v32 := $std$lib$evm$memory_input$impl_trait$MemoryBytes$c1cd$word_at_1(v18, v19)
             let v20 := v32
             let v3 := v20
@@ -1210,24 +1030,24 @@ object "EffectHandleFieldDeref" {
         let v22 := $std$lib$evm$memory_input$impl_trait$MemoryBytes$c1cd$len_2(v4)
         let v5 := v22
         v1 := v5
-        let t35 := mload(add(p0, 64))
-        let v6 := t35
+        let t34 := mload(add(p0, 64))
+        let v6 := t34
         let v23 := 0x20
         let v7 := v23
-        let t36 := add(v6, v7)
-        if lt(t36, v6) {
+        let t35 := add(v6, v7)
+        if lt(t35, v6) {
           mstore(0, 0x4e487b7100000000000000000000000000000000000000000000000000000000)
           mstore(4, 0x11)
           revert(0, 36)
         }
-        let v24 := t36
+        let v24 := t35
         let v8 := v24
         v2 := v8
-        let t37 := mload(add(p0, 64))
-        let v25 := t37
+        let t36 := mload(add(p0, 64))
+        let v25 := t36
         mstore(add(p0, 64), v25)
-        let t38 := mload(add(p0, 64))
-        let v26 := t38
+        let t37 := mload(add(p0, 64))
+        let v26 := t37
         let v27 := iszero(iszero(lt(v2, v26)))
         let v11 := iszero(iszero(v27))
         if iszero(iszero(v11)) {
@@ -1239,9 +1059,8 @@ object "EffectHandleFieldDeref" {
         }
         if iszero(iszero(iszero(v11))) {
           let v12 := v1
-          let v33 := v12
-          let v34 := iszero(iszero(gt(v2, v33)))
-          let v13 := iszero(iszero(v34))
+          let v33 := iszero(iszero(gt(v2, v12)))
+          let v13 := iszero(iszero(v33))
           if iszero(iszero(v13)) {
             let v28 := 0x00
             let v14 := v28
@@ -1251,9 +1070,67 @@ object "EffectHandleFieldDeref" {
           }
           if iszero(iszero(iszero(v13))) {
             let v18 := p0
-            let t39 := mload(add(p0, 64))
-            let v19 := t39
+            let t38 := mload(add(p0, 64))
+            let v19 := t38
             let v32 := $std$lib$evm$memory_input$impl_trait$MemoryBytes$c1cd$word_at_2(v18, v19)
+            let v20 := v32
+            let v3 := v20
+            mstore(add(p0, 64), v2)
+            ret := v3
+            leave
+          }
+        }
+      }
+      function $std$lib$abi$sol$impl_trait$SolDecoder$68ab$read_word$g463e_4(p0) -> ret {
+        let v1 := 0
+        let v2 := 0
+        let v4 := p0
+        let v22 := $std$lib$evm$memory_input$impl_trait$MemoryBytes$c1cd$len_4(v4)
+        let v5 := v22
+        v1 := v5
+        let t34 := mload(add(p0, 64))
+        let v6 := t34
+        let v23 := 0x20
+        let v7 := v23
+        let t35 := add(v6, v7)
+        if lt(t35, v6) {
+          mstore(0, 0x4e487b7100000000000000000000000000000000000000000000000000000000)
+          mstore(4, 0x11)
+          revert(0, 36)
+        }
+        let v24 := t35
+        let v8 := v24
+        v2 := v8
+        let t36 := mload(add(p0, 64))
+        let v25 := t36
+        mstore(add(p0, 64), v25)
+        let t37 := mload(add(p0, 64))
+        let v26 := t37
+        let v27 := iszero(iszero(lt(v2, v26)))
+        let v11 := iszero(iszero(v27))
+        if iszero(iszero(v11)) {
+          let v28 := 0x00
+          let v14 := v28
+          let v29 := 0x00
+          let v15 := v29
+          revert(v14, v15)
+        }
+        if iszero(iszero(iszero(v11))) {
+          let v12 := v1
+          let v33 := iszero(iszero(gt(v2, v12)))
+          let v13 := iszero(iszero(v33))
+          if iszero(iszero(v13)) {
+            let v28 := 0x00
+            let v14 := v28
+            let v29 := 0x00
+            let v15 := v29
+            revert(v14, v15)
+          }
+          if iszero(iszero(iszero(v13))) {
+            let v18 := p0
+            let t38 := mload(add(p0, 64))
+            let v19 := t38
+            let v32 := $std$lib$evm$memory_input$impl_trait$MemoryBytes$c1cd$word_at_4(v18, v19)
             let v20 := v32
             let v3 := v20
             mstore(add(p0, 64), v2)
@@ -1269,24 +1146,24 @@ object "EffectHandleFieldDeref" {
         let v22 := $std$lib$evm$memory_input$impl_trait$MemoryBytes$c1cd$len_3(v4)
         let v5 := v22
         v1 := v5
-        let t35 := mload(add(p0, 64))
-        let v6 := t35
+        let t34 := mload(add(p0, 64))
+        let v6 := t34
         let v23 := 0x20
         let v7 := v23
-        let t36 := add(v6, v7)
-        if lt(t36, v6) {
+        let t35 := add(v6, v7)
+        if lt(t35, v6) {
           mstore(0, 0x4e487b7100000000000000000000000000000000000000000000000000000000)
           mstore(4, 0x11)
           revert(0, 36)
         }
-        let v24 := t36
+        let v24 := t35
         let v8 := v24
         v2 := v8
-        let t37 := mload(add(p0, 64))
-        let v25 := t37
+        let t36 := mload(add(p0, 64))
+        let v25 := t36
         mstore(add(p0, 64), v25)
-        let t38 := mload(add(p0, 64))
-        let v26 := t38
+        let t37 := mload(add(p0, 64))
+        let v26 := t37
         let v27 := iszero(iszero(lt(v2, v26)))
         let v11 := iszero(iszero(v27))
         if iszero(iszero(v11)) {
@@ -1298,9 +1175,8 @@ object "EffectHandleFieldDeref" {
         }
         if iszero(iszero(iszero(v11))) {
           let v12 := v1
-          let v33 := v12
-          let v34 := iszero(iszero(gt(v2, v33)))
-          let v13 := iszero(iszero(v34))
+          let v33 := iszero(iszero(gt(v2, v12)))
+          let v13 := iszero(iszero(v33))
           if iszero(iszero(v13)) {
             let v28 := 0x00
             let v14 := v28
@@ -1310,9 +1186,67 @@ object "EffectHandleFieldDeref" {
           }
           if iszero(iszero(iszero(v13))) {
             let v18 := p0
-            let t39 := mload(add(p0, 64))
-            let v19 := t39
+            let t38 := mload(add(p0, 64))
+            let v19 := t38
             let v32 := $std$lib$evm$memory_input$impl_trait$MemoryBytes$c1cd$word_at_3(v18, v19)
+            let v20 := v32
+            let v3 := v20
+            mstore(add(p0, 64), v2)
+            ret := v3
+            leave
+          }
+        }
+      }
+      function $std$lib$abi$sol$impl_trait$SolDecoder$68ab$read_word$g463e_5(p0) -> ret {
+        let v1 := 0
+        let v2 := 0
+        let v4 := p0
+        let v22 := $std$lib$evm$memory_input$impl_trait$MemoryBytes$c1cd$len_5(v4)
+        let v5 := v22
+        v1 := v5
+        let t34 := mload(add(p0, 64))
+        let v6 := t34
+        let v23 := 0x20
+        let v7 := v23
+        let t35 := add(v6, v7)
+        if lt(t35, v6) {
+          mstore(0, 0x4e487b7100000000000000000000000000000000000000000000000000000000)
+          mstore(4, 0x11)
+          revert(0, 36)
+        }
+        let v24 := t35
+        let v8 := v24
+        v2 := v8
+        let t36 := mload(add(p0, 64))
+        let v25 := t36
+        mstore(add(p0, 64), v25)
+        let t37 := mload(add(p0, 64))
+        let v26 := t37
+        let v27 := iszero(iszero(lt(v2, v26)))
+        let v11 := iszero(iszero(v27))
+        if iszero(iszero(v11)) {
+          let v28 := 0x00
+          let v14 := v28
+          let v29 := 0x00
+          let v15 := v29
+          revert(v14, v15)
+        }
+        if iszero(iszero(iszero(v11))) {
+          let v12 := v1
+          let v33 := iszero(iszero(gt(v2, v12)))
+          let v13 := iszero(iszero(v33))
+          if iszero(iszero(v13)) {
+            let v28 := 0x00
+            let v14 := v28
+            let v29 := 0x00
+            let v15 := v29
+            revert(v14, v15)
+          }
+          if iszero(iszero(iszero(v13))) {
+            let v18 := p0
+            let t38 := mload(add(p0, 64))
+            let v19 := t38
+            let v32 := $std$lib$evm$memory_input$impl_trait$MemoryBytes$c1cd$word_at_5(v18, v19)
             let v20 := v32
             let v3 := v20
             mstore(add(p0, 64), v2)
@@ -1326,6 +1260,11 @@ object "EffectHandleFieldDeref" {
         mstore(p0, v2)
         leave
       }
+      function $std$lib$abi$sol$impl_trait$SolDecoder$68ab$set_base$g463e_0(p0, p1) {
+        let v2 := p1
+        mstore(add(p0, 96), v2)
+        leave
+      }
       function $std$lib$abi$sol$impl_trait$SolDecoder$68ab$set_base$g463e_1(p0, p1) {
         let v2 := p1
         mstore(add(p0, 96), v2)
@@ -1336,19 +1275,9 @@ object "EffectHandleFieldDeref" {
         mstore(add(p0, 96), v2)
         leave
       }
-      function $std$lib$abi$sol$impl_trait$SolDecoder$68ab$set_base$g463e_0(p0, p1) {
-        let v2 := p1
-        mstore(add(p0, 96), v2)
-        leave
-      }
       function $impl_trait$SolEncoder$set_pos(p0, p1) {
         let v2 := p1
         mstore(add(p0, 32), v2)
-        leave
-      }
-      function $std$lib$abi$sol$impl_trait$SolDecoder$68ab$set_pos$g463e_2(p0, p1) {
-        let v2 := p1
-        mstore(add(p0, 64), v2)
         leave
       }
       function $std$lib$abi$sol$impl_trait$SolDecoder$68ab$set_pos$g463e_0(p0, p1) {
@@ -1361,47 +1290,16 @@ object "EffectHandleFieldDeref" {
         mstore(add(p0, 64), v2)
         leave
       }
+      function $std$lib$abi$sol$impl_trait$SolDecoder$68ab$set_pos$g463e_2(p0, p1) {
+        let v2 := p1
+        mstore(add(p0, 64), v2)
+        leave
+      }
       function $stor_ptr(p0) -> ret {
         let v2 := p0
         let v4 := $from_raw(v2)
         let v3 := v4
         ret := v3
-        leave
-      }
-      function $std$lib$evm$memory_input$impl_trait$MemoryBytes$c1cd$word_at_5(p0, p1) -> ret {
-        let r0 := mload(0x40)
-        if iszero(r0) {
-          r0 := 0x80
-        }
-        mstore(0x40, add(r0, 64))
-        mstore(r0, mload(p0))
-        mstore(add(r0, 32), mload(add(p0, 32)))
-        let t9 := mload(r0)
-        let v2 := t9
-        let v3 := p1
-        let v6 := add(v2, v3)
-        let v4 := v6
-        let v8 := mload(v4)
-        let v5 := v8
-        ret := v5
-        leave
-      }
-      function $std$lib$evm$memory_input$impl_trait$MemoryBytes$c1cd$word_at_1(p0, p1) -> ret {
-        let r0 := mload(0x40)
-        if iszero(r0) {
-          r0 := 0x80
-        }
-        mstore(0x40, add(r0, 64))
-        mstore(r0, mload(p0))
-        mstore(add(r0, 32), mload(add(p0, 32)))
-        let t9 := mload(r0)
-        let v2 := t9
-        let v3 := p1
-        let v6 := add(v2, v3)
-        let v4 := v6
-        let v8 := mload(v4)
-        let v5 := v8
-        ret := v5
         leave
       }
       function $std$lib$evm$memory_input$impl_trait$MemoryBytes$c1cd$word_at_3(p0, p1) -> ret {
@@ -1422,7 +1320,7 @@ object "EffectHandleFieldDeref" {
         ret := v5
         leave
       }
-      function $std$lib$evm$memory_input$impl_trait$MemoryBytes$c1cd$word_at_4(p0, p1) -> ret {
+      function $std$lib$evm$memory_input$impl_trait$MemoryBytes$c1cd$word_at_5(p0, p1) -> ret {
         let r0 := mload(0x40)
         if iszero(r0) {
           r0 := 0x80
@@ -1459,6 +1357,42 @@ object "EffectHandleFieldDeref" {
         leave
       }
       function $std$lib$evm$memory_input$impl_trait$MemoryBytes$c1cd$word_at_2(p0, p1) -> ret {
+        let r0 := mload(0x40)
+        if iszero(r0) {
+          r0 := 0x80
+        }
+        mstore(0x40, add(r0, 64))
+        mstore(r0, mload(p0))
+        mstore(add(r0, 32), mload(add(p0, 32)))
+        let t9 := mload(r0)
+        let v2 := t9
+        let v3 := p1
+        let v6 := add(v2, v3)
+        let v4 := v6
+        let v8 := mload(v4)
+        let v5 := v8
+        ret := v5
+        leave
+      }
+      function $std$lib$evm$memory_input$impl_trait$MemoryBytes$c1cd$word_at_4(p0, p1) -> ret {
+        let r0 := mload(0x40)
+        if iszero(r0) {
+          r0 := 0x80
+        }
+        mstore(0x40, add(r0, 64))
+        mstore(r0, mload(p0))
+        mstore(add(r0, 32), mload(add(p0, 32)))
+        let t9 := mload(r0)
+        let v2 := t9
+        let v3 := p1
+        let v6 := add(v2, v3)
+        let v4 := v6
+        let v8 := mload(v4)
+        let v5 := v8
+        ret := v5
+        leave
+      }
+      function $std$lib$evm$memory_input$impl_trait$MemoryBytes$c1cd$word_at_1(p0, p1) -> ret {
         let r0 := mload(0x40)
         if iszero(r0) {
           r0 := 0x80

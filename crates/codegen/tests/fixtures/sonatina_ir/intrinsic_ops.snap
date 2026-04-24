@@ -132,9 +132,8 @@ func private %mstore8(v0.objref<@layout_1>, v1.i256, v2.i8) {
 
     block1:
         v5.i256 = mload v3 i256;
-        v6.i256 = mload v4 i256;
-        v7.i8 = trunc v6 i8;
-        evm_mstore8 v5 v7;
+        v6.i8 = mload v4 i8;
+        evm_mstore8 v5 v6;
         return;
 }
 
@@ -175,9 +174,8 @@ func private %store_byte(v0.i256, v1.i8, v2.objref<@layout_1>) {
 
     block1:
         v6.i256 = mload v3 i256;
-        v7.i256 = mload v4 i256;
-        v8.i8 = trunc v7 i8;
-        call %mstore8 v2 v6 v8;
+        v7.i8 = mload v4 i8;
+        call %mstore8 v2 v6 v7;
         return;
 }
 

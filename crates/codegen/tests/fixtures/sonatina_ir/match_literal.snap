@@ -42,14 +42,13 @@ func private %match_bool(v0.i1) -> i64 {
         jump block1;
 
     block1:
-        v2.i256 = mload v1 i256;
-        v4.i1 = ne v2 0.i256;
-        v6.i1 = eq v4 1.i1;
-        br v6 block3 block5;
+        v2.i1 = mload v1 i1;
+        v4.i1 = eq v2 1.i1;
+        br v4 block3 block5;
 
     block2:
-        v7.i64 = phi (1.i64 block3) (2.i64 block4);
-        return v7;
+        v5.i64 = phi (1.i64 block3) (2.i64 block4);
+        return v5;
 
     block3:
         jump block2;
@@ -68,14 +67,13 @@ func private %match_i128(v0.i128) -> i128 {
         jump block1;
 
     block1:
-        v2.i256 = mload v1 i256;
-        v3.i128 = trunc v2 i128;
-        v5.i1 = eq v3 0.i128;
-        br v5 block3 block6;
+        v2.i128 = mload v1 i128;
+        v4.i1 = eq v2 0.i128;
+        br v4 block3 block6;
 
     block2:
-        v6.i128 = phi (1.i128 block3) (2.i128 block4) (3.i128 block5);
-        return v6;
+        v5.i128 = phi (1.i128 block3) (2.i128 block4) (3.i128 block5);
+        return v5;
 
     block3:
         jump block2;
@@ -87,8 +85,8 @@ func private %match_i128(v0.i128) -> i128 {
         jump block2;
 
     block6:
-        v12.i1 = eq v3 170141183460469231731687303715884105727.i128;
-        br v12 block4 block7;
+        v11.i1 = eq v2 170141183460469231731687303715884105727.i128;
+        br v11 block4 block7;
 
     block7:
         jump block5;
@@ -101,14 +99,13 @@ func private %match_i16(v0.i16) -> i16 {
         jump block1;
 
     block1:
-        v2.i256 = mload v1 i256;
-        v3.i16 = trunc v2 i16;
-        v5.i1 = eq v3 0.i16;
-        br v5 block3 block6;
+        v2.i16 = mload v1 i16;
+        v4.i1 = eq v2 0.i16;
+        br v4 block3 block6;
 
     block2:
-        v6.i16 = phi (1.i16 block3) (2.i16 block4) (3.i16 block5);
-        return v6;
+        v5.i16 = phi (1.i16 block3) (2.i16 block4) (3.i16 block5);
+        return v5;
 
     block3:
         jump block2;
@@ -120,8 +117,8 @@ func private %match_i16(v0.i16) -> i16 {
         jump block2;
 
     block6:
-        v12.i1 = eq v3 32000.i16;
-        br v12 block4 block7;
+        v11.i1 = eq v2 32000.i16;
+        br v11 block4 block7;
 
     block7:
         jump block5;
@@ -166,14 +163,13 @@ func private %match_i32(v0.i32) -> i32 {
         jump block1;
 
     block1:
-        v2.i256 = mload v1 i256;
-        v3.i32 = trunc v2 i32;
-        v5.i1 = eq v3 0.i32;
-        br v5 block3 block6;
+        v2.i32 = mload v1 i32;
+        v4.i1 = eq v2 0.i32;
+        br v4 block3 block6;
 
     block2:
-        v6.i32 = phi (1.i32 block3) (2.i32 block4) (3.i32 block5);
-        return v6;
+        v5.i32 = phi (1.i32 block3) (2.i32 block4) (3.i32 block5);
+        return v5;
 
     block3:
         jump block2;
@@ -185,8 +181,8 @@ func private %match_i32(v0.i32) -> i32 {
         jump block2;
 
     block6:
-        v12.i1 = eq v3 2000000000.i32;
-        br v12 block4 block7;
+        v11.i1 = eq v2 2000000000.i32;
+        br v11 block4 block7;
 
     block7:
         jump block5;
@@ -199,14 +195,13 @@ func private %match_i64(v0.i64) -> i64 {
         jump block1;
 
     block1:
-        v2.i256 = mload v1 i256;
-        v3.i64 = trunc v2 i64;
-        v5.i1 = eq v3 0.i64;
-        br v5 block3 block6;
+        v2.i64 = mload v1 i64;
+        v4.i1 = eq v2 0.i64;
+        br v4 block3 block6;
 
     block2:
-        v6.i64 = phi (1.i64 block3) (2.i64 block4) (3.i64 block5);
-        return v6;
+        v5.i64 = phi (1.i64 block3) (2.i64 block4) (3.i64 block5);
+        return v5;
 
     block3:
         jump block2;
@@ -218,8 +213,8 @@ func private %match_i64(v0.i64) -> i64 {
         jump block2;
 
     block6:
-        v12.i1 = eq v3 9223372036854775807.i64;
-        br v12 block4 block7;
+        v11.i1 = eq v2 9223372036854775807.i64;
+        br v11 block4 block7;
 
     block7:
         jump block5;
@@ -232,14 +227,13 @@ func private %match_i8(v0.i8) -> i8 {
         jump block1;
 
     block1:
-        v2.i256 = mload v1 i256;
-        v3.i8 = trunc v2 i8;
-        v5.i1 = eq v3 0.i8;
-        br v5 block3 block6;
+        v2.i8 = mload v1 i8;
+        v4.i1 = eq v2 0.i8;
+        br v4 block3 block6;
 
     block2:
-        v6.i8 = phi (1.i8 block3) (2.i8 block4) (3.i8 block5);
-        return v6;
+        v5.i8 = phi (1.i8 block3) (2.i8 block4) (3.i8 block5);
+        return v5;
 
     block3:
         jump block2;
@@ -251,8 +245,8 @@ func private %match_i8(v0.i8) -> i8 {
         jump block2;
 
     block6:
-        v12.i1 = eq v3 99.i8;
-        br v12 block4 block7;
+        v11.i1 = eq v2 99.i8;
+        br v11 block4 block7;
 
     block7:
         jump block5;
@@ -265,14 +259,13 @@ func private %match_u128(v0.i128) -> i128 {
         jump block1;
 
     block1:
-        v2.i256 = mload v1 i256;
-        v3.i128 = trunc v2 i128;
-        v5.i1 = eq v3 0.i128;
-        br v5 block3 block6;
+        v2.i128 = mload v1 i128;
+        v4.i1 = eq v2 0.i128;
+        br v4 block3 block6;
 
     block2:
-        v6.i128 = phi (1.i128 block3) (2.i128 block4) (3.i128 block5);
-        return v6;
+        v5.i128 = phi (1.i128 block3) (2.i128 block4) (3.i128 block5);
+        return v5;
 
     block3:
         jump block2;
@@ -284,8 +277,8 @@ func private %match_u128(v0.i128) -> i128 {
         jump block2;
 
     block6:
-        v12.i1 = eq v3 -1.i128;
-        br v12 block4 block7;
+        v11.i1 = eq v2 -1.i128;
+        br v11 block4 block7;
 
     block7:
         jump block5;
@@ -298,14 +291,13 @@ func private %match_u16(v0.i16) -> i16 {
         jump block1;
 
     block1:
-        v2.i256 = mload v1 i256;
-        v3.i16 = trunc v2 i16;
-        v5.i1 = eq v3 4660.i16;
-        br v5 block3 block6;
+        v2.i16 = mload v1 i16;
+        v4.i1 = eq v2 4660.i16;
+        br v4 block3 block6;
 
     block2:
-        v6.i16 = phi (1.i16 block3) (2.i16 block4) (3.i16 block5);
-        return v6;
+        v5.i16 = phi (1.i16 block3) (2.i16 block4) (3.i16 block5);
+        return v5;
 
     block3:
         jump block2;
@@ -317,8 +309,8 @@ func private %match_u16(v0.i16) -> i16 {
         jump block2;
 
     block6:
-        v12.i1 = eq v3 -21555.i16;
-        br v12 block4 block7;
+        v11.i1 = eq v2 -21555.i16;
+        br v11 block4 block7;
 
     block7:
         jump block5;
@@ -363,14 +355,13 @@ func private %match_u32(v0.i32) -> i32 {
         jump block1;
 
     block1:
-        v2.i256 = mload v1 i256;
-        v3.i32 = trunc v2 i32;
-        v5.i1 = eq v3 -559038737.i32;
-        br v5 block3 block6;
+        v2.i32 = mload v1 i32;
+        v4.i1 = eq v2 -559038737.i32;
+        br v4 block3 block6;
 
     block2:
-        v6.i32 = phi (1.i32 block3) (2.i32 block4) (3.i32 block5);
-        return v6;
+        v5.i32 = phi (1.i32 block3) (2.i32 block4) (3.i32 block5);
+        return v5;
 
     block3:
         jump block2;
@@ -382,8 +373,8 @@ func private %match_u32(v0.i32) -> i32 {
         jump block2;
 
     block6:
-        v12.i1 = eq v3 -889275714.i32;
-        br v12 block4 block7;
+        v11.i1 = eq v2 -889275714.i32;
+        br v11 block4 block7;
 
     block7:
         jump block5;
@@ -396,14 +387,13 @@ func private %match_u64(v0.i64) -> i64 {
         jump block1;
 
     block1:
-        v2.i256 = mload v1 i256;
-        v3.i64 = trunc v2 i64;
-        v5.i1 = eq v3 0.i64;
-        br v5 block3 block6;
+        v2.i64 = mload v1 i64;
+        v4.i1 = eq v2 0.i64;
+        br v4 block3 block6;
 
     block2:
-        v6.i64 = phi (1.i64 block3) (2.i64 block4) (3.i64 block5);
-        return v6;
+        v5.i64 = phi (1.i64 block3) (2.i64 block4) (3.i64 block5);
+        return v5;
 
     block3:
         jump block2;
@@ -415,8 +405,8 @@ func private %match_u64(v0.i64) -> i64 {
         jump block2;
 
     block6:
-        v12.i1 = eq v3 -1.i64;
-        br v12 block4 block7;
+        v11.i1 = eq v2 -1.i64;
+        br v11 block4 block7;
 
     block7:
         jump block5;
@@ -429,14 +419,13 @@ func private %match_u8(v0.i8) -> i8 {
         jump block1;
 
     block1:
-        v2.i256 = mload v1 i256;
-        v3.i8 = trunc v2 i8;
-        v5.i1 = eq v3 0.i8;
-        br v5 block3 block6;
+        v2.i8 = mload v1 i8;
+        v4.i1 = eq v2 0.i8;
+        br v4 block3 block6;
 
     block2:
-        v6.i8 = phi (1.i8 block3) (2.i8 block4) (3.i8 block5);
-        return v6;
+        v5.i8 = phi (1.i8 block3) (2.i8 block4) (3.i8 block5);
+        return v5;
 
     block3:
         jump block2;
@@ -448,8 +437,8 @@ func private %match_u8(v0.i8) -> i8 {
         jump block2;
 
     block6:
-        v12.i1 = eq v3 -1.i8;
-        br v12 block4 block7;
+        v11.i1 = eq v2 -1.i8;
+        br v11 block4 block7;
 
     block7:
         jump block5;

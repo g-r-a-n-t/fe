@@ -11,7 +11,7 @@ use crate::{
             },
             semantic_instance_base_assumptions_for_key,
         },
-        ty::{ty_check::LocalBinding, ty_def::TyId, ty_is_copy},
+        ty::{normalize::normalize_ty, ty_check::LocalBinding, ty_def::TyId, ty_is_copy},
     },
     hir_def::ExprId,
     projection::{IndexSource, Projection, ProjectionPath},
@@ -235,8 +235,14 @@ impl<'db> NormalizeCtxt<'db> {
                 let place = self.normalize_place_provenance(local, provenance)?;
                 Ok(NormalizedBindingLowering::PlaceBoundValue { place, value_ty })
             }
-            SemanticLocalRole::PlaceCarrier { value_ty }
-            | SemanticLocalRole::DirectCarrier {
+            SemanticLocalRole::PlaceCarrier { provider, value_ty } => {
+                Ok(NormalizedBindingLowering::CarrierLocal {
+                    root: Some(self.push_local_root(local, raw_local.source)),
+                    provider,
+                    target_ty: value_ty,
+                })
+            }
+            SemanticLocalRole::DirectCarrier {
                 provider: None,
                 target_ty: value_ty,
             } => Ok(NormalizedBindingLowering::CarrierLocal {
@@ -281,9 +287,12 @@ impl<'db> NormalizeCtxt<'db> {
                     PlaceProvenance::Derived(_) => NLocalOrigin::AliasedPlace,
                 },
             ),
-            SemanticLocalRole::PlaceCarrier { .. } => {
-                (SemanticLocalKind::PlaceCarrier, NLocalOrigin::SelfRooted)
-            }
+            SemanticLocalRole::PlaceCarrier { provider, .. } => (
+                SemanticLocalKind::PlaceCarrier,
+                provider
+                    .clone()
+                    .map_or(NLocalOrigin::SelfRooted, NLocalOrigin::RootProvider),
+            ),
             SemanticLocalRole::DirectCarrier { provider, .. } => (
                 SemanticLocalKind::DirectCarrier,
                 provider
@@ -843,7 +852,7 @@ impl<'db> NormalizeCtxt<'db> {
                 .nth(idx)
                 .map(|param| param.mode(self.db))
                 .filter(|mode| *mode == crate::hir_def::FuncParamMode::View)
-                .map(|_| ReadMode::Copy)
+                .map(|_| self.read_mode_for_view_call_arg(ty))
                 .unwrap_or_else(|| self.read_mode_for_operand(local, origin, ty)),
             _ => self.read_mode_for_operand(local, origin, ty),
         };
@@ -924,6 +933,20 @@ impl<'db> NormalizeCtxt<'db> {
         })
     }
 
+    fn read_mode_for_view_call_arg(&self, ty: TyId<'db>) -> ReadMode {
+        let scope = self.raw.template_owner.scope();
+        let ty = normalize_ty(self.db, ty, scope, self.assumptions);
+        let value_ty = ty
+            .as_capability(self.db)
+            .map(|(_, inner)| normalize_ty(self.db, inner, scope, self.assumptions))
+            .unwrap_or(ty);
+        if ty_is_copy(self.db, scope, value_ty, self.assumptions) {
+            ReadMode::Copy
+        } else {
+            ReadMode::Read
+        }
+    }
+
     fn read_mode(
         &self,
         origin: crate::analysis::semantic::SemOrigin<'db>,
@@ -994,8 +1017,49 @@ impl<'db> NormalizeCtxt<'db> {
         place: &NSPlace<'db>,
     ) -> ReadMode {
         match place.root {
-            NSPlaceRoot::CarrierDerefLocal(_) => ReadMode::Copy,
+            NSPlaceRoot::CarrierDerefLocal(local) => {
+                self.read_mode_for_carrier_deref_local(origin, ty, local)
+            }
             NSPlaceRoot::Root(root) => self.read_mode_for_root(origin, ty, root),
+        }
+    }
+
+    fn read_mode_for_carrier_deref_local(
+        &self,
+        origin: crate::analysis::semantic::SemOrigin<'db>,
+        ty: TyId<'db>,
+        local: SLocalId,
+    ) -> ReadMode {
+        let Some(local) = self
+            .locals
+            .get(local.index())
+            .and_then(|local| local.as_ref())
+        else {
+            return ReadMode::Copy;
+        };
+        if local.ty.as_capability(self.db).is_none() {
+            return ReadMode::Copy;
+        }
+        match origin {
+            crate::analysis::semantic::SemOrigin::Expr(expr)
+                if self
+                    .instance
+                    .key(self.db)
+                    .instantiate_typed_body(self.db)
+                    .is_implicit_move(expr) =>
+            {
+                ReadMode::Move
+            }
+            _ if !ty_is_copy(
+                self.db,
+                self.raw.template_owner.scope(),
+                ty,
+                self.assumptions,
+            ) =>
+            {
+                ReadMode::Move
+            }
+            _ => ReadMode::Copy,
         }
     }
 
@@ -1030,6 +1094,15 @@ impl<'db> NormalizeCtxt<'db> {
                             .key(self.db)
                             .instantiate_typed_body(self.db)
                             .is_implicit_move(expr) =>
+                    {
+                        ReadMode::Move
+                    }
+                    _ if !ty_is_copy(
+                        self.db,
+                        self.raw.template_owner.scope(),
+                        ty,
+                        self.assumptions,
+                    ) =>
                     {
                         ReadMode::Move
                     }

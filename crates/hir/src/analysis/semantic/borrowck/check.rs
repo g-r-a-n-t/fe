@@ -719,7 +719,24 @@ impl<'db> Borrowck<'db> {
         targets: &FxHashSet<CanonPlace<'db>>,
         origin: crate::analysis::semantic::SemOrigin<'db>,
     ) -> Result<(), SemanticBorrowDiagnostic<'db>> {
-        if matches!(place.root, NSPlaceRoot::CarrierDerefLocal(_)) {
+        if let NSPlaceRoot::CarrierDerefLocal(local) = place.root {
+            if self.body.locals[local.index()]
+                .source
+                .is_some_and(|binding| {
+                    matches!(
+                        binding,
+                        crate::analysis::ty::ty_check::LocalBinding::Param {
+                            mode: FuncParamMode::View,
+                            ..
+                        }
+                    )
+                })
+            {
+                return Err(self.move_conflict_diag(
+                    origin,
+                    "cannot move out of a view parameter".to_string(),
+                ));
+            }
             return Err(self.move_conflict_diag(
                 origin,
                 "cannot move out through a borrow handle".to_string(),

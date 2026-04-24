@@ -13,16 +13,7 @@ object "EchoContract" {
       leave
     }
     function $std$lib$abi$sol$impl_trait$SolDecoder$68ab$base$g463e_0(p0) -> ret {
-      let r0 := mload(0x40)
-      if iszero(r0) {
-        r0 := 0x80
-      }
-      mstore(0x40, add(r0, 128))
-      mstore(r0, mload(p0))
-      mstore(add(r0, 32), mload(add(p0, 32)))
-      mstore(add(r0, 64), mload(add(p0, 64)))
-      mstore(add(r0, 96), mload(add(p0, 96)))
-      let t2 := mload(add(r0, 96))
+      let t2 := mload(add(p0, 96))
       let v1 := t2
       ret := v1
       leave
@@ -45,19 +36,19 @@ object "EchoContract" {
           revert(v0, v0)
         }
         if iszero(iszero(iszero(v5))) {
-          let t19 := sub(v4, v3)
+          let t18 := sub(v4, v3)
           if gt(v3, v4) {
             mstore(0, 0x4e487b7100000000000000000000000000000000000000000000000000000000)
             mstore(4, 0x11)
             revert(0, 36)
           }
-          let v6 := t19
-          let t20 := mload(0x40)
-          if iszero(t20) {
-            t20 := 0x80
+          let v6 := t18
+          let t19 := mload(0x40)
+          if iszero(t19) {
+            t19 := 0x80
           }
-          mstore(0x40, add(t20, v6))
-          let v7 := t20
+          mstore(0x40, add(t19, v6))
+          let v7 := t19
           datacopy(v7, v3, v6)
           let r9 := mload(0x40)
           if iszero(r9) {
@@ -66,17 +57,24 @@ object "EchoContract" {
           mstore(0x40, add(r9, 64))
           mstore(r9, v7)
           mstore(add(r9, 32), v6)
-          let v10 := $decoder_new(r9)
-          let v11 := v10
-          let v12 := v11
-          let v13 := $decode_payload$g4770(v12)
-          let v14 := v13
-          let t21 := mload(v14)
+          let r10 := mload(0x40)
+          if iszero(r10) {
+            r10 := 0x80
+          }
+          mstore(0x40, add(r10, 128))
+          mstore(r10, mload($decoder_new(r9)))
+          mstore(add(r10, 32), mload(add($decoder_new(r9), 32)))
+          mstore(add(r10, 64), mload(add($decoder_new(r9), 64)))
+          mstore(add(r10, 96), mload(add($decoder_new(r9), 96)))
+          let v11 := r10
+          let v12 := $decode_payload$g4770(v11)
+          let v13 := v12
+          let t20 := mload(v13)
+          let v14 := t20
+          let t21 := mload(add(v13, 32))
           let v15 := t21
-          let t22 := mload(add(v14, 32))
-          let v16 := t22
-          let v17 := 0
-          $__EchoContract_init_eff0_stor(v15, v16, v17)
+          let v16 := 0
+          $__EchoContract_init_eff0_stor(v14, v15, v16)
           leave
         }
       }
@@ -96,31 +94,28 @@ object "EchoContract" {
         let v22 := $std$lib$abi$sol$impl_trait$SolDecoder$68ab$read_word$g463e_0(p0)
         let v7 := v22
         let v1 := v7
-        let v23 := p0
-        let v24 := $std$lib$abi$sol$impl_trait$SolDecoder$68ab$base$g463e_0(v23)
-        let v8 := v24
+        let v23 := $std$lib$abi$sol$impl_trait$SolDecoder$68ab$base$g463e_0(p0)
+        let v8 := v23
         let v2 := v8
-        let v25 := p0
-        let v26 := $std$lib$abi$sol$impl_trait$SolDecoder$68ab$pos$g463e_0(v25)
-        let v9 := v26
+        let v24 := $std$lib$abi$sol$impl_trait$SolDecoder$68ab$pos$g463e_0(p0)
+        let v9 := v24
         let v3 := v9
-        let t41 := add(v2, v1)
-        if lt(t41, v2) {
+        let t38 := add(v2, v1)
+        if lt(t38, v2) {
           mstore(0, 0x4e487b7100000000000000000000000000000000000000000000000000000000)
           mstore(4, 0x11)
           revert(0, 36)
         }
-        let v27 := t41
-        let v10 := v27
+        let v25 := t38
+        let v10 := v25
         $std$lib$abi$sol$impl_trait$SolDecoder$68ab$set_base$g463e_0(p0, v10)
-        let v30 := p0
-        let v31 := $std$lib$abi$sol$impl_trait$SolDecoder$68ab$base$g463e_0(v30)
-        let v12 := v31
+        let v28 := $std$lib$abi$sol$impl_trait$SolDecoder$68ab$base$g463e_0(p0)
+        let v12 := v28
         $std$lib$abi$sol$impl_trait$SolDecoder$68ab$set_pos$g463e_0(p0, v12)
-        let v34 := p0
-        let v14 := v34
-        let v35 := $core$lib$abi$impl_trait$u256$85b6$decode_payload$g407e_0(v14)
-        let v15 := v35
+        let v31 := p0
+        let v14 := v31
+        let v32 := $core$lib$abi$impl_trait$u256$85b6$decode_payload$g407e_0(v14)
+        let v15 := v32
         let v4 := v15
         $std$lib$abi$sol$impl_trait$SolDecoder$68ab$set_base$g463e_0(p0, v2)
         $std$lib$abi$sol$impl_trait$SolDecoder$68ab$set_pos$g463e_0(p0, v3)
@@ -128,8 +123,8 @@ object "EchoContract" {
         leave
       }
       if iszero(iszero(iszero(v6))) {
-        let v40 := $core$lib$abi$impl_trait$u256$85b6$decode_payload$g407e_0(p0)
-        let v20 := v40
+        let v37 := $core$lib$abi$impl_trait$u256$85b6$decode_payload$g407e_0(p0)
+        let v20 := v37
         ret := v20
         leave
       }
@@ -231,16 +226,7 @@ object "EchoContract" {
       leave
     }
     function $std$lib$abi$sol$impl_trait$SolDecoder$68ab$pos$g463e_0(p0) -> ret {
-      let r0 := mload(0x40)
-      if iszero(r0) {
-        r0 := 0x80
-      }
-      mstore(0x40, add(r0, 128))
-      mstore(r0, mload(p0))
-      mstore(add(r0, 32), mload(add(p0, 32)))
-      mstore(add(r0, 64), mload(add(p0, 64)))
-      mstore(add(r0, 96), mload(add(p0, 96)))
-      let t2 := mload(add(r0, 64))
+      let t2 := mload(add(p0, 64))
       let v1 := t2
       ret := v1
       leave
@@ -252,24 +238,24 @@ object "EchoContract" {
       let v22 := $std$lib$evm$memory_input$impl_trait$MemoryBytes$c1cd$len_0(v4)
       let v5 := v22
       v1 := v5
-      let t35 := mload(add(p0, 64))
-      let v6 := t35
+      let t34 := mload(add(p0, 64))
+      let v6 := t34
       let v23 := 0x20
       let v7 := v23
-      let t36 := add(v6, v7)
-      if lt(t36, v6) {
+      let t35 := add(v6, v7)
+      if lt(t35, v6) {
         mstore(0, 0x4e487b7100000000000000000000000000000000000000000000000000000000)
         mstore(4, 0x11)
         revert(0, 36)
       }
-      let v24 := t36
+      let v24 := t35
       let v8 := v24
       v2 := v8
-      let t37 := mload(add(p0, 64))
-      let v25 := t37
+      let t36 := mload(add(p0, 64))
+      let v25 := t36
       mstore(add(p0, 64), v25)
-      let t38 := mload(add(p0, 64))
-      let v26 := t38
+      let t37 := mload(add(p0, 64))
+      let v26 := t37
       let v27 := iszero(iszero(lt(v2, v26)))
       let v11 := iszero(iszero(v27))
       if iszero(iszero(v11)) {
@@ -281,9 +267,8 @@ object "EchoContract" {
       }
       if iszero(iszero(iszero(v11))) {
         let v12 := v1
-        let v33 := v12
-        let v34 := iszero(iszero(gt(v2, v33)))
-        let v13 := iszero(iszero(v34))
+        let v33 := iszero(iszero(gt(v2, v12)))
+        let v13 := iszero(iszero(v33))
         if iszero(iszero(v13)) {
           let v28 := 0x00
           let v14 := v28
@@ -293,8 +278,8 @@ object "EchoContract" {
         }
         if iszero(iszero(iszero(v13))) {
           let v18 := p0
-          let t39 := mload(add(p0, 64))
-          let v19 := t39
+          let t38 := mload(add(p0, 64))
+          let v19 := t38
           let v32 := $std$lib$evm$memory_input$impl_trait$MemoryBytes$c1cd$word_at_0(v18, v19)
           let v20 := v32
           let v3 := v20
@@ -311,24 +296,24 @@ object "EchoContract" {
       let v22 := $std$lib$evm$memory_input$impl_trait$MemoryBytes$c1cd$len_1(v4)
       let v5 := v22
       v1 := v5
-      let t35 := mload(add(p0, 64))
-      let v6 := t35
+      let t34 := mload(add(p0, 64))
+      let v6 := t34
       let v23 := 0x20
       let v7 := v23
-      let t36 := add(v6, v7)
-      if lt(t36, v6) {
+      let t35 := add(v6, v7)
+      if lt(t35, v6) {
         mstore(0, 0x4e487b7100000000000000000000000000000000000000000000000000000000)
         mstore(4, 0x11)
         revert(0, 36)
       }
-      let v24 := t36
+      let v24 := t35
       let v8 := v24
       v2 := v8
-      let t37 := mload(add(p0, 64))
-      let v25 := t37
+      let t36 := mload(add(p0, 64))
+      let v25 := t36
       mstore(add(p0, 64), v25)
-      let t38 := mload(add(p0, 64))
-      let v26 := t38
+      let t37 := mload(add(p0, 64))
+      let v26 := t37
       let v27 := iszero(iszero(lt(v2, v26)))
       let v11 := iszero(iszero(v27))
       if iszero(iszero(v11)) {
@@ -340,9 +325,8 @@ object "EchoContract" {
       }
       if iszero(iszero(iszero(v11))) {
         let v12 := v1
-        let v33 := v12
-        let v34 := iszero(iszero(gt(v2, v33)))
-        let v13 := iszero(iszero(v34))
+        let v33 := iszero(iszero(gt(v2, v12)))
+        let v13 := iszero(iszero(v33))
         if iszero(iszero(v13)) {
           let v28 := 0x00
           let v14 := v28
@@ -352,8 +336,8 @@ object "EchoContract" {
         }
         if iszero(iszero(iszero(v13))) {
           let v18 := p0
-          let t39 := mload(add(p0, 64))
-          let v19 := t39
+          let t38 := mload(add(p0, 64))
+          let v19 := t38
           let v32 := $std$lib$evm$memory_input$impl_trait$MemoryBytes$c1cd$word_at_1(v18, v19)
           let v20 := v32
           let v3 := v20
@@ -494,29 +478,13 @@ object "EchoContract" {
         leave
       }
       function $impl_trait$SolEncoder$base(p0) -> ret {
-        let r0 := mload(0x40)
-        if iszero(r0) {
-          r0 := 0x80
-        }
-        mstore(0x40, add(r0, 64))
-        mstore(r0, mload(p0))
-        mstore(add(r0, 32), mload(add(p0, 32)))
-        let t2 := mload(r0)
+        let t2 := mload(p0)
         let v1 := t2
         ret := v1
         leave
       }
       function $std$lib$abi$sol$impl_trait$SolDecoder$68ab$base$g463e_1(p0) -> ret {
-        let r0 := mload(0x40)
-        if iszero(r0) {
-          r0 := 0x80
-        }
-        mstore(0x40, add(r0, 128))
-        mstore(r0, mload(p0))
-        mstore(add(r0, 32), mload(add(p0, 32)))
-        mstore(add(r0, 64), mload(add(p0, 64)))
-        mstore(add(r0, 96), mload(add(p0, 96)))
-        let t2 := mload(add(r0, 96))
+        let t2 := mload(add(p0, 96))
         let v1 := t2
         ret := v1
         leave
@@ -533,19 +501,19 @@ object "EchoContract" {
         }
         if iszero(iszero(iszero(v3))) {
           let v4 := calldatasize()
-          let t18 := sub(v4, v1)
+          let t17 := sub(v4, v1)
           if gt(v1, v4) {
             mstore(0, 0x4e487b7100000000000000000000000000000000000000000000000000000000)
             mstore(4, 0x11)
             revert(0, 36)
           }
-          let v5 := t18
-          let t19 := mload(0x40)
-          if iszero(t19) {
-            t19 := 0x80
+          let v5 := t17
+          let t18 := mload(0x40)
+          if iszero(t18) {
+            t18 := 0x80
           }
-          mstore(0x40, add(t19, v5))
-          let v6 := t19
+          mstore(0x40, add(t18, v5))
+          let v6 := t18
           calldatacopy(v6, v1, v5)
           let r8 := mload(0x40)
           if iszero(r8) {
@@ -554,77 +522,28 @@ object "EchoContract" {
           mstore(0x40, add(r8, 64))
           mstore(r8, v6)
           mstore(add(r8, 32), v5)
-          let v9 := $decoder_new(r8)
-          let v10 := v9
-          let v11 := v10
-          $impl_trait$Answer$decode_payload$gf196(v11)
-          let v13 := $__EchoContract_recv_0_0()
-          let v14 := $encode_single_root_alloc(v13)
-          let v15 := v14
-          let t20 := mload(v15)
+          let r9 := mload(0x40)
+          if iszero(r9) {
+            r9 := 0x80
+          }
+          mstore(0x40, add(r9, 128))
+          mstore(r9, mload($decoder_new(r8)))
+          mstore(add(r9, 32), mload(add($decoder_new(r8), 32)))
+          mstore(add(r9, 64), mload(add($decoder_new(r8), 64)))
+          mstore(add(r9, 96), mload(add($decoder_new(r8), 96)))
+          let v10 := r9
+          $impl_trait$Answer$decode_payload$gf196(v10)
+          let v12 := $__EchoContract_recv_0_0()
+          let v13 := $encode_single_root_alloc(v12)
+          let v14 := v13
+          let t19 := mload(v14)
+          let v15 := t19
+          let t20 := mload(add(v14, 32))
           let v16 := t20
-          let t21 := mload(add(v15, 32))
-          let v17 := t21
-          return(v16, v17)
+          return(v15, v16)
         }
       }
       function $contract_recv_abi_EchoContract_2() {
-        let v0 := 0
-        let v1 := 0
-        v0 := 0
-        v1 := 0x04
-        let v2 := callvalue()
-        let v3 := iszero(iszero(iszero(eq(v2, v0))))
-        if iszero(iszero(v3)) {
-          revert(v0, v0)
-        }
-        if iszero(iszero(iszero(v3))) {
-          let v4 := calldatasize()
-          let t20 := sub(v4, v1)
-          if gt(v1, v4) {
-            mstore(0, 0x4e487b7100000000000000000000000000000000000000000000000000000000)
-            mstore(4, 0x11)
-            revert(0, 36)
-          }
-          let v5 := t20
-          let t21 := mload(0x40)
-          if iszero(t21) {
-            t21 := 0x80
-          }
-          mstore(0x40, add(t21, v5))
-          let v6 := t21
-          calldatacopy(v6, v1, v5)
-          let r8 := mload(0x40)
-          if iszero(r8) {
-            r8 := 0x80
-          }
-          mstore(0x40, add(r8, 64))
-          mstore(r8, v6)
-          mstore(add(r8, 32), v5)
-          let v9 := $decoder_new(r8)
-          let v10 := v9
-          let v11 := v10
-          let v12 := $impl_trait$Echo$decode_payload$gf196(v11)
-          let t22 := mload(0x40)
-          if iszero(t22) {
-            t22 := 0x80
-          }
-          mstore(0x40, add(t22, 32))
-          mstore(t22, v12)
-          let v13 := t22
-          let t23 := mload(v13)
-          let v14 := t23
-          let v15 := $__EchoContract_recv_0_1(v14)
-          let v16 := $encode_single_root_alloc(v15)
-          let v17 := v16
-          let t24 := mload(v17)
-          let v18 := t24
-          let t25 := mload(add(v17, 32))
-          let v19 := t25
-          return(v18, v19)
-        }
-      }
-      function $contract_recv_abi_EchoContract_3() {
         let v0 := 0
         let v1 := 0
         v0 := 0
@@ -657,19 +576,89 @@ object "EchoContract" {
           mstore(0x40, add(r8, 64))
           mstore(r8, v6)
           mstore(add(r8, 32), v5)
-          let v9 := $decoder_new(r8)
-          let v10 := v9
-          let v11 := v10
-          $impl_trait$GetX$decode_payload$gf196(v11)
-          let v13 := 0
-          let v14 := $__EchoContract_recv_0_2_eff0_stor(v13)
-          let v15 := $encode_single_root_alloc_arg0_root_stor(v14)
+          let r9 := mload(0x40)
+          if iszero(r9) {
+            r9 := 0x80
+          }
+          mstore(0x40, add(r9, 128))
+          mstore(r9, mload($decoder_new(r8)))
+          mstore(add(r9, 32), mload(add($decoder_new(r8), 32)))
+          mstore(add(r9, 64), mload(add($decoder_new(r8), 64)))
+          mstore(add(r9, 96), mload(add($decoder_new(r8), 96)))
+          let v10 := r9
+          let v11 := $impl_trait$Echo$decode_payload$gf196(v10)
+          let t21 := mload(0x40)
+          if iszero(t21) {
+            t21 := 0x80
+          }
+          mstore(0x40, add(t21, 32))
+          mstore(t21, v11)
+          let v12 := t21
+          let t22 := mload(v12)
+          let v13 := t22
+          let v14 := $__EchoContract_recv_0_1(v13)
+          let v15 := $encode_single_root_alloc(v14)
           let v16 := v15
-          let t21 := mload(v16)
-          let v17 := t21
-          let t22 := mload(add(v16, 32))
-          let v18 := t22
+          let t23 := mload(v16)
+          let v17 := t23
+          let t24 := mload(add(v16, 32))
+          let v18 := t24
           return(v17, v18)
+        }
+      }
+      function $contract_recv_abi_EchoContract_3() {
+        let v0 := 0
+        let v1 := 0
+        v0 := 0
+        v1 := 0x04
+        let v2 := callvalue()
+        let v3 := iszero(iszero(iszero(eq(v2, v0))))
+        if iszero(iszero(v3)) {
+          revert(v0, v0)
+        }
+        if iszero(iszero(iszero(v3))) {
+          let v4 := calldatasize()
+          let t18 := sub(v4, v1)
+          if gt(v1, v4) {
+            mstore(0, 0x4e487b7100000000000000000000000000000000000000000000000000000000)
+            mstore(4, 0x11)
+            revert(0, 36)
+          }
+          let v5 := t18
+          let t19 := mload(0x40)
+          if iszero(t19) {
+            t19 := 0x80
+          }
+          mstore(0x40, add(t19, v5))
+          let v6 := t19
+          calldatacopy(v6, v1, v5)
+          let r8 := mload(0x40)
+          if iszero(r8) {
+            r8 := 0x80
+          }
+          mstore(0x40, add(r8, 64))
+          mstore(r8, v6)
+          mstore(add(r8, 32), v5)
+          let r9 := mload(0x40)
+          if iszero(r9) {
+            r9 := 0x80
+          }
+          mstore(0x40, add(r9, 128))
+          mstore(r9, mload($decoder_new(r8)))
+          mstore(add(r9, 32), mload(add($decoder_new(r8), 32)))
+          mstore(add(r9, 64), mload(add($decoder_new(r8), 64)))
+          mstore(add(r9, 96), mload(add($decoder_new(r8), 96)))
+          let v10 := r9
+          $impl_trait$GetX$decode_payload$gf196(v10)
+          let v12 := 0
+          let v13 := $__EchoContract_recv_0_2_eff0_stor(v12)
+          let v14 := $encode_single_root_alloc_arg0_root_stor(v13)
+          let v15 := v14
+          let t20 := mload(v15)
+          let v16 := t20
+          let t21 := mload(add(v15, 32))
+          let v17 := t21
+          return(v16, v17)
         }
       }
       function $contract_runtime_root_EchoContract() {
@@ -700,31 +689,28 @@ object "EchoContract" {
           let v22 := $std$lib$abi$sol$impl_trait$SolDecoder$68ab$read_word$g463e_2(p0)
           let v7 := v22
           let v1 := v7
-          let v23 := p0
-          let v24 := $std$lib$abi$sol$impl_trait$SolDecoder$68ab$base$g463e_1(v23)
-          let v8 := v24
+          let v23 := $std$lib$abi$sol$impl_trait$SolDecoder$68ab$base$g463e_1(p0)
+          let v8 := v23
           let v2 := v8
-          let v25 := p0
-          let v26 := $std$lib$abi$sol$impl_trait$SolDecoder$68ab$pos$g463e_1(v25)
-          let v9 := v26
+          let v24 := $std$lib$abi$sol$impl_trait$SolDecoder$68ab$pos$g463e_1(p0)
+          let v9 := v24
           let v3 := v9
-          let t41 := add(v2, v1)
-          if lt(t41, v2) {
+          let t38 := add(v2, v1)
+          if lt(t38, v2) {
             mstore(0, 0x4e487b7100000000000000000000000000000000000000000000000000000000)
             mstore(4, 0x11)
             revert(0, 36)
           }
-          let v27 := t41
-          let v10 := v27
+          let v25 := t38
+          let v10 := v25
           $std$lib$abi$sol$impl_trait$SolDecoder$68ab$set_base$g463e_1(p0, v10)
-          let v30 := p0
-          let v31 := $std$lib$abi$sol$impl_trait$SolDecoder$68ab$base$g463e_1(v30)
-          let v12 := v31
+          let v28 := $std$lib$abi$sol$impl_trait$SolDecoder$68ab$base$g463e_1(p0)
+          let v12 := v28
           $std$lib$abi$sol$impl_trait$SolDecoder$68ab$set_pos$g463e_1(p0, v12)
-          let v34 := p0
-          let v14 := v34
-          let v35 := $core$lib$abi$impl_trait$u256$85b6$decode_payload$g407e_1(v14)
-          let v15 := v35
+          let v31 := p0
+          let v14 := v31
+          let v32 := $core$lib$abi$impl_trait$u256$85b6$decode_payload$g407e_1(v14)
+          let v15 := v32
           let v4 := v15
           $std$lib$abi$sol$impl_trait$SolDecoder$68ab$set_base$g463e_1(p0, v2)
           $std$lib$abi$sol$impl_trait$SolDecoder$68ab$set_pos$g463e_1(p0, v3)
@@ -732,8 +718,8 @@ object "EchoContract" {
           leave
         }
         if iszero(iszero(iszero(v6))) {
-          let v40 := $core$lib$abi$impl_trait$u256$85b6$decode_payload$g407e_1(p0)
-          let v20 := v40
+          let v37 := $core$lib$abi$impl_trait$u256$85b6$decode_payload$g407e_1(p0)
+          let v20 := v37
           ret := v20
           leave
         }
@@ -776,58 +762,56 @@ object "EchoContract" {
         let v28 := 0
         let v8 := iszero(iszero(v28))
         if iszero(iszero(v8)) {
-          let v29 := p1
-          let v30 := $impl_trait$SolEncoder$base(v29)
-          let v9 := v30
+          let v29 := $impl_trait$SolEncoder$base(p1)
+          let v9 := v29
           let v3 := v9
           let v4 := p2
-          let v31 := $core$lib$abi$trait$AbiSize$payload_size$ge513_1(p0)
-          let v10 := v31
+          let v30 := $core$lib$abi$trait$AbiSize$payload_size$ge513_1(p0)
+          let v10 := v30
           let v5 := v10
           let v11 := v4
-          let t56 := mload(v11)
-          let v32 := t56
-          let t57 := sub(v32, v3)
-          if gt(v3, v32) {
+          let t54 := mload(v11)
+          let v31 := t54
+          let t55 := sub(v31, v3)
+          if gt(v3, v31) {
             mstore(0, 0x4e487b7100000000000000000000000000000000000000000000000000000000)
             mstore(4, 0x11)
             revert(0, 36)
           }
-          let v33 := t57
-          let v12 := v33
+          let v32 := t55
+          let v12 := v32
           $std$lib$abi$sol$impl_trait$SolEncoder$19ce$write_word_0(p1, v12)
-          let v36 := p1
-          let v37 := $impl_trait$SolEncoder$pos(v36)
-          let v14 := v37
+          let v35 := $impl_trait$SolEncoder$pos(p1)
+          let v14 := v35
           let v6 := v14
-          let t58 := mload(v4)
-          let v39 := t58
-          $impl_trait$SolEncoder$set_base(p1, v39)
-          let t59 := mload(v4)
-          let v42 := t59
-          $impl_trait$SolEncoder$set_pos(p1, v42)
-          let v44 := p1
-          let v17 := v44
+          let t56 := mload(v4)
+          let v37 := t56
+          $impl_trait$SolEncoder$set_base(p1, v37)
+          let t57 := mload(v4)
+          let v40 := t57
+          $impl_trait$SolEncoder$set_pos(p1, v40)
+          let v42 := p1
+          let v17 := v42
           $encode(p0, v17)
           $impl_trait$SolEncoder$set_base(p1, v3)
           $impl_trait$SolEncoder$set_pos(p1, v6)
           let v21 := v4
-          let t60 := mload(v21)
-          let v51 := t60
-          let t61 := add(v51, v5)
-          if lt(t61, v51) {
+          let t58 := mload(v21)
+          let v49 := t58
+          let t59 := add(v49, v5)
+          if lt(t59, v49) {
             mstore(0, 0x4e487b7100000000000000000000000000000000000000000000000000000000)
             mstore(4, 0x11)
             revert(0, 36)
           }
-          let v52 := t61
-          let v22 := v52
+          let v50 := t59
+          let v22 := v50
           mstore(p2, v22)
           leave
         }
         if iszero(iszero(iszero(v8))) {
-          let v53 := p1
-          let v26 := v53
+          let v51 := p1
+          let v26 := v51
           $encode(p0, v26)
           leave
         }
@@ -836,86 +820,83 @@ object "EchoContract" {
         let v28 := 0
         let v8 := iszero(iszero(v28))
         if iszero(iszero(v8)) {
-          let v29 := p1
-          let v30 := $impl_trait$SolEncoder$base(v29)
-          let v9 := v30
+          let v29 := $impl_trait$SolEncoder$base(p1)
+          let v9 := v29
           let v3 := v9
           let v4 := p2
-          let v31 := $core$lib$abi$trait$AbiSize$payload_size$ge513_arg0_root_stor_1(p0)
-          let v10 := v31
+          let v30 := $core$lib$abi$trait$AbiSize$payload_size$ge513_arg0_root_stor_1(p0)
+          let v10 := v30
           let v5 := v10
           let v11 := v4
-          let t56 := mload(v11)
-          let v32 := t56
-          let t57 := sub(v32, v3)
-          if gt(v3, v32) {
+          let t54 := mload(v11)
+          let v31 := t54
+          let t55 := sub(v31, v3)
+          if gt(v3, v31) {
             mstore(0, 0x4e487b7100000000000000000000000000000000000000000000000000000000)
             mstore(4, 0x11)
             revert(0, 36)
           }
-          let v33 := t57
-          let v12 := v33
+          let v32 := t55
+          let v12 := v32
           $std$lib$abi$sol$impl_trait$SolEncoder$19ce$write_word_0(p1, v12)
-          let v36 := p1
-          let v37 := $impl_trait$SolEncoder$pos(v36)
-          let v14 := v37
+          let v35 := $impl_trait$SolEncoder$pos(p1)
+          let v14 := v35
           let v6 := v14
-          let t58 := mload(v4)
-          let v39 := t58
-          $impl_trait$SolEncoder$set_base(p1, v39)
-          let t59 := mload(v4)
-          let v42 := t59
-          $impl_trait$SolEncoder$set_pos(p1, v42)
-          let v44 := p1
-          let v17 := v44
+          let t56 := mload(v4)
+          let v37 := t56
+          $impl_trait$SolEncoder$set_base(p1, v37)
+          let t57 := mload(v4)
+          let v40 := t57
+          $impl_trait$SolEncoder$set_pos(p1, v40)
+          let v42 := p1
+          let v17 := v42
           $encode_arg0_root_stor(p0, v17)
           $impl_trait$SolEncoder$set_base(p1, v3)
           $impl_trait$SolEncoder$set_pos(p1, v6)
           let v21 := v4
-          let t60 := mload(v21)
-          let v51 := t60
-          let t61 := add(v51, v5)
-          if lt(t61, v51) {
+          let t58 := mload(v21)
+          let v49 := t58
+          let t59 := add(v49, v5)
+          if lt(t59, v49) {
             mstore(0, 0x4e487b7100000000000000000000000000000000000000000000000000000000)
             mstore(4, 0x11)
             revert(0, 36)
           }
-          let v52 := t61
-          let v22 := v52
+          let v50 := t59
+          let v22 := v50
           mstore(p2, v22)
           leave
         }
         if iszero(iszero(iszero(v8))) {
-          let v53 := p1
-          let v26 := v53
+          let v51 := p1
+          let v26 := v51
           $encode_arg0_root_stor(p0, v26)
           leave
         }
       }
       function $encode_single_root(p0, p1) {
-        let v9 := p1
-        let v10 := $impl_trait$SolEncoder$base(v9)
-        let v3 := v10
-        let v11 := 0x20
-        let v4 := v11
-        let t17 := add(v3, v4)
-        if lt(t17, v3) {
+        let v9 := $impl_trait$SolEncoder$base(p1)
+        let v3 := v9
+        let v10 := 0x20
+        let v4 := v10
+        let t16 := add(v3, v4)
+        if lt(t16, v3) {
           mstore(0, 0x4e487b7100000000000000000000000000000000000000000000000000000000)
           mstore(4, 0x11)
           revert(0, 36)
         }
-        let v12 := t17
-        let v5 := v12
+        let v11 := t16
+        let v5 := v11
         let r2 := mload(0x40)
         if iszero(r2) {
           r2 := 0x80
         }
         mstore(0x40, add(r2, 32))
         mstore(r2, v5)
-        let v13 := p1
-        let v6 := v13
-        let v14 := r2
-        let v7 := v14
+        let v12 := p1
+        let v6 := v12
+        let v13 := r2
+        let v7 := v13
         $encode_field(p0, v6, v7)
         leave
       }
@@ -927,22 +908,21 @@ object "EchoContract" {
         let v5 := v11
         let v12 := v5
         let v2 := v12
-        let v13 := v2
-        let v14 := $impl_trait$SolEncoder$base(v13)
-        let v6 := v14
+        let v13 := $impl_trait$SolEncoder$base(v2)
+        let v6 := v13
         let v3 := v6
-        let v15 := v2
-        let v7 := v15
+        let v14 := v2
+        let v7 := v14
         $encode_single_root(p0, v7)
-        let t19 := mload(0x40)
-        if iszero(t19) {
-          t19 := 0x80
+        let t18 := mload(0x40)
+        if iszero(t18) {
+          t18 := 0x80
         }
-        mstore(0x40, add(t19, 64))
-        let v18 := t19
-        mstore(v18, v3)
-        mstore(add(v18, 32), v1)
-        let v9 := v18
+        mstore(0x40, add(t18, 64))
+        let v17 := t18
+        mstore(v17, v3)
+        mstore(add(v17, 32), v1)
+        let v9 := v17
         ret := v9
         leave
       }
@@ -954,49 +934,47 @@ object "EchoContract" {
         let v5 := v11
         let v12 := v5
         let v2 := v12
-        let v13 := v2
-        let v14 := $impl_trait$SolEncoder$base(v13)
-        let v6 := v14
+        let v13 := $impl_trait$SolEncoder$base(v2)
+        let v6 := v13
         let v3 := v6
-        let v15 := v2
-        let v7 := v15
+        let v14 := v2
+        let v7 := v14
         $encode_single_root_arg0_root_stor(p0, v7)
-        let t19 := mload(0x40)
-        if iszero(t19) {
-          t19 := 0x80
+        let t18 := mload(0x40)
+        if iszero(t18) {
+          t18 := 0x80
         }
-        mstore(0x40, add(t19, 64))
-        let v18 := t19
-        mstore(v18, v3)
-        mstore(add(v18, 32), v1)
-        let v9 := v18
+        mstore(0x40, add(t18, 64))
+        let v17 := t18
+        mstore(v17, v3)
+        mstore(add(v17, 32), v1)
+        let v9 := v17
         ret := v9
         leave
       }
       function $encode_single_root_arg0_root_stor(p0, p1) {
-        let v9 := p1
-        let v10 := $impl_trait$SolEncoder$base(v9)
-        let v3 := v10
-        let v11 := 0x20
-        let v4 := v11
-        let t17 := add(v3, v4)
-        if lt(t17, v3) {
+        let v9 := $impl_trait$SolEncoder$base(p1)
+        let v3 := v9
+        let v10 := 0x20
+        let v4 := v10
+        let t16 := add(v3, v4)
+        if lt(t16, v3) {
           mstore(0, 0x4e487b7100000000000000000000000000000000000000000000000000000000)
           mstore(4, 0x11)
           revert(0, 36)
         }
-        let v12 := t17
-        let v5 := v12
+        let v11 := t16
+        let v5 := v11
         let r2 := mload(0x40)
         if iszero(r2) {
           r2 := 0x80
         }
         mstore(0x40, add(r2, 32))
         mstore(r2, v5)
-        let v13 := p1
-        let v6 := v13
-        let v14 := r2
-        let v7 := v14
+        let v12 := p1
+        let v6 := v12
+        let v13 := r2
+        let v7 := v13
         $encode_field_arg0_root_stor(p0, v6, v7)
         leave
       }
@@ -1130,29 +1108,13 @@ object "EchoContract" {
         leave
       }
       function $impl_trait$SolEncoder$pos(p0) -> ret {
-        let r0 := mload(0x40)
-        if iszero(r0) {
-          r0 := 0x80
-        }
-        mstore(0x40, add(r0, 64))
-        mstore(r0, mload(p0))
-        mstore(add(r0, 32), mload(add(p0, 32)))
-        let t2 := mload(add(r0, 32))
+        let t2 := mload(add(p0, 32))
         let v1 := t2
         ret := v1
         leave
       }
       function $std$lib$abi$sol$impl_trait$SolDecoder$68ab$pos$g463e_1(p0) -> ret {
-        let r0 := mload(0x40)
-        if iszero(r0) {
-          r0 := 0x80
-        }
-        mstore(0x40, add(r0, 128))
-        mstore(r0, mload(p0))
-        mstore(add(r0, 32), mload(add(p0, 32)))
-        mstore(add(r0, 64), mload(add(p0, 64)))
-        mstore(add(r0, 96), mload(add(p0, 96)))
-        let t2 := mload(add(r0, 64))
+        let t2 := mload(add(p0, 64))
         let v1 := t2
         ret := v1
         leave
@@ -1164,24 +1126,24 @@ object "EchoContract" {
         let v22 := $std$lib$evm$memory_input$impl_trait$MemoryBytes$c1cd$len_2(v4)
         let v5 := v22
         v1 := v5
-        let t35 := mload(add(p0, 64))
-        let v6 := t35
+        let t34 := mload(add(p0, 64))
+        let v6 := t34
         let v23 := 0x20
         let v7 := v23
-        let t36 := add(v6, v7)
-        if lt(t36, v6) {
+        let t35 := add(v6, v7)
+        if lt(t35, v6) {
           mstore(0, 0x4e487b7100000000000000000000000000000000000000000000000000000000)
           mstore(4, 0x11)
           revert(0, 36)
         }
-        let v24 := t36
+        let v24 := t35
         let v8 := v24
         v2 := v8
-        let t37 := mload(add(p0, 64))
-        let v25 := t37
+        let t36 := mload(add(p0, 64))
+        let v25 := t36
         mstore(add(p0, 64), v25)
-        let t38 := mload(add(p0, 64))
-        let v26 := t38
+        let t37 := mload(add(p0, 64))
+        let v26 := t37
         let v27 := iszero(iszero(lt(v2, v26)))
         let v11 := iszero(iszero(v27))
         if iszero(iszero(v11)) {
@@ -1193,9 +1155,8 @@ object "EchoContract" {
         }
         if iszero(iszero(iszero(v11))) {
           let v12 := v1
-          let v33 := v12
-          let v34 := iszero(iszero(gt(v2, v33)))
-          let v13 := iszero(iszero(v34))
+          let v33 := iszero(iszero(gt(v2, v12)))
+          let v13 := iszero(iszero(v33))
           if iszero(iszero(v13)) {
             let v28 := 0x00
             let v14 := v28
@@ -1205,8 +1166,8 @@ object "EchoContract" {
           }
           if iszero(iszero(iszero(v13))) {
             let v18 := p0
-            let t39 := mload(add(p0, 64))
-            let v19 := t39
+            let t38 := mload(add(p0, 64))
+            let v19 := t38
             let v32 := $std$lib$evm$memory_input$impl_trait$MemoryBytes$c1cd$word_at_2(v18, v19)
             let v20 := v32
             let v3 := v20
@@ -1223,24 +1184,24 @@ object "EchoContract" {
         let v22 := $std$lib$evm$memory_input$impl_trait$MemoryBytes$c1cd$len_3(v4)
         let v5 := v22
         v1 := v5
-        let t35 := mload(add(p0, 64))
-        let v6 := t35
+        let t34 := mload(add(p0, 64))
+        let v6 := t34
         let v23 := 0x20
         let v7 := v23
-        let t36 := add(v6, v7)
-        if lt(t36, v6) {
+        let t35 := add(v6, v7)
+        if lt(t35, v6) {
           mstore(0, 0x4e487b7100000000000000000000000000000000000000000000000000000000)
           mstore(4, 0x11)
           revert(0, 36)
         }
-        let v24 := t36
+        let v24 := t35
         let v8 := v24
         v2 := v8
-        let t37 := mload(add(p0, 64))
-        let v25 := t37
+        let t36 := mload(add(p0, 64))
+        let v25 := t36
         mstore(add(p0, 64), v25)
-        let t38 := mload(add(p0, 64))
-        let v26 := t38
+        let t37 := mload(add(p0, 64))
+        let v26 := t37
         let v27 := iszero(iszero(lt(v2, v26)))
         let v11 := iszero(iszero(v27))
         if iszero(iszero(v11)) {
@@ -1252,9 +1213,8 @@ object "EchoContract" {
         }
         if iszero(iszero(iszero(v11))) {
           let v12 := v1
-          let v33 := v12
-          let v34 := iszero(iszero(gt(v2, v33)))
-          let v13 := iszero(iszero(v34))
+          let v33 := iszero(iszero(gt(v2, v12)))
+          let v13 := iszero(iszero(v33))
           if iszero(iszero(v13)) {
             let v28 := 0x00
             let v14 := v28
@@ -1264,8 +1224,8 @@ object "EchoContract" {
           }
           if iszero(iszero(iszero(v13))) {
             let v18 := p0
-            let t39 := mload(add(p0, 64))
-            let v19 := t39
+            let t38 := mload(add(p0, 64))
+            let v19 := t38
             let v32 := $std$lib$evm$memory_input$impl_trait$MemoryBytes$c1cd$word_at_3(v18, v19)
             let v20 := v32
             let v3 := v20
@@ -1295,7 +1255,7 @@ object "EchoContract" {
         mstore(add(p0, 64), v2)
         leave
       }
-      function $std$lib$evm$memory_input$impl_trait$MemoryBytes$c1cd$word_at_2(p0, p1) -> ret {
+      function $std$lib$evm$memory_input$impl_trait$MemoryBytes$c1cd$word_at_3(p0, p1) -> ret {
         let r0 := mload(0x40)
         if iszero(r0) {
           r0 := 0x80
@@ -1313,7 +1273,7 @@ object "EchoContract" {
         ret := v5
         leave
       }
-      function $std$lib$evm$memory_input$impl_trait$MemoryBytes$c1cd$word_at_3(p0, p1) -> ret {
+      function $std$lib$evm$memory_input$impl_trait$MemoryBytes$c1cd$word_at_2(p0, p1) -> ret {
         let r0 := mload(0x40)
         if iszero(r0) {
           r0 := 0x80

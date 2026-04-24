@@ -8,10 +8,9 @@ target = "evm-ethereum-osaka"
 type @layout_0 = {};
 type @layout_1 = {@layout_0};
 type @layout_2 = {i256};
-type @layout_3 = {};
+type @layout_3 = {@layout_2, @layout_2};
 type @layout_4 = {};
-type @layout_5 = {@layout_3, @layout_4, i256, @layout_2};
-type @layout_6 = {@layout_2, @layout_2};
+type @layout_5 = {};
 
 func private %abi_encode_string(v0.i256, v1.i256, v2.objref<@layout_1>) {
     block0:
@@ -57,64 +56,49 @@ func private %allowance__geb89(v0.@layout_2, v1.@layout_2, v2.i256) -> i256 {
         jump block1;
 
     block1:
-        v12.@layout_2 = obj.load v3;
-        v13.@layout_2 = obj.load v4;
-        v14.objref<@layout_6> = obj.alloc @layout_6;
-        v15.objref<@layout_2> = obj.proj v14 0.i256;
-        v16.objref<i256> = obj.proj v15 0.i256;
-        v17.i256 = extract_value v12 0.i256;
-        obj.store v16 v17;
-        v19.objref<@layout_2> = obj.proj v14 1.i256;
-        v20.objref<i256> = obj.proj v19 0.i256;
-        v21.i256 = extract_value v13 0.i256;
-        obj.store v20 v21;
-        v22.@layout_6 = obj.load v14;
-        v23.i256 = call %std__lib__evm__storage_map__impl_StorageMap_9f54__get__ga15b_1 v22;
-        return v23;
+        v10.@layout_2 = obj.load v3;
+        v11.@layout_2 = obj.load v4;
+        v12.objref<@layout_3> = obj.alloc @layout_3;
+        v13.objref<@layout_2> = obj.proj v12 0.i256;
+        v14.objref<i256> = obj.proj v13 0.i256;
+        v15.i256 = extract_value v10 0.i256;
+        obj.store v14 v15;
+        v17.objref<@layout_2> = obj.proj v12 1.i256;
+        v18.objref<i256> = obj.proj v17 0.i256;
+        v19.i256 = extract_value v11 0.i256;
+        obj.store v18 v19;
+        v20.@layout_3 = obj.load v12;
+        v21.i256 = call %std__lib__evm__storage_map__impl_StorageMap_9f54__get__ga15b_0 v20;
+        return v21;
 }
 
-func private %allowance__g35d6(v0.@layout_5, v1.@layout_2, v2.@layout_2) -> i256 {
+func private %allowance__g35d6(v0.i256, v1.@layout_2, v2.@layout_2) -> i256 {
     block0:
-        v3.objref<@layout_5> = obj.alloc @layout_5;
+        v3.objref<@layout_2> = obj.alloc @layout_2;
         v4.objref<@layout_2> = obj.alloc @layout_2;
-        v5.objref<@layout_2> = obj.alloc @layout_2;
-        v7.objref<@layout_3> = obj.proj v3 0.i256;
-        v8.@layout_3 = extract_value v0 0.i256;
-        v10.objref<@layout_4> = obj.proj v3 1.i256;
-        v11.@layout_4 = extract_value v0 1.i256;
-        v13.objref<i256> = obj.proj v3 2.i256;
-        v14.i256 = extract_value v0 2.i256;
-        obj.store v13 v14;
-        v16.objref<@layout_2> = obj.proj v3 3.i256;
-        v17.@layout_2 = extract_value v0 3.i256;
-        v18.objref<i256> = obj.proj v16 0.i256;
-        v19.i256 = extract_value v17 0.i256;
-        obj.store v18 v19;
-        v20.objref<i256> = obj.proj v4 0.i256;
-        v21.i256 = extract_value v1 0.i256;
-        obj.store v20 v21;
-        v22.objref<i256> = obj.proj v5 0.i256;
-        v23.i256 = extract_value v2 0.i256;
-        obj.store v22 v23;
+        v6.objref<i256> = obj.proj v3 0.i256;
+        v7.i256 = extract_value v1 0.i256;
+        obj.store v6 v7;
+        v8.objref<i256> = obj.proj v4 0.i256;
+        v9.i256 = extract_value v2 0.i256;
+        obj.store v8 v9;
         jump block1;
 
     block1:
-        v24.objref<@layout_4> = obj.proj v3 1.i256;
-        v25.@layout_4 = obj.load v24;
-        v26.@layout_2 = obj.load v4;
-        v27.@layout_2 = obj.load v5;
-        v28.objref<@layout_6> = obj.alloc @layout_6;
-        v29.objref<@layout_2> = obj.proj v28 0.i256;
-        v30.objref<i256> = obj.proj v29 0.i256;
-        v31.i256 = extract_value v26 0.i256;
-        obj.store v30 v31;
-        v32.objref<@layout_2> = obj.proj v28 1.i256;
-        v33.objref<i256> = obj.proj v32 0.i256;
-        v34.i256 = extract_value v27 0.i256;
-        obj.store v33 v34;
-        v35.@layout_6 = obj.load v28;
-        v36.i256 = call %std__lib__evm__storage_map__impl_StorageMap_9f54__get__ga15b_0 v35;
-        return v36;
+        v10.@layout_2 = obj.load v3;
+        v11.@layout_2 = obj.load v4;
+        v12.objref<@layout_3> = obj.alloc @layout_3;
+        v13.objref<@layout_2> = obj.proj v12 0.i256;
+        v14.objref<i256> = obj.proj v13 0.i256;
+        v15.i256 = extract_value v10 0.i256;
+        obj.store v14 v15;
+        v17.objref<@layout_2> = obj.proj v12 1.i256;
+        v18.objref<i256> = obj.proj v17 0.i256;
+        v19.i256 = extract_value v11 0.i256;
+        obj.store v18 v19;
+        v20.@layout_3 = obj.load v12;
+        v21.i256 = call %std__lib__evm__storage_map__impl_StorageMap_9f54__get__ga15b_1 v20;
+        return v21;
 }
 
 func private %approve__gb6ca(v0.@layout_2, v1.i256, v2.i256, v3.objref<@layout_1>) -> i256 {
@@ -128,7 +112,7 @@ func private %approve__gb6ca(v0.@layout_2, v1.i256, v2.i256, v3.objref<@layout_1
         jump block1;
 
     block1:
-        v10.@layout_2 = call %std__lib__evm__effects__impl_trait_Evm_a1e8__caller_1;
+        v10.@layout_2 = call %std__lib__evm__effects__impl_trait_Evm_a1e8__caller_2;
         v11.@layout_2 = obj.load v4;
         v12.i256 = mload v5 i256;
         call %approve__g35d6 v2 v10 v11 v12;
@@ -150,20 +134,20 @@ func private %approve__g35d6(v0.i256, v1.@layout_2, v2.@layout_2, v3.i256) {
         jump block1;
 
     block1:
-        v14.@layout_2 = obj.load v4;
-        v15.@layout_2 = obj.load v5;
-        v16.objref<@layout_6> = obj.alloc @layout_6;
-        v17.objref<@layout_2> = obj.proj v16 0.i256;
-        v18.objref<i256> = obj.proj v17 0.i256;
-        v19.i256 = extract_value v14 0.i256;
-        obj.store v18 v19;
-        v21.objref<@layout_2> = obj.proj v16 1.i256;
-        v22.objref<i256> = obj.proj v21 0.i256;
-        v23.i256 = extract_value v15 0.i256;
-        obj.store v22 v23;
-        v24.@layout_6 = obj.load v16;
-        v25.i256 = mload v6 i256;
-        call %std__lib__evm__storage_map__impl_StorageMap_9f54__set__ga15b_1 v24 v25;
+        v12.@layout_2 = obj.load v4;
+        v13.@layout_2 = obj.load v5;
+        v14.objref<@layout_3> = obj.alloc @layout_3;
+        v15.objref<@layout_2> = obj.proj v14 0.i256;
+        v16.objref<i256> = obj.proj v15 0.i256;
+        v17.i256 = extract_value v12 0.i256;
+        obj.store v16 v17;
+        v19.objref<@layout_2> = obj.proj v14 1.i256;
+        v20.objref<i256> = obj.proj v19 0.i256;
+        v21.i256 = extract_value v13 0.i256;
+        obj.store v20 v21;
+        v22.@layout_3 = obj.load v14;
+        v23.i256 = mload v6 i256;
+        call %std__lib__evm__storage_map__impl_StorageMap_9f54__set__ga15b_1 v22 v23;
         return;
 }
 
@@ -176,67 +160,37 @@ func private %balance_of__geb89(v0.@layout_2, v1.i256) -> i256 {
         jump block1;
 
     block1:
-        v8.@layout_2 = obj.load v2;
-        v9.i256 = call %std__lib__evm__storage_map__impl_StorageMap_9f54__get__g2163_2 v8;
-        return v9;
+        v6.@layout_2 = obj.load v2;
+        v7.i256 = call %std__lib__evm__storage_map__impl_StorageMap_9f54__get__g2163_2 v6;
+        return v7;
 }
 
-func private %standalone_erc20_low_level__erc20_low_level__impl_Erc20_16d9__balance_of__g35d6_0(v0.@layout_5, v1.@layout_2) -> i256 {
+func private %standalone_erc20_low_level__erc20_low_level__impl_Erc20_16d9__balance_of__g35d6_0(v0.i256, v1.@layout_2) -> i256 {
     block0:
-        v2.objref<@layout_5> = obj.alloc @layout_5;
-        v3.objref<@layout_2> = obj.alloc @layout_2;
-        v5.objref<@layout_3> = obj.proj v2 0.i256;
-        v6.@layout_3 = extract_value v0 0.i256;
-        v8.objref<@layout_4> = obj.proj v2 1.i256;
-        v9.@layout_4 = extract_value v0 1.i256;
-        v11.objref<i256> = obj.proj v2 2.i256;
-        v12.i256 = extract_value v0 2.i256;
-        obj.store v11 v12;
-        v14.objref<@layout_2> = obj.proj v2 3.i256;
-        v15.@layout_2 = extract_value v0 3.i256;
-        v16.objref<i256> = obj.proj v14 0.i256;
-        v17.i256 = extract_value v15 0.i256;
-        obj.store v16 v17;
-        v18.objref<i256> = obj.proj v3 0.i256;
-        v19.i256 = extract_value v1 0.i256;
-        obj.store v18 v19;
+        v2.objref<@layout_2> = obj.alloc @layout_2;
+        v4.objref<i256> = obj.proj v2 0.i256;
+        v5.i256 = extract_value v1 0.i256;
+        obj.store v4 v5;
         jump block1;
 
     block1:
-        v20.objref<@layout_3> = obj.proj v2 0.i256;
-        v21.@layout_3 = obj.load v20;
-        v22.@layout_2 = obj.load v3;
-        v23.i256 = call %std__lib__evm__storage_map__impl_StorageMap_9f54__get__g2163_1 v22;
-        return v23;
+        v6.@layout_2 = obj.load v2;
+        v7.i256 = call %std__lib__evm__storage_map__impl_StorageMap_9f54__get__g2163_1 v6;
+        return v7;
 }
 
-func private %standalone_erc20_low_level__erc20_low_level__impl_Erc20_16d9__balance_of__g35d6_1(v0.@layout_5, v1.@layout_2) -> i256 {
+func private %standalone_erc20_low_level__erc20_low_level__impl_Erc20_16d9__balance_of__g35d6_1(v0.i256, v1.@layout_2) -> i256 {
     block0:
-        v2.objref<@layout_5> = obj.alloc @layout_5;
-        v3.objref<@layout_2> = obj.alloc @layout_2;
-        v5.objref<@layout_3> = obj.proj v2 0.i256;
-        v6.@layout_3 = extract_value v0 0.i256;
-        v8.objref<@layout_4> = obj.proj v2 1.i256;
-        v9.@layout_4 = extract_value v0 1.i256;
-        v11.objref<i256> = obj.proj v2 2.i256;
-        v12.i256 = extract_value v0 2.i256;
-        obj.store v11 v12;
-        v14.objref<@layout_2> = obj.proj v2 3.i256;
-        v15.@layout_2 = extract_value v0 3.i256;
-        v16.objref<i256> = obj.proj v14 0.i256;
-        v17.i256 = extract_value v15 0.i256;
-        obj.store v16 v17;
-        v18.objref<i256> = obj.proj v3 0.i256;
-        v19.i256 = extract_value v1 0.i256;
-        obj.store v18 v19;
+        v2.objref<@layout_2> = obj.alloc @layout_2;
+        v4.objref<i256> = obj.proj v2 0.i256;
+        v5.i256 = extract_value v1 0.i256;
+        obj.store v4 v5;
         jump block1;
 
     block1:
-        v20.objref<@layout_3> = obj.proj v2 0.i256;
-        v21.@layout_3 = obj.load v20;
-        v22.@layout_2 = obj.load v3;
-        v23.i256 = call %std__lib__evm__storage_map__impl_StorageMap_9f54__get__g2163_0 v22;
-        return v23;
+        v6.@layout_2 = obj.load v2;
+        v7.i256 = call %std__lib__evm__storage_map__impl_StorageMap_9f54__get__g2163_0 v6;
+        return v7;
 }
 
 func private %calldataload(v0.i256) -> i256 {
@@ -313,7 +267,7 @@ func private %do_init(v0.i256, v1.objref<@layout_1>, v2.objref<@layout_1>) {
         jump block1;
 
     block1:
-        v4.@layout_2 = call %std__lib__evm__effects__impl_trait_Evm_a1e8__caller_0;
+        v4.@layout_2 = call %std__lib__evm__effects__impl_trait_Evm_a1e8__caller_1;
         call %set_owner_once v0 v4 v2;
         return;
 }
@@ -336,10 +290,12 @@ func private %std__lib__evm__effects__impl_trait_Address_3ffb__eq_0(v0.@layout_2
         v11.i256 = obj.load v10;
         v12.objref<i256> = obj.proj v3 0.i256;
         v13.i256 = obj.load v12;
-        mstore v4 v13 i256;
-        v14.i256 = mload v4 i256;
-        v15.i1 = eq v11 v14;
-        return v15;
+        v14.objref<i256> = obj.proj v3 0.i256;
+        obj.store v14 v13;
+        v15.objref<i256> = obj.proj v3 0.i256;
+        v16.i256 = obj.load v15;
+        v17.i1 = eq v11 v16;
+        return v17;
 }
 
 func private %std__lib__evm__effects__impl_trait_Address_3ffb__eq_1(v0.@layout_2, v1.@layout_2) -> i1 {
@@ -360,10 +316,12 @@ func private %std__lib__evm__effects__impl_trait_Address_3ffb__eq_1(v0.@layout_2
         v11.i256 = obj.load v10;
         v12.objref<i256> = obj.proj v3 0.i256;
         v13.i256 = obj.load v12;
-        mstore v4 v13 i256;
-        v14.i256 = mload v4 i256;
-        v15.i1 = eq v11 v14;
-        return v15;
+        v14.objref<i256> = obj.proj v3 0.i256;
+        obj.store v14 v13;
+        v15.objref<i256> = obj.proj v3 0.i256;
+        v16.i256 = obj.load v15;
+        v17.i1 = eq v11 v16;
+        return v17;
 }
 
 func private %core__lib__effect_ref__impl_trait_StorPtr_27da__from_raw__gb51e_0(v0.i256) -> i256 {
@@ -445,52 +403,91 @@ func private %std__lib__evm__word__impl_trait_u256_1f9e__from_word_4(v0.i256) ->
 
 func private %std__lib__evm__storage_map__impl_StorageMap_9f54__get__g2163_0(v0.@layout_2) -> i256 {
     block0:
+        v1.objref<@layout_2> = obj.alloc @layout_2;
+        v3.objref<i256> = obj.proj v1 0.i256;
+        v4.i256 = extract_value v0 0.i256;
+        obj.store v3 v4;
         jump block1;
 
     block1:
-        v3.i256 = call %std__lib__evm__storage_map__storagemap_get_word_with_salt__g67a8_0 v0 0.i256;
-        v4.i256 = call %std__lib__evm__word__impl_trait_u256_1f9e__from_word_0 v3;
-        return v4;
+        v5.@layout_2 = obj.load v1;
+        v6.i256 = call %std__lib__evm__storage_map__storagemap_get_word_with_salt__g67a8_0 v5 0.i256;
+        v7.i256 = call %std__lib__evm__word__impl_trait_u256_1f9e__from_word_0 v6;
+        return v7;
 }
 
 func private %std__lib__evm__storage_map__impl_StorageMap_9f54__get__g2163_1(v0.@layout_2) -> i256 {
     block0:
+        v1.objref<@layout_2> = obj.alloc @layout_2;
+        v3.objref<i256> = obj.proj v1 0.i256;
+        v4.i256 = extract_value v0 0.i256;
+        obj.store v3 v4;
         jump block1;
 
     block1:
-        v3.i256 = call %std__lib__evm__storage_map__storagemap_get_word_with_salt__g67a8_1 v0 0.i256;
-        v4.i256 = call %std__lib__evm__word__impl_trait_u256_1f9e__from_word_2 v3;
-        return v4;
+        v5.@layout_2 = obj.load v1;
+        v6.i256 = call %std__lib__evm__storage_map__storagemap_get_word_with_salt__g67a8_1 v5 0.i256;
+        v7.i256 = call %std__lib__evm__word__impl_trait_u256_1f9e__from_word_2 v6;
+        return v7;
 }
 
 func private %std__lib__evm__storage_map__impl_StorageMap_9f54__get__g2163_2(v0.@layout_2) -> i256 {
     block0:
+        v1.objref<@layout_2> = obj.alloc @layout_2;
+        v3.objref<i256> = obj.proj v1 0.i256;
+        v4.i256 = extract_value v0 0.i256;
+        obj.store v3 v4;
         jump block1;
 
     block1:
-        v3.i256 = call %std__lib__evm__storage_map__storagemap_get_word_with_salt__g67a8_2 v0 0.i256;
-        v4.i256 = call %std__lib__evm__word__impl_trait_u256_1f9e__from_word_3 v3;
-        return v4;
+        v5.@layout_2 = obj.load v1;
+        v6.i256 = call %std__lib__evm__storage_map__storagemap_get_word_with_salt__g67a8_2 v5 0.i256;
+        v7.i256 = call %std__lib__evm__word__impl_trait_u256_1f9e__from_word_3 v6;
+        return v7;
 }
 
-func private %std__lib__evm__storage_map__impl_StorageMap_9f54__get__ga15b_0(v0.@layout_6) -> i256 {
+func private %std__lib__evm__storage_map__impl_StorageMap_9f54__get__ga15b_0(v0.@layout_3) -> i256 {
     block0:
+        v1.objref<@layout_3> = obj.alloc @layout_3;
+        v3.objref<@layout_2> = obj.proj v1 0.i256;
+        v4.@layout_2 = extract_value v0 0.i256;
+        v5.objref<i256> = obj.proj v3 0.i256;
+        v6.i256 = extract_value v4 0.i256;
+        obj.store v5 v6;
+        v8.objref<@layout_2> = obj.proj v1 1.i256;
+        v9.@layout_2 = extract_value v0 1.i256;
+        v10.objref<i256> = obj.proj v8 0.i256;
+        v11.i256 = extract_value v9 0.i256;
+        obj.store v10 v11;
         jump block1;
 
     block1:
-        v3.i256 = call %std__lib__evm__storage_map__storagemap_get_word_with_salt__g7bf4_0 v0 1.i256;
-        v4.i256 = call %std__lib__evm__word__impl_trait_u256_1f9e__from_word_1 v3;
-        return v4;
+        v12.@layout_3 = obj.load v1;
+        v13.i256 = call %std__lib__evm__storage_map__storagemap_get_word_with_salt__g7bf4_1 v12 1.i256;
+        v14.i256 = call %std__lib__evm__word__impl_trait_u256_1f9e__from_word_4 v13;
+        return v14;
 }
 
-func private %std__lib__evm__storage_map__impl_StorageMap_9f54__get__ga15b_1(v0.@layout_6) -> i256 {
+func private %std__lib__evm__storage_map__impl_StorageMap_9f54__get__ga15b_1(v0.@layout_3) -> i256 {
     block0:
+        v1.objref<@layout_3> = obj.alloc @layout_3;
+        v3.objref<@layout_2> = obj.proj v1 0.i256;
+        v4.@layout_2 = extract_value v0 0.i256;
+        v5.objref<i256> = obj.proj v3 0.i256;
+        v6.i256 = extract_value v4 0.i256;
+        obj.store v5 v6;
+        v8.objref<@layout_2> = obj.proj v1 1.i256;
+        v9.@layout_2 = extract_value v0 1.i256;
+        v10.objref<i256> = obj.proj v8 0.i256;
+        v11.i256 = extract_value v9 0.i256;
+        obj.store v10 v11;
         jump block1;
 
     block1:
-        v3.i256 = call %std__lib__evm__storage_map__storagemap_get_word_with_salt__g7bf4_1 v0 1.i256;
-        v4.i256 = call %std__lib__evm__word__impl_trait_u256_1f9e__from_word_4 v3;
-        return v4;
+        v12.@layout_3 = obj.load v1;
+        v13.i256 = call %std__lib__evm__storage_map__storagemap_get_word_with_salt__g7bf4_0 v12 1.i256;
+        v14.i256 = call %std__lib__evm__word__impl_trait_u256_1f9e__from_word_1 v13;
+        return v14;
 }
 
 func private %init(v0.objref<@layout_1>) {
@@ -556,7 +553,7 @@ func private %mint__g0502(v0.i256, v1.@layout_2, v2.i256, v3.objref<@layout_1>, 
         jump block1;
 
     block1:
-        v11.@layout_2 = call %std__lib__evm__effects__impl_trait_Evm_a1e8__caller_2;
+        v11.@layout_2 = call %std__lib__evm__effects__impl_trait_Evm_a1e8__caller_0;
         v14.i256 = add v0 1.i256;
         v16.i256 = evm_sload v14;
         v17.@layout_2 = insert_value undef.@layout_2 0.i256 v16;
@@ -570,7 +567,7 @@ func private %mint__g0502(v0.i256, v1.@layout_2, v2.i256, v3.objref<@layout_1>, 
         br v24 block2 block3;
 
     block2:
-        call %std__lib__evm__effects__impl_trait_Evm_0098__revert_2 0.i256 0.i256;
+        call %std__lib__evm__effects__impl_trait_Evm_0098__revert_3 0.i256 0.i256;
         unreachable;
 
     block3:
@@ -578,19 +575,11 @@ func private %mint__g0502(v0.i256, v1.@layout_2, v2.i256, v3.objref<@layout_1>, 
 
     block4:
         v25.@layout_2 = obj.load v5;
-        v29.@layout_5 = insert_value undef.@layout_5 0.i256 undef.@layout_3;
-        v31.@layout_5 = insert_value v29 1.i256 undef.@layout_4;
-        v32.i256 = evm_sload v0;
-        v34.@layout_5 = insert_value v31 2.i256 v32;
-        v35.i256 = add v0 1.i256;
-        v37.i256 = evm_sload v35;
-        v38.@layout_2 = insert_value undef.@layout_2 0.i256 v37;
-        v40.@layout_5 = insert_value v34 3.i256 v38;
-        v41.i256 = call %standalone_erc20_low_level__erc20_low_level__impl_Erc20_16d9__balance_of__g35d6_1 v40 v25;
-        v43.@layout_2 = obj.load v5;
-        v44.i256 = mload v6 i256;
-        (v45.i256, v46.i1) = uaddo v41 v44;
-        br v46 block5 block6;
+        v27.i256 = call %standalone_erc20_low_level__erc20_low_level__impl_Erc20_16d9__balance_of__g35d6_1 v0 v25;
+        v28.@layout_2 = obj.load v5;
+        v29.i256 = mload v6 i256;
+        (v30.i256, v31.i1) = uaddo v27 v29;
+        br v31 block5 block6;
 
     block5:
         mstore 0.i256 35408467139433450592217433187231851964531694900788300625387963629091585785856.i256 i256;
@@ -598,14 +587,14 @@ func private %mint__g0502(v0.i256, v1.@layout_2, v2.i256, v3.objref<@layout_1>, 
         evm_revert 0.i256 36.i256;
 
     block6:
-        call %std__lib__evm__storage_map__impl_StorageMap_9f54__set__g2163_0 v43 v45;
-        v54.i256 = evm_sload v0;
-        v55.i256 = mload v6 i256;
-        (v56.i256, v57.i1) = uaddo v54 v55;
-        br v57 block5 block7;
+        call %std__lib__evm__storage_map__impl_StorageMap_9f54__set__g2163_0 v28 v30;
+        v39.i256 = evm_sload v0;
+        v40.i256 = mload v6 i256;
+        (v41.i256, v42.i1) = uaddo v39 v40;
+        br v42 block5 block7;
 
     block7:
-        evm_sstore v0 v56;
+        evm_sstore v0 v41;
         return;
 }
 
@@ -626,22 +615,42 @@ func private %mstore(v0.objref<@layout_1>, v1.i256, v2.i256) {
 
 func private %core__lib__ops__trait_Eq__ne__g7528_0(v0.@layout_2, v1.@layout_2) -> i1 {
     block0:
+        v2.objref<@layout_2> = obj.alloc @layout_2;
+        v3.objref<@layout_2> = obj.alloc @layout_2;
+        v5.objref<i256> = obj.proj v2 0.i256;
+        v6.i256 = extract_value v0 0.i256;
+        obj.store v5 v6;
+        v7.objref<i256> = obj.proj v3 0.i256;
+        v8.i256 = extract_value v1 0.i256;
+        obj.store v7 v8;
         jump block1;
 
     block1:
-        v4.i1 = call %std__lib__evm__effects__impl_trait_Address_3ffb__eq_0 v0 v1;
-        v5.i1 = is_zero v4;
-        return v5;
+        v9.@layout_2 = obj.load v2;
+        v10.@layout_2 = obj.load v3;
+        v11.i1 = call %std__lib__evm__effects__impl_trait_Address_3ffb__eq_0 v9 v10;
+        v12.i1 = is_zero v11;
+        return v12;
 }
 
 func private %core__lib__ops__trait_Eq__ne__g7528_1(v0.@layout_2, v1.@layout_2) -> i1 {
     block0:
+        v2.objref<@layout_2> = obj.alloc @layout_2;
+        v3.objref<@layout_2> = obj.alloc @layout_2;
+        v5.objref<i256> = obj.proj v2 0.i256;
+        v6.i256 = extract_value v0 0.i256;
+        obj.store v5 v6;
+        v7.objref<i256> = obj.proj v3 0.i256;
+        v8.i256 = extract_value v1 0.i256;
+        obj.store v7 v8;
         jump block1;
 
     block1:
-        v4.i1 = call %std__lib__evm__effects__impl_trait_Address_3ffb__eq_1 v0 v1;
-        v5.i1 = is_zero v4;
-        return v5;
+        v9.@layout_2 = obj.load v2;
+        v10.@layout_2 = obj.load v3;
+        v11.i1 = call %std__lib__evm__effects__impl_trait_Address_3ffb__eq_1 v9 v10;
+        v12.i1 = is_zero v11;
+        return v12;
 }
 
 func private %std__lib__evm__effects__impl_trait_Evm_0098__return_data_0(v0.i256, v1.i256) {
@@ -826,7 +835,7 @@ func private %runtime(v0.objref<@layout_1>) {
         unreachable;
 
     block11:
-        call %std__lib__evm__effects__impl_trait_Evm_0098__revert_0 0.i256 0.i256;
+        call %std__lib__evm__effects__impl_trait_Evm_0098__revert_1 0.i256 0.i256;
         unreachable;
 
     block12:
@@ -867,41 +876,75 @@ func private %runtime(v0.objref<@layout_1>) {
 
 func private %std__lib__evm__storage_map__impl_StorageMap_9f54__set__g2163_0(v0.@layout_2, v1.i256) {
     block0:
+        v2.objref<@layout_2> = obj.alloc @layout_2;
+        v4.objref<i256> = obj.proj v2 0.i256;
+        v5.i256 = extract_value v0 0.i256;
+        obj.store v4 v5;
         jump block1;
 
     block1:
-        v4.i256 = call %std__lib__evm__word__impl_trait_u256_1f9e__to_word_1 v1;
-        call %std__lib__evm__storage_map__storagemap_set_word_with_salt__g67a8_1 v0 0.i256 v4;
+        v7.i256 = call %std__lib__evm__word__impl_trait_u256_1f9e__to_word_1 v1;
+        v8.@layout_2 = obj.load v2;
+        call %std__lib__evm__storage_map__storagemap_set_word_with_salt__g67a8_0 v8 0.i256 v7;
         return;
 }
 
 func private %std__lib__evm__storage_map__impl_StorageMap_9f54__set__g2163_1(v0.@layout_2, v1.i256) {
     block0:
+        v2.objref<@layout_2> = obj.alloc @layout_2;
+        v4.objref<i256> = obj.proj v2 0.i256;
+        v5.i256 = extract_value v0 0.i256;
+        obj.store v4 v5;
         jump block1;
 
     block1:
-        v4.i256 = call %std__lib__evm__word__impl_trait_u256_1f9e__to_word_3 v1;
-        call %std__lib__evm__storage_map__storagemap_set_word_with_salt__g67a8_0 v0 0.i256 v4;
+        v7.i256 = call %std__lib__evm__word__impl_trait_u256_1f9e__to_word_3 v1;
+        v8.@layout_2 = obj.load v2;
+        call %std__lib__evm__storage_map__storagemap_set_word_with_salt__g67a8_1 v8 0.i256 v7;
         return;
 }
 
-func private %std__lib__evm__storage_map__impl_StorageMap_9f54__set__ga15b_0(v0.@layout_6, v1.i256) {
+func private %std__lib__evm__storage_map__impl_StorageMap_9f54__set__ga15b_0(v0.@layout_3, v1.i256) {
     block0:
+        v2.objref<@layout_3> = obj.alloc @layout_3;
+        v4.objref<@layout_2> = obj.proj v2 0.i256;
+        v5.@layout_2 = extract_value v0 0.i256;
+        v6.objref<i256> = obj.proj v4 0.i256;
+        v7.i256 = extract_value v5 0.i256;
+        obj.store v6 v7;
+        v9.objref<@layout_2> = obj.proj v2 1.i256;
+        v10.@layout_2 = extract_value v0 1.i256;
+        v11.objref<i256> = obj.proj v9 0.i256;
+        v12.i256 = extract_value v10 0.i256;
+        obj.store v11 v12;
         jump block1;
 
     block1:
-        v4.i256 = call %std__lib__evm__word__impl_trait_u256_1f9e__to_word_0 v1;
-        call %std__lib__evm__storage_map__storagemap_set_word_with_salt__g7bf4_1 v0 1.i256 v4;
+        v14.i256 = call %std__lib__evm__word__impl_trait_u256_1f9e__to_word_0 v1;
+        v15.@layout_3 = obj.load v2;
+        call %std__lib__evm__storage_map__storagemap_set_word_with_salt__g7bf4_1 v15 1.i256 v14;
         return;
 }
 
-func private %std__lib__evm__storage_map__impl_StorageMap_9f54__set__ga15b_1(v0.@layout_6, v1.i256) {
+func private %std__lib__evm__storage_map__impl_StorageMap_9f54__set__ga15b_1(v0.@layout_3, v1.i256) {
     block0:
+        v2.objref<@layout_3> = obj.alloc @layout_3;
+        v4.objref<@layout_2> = obj.proj v2 0.i256;
+        v5.@layout_2 = extract_value v0 0.i256;
+        v6.objref<i256> = obj.proj v4 0.i256;
+        v7.i256 = extract_value v5 0.i256;
+        obj.store v6 v7;
+        v9.objref<@layout_2> = obj.proj v2 1.i256;
+        v10.@layout_2 = extract_value v0 1.i256;
+        v11.objref<i256> = obj.proj v9 0.i256;
+        v12.i256 = extract_value v10 0.i256;
+        obj.store v11 v12;
         jump block1;
 
     block1:
-        v4.i256 = call %std__lib__evm__word__impl_trait_u256_1f9e__to_word_2 v1;
-        call %std__lib__evm__storage_map__storagemap_set_word_with_salt__g7bf4_0 v0 1.i256 v4;
+        v14.i256 = call %std__lib__evm__word__impl_trait_u256_1f9e__to_word_2 v1;
+        v15.@layout_3 = obj.load v2;
+        call %std__lib__evm__storage_map__storagemap_set_word_with_salt__g7bf4_0 v15 1.i256 v14;
         return;
 }
 
@@ -927,7 +970,7 @@ func private %set_owner_once(v0.i256, v1.@layout_2, v2.objref<@layout_1>) {
         br v18 block2 block3;
 
     block2:
-        call %std__lib__evm__effects__impl_trait_Evm_0098__revert_1 0.i256 0.i256;
+        call %std__lib__evm__effects__impl_trait_Evm_0098__revert_2 0.i256 0.i256;
         unreachable;
 
     block3:
@@ -949,7 +992,7 @@ func private %std__lib__evm__effects__trait_RawStorage__stor_ptr__g3730_0(v0.i25
 
     block1:
         v2.i256 = mload v1 i256;
-        v3.i256 = call %core__lib__effect_ref__impl_trait_StorPtr_27da__from_raw__gb51e_0 v2;
+        v3.i256 = call %core__lib__effect_ref__impl_trait_StorPtr_27da__from_raw__gb51e_1 v2;
         return v3;
 }
 
@@ -961,151 +1004,229 @@ func private %std__lib__evm__effects__trait_RawStorage__stor_ptr__g3730_1(v0.i25
 
     block1:
         v2.i256 = mload v1 i256;
-        v3.i256 = call %core__lib__effect_ref__impl_trait_StorPtr_27da__from_raw__gb51e_1 v2;
+        v3.i256 = call %core__lib__effect_ref__impl_trait_StorPtr_27da__from_raw__gb51e_0 v2;
         return v3;
 }
 
 func private %std__lib__evm__storage_map__storagemap_get_word_with_salt__g67a8_0(v0.@layout_2, v1.i256) -> i256 {
     block0:
-        v2.*i256 = alloca i256;
-        mstore v2 v1 i256;
+        v2.objref<@layout_2> = obj.alloc @layout_2;
+        v3.*i256 = alloca i256;
+        v5.objref<i256> = obj.proj v2 0.i256;
+        v6.i256 = extract_value v0 0.i256;
+        obj.store v5 v6;
+        mstore v3 v1 i256;
         jump block1;
 
     block1:
-        v3.i256 = mload v2 i256;
-        v5.i256 = call %std__lib__evm__storage_map__storagemap_storage_slot_with_salt__g67a8_2 v0 v3;
-        v6.i256 = evm_sload v5;
-        return v6;
+        v7.i256 = mload v3 i256;
+        v8.@layout_2 = obj.load v2;
+        v9.i256 = call %std__lib__evm__storage_map__storagemap_storage_slot_with_salt__g67a8_2 v8 v7;
+        v10.i256 = evm_sload v9;
+        return v10;
 }
 
 func private %std__lib__evm__storage_map__storagemap_get_word_with_salt__g67a8_1(v0.@layout_2, v1.i256) -> i256 {
     block0:
-        v2.*i256 = alloca i256;
-        mstore v2 v1 i256;
+        v2.objref<@layout_2> = obj.alloc @layout_2;
+        v3.*i256 = alloca i256;
+        v5.objref<i256> = obj.proj v2 0.i256;
+        v6.i256 = extract_value v0 0.i256;
+        obj.store v5 v6;
+        mstore v3 v1 i256;
         jump block1;
 
     block1:
-        v3.i256 = mload v2 i256;
-        v5.i256 = call %std__lib__evm__storage_map__storagemap_storage_slot_with_salt__g67a8_0 v0 v3;
-        v6.i256 = evm_sload v5;
-        return v6;
+        v7.i256 = mload v3 i256;
+        v8.@layout_2 = obj.load v2;
+        v9.i256 = call %std__lib__evm__storage_map__storagemap_storage_slot_with_salt__g67a8_0 v8 v7;
+        v10.i256 = evm_sload v9;
+        return v10;
 }
 
 func private %std__lib__evm__storage_map__storagemap_get_word_with_salt__g67a8_2(v0.@layout_2, v1.i256) -> i256 {
     block0:
-        v2.*i256 = alloca i256;
-        mstore v2 v1 i256;
+        v2.objref<@layout_2> = obj.alloc @layout_2;
+        v3.*i256 = alloca i256;
+        v5.objref<i256> = obj.proj v2 0.i256;
+        v6.i256 = extract_value v0 0.i256;
+        obj.store v5 v6;
+        mstore v3 v1 i256;
         jump block1;
 
     block1:
-        v3.i256 = mload v2 i256;
-        v5.i256 = call %std__lib__evm__storage_map__storagemap_storage_slot_with_salt__g67a8_1 v0 v3;
-        v6.i256 = evm_sload v5;
-        return v6;
+        v7.i256 = mload v3 i256;
+        v8.@layout_2 = obj.load v2;
+        v9.i256 = call %std__lib__evm__storage_map__storagemap_storage_slot_with_salt__g67a8_1 v8 v7;
+        v10.i256 = evm_sload v9;
+        return v10;
 }
 
-func private %std__lib__evm__storage_map__storagemap_get_word_with_salt__g7bf4_0(v0.@layout_6, v1.i256) -> i256 {
+func private %std__lib__evm__storage_map__storagemap_get_word_with_salt__g7bf4_0(v0.@layout_3, v1.i256) -> i256 {
     block0:
-        v2.*i256 = alloca i256;
-        mstore v2 v1 i256;
+        v2.objref<@layout_3> = obj.alloc @layout_3;
+        v3.*i256 = alloca i256;
+        v5.objref<@layout_2> = obj.proj v2 0.i256;
+        v6.@layout_2 = extract_value v0 0.i256;
+        v7.objref<i256> = obj.proj v5 0.i256;
+        v8.i256 = extract_value v6 0.i256;
+        obj.store v7 v8;
+        v10.objref<@layout_2> = obj.proj v2 1.i256;
+        v11.@layout_2 = extract_value v0 1.i256;
+        v12.objref<i256> = obj.proj v10 0.i256;
+        v13.i256 = extract_value v11 0.i256;
+        obj.store v12 v13;
+        mstore v3 v1 i256;
         jump block1;
 
     block1:
-        v3.i256 = mload v2 i256;
-        v5.i256 = call %std__lib__evm__storage_map__storagemap_storage_slot_with_salt__g7bf4_2 v0 v3;
-        v6.i256 = evm_sload v5;
-        return v6;
+        v14.i256 = mload v3 i256;
+        v15.@layout_3 = obj.load v2;
+        v16.i256 = call %std__lib__evm__storage_map__storagemap_storage_slot_with_salt__g7bf4_2 v15 v14;
+        v17.i256 = evm_sload v16;
+        return v17;
 }
 
-func private %std__lib__evm__storage_map__storagemap_get_word_with_salt__g7bf4_1(v0.@layout_6, v1.i256) -> i256 {
+func private %std__lib__evm__storage_map__storagemap_get_word_with_salt__g7bf4_1(v0.@layout_3, v1.i256) -> i256 {
     block0:
-        v2.*i256 = alloca i256;
-        mstore v2 v1 i256;
+        v2.objref<@layout_3> = obj.alloc @layout_3;
+        v3.*i256 = alloca i256;
+        v5.objref<@layout_2> = obj.proj v2 0.i256;
+        v6.@layout_2 = extract_value v0 0.i256;
+        v7.objref<i256> = obj.proj v5 0.i256;
+        v8.i256 = extract_value v6 0.i256;
+        obj.store v7 v8;
+        v10.objref<@layout_2> = obj.proj v2 1.i256;
+        v11.@layout_2 = extract_value v0 1.i256;
+        v12.objref<i256> = obj.proj v10 0.i256;
+        v13.i256 = extract_value v11 0.i256;
+        obj.store v12 v13;
+        mstore v3 v1 i256;
         jump block1;
 
     block1:
-        v3.i256 = mload v2 i256;
-        v5.i256 = call %std__lib__evm__storage_map__storagemap_storage_slot_with_salt__g7bf4_1 v0 v3;
-        v6.i256 = evm_sload v5;
-        return v6;
+        v14.i256 = mload v3 i256;
+        v15.@layout_3 = obj.load v2;
+        v16.i256 = call %std__lib__evm__storage_map__storagemap_storage_slot_with_salt__g7bf4_1 v15 v14;
+        v17.i256 = evm_sload v16;
+        return v17;
 }
 
 func private %std__lib__evm__storage_map__storagemap_set_word_with_salt__g67a8_0(v0.@layout_2, v1.i256, v2.i256) {
     block0:
-        v3.*i256 = alloca i256;
+        v3.objref<@layout_2> = obj.alloc @layout_2;
         v4.*i256 = alloca i256;
-        mstore v3 v1 i256;
-        mstore v4 v2 i256;
+        v5.*i256 = alloca i256;
+        v7.objref<i256> = obj.proj v3 0.i256;
+        v8.i256 = extract_value v0 0.i256;
+        obj.store v7 v8;
+        mstore v4 v1 i256;
+        mstore v5 v2 i256;
         jump block1;
 
     block1:
-        v5.i256 = mload v3 i256;
-        v7.i256 = call %std__lib__evm__storage_map__storagemap_storage_slot_with_salt__g67a8_0 v0 v5;
-        v8.i256 = mload v4 i256;
-        evm_sstore v7 v8;
+        v9.i256 = mload v4 i256;
+        v10.@layout_2 = obj.load v3;
+        v11.i256 = call %std__lib__evm__storage_map__storagemap_storage_slot_with_salt__g67a8_2 v10 v9;
+        v12.i256 = mload v5 i256;
+        evm_sstore v11 v12;
         return;
 }
 
 func private %std__lib__evm__storage_map__storagemap_set_word_with_salt__g67a8_1(v0.@layout_2, v1.i256, v2.i256) {
     block0:
-        v3.*i256 = alloca i256;
+        v3.objref<@layout_2> = obj.alloc @layout_2;
         v4.*i256 = alloca i256;
-        mstore v3 v1 i256;
-        mstore v4 v2 i256;
+        v5.*i256 = alloca i256;
+        v7.objref<i256> = obj.proj v3 0.i256;
+        v8.i256 = extract_value v0 0.i256;
+        obj.store v7 v8;
+        mstore v4 v1 i256;
+        mstore v5 v2 i256;
         jump block1;
 
     block1:
-        v5.i256 = mload v3 i256;
-        v7.i256 = call %std__lib__evm__storage_map__storagemap_storage_slot_with_salt__g67a8_2 v0 v5;
-        v8.i256 = mload v4 i256;
-        evm_sstore v7 v8;
+        v9.i256 = mload v4 i256;
+        v10.@layout_2 = obj.load v3;
+        v11.i256 = call %std__lib__evm__storage_map__storagemap_storage_slot_with_salt__g67a8_0 v10 v9;
+        v12.i256 = mload v5 i256;
+        evm_sstore v11 v12;
         return;
 }
 
-func private %std__lib__evm__storage_map__storagemap_set_word_with_salt__g7bf4_0(v0.@layout_6, v1.i256, v2.i256) {
+func private %std__lib__evm__storage_map__storagemap_set_word_with_salt__g7bf4_0(v0.@layout_3, v1.i256, v2.i256) {
     block0:
-        v3.*i256 = alloca i256;
+        v3.objref<@layout_3> = obj.alloc @layout_3;
         v4.*i256 = alloca i256;
-        mstore v3 v1 i256;
-        mstore v4 v2 i256;
+        v5.*i256 = alloca i256;
+        v7.objref<@layout_2> = obj.proj v3 0.i256;
+        v8.@layout_2 = extract_value v0 0.i256;
+        v9.objref<i256> = obj.proj v7 0.i256;
+        v10.i256 = extract_value v8 0.i256;
+        obj.store v9 v10;
+        v12.objref<@layout_2> = obj.proj v3 1.i256;
+        v13.@layout_2 = extract_value v0 1.i256;
+        v14.objref<i256> = obj.proj v12 0.i256;
+        v15.i256 = extract_value v13 0.i256;
+        obj.store v14 v15;
+        mstore v4 v1 i256;
+        mstore v5 v2 i256;
         jump block1;
 
     block1:
-        v5.i256 = mload v3 i256;
-        v7.i256 = call %std__lib__evm__storage_map__storagemap_storage_slot_with_salt__g7bf4_0 v0 v5;
-        v8.i256 = mload v4 i256;
-        evm_sstore v7 v8;
+        v16.i256 = mload v4 i256;
+        v17.@layout_3 = obj.load v3;
+        v18.i256 = call %std__lib__evm__storage_map__storagemap_storage_slot_with_salt__g7bf4_0 v17 v16;
+        v19.i256 = mload v5 i256;
+        evm_sstore v18 v19;
         return;
 }
 
-func private %std__lib__evm__storage_map__storagemap_set_word_with_salt__g7bf4_1(v0.@layout_6, v1.i256, v2.i256) {
+func private %std__lib__evm__storage_map__storagemap_set_word_with_salt__g7bf4_1(v0.@layout_3, v1.i256, v2.i256) {
     block0:
-        v3.*i256 = alloca i256;
+        v3.objref<@layout_3> = obj.alloc @layout_3;
         v4.*i256 = alloca i256;
-        mstore v3 v1 i256;
-        mstore v4 v2 i256;
+        v5.*i256 = alloca i256;
+        v7.objref<@layout_2> = obj.proj v3 0.i256;
+        v8.@layout_2 = extract_value v0 0.i256;
+        v9.objref<i256> = obj.proj v7 0.i256;
+        v10.i256 = extract_value v8 0.i256;
+        obj.store v9 v10;
+        v12.objref<@layout_2> = obj.proj v3 1.i256;
+        v13.@layout_2 = extract_value v0 1.i256;
+        v14.objref<i256> = obj.proj v12 0.i256;
+        v15.i256 = extract_value v13 0.i256;
+        obj.store v14 v15;
+        mstore v4 v1 i256;
+        mstore v5 v2 i256;
         jump block1;
 
     block1:
-        v5.i256 = mload v3 i256;
-        v7.i256 = call %std__lib__evm__storage_map__storagemap_storage_slot_with_salt__g7bf4_2 v0 v5;
-        v8.i256 = mload v4 i256;
-        evm_sstore v7 v8;
+        v16.i256 = mload v4 i256;
+        v17.@layout_3 = obj.load v3;
+        v18.i256 = call %std__lib__evm__storage_map__storagemap_storage_slot_with_salt__g7bf4_2 v17 v16;
+        v19.i256 = mload v5 i256;
+        evm_sstore v18 v19;
         return;
 }
 
 func private %std__lib__evm__storage_map__storagemap_storage_slot_with_salt__g67a8_0(v0.@layout_2, v1.i256) -> i256 {
     block0:
-        v2.*i256 = alloca i256;
-        mstore v2 v1 i256;
+        v2.objref<@layout_2> = obj.alloc @layout_2;
+        v3.*i256 = alloca i256;
+        v5.objref<i256> = obj.proj v2 0.i256;
+        v6.i256 = extract_value v0 0.i256;
+        obj.store v5 v6;
+        mstore v3 v1 i256;
         jump block1;
 
     block1:
-        v4.*i8 = evm_malloc 0.i256;
-        v5.i256 = ptr_to_int v4 i256;
-        v7.i256 = call %std__lib__evm__storage_map__impl_trait_Address_4d4e__write_key_2 v5 v0;
-        (v8.i256, v9.i1) = uaddo v5 v7;
-        br v9 block2 block3;
+        v7.*i8 = evm_malloc 0.i256;
+        v8.i256 = ptr_to_int v7 i256;
+        v9.@layout_2 = obj.load v2;
+        v10.i256 = call %std__lib__evm__storage_map__impl_trait_Address_4d4e__write_key_2 v8 v9;
+        (v11.i256, v12.i1) = uaddo v8 v10;
+        br v12 block2 block3;
 
     block2:
         mstore 0.i256 35408467139433450592217433187231851964531694900788300625387963629091585785856.i256 i256;
@@ -1113,28 +1234,33 @@ func private %std__lib__evm__storage_map__storagemap_storage_slot_with_salt__g67
         evm_revert 0.i256 36.i256;
 
     block3:
-        v14.i256 = mload v2 i256;
-        mstore v8 v14 i256;
-        (v18.i256, v19.i1) = uaddo v7 32.i256;
-        br v19 block2 block4;
+        v17.i256 = mload v3 i256;
+        mstore v11 v17 i256;
+        (v21.i256, v22.i1) = uaddo v10 32.i256;
+        br v22 block2 block4;
 
     block4:
-        v21.i256 = evm_keccak256 v5 v18;
-        return v21;
+        v24.i256 = evm_keccak256 v8 v21;
+        return v24;
 }
 
 func private %std__lib__evm__storage_map__storagemap_storage_slot_with_salt__g67a8_1(v0.@layout_2, v1.i256) -> i256 {
     block0:
-        v2.*i256 = alloca i256;
-        mstore v2 v1 i256;
+        v2.objref<@layout_2> = obj.alloc @layout_2;
+        v3.*i256 = alloca i256;
+        v5.objref<i256> = obj.proj v2 0.i256;
+        v6.i256 = extract_value v0 0.i256;
+        obj.store v5 v6;
+        mstore v3 v1 i256;
         jump block1;
 
     block1:
-        v4.*i8 = evm_malloc 0.i256;
-        v5.i256 = ptr_to_int v4 i256;
-        v7.i256 = call %std__lib__evm__storage_map__impl_trait_Address_4d4e__write_key_4 v5 v0;
-        (v8.i256, v9.i1) = uaddo v5 v7;
-        br v9 block2 block3;
+        v7.*i8 = evm_malloc 0.i256;
+        v8.i256 = ptr_to_int v7 i256;
+        v9.@layout_2 = obj.load v2;
+        v10.i256 = call %std__lib__evm__storage_map__impl_trait_Address_4d4e__write_key_4 v8 v9;
+        (v11.i256, v12.i1) = uaddo v8 v10;
+        br v12 block2 block3;
 
     block2:
         mstore 0.i256 35408467139433450592217433187231851964531694900788300625387963629091585785856.i256 i256;
@@ -1142,28 +1268,33 @@ func private %std__lib__evm__storage_map__storagemap_storage_slot_with_salt__g67
         evm_revert 0.i256 36.i256;
 
     block3:
-        v14.i256 = mload v2 i256;
-        mstore v8 v14 i256;
-        (v18.i256, v19.i1) = uaddo v7 32.i256;
-        br v19 block2 block4;
+        v17.i256 = mload v3 i256;
+        mstore v11 v17 i256;
+        (v21.i256, v22.i1) = uaddo v10 32.i256;
+        br v22 block2 block4;
 
     block4:
-        v21.i256 = evm_keccak256 v5 v18;
-        return v21;
+        v24.i256 = evm_keccak256 v8 v21;
+        return v24;
 }
 
 func private %std__lib__evm__storage_map__storagemap_storage_slot_with_salt__g67a8_2(v0.@layout_2, v1.i256) -> i256 {
     block0:
-        v2.*i256 = alloca i256;
-        mstore v2 v1 i256;
+        v2.objref<@layout_2> = obj.alloc @layout_2;
+        v3.*i256 = alloca i256;
+        v5.objref<i256> = obj.proj v2 0.i256;
+        v6.i256 = extract_value v0 0.i256;
+        obj.store v5 v6;
+        mstore v3 v1 i256;
         jump block1;
 
     block1:
-        v4.*i8 = evm_malloc 0.i256;
-        v5.i256 = ptr_to_int v4 i256;
-        v7.i256 = call %std__lib__evm__storage_map__impl_trait_Address_4d4e__write_key_0 v5 v0;
-        (v8.i256, v9.i1) = uaddo v5 v7;
-        br v9 block2 block3;
+        v7.*i8 = evm_malloc 0.i256;
+        v8.i256 = ptr_to_int v7 i256;
+        v9.@layout_2 = obj.load v2;
+        v10.i256 = call %std__lib__evm__storage_map__impl_trait_Address_4d4e__write_key_0 v8 v9;
+        (v11.i256, v12.i1) = uaddo v8 v10;
+        br v12 block2 block3;
 
     block2:
         mstore 0.i256 35408467139433450592217433187231851964531694900788300625387963629091585785856.i256 i256;
@@ -1171,28 +1302,40 @@ func private %std__lib__evm__storage_map__storagemap_storage_slot_with_salt__g67
         evm_revert 0.i256 36.i256;
 
     block3:
-        v14.i256 = mload v2 i256;
-        mstore v8 v14 i256;
-        (v18.i256, v19.i1) = uaddo v7 32.i256;
-        br v19 block2 block4;
+        v17.i256 = mload v3 i256;
+        mstore v11 v17 i256;
+        (v21.i256, v22.i1) = uaddo v10 32.i256;
+        br v22 block2 block4;
 
     block4:
-        v21.i256 = evm_keccak256 v5 v18;
-        return v21;
+        v24.i256 = evm_keccak256 v8 v21;
+        return v24;
 }
 
-func private %std__lib__evm__storage_map__storagemap_storage_slot_with_salt__g7bf4_0(v0.@layout_6, v1.i256) -> i256 {
+func private %std__lib__evm__storage_map__storagemap_storage_slot_with_salt__g7bf4_0(v0.@layout_3, v1.i256) -> i256 {
     block0:
-        v2.*i256 = alloca i256;
-        mstore v2 v1 i256;
+        v2.objref<@layout_3> = obj.alloc @layout_3;
+        v3.*i256 = alloca i256;
+        v5.objref<@layout_2> = obj.proj v2 0.i256;
+        v6.@layout_2 = extract_value v0 0.i256;
+        v7.objref<i256> = obj.proj v5 0.i256;
+        v8.i256 = extract_value v6 0.i256;
+        obj.store v7 v8;
+        v10.objref<@layout_2> = obj.proj v2 1.i256;
+        v11.@layout_2 = extract_value v0 1.i256;
+        v12.objref<i256> = obj.proj v10 0.i256;
+        v13.i256 = extract_value v11 0.i256;
+        obj.store v12 v13;
+        mstore v3 v1 i256;
         jump block1;
 
     block1:
-        v4.*i8 = evm_malloc 0.i256;
-        v5.i256 = ptr_to_int v4 i256;
-        v7.i256 = call %std__lib__evm__storage_map__impl_trait____9761__write_key__g7528_2 v5 v0;
-        (v8.i256, v9.i1) = uaddo v5 v7;
-        br v9 block2 block3;
+        v14.*i8 = evm_malloc 0.i256;
+        v15.i256 = ptr_to_int v14 i256;
+        v16.@layout_3 = obj.load v2;
+        v17.i256 = call %std__lib__evm__storage_map__impl_trait____9761__write_key__g7528_0 v15 v16;
+        (v18.i256, v19.i1) = uaddo v15 v17;
+        br v19 block2 block3;
 
     block2:
         mstore 0.i256 35408467139433450592217433187231851964531694900788300625387963629091585785856.i256 i256;
@@ -1200,28 +1343,40 @@ func private %std__lib__evm__storage_map__storagemap_storage_slot_with_salt__g7b
         evm_revert 0.i256 36.i256;
 
     block3:
-        v14.i256 = mload v2 i256;
-        mstore v8 v14 i256;
-        (v18.i256, v19.i1) = uaddo v7 32.i256;
-        br v19 block2 block4;
+        v24.i256 = mload v3 i256;
+        mstore v18 v24 i256;
+        (v28.i256, v29.i1) = uaddo v17 32.i256;
+        br v29 block2 block4;
 
     block4:
-        v21.i256 = evm_keccak256 v5 v18;
-        return v21;
+        v31.i256 = evm_keccak256 v15 v28;
+        return v31;
 }
 
-func private %std__lib__evm__storage_map__storagemap_storage_slot_with_salt__g7bf4_1(v0.@layout_6, v1.i256) -> i256 {
+func private %std__lib__evm__storage_map__storagemap_storage_slot_with_salt__g7bf4_1(v0.@layout_3, v1.i256) -> i256 {
     block0:
-        v2.*i256 = alloca i256;
-        mstore v2 v1 i256;
+        v2.objref<@layout_3> = obj.alloc @layout_3;
+        v3.*i256 = alloca i256;
+        v5.objref<@layout_2> = obj.proj v2 0.i256;
+        v6.@layout_2 = extract_value v0 0.i256;
+        v7.objref<i256> = obj.proj v5 0.i256;
+        v8.i256 = extract_value v6 0.i256;
+        obj.store v7 v8;
+        v10.objref<@layout_2> = obj.proj v2 1.i256;
+        v11.@layout_2 = extract_value v0 1.i256;
+        v12.objref<i256> = obj.proj v10 0.i256;
+        v13.i256 = extract_value v11 0.i256;
+        obj.store v12 v13;
+        mstore v3 v1 i256;
         jump block1;
 
     block1:
-        v4.*i8 = evm_malloc 0.i256;
-        v5.i256 = ptr_to_int v4 i256;
-        v7.i256 = call %std__lib__evm__storage_map__impl_trait____9761__write_key__g7528_0 v5 v0;
-        (v8.i256, v9.i1) = uaddo v5 v7;
-        br v9 block2 block3;
+        v14.*i8 = evm_malloc 0.i256;
+        v15.i256 = ptr_to_int v14 i256;
+        v16.@layout_3 = obj.load v2;
+        v17.i256 = call %std__lib__evm__storage_map__impl_trait____9761__write_key__g7528_1 v15 v16;
+        (v18.i256, v19.i1) = uaddo v15 v17;
+        br v19 block2 block3;
 
     block2:
         mstore 0.i256 35408467139433450592217433187231851964531694900788300625387963629091585785856.i256 i256;
@@ -1229,28 +1384,40 @@ func private %std__lib__evm__storage_map__storagemap_storage_slot_with_salt__g7b
         evm_revert 0.i256 36.i256;
 
     block3:
-        v14.i256 = mload v2 i256;
-        mstore v8 v14 i256;
-        (v18.i256, v19.i1) = uaddo v7 32.i256;
-        br v19 block2 block4;
+        v24.i256 = mload v3 i256;
+        mstore v18 v24 i256;
+        (v28.i256, v29.i1) = uaddo v17 32.i256;
+        br v29 block2 block4;
 
     block4:
-        v21.i256 = evm_keccak256 v5 v18;
-        return v21;
+        v31.i256 = evm_keccak256 v15 v28;
+        return v31;
 }
 
-func private %std__lib__evm__storage_map__storagemap_storage_slot_with_salt__g7bf4_2(v0.@layout_6, v1.i256) -> i256 {
+func private %std__lib__evm__storage_map__storagemap_storage_slot_with_salt__g7bf4_2(v0.@layout_3, v1.i256) -> i256 {
     block0:
-        v2.*i256 = alloca i256;
-        mstore v2 v1 i256;
+        v2.objref<@layout_3> = obj.alloc @layout_3;
+        v3.*i256 = alloca i256;
+        v5.objref<@layout_2> = obj.proj v2 0.i256;
+        v6.@layout_2 = extract_value v0 0.i256;
+        v7.objref<i256> = obj.proj v5 0.i256;
+        v8.i256 = extract_value v6 0.i256;
+        obj.store v7 v8;
+        v10.objref<@layout_2> = obj.proj v2 1.i256;
+        v11.@layout_2 = extract_value v0 1.i256;
+        v12.objref<i256> = obj.proj v10 0.i256;
+        v13.i256 = extract_value v11 0.i256;
+        obj.store v12 v13;
+        mstore v3 v1 i256;
         jump block1;
 
     block1:
-        v4.*i8 = evm_malloc 0.i256;
-        v5.i256 = ptr_to_int v4 i256;
-        v7.i256 = call %std__lib__evm__storage_map__impl_trait____9761__write_key__g7528_1 v5 v0;
-        (v8.i256, v9.i1) = uaddo v5 v7;
-        br v9 block2 block3;
+        v14.*i8 = evm_malloc 0.i256;
+        v15.i256 = ptr_to_int v14 i256;
+        v16.@layout_3 = obj.load v2;
+        v17.i256 = call %std__lib__evm__storage_map__impl_trait____9761__write_key__g7528_2 v15 v16;
+        (v18.i256, v19.i1) = uaddo v15 v17;
+        br v19 block2 block3;
 
     block2:
         mstore 0.i256 35408467139433450592217433187231851964531694900788300625387963629091585785856.i256 i256;
@@ -1258,14 +1425,14 @@ func private %std__lib__evm__storage_map__storagemap_storage_slot_with_salt__g7b
         evm_revert 0.i256 36.i256;
 
     block3:
-        v14.i256 = mload v2 i256;
-        mstore v8 v14 i256;
-        (v18.i256, v19.i1) = uaddo v7 32.i256;
-        br v19 block2 block4;
+        v24.i256 = mload v3 i256;
+        mstore v18 v24 i256;
+        (v28.i256, v29.i1) = uaddo v17 32.i256;
+        br v29 block2 block4;
 
     block4:
-        v21.i256 = evm_keccak256 v5 v18;
-        return v21;
+        v31.i256 = evm_keccak256 v15 v28;
+        return v31;
 }
 
 func private %std__lib__evm__word__impl_trait_u256_1f9e__to_word_0(v0.i256) -> i256 {
@@ -1311,7 +1478,7 @@ func private %transfer__gd1d8(v0.@layout_2, v1.i256, v2.i256, v3.objref<@layout_
         jump block1;
 
     block1:
-        v11.@layout_2 = call %std__lib__evm__effects__impl_trait_Evm_a1e8__caller_2;
+        v11.@layout_2 = call %std__lib__evm__effects__impl_trait_Evm_a1e8__caller_0;
         v12.@layout_2 = obj.load v5;
         v13.i256 = mload v6 i256;
         call %standalone_erc20_low_level__erc20_low_level__impl_Erc20_16d9__transfer__g0f37_1 v2 v11 v12 v13 v4;
@@ -1334,41 +1501,25 @@ func private %standalone_erc20_low_level__erc20_low_level__impl_Erc20_16d9__tran
 
     block1:
         v13.@layout_2 = obj.load v5;
-        v17.@layout_5 = insert_value undef.@layout_5 0.i256 undef.@layout_3;
-        v20.@layout_5 = insert_value v17 1.i256 undef.@layout_4;
-        v21.i256 = evm_sload v0;
-        v23.@layout_5 = insert_value v20 2.i256 v21;
-        v24.i256 = add v0 1.i256;
-        v26.i256 = evm_sload v24;
-        v27.@layout_2 = insert_value undef.@layout_2 0.i256 v26;
-        v29.@layout_5 = insert_value v23 3.i256 v27;
-        v30.i256 = call %standalone_erc20_low_level__erc20_low_level__impl_Erc20_16d9__balance_of__g35d6_0 v29 v13;
-        v31.i256 = mload v7 i256;
-        v32.i1 = lt v30 v31;
-        br v32 block2 block3;
+        v15.i256 = call %standalone_erc20_low_level__erc20_low_level__impl_Erc20_16d9__balance_of__g35d6_0 v0 v13;
+        v16.i256 = mload v7 i256;
+        v17.i1 = lt v15 v16;
+        br v17 block2 block3;
 
     block2:
-        call %std__lib__evm__effects__impl_trait_Evm_0098__revert_3 0.i256 0.i256;
+        call %std__lib__evm__effects__impl_trait_Evm_0098__revert_0 0.i256 0.i256;
         unreachable;
 
     block3:
         jump block4;
 
     block4:
-        v33.@layout_2 = obj.load v6;
-        v37.@layout_5 = insert_value undef.@layout_5 0.i256 undef.@layout_3;
-        v39.@layout_5 = insert_value v37 1.i256 undef.@layout_4;
-        v40.i256 = evm_sload v0;
-        v41.@layout_5 = insert_value v39 2.i256 v40;
-        v42.i256 = add v0 1.i256;
-        v44.i256 = evm_sload v42;
-        v45.@layout_2 = insert_value undef.@layout_2 0.i256 v44;
-        v46.@layout_5 = insert_value v41 3.i256 v45;
-        v47.i256 = call %standalone_erc20_low_level__erc20_low_level__impl_Erc20_16d9__balance_of__g35d6_0 v46 v33;
-        v49.@layout_2 = obj.load v5;
-        v50.i256 = mload v7 i256;
-        (v52.i256, v53.i1) = usubo v30 v50;
-        br v53 block5 block6;
+        v18.@layout_2 = obj.load v6;
+        v20.i256 = call %standalone_erc20_low_level__erc20_low_level__impl_Erc20_16d9__balance_of__g35d6_0 v0 v18;
+        v21.@layout_2 = obj.load v5;
+        v22.i256 = mload v7 i256;
+        (v24.i256, v25.i1) = usubo v15 v22;
+        br v25 block5 block6;
 
     block5:
         mstore 0.i256 35408467139433450592217433187231851964531694900788300625387963629091585785856.i256 i256;
@@ -1376,14 +1527,14 @@ func private %standalone_erc20_low_level__erc20_low_level__impl_Erc20_16d9__tran
         evm_revert 0.i256 36.i256;
 
     block6:
-        call %std__lib__evm__storage_map__impl_StorageMap_9f54__set__g2163_1 v49 v52;
-        v62.@layout_2 = obj.load v6;
-        v63.i256 = mload v7 i256;
-        (v65.i256, v66.i1) = uaddo v47 v63;
-        br v66 block5 block7;
+        call %std__lib__evm__storage_map__impl_StorageMap_9f54__set__g2163_1 v21 v24;
+        v32.@layout_2 = obj.load v6;
+        v33.i256 = mload v7 i256;
+        (v35.i256, v36.i1) = uaddo v20 v33;
+        br v36 block5 block7;
 
     block7:
-        call %std__lib__evm__storage_map__impl_StorageMap_9f54__set__g2163_1 v62 v65;
+        call %std__lib__evm__storage_map__impl_StorageMap_9f54__set__g2163_1 v32 v35;
         return;
 }
 
@@ -1403,41 +1554,25 @@ func private %standalone_erc20_low_level__erc20_low_level__impl_Erc20_16d9__tran
 
     block1:
         v13.@layout_2 = obj.load v5;
-        v17.@layout_5 = insert_value undef.@layout_5 0.i256 undef.@layout_3;
-        v20.@layout_5 = insert_value v17 1.i256 undef.@layout_4;
-        v21.i256 = evm_sload v0;
-        v23.@layout_5 = insert_value v20 2.i256 v21;
-        v24.i256 = add v0 1.i256;
-        v26.i256 = evm_sload v24;
-        v27.@layout_2 = insert_value undef.@layout_2 0.i256 v26;
-        v29.@layout_5 = insert_value v23 3.i256 v27;
-        v30.i256 = call %standalone_erc20_low_level__erc20_low_level__impl_Erc20_16d9__balance_of__g35d6_0 v29 v13;
-        v31.i256 = mload v7 i256;
-        v32.i1 = lt v30 v31;
-        br v32 block2 block3;
+        v15.i256 = call %standalone_erc20_low_level__erc20_low_level__impl_Erc20_16d9__balance_of__g35d6_0 v0 v13;
+        v16.i256 = mload v7 i256;
+        v17.i1 = lt v15 v16;
+        br v17 block2 block3;
 
     block2:
-        call %std__lib__evm__effects__impl_trait_Evm_0098__revert_3 0.i256 0.i256;
+        call %std__lib__evm__effects__impl_trait_Evm_0098__revert_0 0.i256 0.i256;
         unreachable;
 
     block3:
         jump block4;
 
     block4:
-        v33.@layout_2 = obj.load v6;
-        v37.@layout_5 = insert_value undef.@layout_5 0.i256 undef.@layout_3;
-        v39.@layout_5 = insert_value v37 1.i256 undef.@layout_4;
-        v40.i256 = evm_sload v0;
-        v41.@layout_5 = insert_value v39 2.i256 v40;
-        v42.i256 = add v0 1.i256;
-        v44.i256 = evm_sload v42;
-        v45.@layout_2 = insert_value undef.@layout_2 0.i256 v44;
-        v46.@layout_5 = insert_value v41 3.i256 v45;
-        v47.i256 = call %standalone_erc20_low_level__erc20_low_level__impl_Erc20_16d9__balance_of__g35d6_0 v46 v33;
-        v49.@layout_2 = obj.load v5;
-        v50.i256 = mload v7 i256;
-        (v52.i256, v53.i1) = usubo v30 v50;
-        br v53 block5 block6;
+        v18.@layout_2 = obj.load v6;
+        v20.i256 = call %standalone_erc20_low_level__erc20_low_level__impl_Erc20_16d9__balance_of__g35d6_0 v0 v18;
+        v21.@layout_2 = obj.load v5;
+        v22.i256 = mload v7 i256;
+        (v24.i256, v25.i1) = usubo v15 v22;
+        br v25 block5 block6;
 
     block5:
         mstore 0.i256 35408467139433450592217433187231851964531694900788300625387963629091585785856.i256 i256;
@@ -1445,14 +1580,14 @@ func private %standalone_erc20_low_level__erc20_low_level__impl_Erc20_16d9__tran
         evm_revert 0.i256 36.i256;
 
     block6:
-        call %std__lib__evm__storage_map__impl_StorageMap_9f54__set__g2163_1 v49 v52;
-        v62.@layout_2 = obj.load v6;
-        v63.i256 = mload v7 i256;
-        (v65.i256, v66.i1) = uaddo v47 v63;
-        br v66 block5 block7;
+        call %std__lib__evm__storage_map__impl_StorageMap_9f54__set__g2163_1 v21 v24;
+        v32.@layout_2 = obj.load v6;
+        v33.i256 = mload v7 i256;
+        (v35.i256, v36.i1) = uaddo v20 v33;
+        br v36 block5 block7;
 
     block7:
-        call %std__lib__evm__storage_map__impl_StorageMap_9f54__set__g2163_1 v62 v65;
+        call %std__lib__evm__storage_map__impl_StorageMap_9f54__set__g2163_1 v32 v35;
         return;
 }
 
@@ -1493,47 +1628,39 @@ func private %transfer_from__g0502(v0.i256, v1.@layout_2, v2.@layout_2, v3.i256,
         jump block1;
 
     block1:
-        v14.@layout_2 = call %std__lib__evm__effects__impl_trait_Evm_a1e8__caller_2;
+        v14.@layout_2 = call %std__lib__evm__effects__impl_trait_Evm_a1e8__caller_0;
         v15.@layout_2 = obj.load v6;
-        v19.@layout_5 = insert_value undef.@layout_5 0.i256 undef.@layout_3;
-        v22.@layout_5 = insert_value v19 1.i256 undef.@layout_4;
-        v23.i256 = evm_sload v0;
-        v25.@layout_5 = insert_value v22 2.i256 v23;
-        v26.i256 = add v0 1.i256;
-        v28.i256 = evm_sload v26;
-        v29.@layout_2 = insert_value undef.@layout_2 0.i256 v28;
-        v31.@layout_5 = insert_value v25 3.i256 v29;
-        v32.i256 = call %allowance__g35d6 v31 v15 v14;
-        v33.i256 = mload v8 i256;
-        v34.i1 = lt v32 v33;
-        br v34 block2 block3;
+        v17.i256 = call %allowance__g35d6 v0 v15 v14;
+        v18.i256 = mload v8 i256;
+        v19.i1 = lt v17 v18;
+        br v19 block2 block3;
 
     block2:
-        call %std__lib__evm__effects__impl_trait_Evm_0098__revert_2 0.i256 0.i256;
+        call %std__lib__evm__effects__impl_trait_Evm_0098__revert_3 0.i256 0.i256;
         unreachable;
 
     block3:
         jump block4;
 
     block4:
-        v35.@layout_2 = obj.load v6;
-        v36.@layout_2 = obj.load v7;
+        v20.@layout_2 = obj.load v6;
+        v21.@layout_2 = obj.load v7;
+        v22.i256 = mload v8 i256;
+        call %standalone_erc20_low_level__erc20_low_level__impl_Erc20_16d9__transfer__g0f37_0 v0 v20 v21 v22 v5;
+        v26.@layout_2 = obj.load v6;
+        v27.objref<@layout_3> = obj.alloc @layout_3;
+        v28.objref<@layout_2> = obj.proj v27 0.i256;
+        v29.objref<i256> = obj.proj v28 0.i256;
+        v30.i256 = extract_value v26 0.i256;
+        obj.store v29 v30;
+        v33.objref<@layout_2> = obj.proj v27 1.i256;
+        v34.objref<i256> = obj.proj v33 0.i256;
+        v35.i256 = extract_value v14 0.i256;
+        obj.store v34 v35;
+        v36.@layout_3 = obj.load v27;
         v37.i256 = mload v8 i256;
-        call %standalone_erc20_low_level__erc20_low_level__impl_Erc20_16d9__transfer__g0f37_0 v0 v35 v36 v37 v5;
-        v42.@layout_2 = obj.load v6;
-        v43.objref<@layout_6> = obj.alloc @layout_6;
-        v44.objref<@layout_2> = obj.proj v43 0.i256;
-        v45.objref<i256> = obj.proj v44 0.i256;
-        v46.i256 = extract_value v42 0.i256;
-        obj.store v45 v46;
-        v48.objref<@layout_2> = obj.proj v43 1.i256;
-        v49.objref<i256> = obj.proj v48 0.i256;
-        v50.i256 = extract_value v14 0.i256;
-        obj.store v49 v50;
-        v51.@layout_6 = obj.load v43;
-        v52.i256 = mload v8 i256;
-        (v54.i256, v55.i1) = usubo v32 v52;
-        br v55 block5 block6;
+        (v39.i256, v40.i1) = usubo v17 v37;
+        br v40 block5 block6;
 
     block5:
         mstore 0.i256 35408467139433450592217433187231851964531694900788300625387963629091585785856.i256 i256;
@@ -1541,7 +1668,7 @@ func private %transfer_from__g0502(v0.i256, v1.@layout_2, v2.@layout_2, v3.i256,
         evm_revert 0.i256 36.i256;
 
     block6:
-        call %std__lib__evm__storage_map__impl_StorageMap_9f54__set__ga15b_0 v51 v54;
+        call %std__lib__evm__storage_map__impl_StorageMap_9f54__set__ga15b_0 v36 v39;
         return;
 }
 
@@ -1611,10 +1738,52 @@ func private %std__lib__evm__storage_map__impl_trait_Address_4d4e__write_key_1(v
         return v10;
 }
 
-func private %std__lib__evm__storage_map__impl_trait____9761__write_key__g7528_0(v0.i256, v1.@layout_6) -> i256 {
+func private %std__lib__evm__storage_map__impl_trait____9761__write_key__g7528_0(v0.i256, v1.@layout_3) -> i256 {
     block0:
         v2.*i256 = alloca i256;
-        v3.objref<@layout_6> = obj.alloc @layout_6;
+        v3.objref<@layout_3> = obj.alloc @layout_3;
+        mstore v2 v0 i256;
+        v5.objref<@layout_2> = obj.proj v3 0.i256;
+        v6.@layout_2 = extract_value v1 0.i256;
+        v7.objref<i256> = obj.proj v5 0.i256;
+        v8.i256 = extract_value v6 0.i256;
+        obj.store v7 v8;
+        v10.objref<@layout_2> = obj.proj v3 1.i256;
+        v11.@layout_2 = extract_value v1 1.i256;
+        v12.objref<i256> = obj.proj v10 0.i256;
+        v13.i256 = extract_value v11 0.i256;
+        obj.store v12 v13;
+        jump block1;
+
+    block1:
+        v14.i256 = mload v2 i256;
+        v15.objref<@layout_2> = obj.proj v3 0.i256;
+        v16.@layout_2 = obj.load v15;
+        v17.i256 = call %std__lib__evm__storage_map__impl_trait_Address_4d4e__write_key_1 v14 v16;
+        v18.i256 = mload v2 i256;
+        (v19.i256, v20.i1) = uaddo v18 v17;
+        br v20 block2 block3;
+
+    block2:
+        mstore 0.i256 35408467139433450592217433187231851964531694900788300625387963629091585785856.i256 i256;
+        mstore 4.i256 17.i256 i256;
+        evm_revert 0.i256 36.i256;
+
+    block3:
+        v25.objref<@layout_2> = obj.proj v3 1.i256;
+        v26.@layout_2 = obj.load v25;
+        v27.i256 = call %std__lib__evm__storage_map__impl_trait_Address_4d4e__write_key_1 v19 v26;
+        (v29.i256, v30.i1) = uaddo v17 v27;
+        br v30 block2 block4;
+
+    block4:
+        return v29;
+}
+
+func private %std__lib__evm__storage_map__impl_trait____9761__write_key__g7528_1(v0.i256, v1.@layout_3) -> i256 {
+    block0:
+        v2.*i256 = alloca i256;
+        v3.objref<@layout_3> = obj.alloc @layout_3;
         mstore v2 v0 i256;
         v5.objref<@layout_2> = obj.proj v3 0.i256;
         v6.@layout_2 = extract_value v1 0.i256;
@@ -1653,10 +1822,10 @@ func private %std__lib__evm__storage_map__impl_trait____9761__write_key__g7528_0
         return v29;
 }
 
-func private %std__lib__evm__storage_map__impl_trait____9761__write_key__g7528_1(v0.i256, v1.@layout_6) -> i256 {
+func private %std__lib__evm__storage_map__impl_trait____9761__write_key__g7528_2(v0.i256, v1.@layout_3) -> i256 {
     block0:
         v2.*i256 = alloca i256;
-        v3.objref<@layout_6> = obj.alloc @layout_6;
+        v3.objref<@layout_3> = obj.alloc @layout_3;
         mstore v2 v0 i256;
         v5.objref<@layout_2> = obj.proj v3 0.i256;
         v6.@layout_2 = extract_value v1 0.i256;
@@ -1688,48 +1857,6 @@ func private %std__lib__evm__storage_map__impl_trait____9761__write_key__g7528_1
         v25.objref<@layout_2> = obj.proj v3 1.i256;
         v26.@layout_2 = obj.load v25;
         v27.i256 = call %std__lib__evm__storage_map__impl_trait_Address_4d4e__write_key_5 v19 v26;
-        (v29.i256, v30.i1) = uaddo v17 v27;
-        br v30 block2 block4;
-
-    block4:
-        return v29;
-}
-
-func private %std__lib__evm__storage_map__impl_trait____9761__write_key__g7528_2(v0.i256, v1.@layout_6) -> i256 {
-    block0:
-        v2.*i256 = alloca i256;
-        v3.objref<@layout_6> = obj.alloc @layout_6;
-        mstore v2 v0 i256;
-        v5.objref<@layout_2> = obj.proj v3 0.i256;
-        v6.@layout_2 = extract_value v1 0.i256;
-        v7.objref<i256> = obj.proj v5 0.i256;
-        v8.i256 = extract_value v6 0.i256;
-        obj.store v7 v8;
-        v10.objref<@layout_2> = obj.proj v3 1.i256;
-        v11.@layout_2 = extract_value v1 1.i256;
-        v12.objref<i256> = obj.proj v10 0.i256;
-        v13.i256 = extract_value v11 0.i256;
-        obj.store v12 v13;
-        jump block1;
-
-    block1:
-        v14.i256 = mload v2 i256;
-        v15.objref<@layout_2> = obj.proj v3 0.i256;
-        v16.@layout_2 = obj.load v15;
-        v17.i256 = call %std__lib__evm__storage_map__impl_trait_Address_4d4e__write_key_1 v14 v16;
-        v18.i256 = mload v2 i256;
-        (v19.i256, v20.i1) = uaddo v18 v17;
-        br v20 block2 block3;
-
-    block2:
-        mstore 0.i256 35408467139433450592217433187231851964531694900788300625387963629091585785856.i256 i256;
-        mstore 4.i256 17.i256 i256;
-        evm_revert 0.i256 36.i256;
-
-    block3:
-        v25.objref<@layout_2> = obj.proj v3 1.i256;
-        v26.@layout_2 = obj.load v25;
-        v27.i256 = call %std__lib__evm__storage_map__impl_trait_Address_4d4e__write_key_1 v19 v26;
         (v29.i256, v30.i1) = uaddo v17 v27;
         br v30 block2 block4;
 

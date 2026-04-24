@@ -56,11 +56,11 @@ func private %match_single_element_tuple(v0.@layout_1) -> i8 {
         jump block1;
 
     block1:
-        v5.objref<@layout_1> = obj.alloc @layout_1;
-        v6.objref<i1> = obj.proj v5 0.i256;
-        v7.objref<i1> = obj.proj v1 0.i256;
-        v8.i1 = obj.load v7;
-        obj.store v6 v8;
+        v5.@layout_1 = obj.load v1;
+        v6.objref<@layout_1> = obj.alloc @layout_1;
+        v7.objref<i1> = obj.proj v6 0.i256;
+        v8.i1 = extract_value v5 0.i256;
+        obj.store v7 v8;
         jump block3;
 
     block2:
@@ -68,7 +68,7 @@ func private %match_single_element_tuple(v0.@layout_1) -> i8 {
         return v9;
 
     block3:
-        v11.objref<i1> = obj.proj v5 0.i256;
+        v11.objref<i1> = obj.proj v6 0.i256;
         v12.i1 = obj.load v11;
         v14.i1 = eq v12 1.i1;
         br v14 block4 block6;

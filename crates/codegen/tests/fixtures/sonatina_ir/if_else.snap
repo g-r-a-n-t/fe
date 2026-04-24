@@ -12,10 +12,9 @@ func private %helper(v0.i64) -> i64 {
         jump block1;
 
     block1:
-        v2.i256 = mload v1 i256;
-        v3.i64 = trunc v2 i64;
-        (v5.i64, v6.i1) = uaddo v3 1.i64;
-        br v6 block2 block3;
+        v2.i64 = mload v1 i64;
+        (v4.i64, v5.i1) = uaddo v2 1.i64;
+        br v5 block2 block3;
 
     block2:
         mstore 0.i256 35408467139433450592217433187231851964531694900788300625387963629091585785856.i256 i256;
@@ -23,7 +22,7 @@ func private %helper(v0.i64) -> i64 {
         evm_revert 0.i256 36.i256;
 
     block3:
-        return v5;
+        return v4;
 }
 
 func private %if_else(v0.i1) -> i64 {
@@ -33,21 +32,20 @@ func private %if_else(v0.i1) -> i64 {
         jump block1;
 
     block1:
-        v2.i256 = mload v1 i256;
-        v4.i1 = ne v2 0.i256;
-        br v4 block2 block3;
+        v2.i1 = mload v1 i1;
+        br v2 block2 block3;
 
     block2:
-        v6.i64 = call %helper 1.i64;
+        v4.i64 = call %helper 1.i64;
         jump block4;
 
     block3:
-        v8.i64 = call %helper 2.i64;
+        v6.i64 = call %helper 2.i64;
         jump block4;
 
     block4:
-        v9.i64 = phi (v6 block2) (v8 block3);
-        return v9;
+        v7.i64 = phi (v4 block2) (v6 block3);
+        return v7;
 }
 
 func private %main() -> i64 {

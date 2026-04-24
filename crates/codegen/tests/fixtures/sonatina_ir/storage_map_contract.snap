@@ -66,22 +66,28 @@ func private %from_word(v0.i256) -> i256 {
 
 func private %get__g7fdf(v0.i256) -> i256 {
     block0:
+        v1.*i256 = alloca i256;
+        mstore v1 v0 i256;
         jump block1;
 
     block1:
-        v3.i256 = call %storagemap_get_word_with_salt v0 1.i256;
-        v4.i256 = call %from_word v3;
-        return v4;
+        v3.i256 = mload v1 i256;
+        v4.i256 = call %storagemap_get_word_with_salt v3 1.i256;
+        v5.i256 = call %from_word v4;
+        return v5;
 }
 
 func private %get__gcbe1(v0.i256) -> i256 {
     block0:
+        v1.*i256 = alloca i256;
+        mstore v1 v0 i256;
         jump block1;
 
     block1:
-        v3.i256 = call %storagemap_get_word_with_salt v0 0.i256;
-        v4.i256 = call %from_word v3;
-        return v4;
+        v3.i256 = mload v1 i256;
+        v4.i256 = call %storagemap_get_word_with_salt v3 0.i256;
+        v5.i256 = call %from_word v4;
+        return v5;
 }
 
 func private %get_allowance(v0.i256, v1.objref<@layout_2>) -> i256 {
@@ -297,21 +303,27 @@ func private %runtime(v0.objref<@layout_1>) {
 
 func private %set__g7fdf(v0.i256, v1.i256) {
     block0:
+        v2.*i256 = alloca i256;
+        mstore v2 v0 i256;
         jump block1;
 
     block1:
-        v4.i256 = call %to_word v1;
-        call %storagemap_set_word_with_salt v0 1.i256 v4;
+        v5.i256 = call %to_word v1;
+        v6.i256 = mload v2 i256;
+        call %storagemap_set_word_with_salt v6 1.i256 v5;
         return;
 }
 
 func private %set__gcbe1(v0.i256, v1.i256) {
     block0:
+        v2.*i256 = alloca i256;
+        mstore v2 v0 i256;
         jump block1;
 
     block1:
-        v4.i256 = call %to_word v1;
-        call %storagemap_set_word_with_salt v0 0.i256 v4;
+        v5.i256 = call %to_word v1;
+        v6.i256 = mload v2 i256;
+        call %storagemap_set_word_with_salt v6 0.i256 v5;
         return;
 }
 
@@ -348,44 +360,53 @@ func private %set_balance(v0.i256, v1.i256, v2.objref<@layout_3>) {
 func private %storagemap_get_word_with_salt(v0.i256, v1.i256) -> i256 {
     block0:
         v2.*i256 = alloca i256;
-        mstore v2 v1 i256;
+        v3.*i256 = alloca i256;
+        mstore v2 v0 i256;
+        mstore v3 v1 i256;
         jump block1;
 
     block1:
-        v3.i256 = mload v2 i256;
-        v5.i256 = call %storagemap_storage_slot_with_salt v0 v3;
-        v6.i256 = evm_sload v5;
-        return v6;
+        v4.i256 = mload v3 i256;
+        v5.i256 = mload v2 i256;
+        v6.i256 = call %storagemap_storage_slot_with_salt v5 v4;
+        v7.i256 = evm_sload v6;
+        return v7;
 }
 
 func private %storagemap_set_word_with_salt(v0.i256, v1.i256, v2.i256) {
     block0:
         v3.*i256 = alloca i256;
         v4.*i256 = alloca i256;
-        mstore v3 v1 i256;
-        mstore v4 v2 i256;
+        v5.*i256 = alloca i256;
+        mstore v3 v0 i256;
+        mstore v4 v1 i256;
+        mstore v5 v2 i256;
         jump block1;
 
     block1:
-        v5.i256 = mload v3 i256;
-        v7.i256 = call %storagemap_storage_slot_with_salt v0 v5;
-        v8.i256 = mload v4 i256;
-        evm_sstore v7 v8;
+        v6.i256 = mload v4 i256;
+        v7.i256 = mload v3 i256;
+        v8.i256 = call %storagemap_storage_slot_with_salt v7 v6;
+        v9.i256 = mload v5 i256;
+        evm_sstore v8 v9;
         return;
 }
 
 func private %storagemap_storage_slot_with_salt(v0.i256, v1.i256) -> i256 {
     block0:
         v2.*i256 = alloca i256;
-        mstore v2 v1 i256;
+        v3.*i256 = alloca i256;
+        mstore v2 v0 i256;
+        mstore v3 v1 i256;
         jump block1;
 
     block1:
-        v4.*i8 = evm_malloc 0.i256;
-        v5.i256 = ptr_to_int v4 i256;
-        v7.i256 = call %write_key v5 v0;
-        (v8.i256, v9.i1) = uaddo v5 v7;
-        br v9 block2 block3;
+        v5.*i8 = evm_malloc 0.i256;
+        v6.i256 = ptr_to_int v5 i256;
+        v7.i256 = mload v2 i256;
+        v8.i256 = call %write_key v6 v7;
+        (v9.i256, v10.i1) = uaddo v6 v8;
+        br v10 block2 block3;
 
     block2:
         mstore 0.i256 35408467139433450592217433187231851964531694900788300625387963629091585785856.i256 i256;
@@ -393,14 +414,14 @@ func private %storagemap_storage_slot_with_salt(v0.i256, v1.i256) -> i256 {
         evm_revert 0.i256 36.i256;
 
     block3:
-        v14.i256 = mload v2 i256;
-        mstore v8 v14 i256;
-        (v18.i256, v19.i1) = uaddo v7 32.i256;
-        br v19 block2 block4;
+        v15.i256 = mload v3 i256;
+        mstore v9 v15 i256;
+        (v19.i256, v20.i1) = uaddo v8 32.i256;
+        br v20 block2 block4;
 
     block4:
-        v21.i256 = evm_keccak256 v5 v18;
-        return v21;
+        v22.i256 = evm_keccak256 v6 v19;
+        return v22;
 }
 
 func private %to_word(v0.i256) -> i256 {

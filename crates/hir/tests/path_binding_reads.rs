@@ -2,7 +2,7 @@ use cranelift_entity::EntityRef;
 use fe_hir::{
     analysis::{
         semantic::{
-            SExpr, SLocalId, SStmtKind, get_or_build_semantic_instance,
+            SExpr, SLocalId, SStmtKind, SemanticLocalRole, get_or_build_semantic_instance,
             identity_semantic_instance_key,
         },
         ty::ty_check::{BodyOwner, LocalBinding, PathReadSemantics, check_func_body},
@@ -81,6 +81,51 @@ fn assign_expr_for_dst<'db>(
             _ => None,
         })
         .unwrap_or_else(|| panic!("missing assignment for {dst:?}"))
+}
+
+#[test]
+fn default_aggregate_param_role_preserves_view_capability() {
+    let mut db = HirAnalysisTestDb::default();
+    let file = db.new_stand_alone(
+        "path_binding_reads.fe".into(),
+        r#"
+struct Big {
+    values: [u256; 4],
+}
+
+fn read(t: Big) -> u256 {
+    t.values[0]
+}
+"#,
+    );
+    let (top_mod, _) = db.top_mod(file);
+    let func = find_func(&db, top_mod, "read");
+    let (diags, typed_body) = check_func_body(&db, func).clone();
+    assert!(diags.is_empty(), "{diags:?}");
+
+    let binding = typed_body
+        .param_binding(0)
+        .expect("read should have a first param");
+    let LocalBinding::Param { ty, .. } = binding else {
+        panic!("expected param binding");
+    };
+    let view_inner = ty
+        .as_view(&db)
+        .unwrap_or_else(|| panic!("default aggregate param should be a view"));
+    let instance = get_or_build_semantic_instance(
+        &db,
+        identity_semantic_instance_key(&db, BodyOwner::Func(func)),
+    );
+
+    assert_eq!(instance.binding_ty(&db, binding), ty);
+    assert!(
+        matches!(
+            instance.binding_role(&db, binding),
+            SemanticLocalRole::PlaceCarrier { provider: None, value_ty } if value_ty == view_inner
+        ),
+        "default aggregate param should be a place carrier, got {:#?}",
+        instance.binding_role(&db, binding),
+    );
 }
 
 #[test]

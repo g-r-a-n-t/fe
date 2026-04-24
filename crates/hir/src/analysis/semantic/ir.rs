@@ -134,6 +134,7 @@ pub enum SemanticLocalRole<'db> {
         provenance: ValueProvenance<'db>,
     },
     PlaceCarrier {
+        provider: Option<ProviderBinding<'db>>,
         value_ty: TyId<'db>,
     },
     PlaceBoundValue {
@@ -163,6 +164,10 @@ impl<'db> SemanticLocalRole<'db> {
                 provenance: ValueProvenance::RootProvider(provider),
             } => Some(provider.clone()),
             Self::PlaceBoundValue { provenance, .. } => provenance.root_provider(locals),
+            Self::PlaceCarrier {
+                provider: Some(provider),
+                ..
+            } => Some(provider.clone()),
             Self::DirectCarrier {
                 provider: Some(provider),
                 ..
@@ -171,7 +176,7 @@ impl<'db> SemanticLocalRole<'db> {
             | Self::DirectValue {
                 provenance: ValueProvenance::Ordinary,
             }
-            | Self::PlaceCarrier { .. }
+            | Self::PlaceCarrier { provider: None, .. }
             | Self::DirectCarrier { provider: None, .. } => None,
         }
     }

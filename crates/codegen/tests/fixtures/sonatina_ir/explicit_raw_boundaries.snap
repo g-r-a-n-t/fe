@@ -147,7 +147,7 @@ func private %raw_store__g64c6(v0.objref<@layout_2>, v1.objref<@layout_1>) {
         jump block1;
 
     block1:
-        v4.i256 = call %core__lib__effect_ref__impl_trait_MemPtr_ec03__raw__g4a95_1 0.i256;
+        v4.i256 = call %core__lib__effect_ref__impl_trait_MemPtr_ec03__raw__g4a95_0 0.i256;
         call %std__lib__evm__effects__impl_trait_Evm_d0d8__mstore_0 v1 v4 8.i256;
         return;
 }
@@ -157,7 +157,7 @@ func private %raw_store__gc18b(v0.i256, v1.objref<@layout_1>) {
         jump block1;
 
     block1:
-        v4.i256 = call %core__lib__effect_ref__impl_trait_MemPtr_ec03__raw__g4a95_0 v0;
+        v4.i256 = call %core__lib__effect_ref__impl_trait_MemPtr_ec03__raw__g4a95_1 v0;
         call %std__lib__evm__effects__impl_trait_Evm_d0d8__mstore_1 v1 v4 8.i256;
         return;
 }

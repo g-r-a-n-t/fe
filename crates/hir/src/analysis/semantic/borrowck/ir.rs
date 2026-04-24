@@ -222,6 +222,7 @@ pub(crate) fn local_has_runtime_move_semantics<'db>(
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum ReadMode {
     Copy,
+    Read,
     Move,
 }
 

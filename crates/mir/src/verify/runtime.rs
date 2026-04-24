@@ -460,7 +460,9 @@ fn verify_assign<'db>(
     };
 
     if let Some(dst_class) = &dst_class
-        && expr_class.as_ref() != Some(dst_class)
+        && !expr_class
+            .as_ref()
+            .is_some_and(|expr_class| expr_class.shares_runtime_rep_with(db, dst_class))
     {
         return Err(VerifyError::InvalidExprClass(dst));
     }

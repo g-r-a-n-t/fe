@@ -137,7 +137,7 @@ struct MyStruct {
     y: u8,
 }
 
-pub fn read_x(val: MyStruct) -> u8 {
+pub fn read_x(val: own MyStruct) -> u8 {
     val.x + val.y
 }
 
@@ -810,7 +810,7 @@ fn runtime() uses (evm: mut Evm) {
     );
 
     assert!(
-        yul.contains("function $input()"),
+        yul.contains("function $input("),
         "fixture should still emit the sibling $input helper that previously collided with $decode_bytes_view params:\n{yul}"
     );
     assert!(

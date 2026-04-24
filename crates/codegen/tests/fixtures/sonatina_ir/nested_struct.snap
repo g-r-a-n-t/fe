@@ -19,7 +19,7 @@ func private %abi_encode(v0.i256, v1.objref<@layout_1>) {
     block1:
         v5.i256 = mload v2 i256;
         call %mstore v1 0.i256 v5;
-        call %std__lib__evm__effects__impl_trait_Evm_0098__return_data_1 0.i256 32.i256;
+        call %std__lib__evm__effects__impl_trait_Evm_0098__return_data_0 0.i256 32.i256;
         unreachable;
 }
 
@@ -72,7 +72,7 @@ func private %init(v0.objref<@layout_1>) {
         v1.i256 = sym_size &__NestedStruct_runtime;
         v2.i256 = sym_addr &__NestedStruct_runtime;
         call %codecopy v0 0.i256 v2 v1;
-        call %std__lib__evm__effects__impl_trait_Evm_0098__return_data_2 0.i256 v1;
+        call %std__lib__evm__effects__impl_trait_Evm_0098__return_data_1 0.i256 v1;
         unreachable;
 }
 
@@ -231,7 +231,7 @@ func private %runtime(v0.objref<@layout_1>) {
         unreachable;
 
     block5:
-        call %std__lib__evm__effects__impl_trait_Evm_0098__return_data_0 0.i256 0.i256;
+        call %std__lib__evm__effects__impl_trait_Evm_0098__return_data_2 0.i256 0.i256;
         unreachable;
 
     block6:

@@ -658,29 +658,14 @@ impl<'a, 'db> SmirLowerCtxt<'a, 'db> {
                 .binding_locals
                 .get(&binding)
                 .expect("binding local should be allocated");
-            return match self
-                .typed_body
-                .path_expr_read_semantics(expr)
-                .expect("binding path should have typed read semantics")
-            {
-                PathReadSemantics::ReuseLocal => {
-                    debug_assert_eq!(
-                        normalize_ty(
-                            self.db,
-                            self.expr_ty(expr),
-                            self.body.scope(),
-                            self.assumptions
-                        ),
-                        normalize_ty(
-                            self.db,
-                            self.binding_ty(binding),
-                            self.body.scope(),
-                            self.assumptions,
-                        ),
-                        "path local reuse drift for {expr:?}"
-                    );
-                    local
-                }
+            return match self.binding_path_read_semantics(
+                binding,
+                self.typed_body
+                    .path_expr_read_semantics(expr)
+                    .expect("binding path should have typed read semantics"),
+                self.expr_ty(expr),
+            ) {
+                PathReadSemantics::ReuseLocal => local,
                 PathReadSemantics::ForwardInterface => self.emit_expr_with_origin(
                     SemOrigin::Expr(expr),
                     self.expr_ty(expr),
@@ -739,6 +724,43 @@ impl<'a, 'db> SmirLowerCtxt<'a, 'db> {
                 self.typed_body.expr_const_ref(expr),
                 self.typed_body.expr_code_region_ref(self.db, expr),
             ),
+        }
+    }
+
+    fn binding_path_read_semantics(
+        &self,
+        binding: LocalBinding<'db>,
+        typed_semantics: PathReadSemantics,
+        expr_ty: TyId<'db>,
+    ) -> PathReadSemantics {
+        let scope = self.body.scope();
+        if normalize_ty(self.db, expr_ty, scope, self.assumptions)
+            == normalize_ty(self.db, self.binding_ty(binding), scope, self.assumptions)
+        {
+            return PathReadSemantics::ReuseLocal;
+        }
+
+        match self.binding_role(binding) {
+            SemanticLocalRole::DirectValue {
+                provenance: crate::analysis::semantic::ValueProvenance::RootProvider(_),
+            }
+            | SemanticLocalRole::PlaceBoundValue { .. }
+            | SemanticLocalRole::DirectCarrier { .. } => PathReadSemantics::ForwardInterface,
+            SemanticLocalRole::PlaceCarrier { .. }
+                if normalize_ty(self.db, expr_ty, scope, self.assumptions)
+                    .as_capability(self.db)
+                    .is_some() =>
+            {
+                PathReadSemantics::ForwardInterface
+            }
+            SemanticLocalRole::Erased
+            | SemanticLocalRole::DirectValue { .. }
+            | SemanticLocalRole::PlaceCarrier { .. } => match typed_semantics {
+                PathReadSemantics::ReuseLocal => PathReadSemantics::MaterializeValue,
+                PathReadSemantics::ForwardInterface | PathReadSemantics::MaterializeValue => {
+                    typed_semantics
+                }
+            },
         }
     }
 

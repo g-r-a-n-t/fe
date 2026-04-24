@@ -5,9 +5,9 @@ use fe_hir::test_db::{HirAnalysisTestDb, format_diagnostics};
 use fe_hir::{
     analysis::{
         semantic::{
-            BorrowInputRef, BorrowTransform, NBorrowRoot, NExpr, NLocalOrigin, NSStmtKind,
-            NormalizedBindingLowering, SStmtKind, SemanticBorrowDiagKind, SemanticInstance,
-            SemanticLocalKind, check_semantic_borrows, check_semantic_noesc,
+            BorrowInputRef, BorrowTransform, NBorrowRoot, NExpr, NLocalOrigin, NSPlaceRoot,
+            NSStmtKind, NormalizedBindingLowering, SStmtKind, SemanticBorrowDiagKind,
+            SemanticInstance, SemanticLocalKind, check_semantic_borrows, check_semantic_noesc,
             collect_semantic_borrow_diagnostic_vouchers, get_or_build_semantic_instance,
             identity_semantic_instance_key, normalize_semantic_body, semantic_borrow_summary,
         },
@@ -1266,11 +1266,15 @@ fn read(pair: Pair) -> u256 {
             _ => None,
         })
         .expect("borrow expression");
-    let root = borrow.root.borrow_root().expect("borrow root");
     assert!(
-        matches!(normalized.root(root), Some(NBorrowRoot::Param { .. })),
-        "expected param root for ref projection, got {:?}",
-        normalized.root(root)
+        matches!(borrow.root, NSPlaceRoot::CarrierDerefLocal(local) if normalized.local(local).is_some_and(|local| {
+            matches!(
+                local.source,
+                Some(fe_hir::analysis::ty::ty_check::LocalBinding::Param { .. })
+            )
+        })),
+        "expected carrier-rooted view param place for ref projection, got {:?}",
+        borrow.root
     );
     assert_eq!(borrow.path.len(), 1);
     assert_eq!(
@@ -1293,7 +1297,7 @@ struct Wrapper {
     pair: Pair,
 }
 
-fn read(wrapper: Wrapper) -> u256 {
+fn read(wrapper: own Wrapper) -> u256 {
     let pair = wrapper.pair
     let copy = pair
     let r: ref Pair = ref copy

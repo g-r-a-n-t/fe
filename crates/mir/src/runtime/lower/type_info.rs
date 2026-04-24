@@ -6,7 +6,9 @@ use hir::{
             normalize::normalize_ty,
             provider::provider_semantics,
             trait_resolution::PredicateListId,
-            ty_def::{BorrowKind, MAX_INLINE_STRING_BYTES, PrimTy, TyBase, TyData, TyId},
+            ty_def::{
+                BorrowKind, MAX_INLINE_STRING_BYTES, PrimTy, TyBase, TyData, TyId, TyVarSort,
+            },
         },
     },
     hir_def::scope_graph::ScopeId,
@@ -240,21 +242,49 @@ pub(crate) fn runtime_repr_ty_in_context<'db>(
     scope: Option<hir::hir_def::scope_graph::ScopeId<'db>>,
     assumptions: PredicateListId<'db>,
 ) -> TyId<'db> {
-    runtime_repr_ty(db, ty, scope, assumptions)
+    runtime_storage_ty_in_context(db, ty, scope, assumptions)
 }
 
 #[salsa::tracked]
-fn runtime_repr_ty<'db>(
+fn runtime_interface_ty<'db>(
     db: &'db dyn MirDb,
     ty: TyId<'db>,
     scope: Option<hir::hir_def::scope_graph::ScopeId<'db>>,
     assumptions: PredicateListId<'db>,
 ) -> TyId<'db> {
-    let mut ty = scope.map_or(ty, |scope| normalize_ty(db, ty, scope, assumptions));
+    scope.map_or(ty, |scope| normalize_ty(db, ty, scope, assumptions))
+}
+
+pub(crate) fn runtime_interface_ty_in_context<'db>(
+    db: &'db dyn MirDb,
+    ty: TyId<'db>,
+    scope: Option<hir::hir_def::scope_graph::ScopeId<'db>>,
+    assumptions: PredicateListId<'db>,
+) -> TyId<'db> {
+    runtime_interface_ty(db, ty, scope, assumptions)
+}
+
+#[salsa::tracked]
+fn runtime_storage_ty<'db>(
+    db: &'db dyn MirDb,
+    ty: TyId<'db>,
+    scope: Option<hir::hir_def::scope_graph::ScopeId<'db>>,
+    assumptions: PredicateListId<'db>,
+) -> TyId<'db> {
+    let mut ty = runtime_interface_ty_in_context(db, ty, scope, assumptions);
     while let Some(inner) = ty.as_view(db) {
         ty = scope.map_or(inner, |scope| normalize_ty(db, inner, scope, assumptions));
     }
     ty
+}
+
+pub(crate) fn runtime_storage_ty_in_context<'db>(
+    db: &'db dyn MirDb,
+    ty: TyId<'db>,
+    scope: Option<hir::hir_def::scope_graph::ScopeId<'db>>,
+    assumptions: PredicateListId<'db>,
+) -> TyId<'db> {
+    runtime_storage_ty(db, ty, scope, assumptions)
 }
 
 #[salsa::tracked(
@@ -472,6 +502,10 @@ fn scalar_class_from_repr_ty<'db>(db: &'db dyn MirDb, ty: TyId<'db>) -> Option<S
             | PrimTy::BorrowRef => return None,
         },
         TyData::TyBase(TyBase::Contract(_)) => ScalarRepr::Address { bits: 256 },
+        TyData::TyVar(var) if matches!(var.sort, TyVarSort::Integral) => ScalarRepr::Int {
+            bits: 256,
+            signed: false,
+        },
         _ => return None,
     };
 

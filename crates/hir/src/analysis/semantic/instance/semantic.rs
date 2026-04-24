@@ -33,7 +33,6 @@ use crate::{
             ty_def::{BorrowKind, CapabilityKind, TyId, instantiate_adt_field_ty},
         },
     },
-    hir_def::FuncParamMode,
     hir_def::{CallableDef, Expr, ExprId, Partial, scope_graph::ScopeId},
     semantic::{
         EffectEnvView, EffectRequirement, EffectRequirementKey, ProviderBinding, ProviderSource,
@@ -625,7 +624,6 @@ impl<'db> SemanticInstance<'db> {
         classify_binding_role_from_ty(
             db,
             self,
-            binding,
             self.provisional_binding_ty(db, binding),
             semantic_instance_base_assumptions_for_key(db, self.key(db)),
             provisional_provider_binding_for_instance_effect(db, self, binding),
@@ -1282,7 +1280,6 @@ fn classify_binding_role_with_provider<'db>(
     classify_binding_role_from_ty(
         db,
         instance,
-        binding,
         instance.binding_ty(db, binding),
         instance.assumptions(db),
         provider,
@@ -1292,25 +1289,16 @@ fn classify_binding_role_with_provider<'db>(
 fn classify_binding_role_from_ty<'db>(
     db: &'db dyn HirAnalysisDb,
     instance: SemanticInstance<'db>,
-    binding: LocalBinding<'db>,
     ty: TyId<'db>,
     assumptions: PredicateListId<'db>,
     provider: Option<ProviderBinding<'db>>,
 ) -> SemanticLocalRole<'db> {
     let owner = instance.key(db).owner(db);
     let scope = owner.scope();
-    let mut ty = normalize_ty(db, ty, scope, assumptions);
-    if let LocalBinding::Param {
-        mode: FuncParamMode::View,
-        ..
-    } = binding
-        && let Some(inner) = ty.as_view(db)
-    {
-        ty = normalize_ty(db, inner, scope, assumptions);
-    }
+    let ty = normalize_ty(db, ty, scope, assumptions);
     if let Some((_, value_ty)) = ty.as_capability(db) {
         let value_ty = normalize_ty(db, value_ty, scope, assumptions);
-        return SemanticLocalRole::PlaceCarrier { value_ty };
+        return SemanticLocalRole::PlaceCarrier { provider, value_ty };
     }
     if let Some(metadata) = effect_handle_metadata(db, scope, assumptions, ty) {
         return SemanticLocalRole::DirectCarrier {

@@ -89,14 +89,7 @@ object "ByRefTraitProviderStorageBug" {
         leave
       }
       function $base(p0) -> ret {
-        let r0 := mload(0x40)
-        if iszero(r0) {
-          r0 := 0x80
-        }
-        mstore(0x40, add(r0, 64))
-        mstore(r0, mload(p0))
-        mstore(add(r0, 32), mload(add(p0, 32)))
-        let t2 := mload(r0)
+        let t2 := mload(p0)
         let v1 := t2
         ret := v1
         leave
@@ -113,19 +106,19 @@ object "ByRefTraitProviderStorageBug" {
         }
         if iszero(iszero(iszero(v3))) {
           let v4 := calldatasize()
-          let t19 := sub(v4, v1)
+          let t18 := sub(v4, v1)
           if gt(v1, v4) {
             mstore(0, 0x4e487b7100000000000000000000000000000000000000000000000000000000)
             mstore(4, 0x11)
             revert(0, 36)
           }
-          let v5 := t19
-          let t20 := mload(0x40)
-          if iszero(t20) {
-            t20 := 0x80
+          let v5 := t18
+          let t19 := mload(0x40)
+          if iszero(t19) {
+            t19 := 0x80
           }
-          mstore(0x40, add(t20, v5))
-          let v6 := t20
+          mstore(0x40, add(t19, v5))
+          let v6 := t19
           calldatacopy(v6, v1, v5)
           let r8 := mload(0x40)
           if iszero(r8) {
@@ -134,19 +127,26 @@ object "ByRefTraitProviderStorageBug" {
           mstore(0x40, add(r8, 64))
           mstore(r8, v6)
           mstore(add(r8, 32), v5)
-          let v9 := $decoder_new(r8)
-          let v10 := v9
-          let v11 := v10
-          $decode_payload(v11)
-          let v13 := 0
-          let v14 := $__ByRefTraitProviderStorageBug_recv_0_0_eff0_stor(v13)
-          let v15 := $encode_single_root_alloc(v14)
-          let v16 := v15
-          let t21 := mload(v16)
+          let r9 := mload(0x40)
+          if iszero(r9) {
+            r9 := 0x80
+          }
+          mstore(0x40, add(r9, 128))
+          mstore(r9, mload($decoder_new(r8)))
+          mstore(add(r9, 32), mload(add($decoder_new(r8), 32)))
+          mstore(add(r9, 64), mload(add($decoder_new(r8), 64)))
+          mstore(add(r9, 96), mload(add($decoder_new(r8), 96)))
+          let v10 := r9
+          $decode_payload(v10)
+          let v12 := 0
+          let v13 := $__ByRefTraitProviderStorageBug_recv_0_0_eff0_stor(v12)
+          let v14 := $encode_single_root_alloc(v13)
+          let v15 := v14
+          let t20 := mload(v15)
+          let v16 := t20
+          let t21 := mload(add(v15, 32))
           let v17 := t21
-          let t22 := mload(add(v16, 32))
-          let v18 := t22
-          return(v17, v18)
+          return(v16, v17)
         }
       }
       function $contract_runtime_root_ByRefTraitProviderStorageBug() {
@@ -179,86 +179,83 @@ object "ByRefTraitProviderStorageBug" {
         let v28 := 0
         let v8 := iszero(iszero(v28))
         if iszero(iszero(v8)) {
-          let v29 := p1
-          let v30 := $base(v29)
-          let v9 := v30
+          let v29 := $base(p1)
+          let v9 := v29
           let v3 := v9
           let v4 := p2
-          let v31 := $core$lib$abi$trait$AbiSize$payload_size$ge513_1(p0)
-          let v10 := v31
+          let v30 := $core$lib$abi$trait$AbiSize$payload_size$ge513_1(p0)
+          let v10 := v30
           let v5 := v10
           let v11 := v4
-          let t56 := mload(v11)
-          let v32 := t56
-          let t57 := sub(v32, v3)
-          if gt(v3, v32) {
+          let t54 := mload(v11)
+          let v31 := t54
+          let t55 := sub(v31, v3)
+          if gt(v3, v31) {
             mstore(0, 0x4e487b7100000000000000000000000000000000000000000000000000000000)
             mstore(4, 0x11)
             revert(0, 36)
           }
-          let v33 := t57
-          let v12 := v33
+          let v32 := t55
+          let v12 := v32
           $std$lib$abi$sol$impl_trait$SolEncoder$19ce$write_word_0(p1, v12)
-          let v36 := p1
-          let v37 := $pos(v36)
-          let v14 := v37
+          let v35 := $pos(p1)
+          let v14 := v35
           let v6 := v14
-          let t58 := mload(v4)
-          let v39 := t58
-          $set_base(p1, v39)
-          let t59 := mload(v4)
-          let v42 := t59
-          $set_pos(p1, v42)
-          let v44 := p1
-          let v17 := v44
+          let t56 := mload(v4)
+          let v37 := t56
+          $set_base(p1, v37)
+          let t57 := mload(v4)
+          let v40 := t57
+          $set_pos(p1, v40)
+          let v42 := p1
+          let v17 := v42
           $encode(p0, v17)
           $set_base(p1, v3)
           $set_pos(p1, v6)
           let v21 := v4
-          let t60 := mload(v21)
-          let v51 := t60
-          let t61 := add(v51, v5)
-          if lt(t61, v51) {
+          let t58 := mload(v21)
+          let v49 := t58
+          let t59 := add(v49, v5)
+          if lt(t59, v49) {
             mstore(0, 0x4e487b7100000000000000000000000000000000000000000000000000000000)
             mstore(4, 0x11)
             revert(0, 36)
           }
-          let v52 := t61
-          let v22 := v52
+          let v50 := t59
+          let v22 := v50
           mstore(p2, v22)
           leave
         }
         if iszero(iszero(iszero(v8))) {
-          let v53 := p1
-          let v26 := v53
+          let v51 := p1
+          let v26 := v51
           $encode(p0, v26)
           leave
         }
       }
       function $encode_single_root(p0, p1) {
-        let v9 := p1
-        let v10 := $base(v9)
-        let v3 := v10
-        let v11 := 0x20
-        let v4 := v11
-        let t17 := add(v3, v4)
-        if lt(t17, v3) {
+        let v9 := $base(p1)
+        let v3 := v9
+        let v10 := 0x20
+        let v4 := v10
+        let t16 := add(v3, v4)
+        if lt(t16, v3) {
           mstore(0, 0x4e487b7100000000000000000000000000000000000000000000000000000000)
           mstore(4, 0x11)
           revert(0, 36)
         }
-        let v12 := t17
-        let v5 := v12
+        let v11 := t16
+        let v5 := v11
         let r2 := mload(0x40)
         if iszero(r2) {
           r2 := 0x80
         }
         mstore(0x40, add(r2, 32))
         mstore(r2, v5)
-        let v13 := p1
-        let v6 := v13
-        let v14 := r2
-        let v7 := v14
+        let v12 := p1
+        let v6 := v12
+        let v13 := r2
+        let v7 := v13
         $encode_field(p0, v6, v7)
         leave
       }
@@ -270,22 +267,21 @@ object "ByRefTraitProviderStorageBug" {
         let v5 := v11
         let v12 := v5
         let v2 := v12
-        let v13 := v2
-        let v14 := $base(v13)
-        let v6 := v14
+        let v13 := $base(v2)
+        let v6 := v13
         let v3 := v6
-        let v15 := v2
-        let v7 := v15
+        let v14 := v2
+        let v7 := v14
         $encode_single_root(p0, v7)
-        let t19 := mload(0x40)
-        if iszero(t19) {
-          t19 := 0x80
+        let t18 := mload(0x40)
+        if iszero(t18) {
+          t18 := 0x80
         }
-        mstore(0x40, add(t19, 64))
-        let v18 := t19
-        mstore(v18, v3)
-        mstore(add(v18, 32), v1)
-        let v9 := v18
+        mstore(0x40, add(t18, 64))
+        let v17 := t18
+        mstore(v17, v3)
+        mstore(add(v17, 32), v1)
+        let v9 := v17
         ret := v9
         leave
       }
@@ -381,14 +377,7 @@ object "ByRefTraitProviderStorageBug" {
         leave
       }
       function $pos(p0) -> ret {
-        let r0 := mload(0x40)
-        if iszero(r0) {
-          r0 := 0x80
-        }
-        mstore(0x40, add(r0, 64))
-        mstore(r0, mload(p0))
-        mstore(add(r0, 32), mload(add(p0, 32)))
-        let t2 := mload(add(r0, 32))
+        let t2 := mload(add(p0, 32))
         let v1 := t2
         ret := v1
         leave
@@ -403,7 +392,7 @@ object "ByRefTraitProviderStorageBug" {
         mstore(add(p0, 32), v2)
         leave
       }
-      function $sum_arg0_root_stor(p0) -> ret {
+      function $sum(p0) -> ret {
         let t5 := sload(p0)
         let v1 := t5
         let t6 := sload(add(p0, div(add(32, 31), 32)))
@@ -420,9 +409,8 @@ object "ByRefTraitProviderStorageBug" {
         leave
       }
       function $use_ctx_eff0_stor(p0) -> ret {
-        let v2 := p0
-        let v3 := $sum_arg0_root_stor(v2)
-        let v1 := v3
+        let v2 := $sum(p0)
+        let v1 := v2
         ret := v1
         leave
       }

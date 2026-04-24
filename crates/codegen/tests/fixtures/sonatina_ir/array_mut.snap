@@ -12,19 +12,18 @@ func private %array_mut(v0.i8) -> [i8; 4] {
         jump block1;
 
     block1:
-        v2.i256 = mload v1 i256;
-        v3.i8 = trunc v2 i8;
-        v7.objref<[i8; 4]> = obj.alloc [i8; 4];
-        v9.objref<i8> = obj.index v7 0.i256;
-        obj.store v9 v3;
-        v11.objref<i8> = obj.index v7 1.i256;
-        obj.store v11 2.i8;
-        v13.objref<i8> = obj.index v7 2.i256;
-        obj.store v13 3.i8;
-        v15.objref<i8> = obj.index v7 3.i256;
-        obj.store v15 4.i8;
-        v16.[i8; 4] = obj.load v7;
-        return v16;
+        v2.i8 = mload v1 i8;
+        v6.objref<[i8; 4]> = obj.alloc [i8; 4];
+        v8.objref<i8> = obj.index v6 0.i256;
+        obj.store v8 v2;
+        v10.objref<i8> = obj.index v6 1.i256;
+        obj.store v10 2.i8;
+        v12.objref<i8> = obj.index v6 2.i256;
+        obj.store v12 3.i8;
+        v14.objref<i8> = obj.index v6 3.i256;
+        obj.store v14 4.i8;
+        v15.[i8; 4] = obj.load v6;
+        return v15;
 }
 
 func private %main() -> [i8; 4] {

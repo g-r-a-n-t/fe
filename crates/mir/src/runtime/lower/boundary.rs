@@ -5,7 +5,8 @@ use hir::analysis::{
     semantic::SLocalId,
     ty::{
         trait_resolution::PredicateListId,
-        ty_def::{BorrowKind, TyId},
+        ty_def::{BorrowKind, CapabilityKind, TyId},
+        ty_is_copy,
     },
 };
 use hir::hir_def::scope_graph::ScopeId;
@@ -24,7 +25,8 @@ use super::{
     type_info::{
         RuntimeTypeEnv, effect_handle_class_for_ty_in_context,
         provider_class_for_target_in_context, provider_class_for_target_in_env,
-        runtime_repr_ty_in_context, runtime_transport_sensitive_aggregate, runtime_zero_sized_ty,
+        runtime_interface_ty_in_context, runtime_repr_ty_in_context,
+        runtime_transport_sensitive_aggregate, runtime_zero_sized_ty,
         stored_class_for_ty_in_context, top_level_class_for_ty_in_context,
     },
 };
@@ -832,8 +834,40 @@ fn runtime_boundary_spec<'db>(
     scope: Option<ScopeId<'db>>,
     assumptions: PredicateListId<'db>,
 ) -> Option<RuntimeBoundarySpec<'db>> {
-    let repr_ty = runtime_repr_ty_in_context(db, ty, scope, assumptions);
-    if let Some((kind, inner)) = repr_ty.as_borrow(db) {
+    let interface_ty = runtime_interface_ty_in_context(db, ty, scope, assumptions);
+    if let Some((CapabilityKind::View, inner)) = interface_ty.as_capability(db) {
+        let inner_boundary = runtime_boundary_spec(db, inner, default_space, scope, assumptions);
+        if runtime_zero_sized_ty(db, inner, scope, assumptions) {
+            return inner_boundary;
+        }
+        let pointee = stored_class_for_ty_in_context(db, inner, scope, assumptions);
+        let inner_is_copy = scope.is_some_and(|scope| ty_is_copy(db, scope, inner, assumptions));
+        if inner_is_copy {
+            return inner_boundary.or_else(|| {
+                pointee
+                    .aggregate_layout()
+                    .is_some()
+                    .then_some(RuntimeBoundarySpec::ExactShape(pointee.clone()))
+            });
+        }
+        if pointee.aggregate_layout().is_none()
+            && !matches!(
+                &inner_boundary,
+                Some(
+                    RuntimeBoundarySpec::ExactTransport(RuntimeClass::AggregateValue { .. })
+                        | RuntimeBoundarySpec::ExactShape(RuntimeClass::AggregateValue { .. })
+                )
+            )
+        {
+            return inner_boundary;
+        }
+        return Some(RuntimeBoundarySpec::BorrowLike {
+            pointee,
+            access: BorrowAccess::ReadOnly,
+            allow: default_borrow_transport_set(BorrowAccess::ReadOnly, default_space),
+        });
+    }
+    if let Some((kind, inner)) = interface_ty.as_borrow(db) {
         if runtime_zero_sized_ty(db, inner, scope, assumptions) {
             return Some(RuntimeBoundarySpec::ExactShape(
                 provider_class_for_target_in_context(
@@ -855,7 +889,7 @@ fn runtime_boundary_spec<'db>(
             allow: default_borrow_transport_set(access, default_space),
         });
     }
-    if let Some((_, inner)) = repr_ty.as_capability(db) {
+    if let Some((_, inner)) = interface_ty.as_capability(db) {
         return Some(RuntimeBoundarySpec::ExactShape(
             provider_class_for_target_in_context(
                 db,
@@ -866,6 +900,7 @@ fn runtime_boundary_spec<'db>(
             ),
         ));
     }
+    let repr_ty = runtime_repr_ty_in_context(db, interface_ty, scope, assumptions);
     let effect_scope = scope.or_else(|| repr_ty.as_scope(db));
     if let Some(effect_scope) = effect_scope
         && let Some(class) =
@@ -894,13 +929,14 @@ fn runtime_boundary_source_uses_transport_sensitive_aggregate<'db>(
     scope: Option<ScopeId<'db>>,
     assumptions: PredicateListId<'db>,
 ) -> bool {
-    if let Some((_, inner)) = ty.as_borrow(db) {
+    let interface_ty = runtime_interface_ty_in_context(db, ty, scope, assumptions);
+    if let Some((_, inner)) = interface_ty.as_borrow(db) {
         return runtime_transport_sensitive_aggregate(db, inner, scope, assumptions);
     }
-    let repr_ty = runtime_repr_ty_in_context(db, ty, scope, assumptions);
-    if let Some((_, inner)) = repr_ty.as_borrow(db) {
+    if let Some((_, inner)) = interface_ty.as_capability(db) {
         return runtime_transport_sensitive_aggregate(db, inner, scope, assumptions);
     }
+    let repr_ty = runtime_repr_ty_in_context(db, interface_ty, scope, assumptions);
     runtime_transport_sensitive_aggregate(db, repr_ty, scope, assumptions)
 }
 

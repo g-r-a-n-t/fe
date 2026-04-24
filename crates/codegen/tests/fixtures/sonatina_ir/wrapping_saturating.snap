@@ -96,12 +96,10 @@ func private %impl_trait_u64__saturating_add(v0.i64, v1.i64) -> i64 {
         jump block1;
 
     block1:
-        v4.i256 = mload v2 i256;
-        v5.i64 = trunc v4 i64;
-        v6.i256 = mload v3 i256;
-        v7.i64 = trunc v6 i64;
-        v8.i64 = uaddsat v5 v7;
-        return v8;
+        v4.i64 = mload v2 i64;
+        v5.i64 = mload v3 i64;
+        v6.i64 = uaddsat v4 v5;
+        return v6;
 }
 
 func private %impl_trait_u64__saturating_mul(v0.i64, v1.i64) -> i64 {
@@ -113,12 +111,10 @@ func private %impl_trait_u64__saturating_mul(v0.i64, v1.i64) -> i64 {
         jump block1;
 
     block1:
-        v4.i256 = mload v2 i256;
-        v5.i64 = trunc v4 i64;
-        v6.i256 = mload v3 i256;
-        v7.i64 = trunc v6 i64;
-        v8.i64 = umulsat v5 v7;
-        return v8;
+        v4.i64 = mload v2 i64;
+        v5.i64 = mload v3 i64;
+        v6.i64 = umulsat v4 v5;
+        return v6;
 }
 
 func private %impl_trait_u256__saturating_mul(v0.i256, v1.i256) -> i256 {
@@ -174,30 +170,24 @@ func private %saturating_ops_u64(v0.i64, v1.i64) -> @layout_0 {
         jump block1;
 
     block1:
-        v4.i256 = mload v2 i256;
-        v5.i64 = trunc v4 i64;
-        v6.i256 = mload v3 i256;
-        v7.i64 = trunc v6 i64;
-        v8.i64 = call %impl_trait_u64__saturating_add v5 v7;
-        v9.i256 = mload v2 i256;
-        v10.i64 = trunc v9 i64;
-        v11.i256 = mload v3 i256;
-        v12.i64 = trunc v11 i64;
-        v13.i64 = call %impl_trait_u64__saturating_sub v10 v12;
-        v14.i256 = mload v2 i256;
-        v15.i64 = trunc v14 i64;
-        v16.i256 = mload v3 i256;
-        v17.i64 = trunc v16 i64;
-        v18.i64 = call %impl_trait_u64__saturating_mul v15 v17;
-        v19.objref<@layout_0> = obj.alloc @layout_0;
-        v21.objref<i64> = obj.proj v19 0.i256;
-        obj.store v21 v8;
-        v23.objref<i64> = obj.proj v19 1.i256;
-        obj.store v23 v13;
-        v25.objref<i64> = obj.proj v19 2.i256;
-        obj.store v25 v18;
-        v26.@layout_0 = obj.load v19;
-        return v26;
+        v4.i64 = mload v2 i64;
+        v5.i64 = mload v3 i64;
+        v6.i64 = call %impl_trait_u64__saturating_add v4 v5;
+        v7.i64 = mload v2 i64;
+        v8.i64 = mload v3 i64;
+        v9.i64 = call %impl_trait_u64__saturating_sub v7 v8;
+        v10.i64 = mload v2 i64;
+        v11.i64 = mload v3 i64;
+        v12.i64 = call %impl_trait_u64__saturating_mul v10 v11;
+        v13.objref<@layout_0> = obj.alloc @layout_0;
+        v15.objref<i64> = obj.proj v13 0.i256;
+        obj.store v15 v6;
+        v17.objref<i64> = obj.proj v13 1.i256;
+        obj.store v17 v9;
+        v19.objref<i64> = obj.proj v13 2.i256;
+        obj.store v19 v12;
+        v20.@layout_0 = obj.load v13;
+        return v20;
 }
 
 func private %impl_trait_u256__saturating_sub(v0.i256, v1.i256) -> i256 {
@@ -224,12 +214,10 @@ func private %impl_trait_u64__saturating_sub(v0.i64, v1.i64) -> i64 {
         jump block1;
 
     block1:
-        v4.i256 = mload v2 i256;
-        v5.i64 = trunc v4 i64;
-        v6.i256 = mload v3 i256;
-        v7.i64 = trunc v6 i64;
-        v8.i64 = usubsat v5 v7;
-        return v8;
+        v4.i64 = mload v2 i64;
+        v5.i64 = mload v3 i64;
+        v6.i64 = usubsat v4 v5;
+        return v6;
 }
 
 func private %impl_trait_u256__wrapping_add(v0.i256, v1.i256) -> i256 {
@@ -256,12 +244,10 @@ func private %impl_trait_u64__wrapping_add(v0.i64, v1.i64) -> i64 {
         jump block1;
 
     block1:
-        v4.i256 = mload v2 i256;
-        v5.i64 = trunc v4 i64;
-        v6.i256 = mload v3 i256;
-        v7.i64 = trunc v6 i64;
-        v8.i64 = add v5 v7;
-        return v8;
+        v4.i64 = mload v2 i64;
+        v5.i64 = mload v3 i64;
+        v6.i64 = add v4 v5;
+        return v6;
 }
 
 func private %impl_trait_u256__wrapping_mul(v0.i256, v1.i256) -> i256 {
@@ -288,12 +274,10 @@ func private %impl_trait_u64__wrapping_mul(v0.i64, v1.i64) -> i64 {
         jump block1;
 
     block1:
-        v4.i256 = mload v2 i256;
-        v5.i64 = trunc v4 i64;
-        v6.i256 = mload v3 i256;
-        v7.i64 = trunc v6 i64;
-        v8.i64 = mul v5 v7;
-        return v8;
+        v4.i64 = mload v2 i64;
+        v5.i64 = mload v3 i64;
+        v6.i64 = mul v4 v5;
+        return v6;
 }
 
 func private %wrapping_ops_u256(v0.i256, v1.i256) -> @layout_1 {
@@ -334,30 +318,24 @@ func private %wrapping_ops_u64(v0.i64, v1.i64) -> @layout_0 {
         jump block1;
 
     block1:
-        v4.i256 = mload v2 i256;
-        v5.i64 = trunc v4 i64;
-        v6.i256 = mload v3 i256;
-        v7.i64 = trunc v6 i64;
-        v8.i64 = call %impl_trait_u64__wrapping_add v5 v7;
-        v9.i256 = mload v2 i256;
-        v10.i64 = trunc v9 i64;
-        v11.i256 = mload v3 i256;
-        v12.i64 = trunc v11 i64;
-        v13.i64 = call %impl_trait_u64__wrapping_sub v10 v12;
-        v14.i256 = mload v2 i256;
-        v15.i64 = trunc v14 i64;
-        v16.i256 = mload v3 i256;
-        v17.i64 = trunc v16 i64;
-        v18.i64 = call %impl_trait_u64__wrapping_mul v15 v17;
-        v19.objref<@layout_0> = obj.alloc @layout_0;
-        v21.objref<i64> = obj.proj v19 0.i256;
-        obj.store v21 v8;
-        v23.objref<i64> = obj.proj v19 1.i256;
-        obj.store v23 v13;
-        v25.objref<i64> = obj.proj v19 2.i256;
-        obj.store v25 v18;
-        v26.@layout_0 = obj.load v19;
-        return v26;
+        v4.i64 = mload v2 i64;
+        v5.i64 = mload v3 i64;
+        v6.i64 = call %impl_trait_u64__wrapping_add v4 v5;
+        v7.i64 = mload v2 i64;
+        v8.i64 = mload v3 i64;
+        v9.i64 = call %impl_trait_u64__wrapping_sub v7 v8;
+        v10.i64 = mload v2 i64;
+        v11.i64 = mload v3 i64;
+        v12.i64 = call %impl_trait_u64__wrapping_mul v10 v11;
+        v13.objref<@layout_0> = obj.alloc @layout_0;
+        v15.objref<i64> = obj.proj v13 0.i256;
+        obj.store v15 v6;
+        v17.objref<i64> = obj.proj v13 1.i256;
+        obj.store v17 v9;
+        v19.objref<i64> = obj.proj v13 2.i256;
+        obj.store v19 v12;
+        v20.@layout_0 = obj.load v13;
+        return v20;
 }
 
 func private %impl_trait_u256__wrapping_sub(v0.i256, v1.i256) -> i256 {
@@ -384,12 +362,10 @@ func private %impl_trait_u64__wrapping_sub(v0.i64, v1.i64) -> i64 {
         jump block1;
 
     block1:
-        v4.i256 = mload v2 i256;
-        v5.i64 = trunc v4 i64;
-        v6.i256 = mload v3 i256;
-        v7.i64 = trunc v6 i64;
-        v8.i64 = sub v5 v7;
-        return v8;
+        v4.i64 = mload v2 i64;
+        v5.i64 = mload v3 i64;
+        v6.i64 = sub v4 v5;
+        return v6;
 }
 
 

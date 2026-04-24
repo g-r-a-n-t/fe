@@ -85,12 +85,12 @@ object "EnumContract" {
         mstore(v3, v4)
         leave
       }
-      function $std$lib$evm$effects$impl_trait$Evm$0098$return_data_2(p0, p1) {
+      function $std$lib$evm$effects$impl_trait$Evm$0098$return_data_1(p0, p1) {
         let v3 := p0
         let v4 := p1
         return(v3, v4)
       }
-      function $std$lib$evm$effects$impl_trait$Evm$0098$return_data_1(p0, p1) {
+      function $std$lib$evm$effects$impl_trait$Evm$0098$return_data_2(p0, p1) {
         let v3 := p0
         let v4 := p1
         return(v3, v4)

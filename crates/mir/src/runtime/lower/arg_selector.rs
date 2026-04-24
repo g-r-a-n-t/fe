@@ -190,7 +190,11 @@ impl<'a, 'carriers, 'cache, 'db> RuntimeArgSelector<'a, 'carriers, 'cache, 'db> 
                 .select_exact_shape_ref_like_value(local, boundary)
                 .or_else(|| self.exact_shape_ref_like_placeholder(local, boundary)),
             CompiledValuePassPlan::BorrowLike { boundary } => {
-                self.select_boundary_compatible_value(local, boundary)
+                if let Some(selected) = self.select_boundary_compatible_value(local, boundary) {
+                    return Some(selected);
+                }
+                let boundary = self.specialized_boundary(local, boundary);
+                SelectedRuntimeArg::materialized_semantic_operand(arg, &boundary)
             }
         }
     }
@@ -300,14 +304,19 @@ impl<'a, 'carriers, 'cache, 'db> RuntimeArgSelector<'a, 'carriers, 'cache, 'db> 
     }
 
     fn handle_like_semantic_value_is_available(&self, local: SLocalId) -> bool {
+        let Some(local_data) = self.env.body().locals.get(local.index()) else {
+            return false;
+        };
         if carrier_value_class(local, self.carriers).is_some_and(|class| class.is_transport()) {
-            return true;
+            return !matches!(
+                local_data.facts.interface,
+                SemanticLocalKind::PlaceBoundValue
+            ) || local_data.facts.origin.root_provider().is_some();
         }
-        self.env
-            .body()
-            .locals
-            .get(local.index())
-            .and_then(|local_data| local_data.facts.origin.root_provider())
+        local_data
+            .facts
+            .origin
+            .root_provider()
             .is_some_and(|provider| self.provider_place_root_is_lowerable(provider))
     }
 
@@ -318,13 +327,13 @@ impl<'a, 'carriers, 'cache, 'db> RuntimeArgSelector<'a, 'carriers, 'cache, 'db> 
     ) -> Option<SelectedRuntimeArg<'db>> {
         let local_data = self.env.body().locals.get(arg.local.index())?;
         if let Some(place) = nonself_backing_value_place(self.env.body(), arg.local)
-            && self.place_is_lowerable(place)
-        {
-            return Some(SelectedRuntimeArg::place_addr(
+            && let Some(arg) = self.select_place_address_if_satisfies(
                 place.clone(),
                 local_data.ty,
-                target.clone(),
-            ));
+                &RuntimeBoundarySpec::ExactTransport(target.clone()),
+            )
+        {
+            return Some(arg);
         }
         if matches!(
             local_data.facts.interface,

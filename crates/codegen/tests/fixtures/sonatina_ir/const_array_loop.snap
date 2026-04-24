@@ -27,20 +27,23 @@ func private %sum_loop(v0.i256) -> i256 {
     block0:
         v1.*i256 = alloca i256;
         v2.*i256 = alloca i256;
+        v3.*i256 = alloca i256;
+        mstore v1 v0 i256;
         jump block1;
 
     block1:
         jump block2;
 
     block2:
-        v39.i256 = phi (0.i256 block1) (v32 block11);
-        v4.i256 = phi (0.i256 block1) (v36 block11);
-        v6.i1 = lt v4 v0;
-        br v6 block3 block4;
+        v39.i256 = phi (0.i256 block1) (v33 block11);
+        v5.i256 = phi (0.i256 block1) (v37 block11);
+        v6.i256 = mload v1 i256;
+        v7.i1 = lt v5 v6;
+        br v7 block3 block4;
 
     block3:
-        v9.i1 = eq 3.i256 0.i256;
-        br v9 block5 block6;
+        v10.i1 = eq 3.i256 0.i256;
+        br v10 block5 block6;
 
     block4:
         return v39;
@@ -51,26 +54,26 @@ func private %sum_loop(v0.i256) -> i256 {
         evm_revert 0.i256 36.i256;
 
     block6:
-        v14.i256 = evm_umod v4 3.i256;
-        v18.objref<[i256; 3]> = obj.alloc [i256; 3];
-        v19.objref<i256> = obj.index v18 0.i256;
-        obj.store v19 10.i256;
-        v21.objref<i256> = obj.index v18 1.i256;
-        obj.store v21 20.i256;
-        v23.objref<i256> = obj.index v18 2.i256;
-        obj.store v23 30.i256;
-        v24.i1 = lt v14 3.i256;
-        v25.i1 = is_zero v24;
-        br v25 block7 block8;
+        v15.i256 = evm_umod v5 3.i256;
+        v19.objref<[i256; 3]> = obj.alloc [i256; 3];
+        v20.objref<i256> = obj.index v19 0.i256;
+        obj.store v20 10.i256;
+        v22.objref<i256> = obj.index v19 1.i256;
+        obj.store v22 20.i256;
+        v24.objref<i256> = obj.index v19 2.i256;
+        obj.store v24 30.i256;
+        v25.i1 = lt v15 3.i256;
+        v26.i1 = is_zero v25;
+        br v26 block7 block8;
 
     block7:
         evm_revert 0.i256 0.i256;
 
     block8:
-        v26.objref<i256> = obj.index v18 v14;
-        v27.i256 = obj.load v26;
-        (v29.i256, v30.i1) = uaddo v39 v27;
-        br v30 block9 block10;
+        v27.objref<i256> = obj.index v19 v15;
+        v28.i256 = obj.load v27;
+        (v30.i256, v31.i1) = uaddo v39 v28;
+        br v31 block9 block10;
 
     block9:
         mstore 0.i256 35408467139433450592217433187231851964531694900788300625387963629091585785856.i256 i256;
@@ -78,14 +81,14 @@ func private %sum_loop(v0.i256) -> i256 {
         evm_revert 0.i256 36.i256;
 
     block10:
-        mstore v1 v29 i256;
-        v32.i256 = mload v1 i256;
-        (v34.i256, v35.i1) = uaddo v4 1.i256;
-        br v35 block9 block11;
+        mstore v2 v30 i256;
+        v33.i256 = mload v2 i256;
+        (v35.i256, v36.i1) = uaddo v5 1.i256;
+        br v36 block9 block11;
 
     block11:
-        mstore v2 v34 i256;
-        v36.i256 = mload v2 i256;
+        mstore v3 v35 i256;
+        v37.i256 = mload v3 i256;
         jump block2;
 }
 

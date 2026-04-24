@@ -83,18 +83,28 @@ impl Complex {
 
     // |z|^2 in fixed-point
     fn mag_sq(self) -> u256 {
-        self.re.mag_sq() + self.im.mag_sq()
+        ((self.re.mag * self.re.mag) >> 64) + ((self.im.mag * self.im.mag) >> 64)
     }
 
     // z^2 + c
     // (a+bi)^2 = (a^2 - b^2) + (2ab)i
     fn square_add(self, _ c: Complex) -> Complex {
-        let aa = self.re * self.re
-        let bb = self.im * self.im
-        let ab = self.re * self.im
+        let self_re0 = SFixed { mag: self.re.mag, neg: self.re.neg }
+        let self_re1 = SFixed { mag: self.re.mag, neg: self.re.neg }
+        let self_re2 = SFixed { mag: self.re.mag, neg: self.re.neg }
+        let self_im0 = SFixed { mag: self.im.mag, neg: self.im.neg }
+        let self_im1 = SFixed { mag: self.im.mag, neg: self.im.neg }
+        let self_im2 = SFixed { mag: self.im.mag, neg: self.im.neg }
+        let c_re = SFixed { mag: c.re.mag, neg: c.re.neg }
+        let c_im = SFixed { mag: c.im.mag, neg: c.im.neg }
+        let aa = self_re0 * self_re1
+        let bb = self_im0 * self_im1
+        let ab = self_re2 * self_im2
+        let ab0 = SFixed { mag: ab.mag, neg: ab.neg }
+        let ab1 = SFixed { mag: ab.mag, neg: ab.neg }
         Complex {
-            re: aa - bb + c.re,
-            im: ab + ab + c.im,
+            re: aa - bb + c_re,
+            im: ab0 + ab1 + c_im,
         }
     }
 }

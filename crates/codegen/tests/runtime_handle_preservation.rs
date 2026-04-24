@@ -3,8 +3,8 @@ use driver::DriverDataBase;
 use fe_codegen::{OptLevel, emit_module_sonatina_ir, emit_runtime_package_sonatina_ir_optimized};
 use mir::runtime::{AddressSpaceKind, RefKind};
 use mir::{
-    IntrinsicArithBinOp, Layout, PlaceElem, PlaceRoot, RExpr, RLocalId, RStmt, RuntimeBuiltin,
-    RuntimeClass, build_runtime_package, build_test_runtime_package,
+    IntrinsicArithBinOp, Layout, LayoutId, PlaceElem, PlaceRoot, RExpr, RLocalId, RStmt,
+    RuntimeBuiltin, RuntimeClass, build_runtime_package, build_test_runtime_package,
 };
 use url::Url;
 
@@ -36,6 +36,24 @@ fn contains_op_subsequence(body: &str, expected: &[&str]) -> bool {
     expected
         .iter()
         .all(|expected| ops.any(|op| op == *expected))
+}
+
+fn storage_pair_ref_layout<'db>(class: &RuntimeClass<'db>) -> Option<LayoutId<'db>> {
+    match class {
+        RuntimeClass::Ref {
+            pointee,
+            kind:
+                RefKind::Provider {
+                    space: AddressSpaceKind::Storage,
+                    ..
+                },
+            ..
+        } => pointee.aggregate_layout(),
+        RuntimeClass::Scalar(_)
+        | RuntimeClass::AggregateValue { .. }
+        | RuntimeClass::RawAddr { .. }
+        | RuntimeClass::Ref { .. } => None,
+    }
 }
 
 #[test]
@@ -210,20 +228,23 @@ fn provider_root_trait_receivers_preserve_concrete_runtime_layouts() {
     let body = use_ctx.instance(&db).body(&db);
     let ctx_param = body.signature.params[0].local;
 
-    let load = body
+    let layout = storage_pair_ref_layout(&body.signature.params[0].class).unwrap_or_else(|| {
+        panic!("use_ctx should receive its provider-bound receiver as a storage ref:\n{body:#?}")
+    });
+    let Layout::Struct(layout_data) = layout.data(&db) else {
+        panic!("storage receiver should use the concrete Pair layout:\n{body:#?}");
+    };
+    assert_eq!(layout_data.source_ty.pretty_print(&db).to_string(), "Pair");
+
+    let (callee, arg) = body
         .blocks
         .iter()
         .flat_map(|block| block.stmts.iter())
         .find_map(|stmt| match stmt {
             RStmt::Assign {
-                dst,
-                expr: RExpr::Load { place },
-            } if place.path.is_empty()
-                && (place.root == PlaceRoot::Ref(ctx_param)
-                    || matches!(place.root, PlaceRoot::Provider(_))) =>
-            {
-                Some(*dst)
-            }
+                expr: RExpr::Call { callee, args },
+                ..
+            } => args.first().map(|arg| (*callee, *arg)),
             RStmt::Assign { .. }
             | RStmt::EnumAssertVariant { .. }
             | RStmt::Store { .. }
@@ -231,19 +252,116 @@ fn provider_root_trait_receivers_preserve_concrete_runtime_layouts() {
             | RStmt::EnumSetTag { .. }
             | RStmt::EnumWriteVariant { .. } => None,
         })
-        .unwrap_or_else(|| {
-            panic!("use_ctx should load its provider-bound receiver handle:\n{body:#?}")
-        });
+        .unwrap_or_else(|| panic!("use_ctx should call the concrete trait receiver:\n{body:#?}"));
 
-    let mir::RuntimeCarrier::Value(mir::RuntimeClass::AggregateValue { layout }) =
-        &body.locals[load.as_u32() as usize].carrier
-    else {
-        panic!("root-provider receiver load should produce a concrete aggregate value:\n{body:#?}");
+    let arg_class = body.value_class(arg).unwrap_or_else(|| {
+        panic!("use_ctx receiver argument should be runtime-visible:\n{body:#?}")
+    });
+    assert_eq!(
+        storage_pair_ref_layout(arg_class),
+        Some(layout),
+        "use_ctx should pass the storage receiver handle directly:\n{body:#?}"
+    );
+    let callee_signature = callee.signature(&db);
+    assert_eq!(
+        callee_signature
+            .params
+            .first()
+            .and_then(|param| storage_pair_ref_layout(&param.class)),
+        Some(layout),
+        "callee should receive the same concrete storage receiver layout:\ncallee={callee_signature:#?}\ncaller={body:#?}"
+    );
+    assert!(
+        !body
+            .blocks
+            .iter()
+            .flat_map(|block| block.stmts.iter())
+            .any(|stmt| {
+                matches!(
+                    stmt,
+                    RStmt::Assign {
+                        expr: RExpr::Load { place },
+                        ..
+                    } if place.path.is_empty()
+                        && (place.root == PlaceRoot::Ref(ctx_param)
+                            || matches!(place.root, PlaceRoot::Provider(_)))
+                )
+            }),
+        "view receiver should not load the whole provider-bound aggregate before dispatch:\n{body:#?}"
+    );
+}
+
+#[test]
+fn view_receiver_with_storage_aggregate_keeps_receiver_runtime_visible() {
+    let mut db = DriverDataBase::default();
+    let file_url = Url::parse(
+        "file:///view_receiver_with_storage_aggregate_keeps_receiver_runtime_visible.fe",
+    )
+    .unwrap();
+    db.workspace().touch(
+        &mut db,
+        file_url.clone(),
+        Some(include_str!("fixtures/by_ref_trait_provider_storage_bug.fe").to_string()),
+    );
+    let file = db
+        .workspace()
+        .get(&db, &file_url)
+        .expect("file should be loaded");
+    let top_mod = db.top_mod(file);
+    let package = build_runtime_package(&db, top_mod).expect("runtime package");
+    let sum = package
+        .functions(&db)
+        .iter()
+        .copied()
+        .find(|function| function.symbol(&db).contains("sum"))
+        .expect("generated Pair::sum runtime function");
+    let body = sum.instance(&db).body(&db);
+    let self_param = body
+        .signature
+        .params
+        .first()
+        .unwrap_or_else(|| panic!("sum should keep its self view param visible:\n{body:#?}"));
+    let Some(layout) = storage_pair_ref_layout(&self_param.class) else {
+        panic!("view receiver should use ref-like transport:\n{body:#?}");
     };
-    let Layout::Struct(layout) = layout.data(&db) else {
-        panic!("root-provider receiver load should use the concrete Pair layout:\n{body:#?}");
+    let Layout::Struct(layout_data) = layout.data(&db) else {
+        panic!("view receiver should point at the stored Pair layout:\n{body:#?}");
     };
-    assert_eq!(layout.source_ty.pretty_print(&db).to_string(), "Pair");
+    assert_eq!(layout_data.source_ty.pretty_print(&db).to_string(), "Pair");
+    assert!(
+        body.blocks
+            .iter()
+            .flat_map(|block| block.stmts.iter())
+            .filter(|stmt| {
+                matches!(
+                        stmt,
+                        RStmt::Assign {
+                            expr: RExpr::Load { place },
+                            ..
+                    } if place.root == PlaceRoot::Ref(self_param.local)
+                        && matches!(place.path.as_ref(), [PlaceElem::Field(_)])
+                )
+            })
+            .count()
+            >= 2,
+        "view receiver should project and load Pair fields through the incoming storage ref:\n{body:#?}"
+    );
+    assert!(
+        !body
+            .blocks
+            .iter()
+            .flat_map(|block| block.stmts.iter())
+            .any(|stmt| {
+                matches!(
+                        stmt,
+                        RStmt::Assign {
+                            expr: RExpr::Load { place },
+                            ..
+                    } if place.root == PlaceRoot::Ref(self_param.local) && place.path.is_empty()
+                )
+            }),
+        "view receiver should not load the whole aggregate before field projection:\n{body:#?}"
+    );
 }
 
 #[test]
@@ -700,9 +818,18 @@ fn linear_probe_big_struct_keeps_array_projection_reads_place_based() {
         .get(&db, &file_url)
         .expect("file should be loaded");
     let top_mod = db.top_mod(file);
-    emit_module_sonatina_ir(&db, top_mod)
+    let ir = emit_module_sonatina_ir(&db, top_mod)
         .expect("linear_probe_big_struct should lower through Sonatina");
+    let get_header = sonatina_function_body(&ir, "get")
+        .lines()
+        .next()
+        .expect("get function should have a signature line");
+    assert!(
+        !get_header.contains("v0.@layout"),
+        "view aggregate receiver should not lower to a Sonatina value aggregate param:\n{get_header}"
+    );
     let package = build_runtime_package(&db, top_mod).expect("runtime package");
+    let mut get_instance = None;
 
     for (name, expected_fields) in [("set", [true, true, false]), ("get", [true, true, true])] {
         let function = package
@@ -712,6 +839,16 @@ fn linear_probe_big_struct_keeps_array_projection_reads_place_based() {
             .find(|function| function.symbol(&db).contains(name))
             .unwrap_or_else(|| panic!("missing `{name}` runtime function"));
         let body = function.instance(&db).body(&db);
+        if name == "get" {
+            get_instance = Some(function.instance(&db));
+            assert!(
+                matches!(
+                    body.signature.params[0].class,
+                    RuntimeClass::Ref { .. } | RuntimeClass::RawAddr { .. }
+                ),
+                "view aggregate receiver should use ref-like runtime transport:\n{body:#?}"
+            );
+        }
         let self_local = body.signature.params[0].local;
         let mut saw_indexed_reads = [false; 3];
         for stmt in body.blocks.iter().flat_map(|block| block.stmts.iter()) {
@@ -749,6 +886,43 @@ fn linear_probe_big_struct_keeps_array_projection_reads_place_based() {
             );
         }
     }
+    let get_instance = get_instance.expect("get runtime instance");
+    let entry = package
+        .functions(&db)
+        .iter()
+        .copied()
+        .find(|function| function.symbol(&db).contains("entry"))
+        .expect("entry runtime function");
+    let entry_body = entry.instance(&db).body(&db);
+    let mut saw_get_call = false;
+    for stmt in entry_body
+        .blocks
+        .iter()
+        .flat_map(|block| block.stmts.iter())
+    {
+        let RStmt::Assign {
+            expr: RExpr::Call { callee, args },
+            ..
+        } = stmt
+        else {
+            continue;
+        };
+        if *callee != get_instance {
+            continue;
+        }
+        saw_get_call = true;
+        assert!(
+            !matches!(
+                entry_body.value_class(args[0]),
+                Some(RuntimeClass::AggregateValue { .. })
+            ),
+            "caller should not materialize a whole aggregate before calling get:\n{entry_body:#?}"
+        );
+    }
+    assert!(
+        saw_get_call,
+        "entry should contain a direct call to get:\n{entry_body:#?}"
+    );
 }
 
 #[test]

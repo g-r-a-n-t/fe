@@ -16,10 +16,19 @@ object "main" {
       let v3 := v9
       let v11 := 0x01
       let v12 := 0x07
-      let v13 := dataoffset("const_0")
+      let t17 := mload(0x40)
+      if iszero(t17) {
+        t17 := 0x80
+      }
+      mstore(0x40, add(t17, 64))
+      let v14 := t17
+      mstore(v14, v11)
+      mstore(add(v14, 32), v12)
+      let v13 := v14
       let v0 := v13
-      let v15 := $read_tag_arg0_root_code(v0)
-      let v4 := v15
+      let v15 := v0
+      let v16 := $read_tag(v15)
+      let v4 := v16
       ret := v4
       leave
     }
@@ -27,14 +36,8 @@ object "main" {
       let v0 := $effect_ptr_name_collision()
       stop()
     }
-    function $read_tag_arg0_root_code(p0) -> ret {
-      let t2 := mload(0x40)
-      if iszero(t2) {
-        t2 := 0x80
-      }
-      mstore(0x40, add(t2, 32))
-      datacopy(t2, add(p0, 32), 32)
-      t2 := mload(t2)
+    function $read_tag(p0) -> ret {
+      let t2 := mload(add(p0, 32))
       let v1 := t2
       ret := v1
       leave

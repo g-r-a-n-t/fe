@@ -4447,7 +4447,7 @@ impl<'emitter, 'db> RuntimeArgLowerer<'emitter, 'db> {
                 let value = self
                     .emitter
                     .handle_like_semantic_value(*local)
-                    .unwrap_or_else(|| self.emitter.runtime_value(*local));
+                    .unwrap_or_else(|| self.emitter.read_semantic_value(self.bb, *local));
                 self.apply_use_plan(value, use_plan.clone(), self.semantic_local_ty(*local))
             }
             (

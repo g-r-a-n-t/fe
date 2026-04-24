@@ -6,6 +6,7 @@ use crate::analysis::{
     },
     ty::{effect_handle_metadata, normalize::normalize_ty, ty_def::TyId},
 };
+use crate::semantic::ProviderBinding;
 
 use super::body::SmirLowerCtxt;
 
@@ -43,6 +44,7 @@ impl<'a, 'db> SmirLowerCtxt<'a, 'db> {
         let ty = normalize_ty(self.db, ty, self.body.scope(), self.assumptions);
         if let Some((_, value_ty)) = ty.as_capability(self.db) {
             return SemanticLocalRole::PlaceCarrier {
+                provider: None,
                 value_ty: normalize_ty(self.db, value_ty, self.body.scope(), self.assumptions),
             };
         }
@@ -171,12 +173,15 @@ impl<'a, 'db> SmirLowerCtxt<'a, 'db> {
             ) => SemanticLocalRole::DirectValue { provenance },
             (
                 SemanticLocalRole::PlaceCarrier {
+                    provider,
                     value_ty: src_value_ty,
                 },
                 SemanticLocalRole::PlaceCarrier {
                     value_ty: dst_value_ty,
+                    ..
                 },
             ) if src_value_ty == *dst_value_ty => SemanticLocalRole::PlaceCarrier {
+                provider,
                 value_ty: src_value_ty,
             },
             (
@@ -219,7 +224,7 @@ impl<'a, 'db> SmirLowerCtxt<'a, 'db> {
         match fallback {
             SemanticLocalRole::Erased => SemanticLocalRole::Erased,
             SemanticLocalRole::DirectValue { .. } => fallback,
-            SemanticLocalRole::PlaceCarrier { value_ty }
+            SemanticLocalRole::PlaceCarrier { value_ty, .. }
             | SemanticLocalRole::PlaceBoundValue { value_ty, .. }
                 if local_role_supports_place_provenance(&base_role) =>
             {
@@ -314,12 +319,15 @@ fn merge_local_roles<'db>(
         },
         (
             SemanticLocalRole::PlaceCarrier {
+                provider: left_provider,
                 value_ty: left_value_ty,
             },
             SemanticLocalRole::PlaceCarrier {
+                provider: right_provider,
                 value_ty: right_value_ty,
             },
         ) if left_value_ty == right_value_ty => SemanticLocalRole::PlaceCarrier {
+            provider: merge_role_provider(left_provider, right_provider),
             value_ty: left_value_ty,
         },
         (
@@ -336,6 +344,13 @@ fn merge_local_roles<'db>(
         ) => current,
         _ => fallback,
     }
+}
+
+fn merge_role_provider<'db>(
+    left: Option<ProviderBinding<'db>>,
+    right: Option<ProviderBinding<'db>>,
+) -> Option<ProviderBinding<'db>> {
+    (left == right).then_some(left).flatten()
 }
 
 fn merge_direct_value_role<'db>(

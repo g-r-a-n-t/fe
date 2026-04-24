@@ -32,9 +32,8 @@ func private %retfoo(v0.i1, v1.i64) -> i64 {
         jump block1;
 
     block1:
-        v4.i256 = mload v2 i256;
-        v6.i1 = ne v4 0.i256;
-        br v6 block2 block3;
+        v4.i1 = mload v2 i1;
+        br v4 block2 block3;
 
     block2:
         return 0.i64;
@@ -43,10 +42,9 @@ func private %retfoo(v0.i1, v1.i64) -> i64 {
         jump block4;
 
     block4:
-        v8.i256 = mload v3 i256;
-        v9.i64 = trunc v8 i64;
-        v11.i1 = lt v9 5.i64;
-        br v11 block5 block6;
+        v6.i64 = mload v3 i64;
+        v8.i1 = lt v6 5.i64;
+        br v8 block5 block6;
 
     block5:
         return 1.i64;
@@ -55,10 +53,9 @@ func private %retfoo(v0.i1, v1.i64) -> i64 {
         jump block7;
 
     block7:
-        v13.i256 = mload v3 i256;
-        v14.i64 = trunc v13 i64;
-        (v15.i64, v16.i1) = usubo v14 1.i64;
-        br v16 block11 block12;
+        v10.i64 = mload v3 i64;
+        (v11.i64, v12.i1) = usubo v10 1.i64;
+        br v12 block11 block12;
 
     block8:
         return 2.i64;
@@ -67,8 +64,8 @@ func private %retfoo(v0.i1, v1.i64) -> i64 {
         jump block10;
 
     block10:
-        (v25.i64, v26.i1) = uaddo v15 1.i64;
-        br v26 block11 block13;
+        (v22.i64, v23.i1) = uaddo v11 1.i64;
+        br v23 block11 block13;
 
     block11:
         mstore 0.i256 35408467139433450592217433187231851964531694900788300625387963629091585785856.i256 i256;
@@ -76,11 +73,11 @@ func private %retfoo(v0.i1, v1.i64) -> i64 {
         evm_revert 0.i256 36.i256;
 
     block12:
-        v22.i1 = eq v15 42.i64;
-        br v22 block8 block9;
+        v19.i1 = eq v11 42.i64;
+        br v19 block8 block9;
 
     block13:
-        return v25;
+        return v22;
 }
 
 

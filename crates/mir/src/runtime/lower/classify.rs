@@ -19,10 +19,11 @@ use hir::analysis::{
         trait_def::{TraitInstId, resolve_trait_method_instance},
         trait_resolution::{PredicateListId, TraitSolveCx},
         ty_check::{BodyOwner, EffectParamSite, EffectPassMode, LocalBinding, ParamSite},
-        ty_def::{TyData, TyId, strip_derived_adt_layout_args},
+        ty_def::{CapabilityKind, TyData, TyId, strip_derived_adt_layout_args},
+        ty_is_copy,
     },
 };
-use hir::hir_def::ArithBinOp;
+use hir::hir_def::{ArithBinOp, FuncParamMode};
 use hir::projection::Projection;
 use hir::semantic::ProviderBinding;
 use rustc_hash::FxHashMap;
@@ -65,8 +66,9 @@ use super::{
     type_info::{
         RuntimeTypeEnv, effect_handle_class_for_ty_in_context, provider_address_space_to_runtime,
         provider_class_for_target_in_context, provider_class_for_target_in_env,
-        runtime_repr_ty_in_context, scalar_class_for_ty_in_env, stored_class_for_ty_in_context,
-        top_level_class_for_ty_in_context, top_level_class_for_ty_in_env,
+        runtime_interface_ty_in_context, runtime_repr_ty_in_context, scalar_class_for_ty_in_env,
+        stored_class_for_ty_in_context, top_level_class_for_ty_in_context,
+        top_level_class_for_ty_in_env,
     },
 };
 
@@ -563,12 +565,24 @@ impl<'a, 'db> BodyEnv<'a, 'db> {
                 };
                 project_variant_field_class(self.db, value_class, variant, FieldIndex(field.0))
             }
-            NExpr::ReadPlace { place, .. } => self
-                .normalized_place_class(carriers, place)
-                .or_else(|| match expr_facts {
-                    Some(ExprStaticFacts::DirectClass(class)) => class.clone(),
-                    _ => None,
-                })?,
+            NExpr::ReadPlace { place, .. } => match expr_facts {
+                Some(ExprStaticFacts::DirectClass(None)) => return None,
+                Some(ExprStaticFacts::DirectClass(Some(_))) | None => self
+                    .normalized_place_class(carriers, place)
+                    .or_else(|| match expr_facts {
+                        Some(ExprStaticFacts::DirectClass(class)) => class.clone(),
+                        _ => None,
+                    })?,
+                Some(
+                    ExprStaticFacts::Const(_)
+                    | ExprStaticFacts::AggregateMake(_)
+                    | ExprStaticFacts::Borrow { .. }
+                    | ExprStaticFacts::Call(_),
+                ) => panic!(
+                    "unexpected staged runtime class facts for read-place expr: owner={:?}; expr={expr:?}",
+                    self.body.owner.key(self.db),
+                ),
+            },
             NExpr::Borrow { place, .. } => self
                 .normalized_place_address_class(carriers, place)
                 .or_else(|| match expr_facts {
@@ -755,6 +769,10 @@ fn root_provider_for_runtime_visible_binding<'db>(
             provider: Some(provider),
             ..
         }
+        | SemanticLocalRole::PlaceCarrier {
+            provider: Some(provider),
+            ..
+        }
         | SemanticLocalRole::PlaceBoundValue {
             provenance: hir::analysis::semantic::PlaceProvenance::RootProvider(provider),
             ..
@@ -762,7 +780,7 @@ fn root_provider_for_runtime_visible_binding<'db>(
         SemanticLocalRole::Erased
         | SemanticLocalRole::DirectValue { .. }
         | SemanticLocalRole::DirectCarrier { provider: None, .. }
-        | SemanticLocalRole::PlaceCarrier { .. }
+        | SemanticLocalRole::PlaceCarrier { provider: None, .. }
         | SemanticLocalRole::PlaceBoundValue {
             provenance: hir::analysis::semantic::PlaceProvenance::Derived(_),
             ..
@@ -1353,7 +1371,27 @@ pub(crate) fn runtime_effect_binding_plan<'db>(
                 boundary: RuntimeBoundarySpec::default_exact_boundary_for_class(class),
             })
         }
-        SemanticLocalRole::PlaceCarrier { value_ty } => {
+        SemanticLocalRole::PlaceCarrier {
+            provider: Some(provider),
+            value_ty,
+        } => {
+            let class = runtime_class_for_provider_value_ty_in_context(
+                db,
+                &provider,
+                value_ty,
+                env.scope,
+                env.assumptions,
+            )?;
+            let boundary = specialize_effect_binding_boundary_for_class(
+                effect_binding_borrow_boundary(db, binding, value_ty, env.scope, env.assumptions),
+                &class,
+            );
+            Some(RuntimeEffectBindingPlan { class, boundary })
+        }
+        SemanticLocalRole::PlaceCarrier {
+            provider: None,
+            value_ty,
+        } => {
             let class =
                 provider_class_for_target_in_env(db, env, Some(value_ty), AddressSpaceKind::Memory);
             Some(RuntimeEffectBindingPlan {
@@ -1439,7 +1477,20 @@ fn runtime_exact_class_for_visible_binding_in_env<'db>(
                 ))
             },
         ),
-        SemanticLocalRole::PlaceCarrier { value_ty } => Some(provider_class_for_target_in_env(
+        SemanticLocalRole::PlaceCarrier {
+            provider: Some(provider),
+            value_ty,
+        } => runtime_class_for_provider_value_ty_in_context(
+            db,
+            &provider,
+            value_ty,
+            env.scope,
+            env.assumptions,
+        ),
+        SemanticLocalRole::PlaceCarrier {
+            provider: None,
+            value_ty,
+        } => Some(provider_class_for_target_in_env(
             db,
             env,
             Some(value_ty),
@@ -1693,43 +1744,85 @@ pub(crate) fn desired_runtime_param_plan<'db>(
     let env = RuntimeTypeEnv::for_semantic(db, semantic);
     let scope = env.scope;
     let assumptions = env.assumptions;
+    let interface_ty = runtime_interface_ty_in_context(db, binding_ty, scope, assumptions);
     let repr_ty = runtime_repr_ty_in_context(db, binding_ty, scope, assumptions);
-    if runtime_abstract_param_ty(db, binding_ty, scope, assumptions)
+    let plan = if runtime_abstract_param_ty(db, binding_ty, scope, assumptions)
         || matches!(
             repr_ty.base_ty(db).data(db),
             TyData::TyParam(param) if param.is_effect() || param.is_effect_provider()
-        )
-    {
-        return RuntimeParamPlan::PassActual;
-    }
-    if let Some(class) =
+        ) {
+        RuntimeParamPlan::PassActual
+    } else if interface_ty.as_capability(db).is_some() {
+        boundary_spec_for_ty_in_env(db, env, binding_ty, AddressSpaceKind::Memory)
+            .map(|boundary| {
+                RuntimeParamPlan::Boundary(runtime_param_boundary(
+                    db, typed_body, binding, env, boundary,
+                ))
+            })
+            .unwrap_or(RuntimeParamPlan::Erased)
+    } else if let Some(class) =
         runtime_exact_class_for_visible_binding_in_env(db, semantic, env, binding, binding_ty)
         && (!matches!(class, RuntimeClass::AggregateValue { .. })
             || !aggregate_transport_depends_on_runtime_source(db, binding_ty, scope, assumptions))
     {
-        return RuntimeParamPlan::Boundary(runtime_param_boundary(
+        RuntimeParamPlan::Boundary(runtime_param_boundary(
             db,
             typed_body,
             binding,
             env,
             RuntimeBoundarySpec::default_exact_boundary_for_class(class),
-        ));
-    }
-    let Some(boundary) = boundary_spec_for_ty_in_env(db, env, binding_ty, AddressSpaceKind::Memory)
-    else {
-        return RuntimeParamPlan::Erased;
+        ))
+    } else {
+        let Some(boundary) =
+            boundary_spec_for_ty_in_env(db, env, binding_ty, AddressSpaceKind::Memory)
+        else {
+            return RuntimeParamPlan::Erased;
+        };
+        if matches!(
+            boundary,
+            RuntimeBoundarySpec::ExactTransport(RuntimeClass::AggregateValue { .. })
+                | RuntimeBoundarySpec::ExactShape(RuntimeClass::AggregateValue { .. })
+        ) && aggregate_transport_depends_on_runtime_source(db, binding_ty, scope, assumptions)
+        {
+            RuntimeParamPlan::PassActual
+        } else {
+            RuntimeParamPlan::Boundary(runtime_param_boundary(
+                db, typed_body, binding, env, boundary,
+            ))
+        }
     };
-    if matches!(
-        boundary,
-        RuntimeBoundarySpec::ExactTransport(RuntimeClass::AggregateValue { .. })
-            | RuntimeBoundarySpec::ExactShape(RuntimeClass::AggregateValue { .. })
-    ) && aggregate_transport_depends_on_runtime_source(db, binding_ty, scope, assumptions)
+    if let LocalBinding::Param {
+        mode: FuncParamMode::View,
+        ..
+    } = binding
+        && let Some((CapabilityKind::View, inner)) = interface_ty.as_capability(db)
+        && let Some(scope) = scope
     {
-        return RuntimeParamPlan::PassActual;
+        let inner = runtime_repr_ty_in_context(db, inner, Some(scope), assumptions);
+        if !inner.has_param(db)
+            && !ty_is_copy(db, scope, inner, assumptions)
+            && stored_class_for_ty_in_context(db, inner, Some(scope), assumptions)
+                .aggregate_layout()
+                .is_some()
+        {
+            debug_assert!(
+                !matches!(
+                    plan,
+                    RuntimeParamPlan::PassActual
+                        | RuntimeParamPlan::Boundary(
+                            RuntimeBoundarySpec::ExactTransport(
+                                RuntimeClass::AggregateValue { .. }
+                            ) | RuntimeBoundarySpec::ExactShape(
+                                RuntimeClass::AggregateValue { .. }
+                            )
+                        )
+                ),
+                "non-copy aggregate view param must use a read-only borrow-like boundary: binding={binding:?}; ty={}",
+                binding_ty.pretty_print(db),
+            );
+        }
     }
-    RuntimeParamPlan::Boundary(runtime_param_boundary(
-        db, typed_body, binding, env, boundary,
-    ))
+    plan
 }
 
 pub(crate) fn resolve_runtime_call_key<'db>(

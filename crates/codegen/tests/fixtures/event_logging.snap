@@ -24,14 +24,7 @@ object "main" {
       leave
     }
     function $base(p0) -> ret {
-      let r0 := mload(0x40)
-      if iszero(r0) {
-        r0 := 0x80
-      }
-      mstore(0x40, add(r0, 64))
-      mstore(r0, mload(p0))
-      mstore(add(r0, 32), mload(add(p0, 32)))
-      let t2 := mload(r0)
+      let t2 := mload(p0)
       let v1 := t2
       ret := v1
       leave
@@ -105,22 +98,21 @@ object "main" {
       let v5 := v11
       let v12 := v5
       let v2 := v12
-      let v13 := v2
-      let v14 := $base(v13)
-      let v6 := v14
+      let v13 := $base(v2)
+      let v6 := v13
       let v3 := v6
-      let v15 := v2
-      let v7 := v15
+      let v14 := v2
+      let v7 := v14
       $encode(p0, v7)
-      let t19 := mload(0x40)
-      if iszero(t19) {
-        t19 := 0x80
+      let t18 := mload(0x40)
+      if iszero(t18) {
+        t18 := 0x80
       }
-      mstore(0x40, add(t19, 64))
-      let v18 := t19
-      mstore(v18, v3)
-      mstore(add(v18, 32), v1)
-      let v9 := v18
+      mstore(0x40, add(t18, 64))
+      let v17 := t18
+      mstore(v17, v3)
+      mstore(add(v17, 32), v1)
+      let v9 := v17
       ret := v9
       leave
     }

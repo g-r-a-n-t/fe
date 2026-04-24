@@ -355,6 +355,10 @@ pub struct BytesView<I> {
     pub len: u256,
 }
 
+impl<I> Copy for BytesView<I>
+    where I: Copy
+{}
+
 impl<I> BytesView<I>
     where I: ByteInput
 {
@@ -380,6 +384,10 @@ impl<I> BytesView<I>
 pub struct StringView<I> {
     pub bytes: BytesView<I>,
 }
+
+impl<I> Copy for StringView<I>
+    where I: Copy
+{}
 
 impl<I> StringView<I>
     where I: ByteInput

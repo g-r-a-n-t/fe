@@ -109,6 +109,8 @@ pub use core::effect_ref::StorPtr
 /// Calldata pointer to a value of type `T` (read-only).
 pub struct CalldataPtr<T> { pub offset: u256 }
 
+impl<T> Copy for CalldataPtr<T> {}
+
 impl<T> EffectHandle for CalldataPtr<T> {
     type Target = T
     type AddressSpace = core::effect_ref::Calldata
@@ -130,6 +132,8 @@ impl<T> EffectRef<T> for CalldataPtr<T> {}
 /// This is like `StorPtr<T>`, but reads/writes are intended to compile to
 /// EVM transient storage operations (TLOAD/TSTORE).
 pub struct TStorPtr<T> { pub slot: u256 }
+
+impl<T> Copy for TStorPtr<T> {}
 
 impl<T> EffectHandle for TStorPtr<T> {
     type Target = T

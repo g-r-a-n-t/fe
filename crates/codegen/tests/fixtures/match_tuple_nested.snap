@@ -73,13 +73,8 @@ object "main" {
       let v2 := 0
       let v3 := 0
       let v4 := 0
-      let t36 := mload(0x40)
-      if iszero(t36) {
-        t36 := 0x80
-      }
-      mstore(0x40, add(t36, 128))
-      datacopy(t36, p0, 128)
-      v1 := t36
+      let v22 := p0
+      v1 := v22
       let t37 := mload(0x40)
       if iszero(t37) {
         t37 := 0x80
@@ -99,59 +94,59 @@ object "main" {
       v4 := t38
       let t39 := iszero(iszero(mload(v4)))
       let v5 := t39
-      let v22 := 1
-      let v6 := iszero(iszero(v22))
+      let v23 := 1
+      let v6 := iszero(iszero(v23))
       let v7 := iszero(iszero(eq(iszero(iszero(v5)), iszero(iszero(v6)))))
       if iszero(iszero(v7)) {
         let t40 := iszero(iszero(mload(add(v1, 96))))
         let v8 := t40
-        let v23 := 1
-        let v9 := iszero(iszero(v23))
+        let v24 := 1
+        let v9 := iszero(iszero(v24))
         let v10 := iszero(iszero(eq(iszero(iszero(v8)), iszero(iszero(v9)))))
         if iszero(iszero(v10)) {
           let t41 := iszero(iszero(mload(add(v3, 64))))
           let v11 := t41
-          let v26 := 1
-          let v12 := iszero(iszero(v26))
+          let v27 := 1
+          let v12 := iszero(iszero(v27))
           let v13 := iszero(iszero(eq(iszero(iszero(v11)), iszero(iszero(v12)))))
           if iszero(iszero(v13)) {
             let t42 := iszero(iszero(mload(add(v4, 32))))
             let v14 := t42
-            let v29 := 1
-            let v15 := iszero(iszero(v29))
+            let v30 := 1
+            let v15 := iszero(iszero(v30))
             let v16 := iszero(iszero(eq(iszero(iszero(v14)), iszero(iszero(v15)))))
             if iszero(iszero(v16)) {
-              let v32 := 0x0f
-              let v17 := and(v32, 0xff)
               let v33 := 0x0f
-              v2 := and(v33, 0xff)
+              let v17 := and(v33, 0xff)
+              let v34 := 0x0f
+              v2 := and(v34, 0xff)
             }
             if iszero(iszero(iszero(v16))) {
-              let v34 := 0x08
-              let v18 := and(v34, 0xff)
               let v35 := 0x08
-              v2 := and(v35, 0xff)
+              let v18 := and(v35, 0xff)
+              let v36 := 0x08
+              v2 := and(v36, 0xff)
             }
           }
           if iszero(iszero(iszero(v13))) {
-            let v30 := 0x08
-            let v19 := and(v30, 0xff)
             let v31 := 0x08
-            v2 := and(v31, 0xff)
+            let v19 := and(v31, 0xff)
+            let v32 := 0x08
+            v2 := and(v32, 0xff)
           }
         }
         if iszero(iszero(iszero(v10))) {
-          let v27 := 0x08
-          let v20 := and(v27, 0xff)
           let v28 := 0x08
-          v2 := and(v28, 0xff)
+          let v20 := and(v28, 0xff)
+          let v29 := 0x08
+          v2 := and(v29, 0xff)
         }
       }
       if iszero(iszero(iszero(v7))) {
-        let v24 := 0x00
-        let v21 := and(v24, 0xff)
         let v25 := 0x00
-        v2 := and(v25, 0xff)
+        let v21 := and(v25, 0xff)
+        let v26 := 0x00
+        v2 := and(v26, 0xff)
       }
       ret := and(v2, 0xff)
       leave
@@ -160,13 +155,8 @@ object "main" {
       let v1 := 0
       let v2 := 0
       let v3 := 0
-      let t35 := mload(0x40)
-      if iszero(t35) {
-        t35 := 0x80
-      }
-      mstore(0x40, add(t35, 96))
-      datacopy(t35, p0, 96)
-      v1 := t35
+      let v21 := p0
+      v1 := v21
       let t36 := mload(0x40)
       if iszero(t36) {
         t36 := 0x80
@@ -177,58 +167,58 @@ object "main" {
       v3 := t36
       let t37 := iszero(iszero(mload(v3)))
       let v4 := t37
-      let v21 := 1
-      let v5 := iszero(iszero(v21))
+      let v22 := 1
+      let v5 := iszero(iszero(v22))
       let v6 := iszero(iszero(eq(iszero(iszero(v4)), iszero(iszero(v5)))))
       if iszero(iszero(v6)) {
         let t38 := iszero(iszero(mload(add(v3, 32))))
         let v7 := t38
-        let v22 := 1
-        let v8 := iszero(iszero(v22))
+        let v23 := 1
+        let v8 := iszero(iszero(v23))
         let v9 := iszero(iszero(eq(iszero(iszero(v7)), iszero(iszero(v8)))))
         if iszero(iszero(v9)) {
           let t39 := iszero(iszero(mload(add(v1, 64))))
           let v10 := t39
-          let v24 := 1
-          let v11 := iszero(iszero(v24))
+          let v25 := 1
+          let v11 := iszero(iszero(v25))
           let v12 := iszero(iszero(eq(iszero(iszero(v10)), iszero(iszero(v11)))))
           if iszero(iszero(v12)) {
-            let v27 := 0x07
-            let v13 := and(v27, 0xff)
             let v28 := 0x07
-            v2 := and(v28, 0xff)
+            let v13 := and(v28, 0xff)
+            let v29 := 0x07
+            v2 := and(v29, 0xff)
           }
           if iszero(iszero(iszero(v12))) {
-            let v29 := 0x06
-            let v14 := and(v29, 0xff)
             let v30 := 0x06
-            v2 := and(v30, 0xff)
+            let v14 := and(v30, 0xff)
+            let v31 := 0x06
+            v2 := and(v31, 0xff)
           }
         }
         if iszero(iszero(iszero(v9))) {
-          let v25 := 0x05
-          let v15 := and(v25, 0xff)
           let v26 := 0x05
-          v2 := and(v26, 0xff)
+          let v15 := and(v26, 0xff)
+          let v27 := 0x05
+          v2 := and(v27, 0xff)
         }
       }
       if iszero(iszero(iszero(v6))) {
         let t40 := iszero(iszero(mload(add(v1, 64))))
         let v16 := t40
-        let v23 := 1
-        let v17 := iszero(iszero(v23))
+        let v24 := 1
+        let v17 := iszero(iszero(v24))
         let v18 := iszero(iszero(eq(iszero(iszero(v16)), iszero(iszero(v17)))))
         if iszero(iszero(v18)) {
-          let v31 := 0x02
-          let v19 := and(v31, 0xff)
           let v32 := 0x02
-          v2 := and(v32, 0xff)
+          let v19 := and(v32, 0xff)
+          let v33 := 0x02
+          v2 := and(v33, 0xff)
         }
         if iszero(iszero(iszero(v18))) {
-          let v33 := 0x01
-          let v20 := and(v33, 0xff)
           let v34 := 0x01
-          v2 := and(v34, 0xff)
+          let v20 := and(v34, 0xff)
+          let v35 := 0x01
+          v2 := and(v35, 0xff)
         }
       }
       ret := and(v2, 0xff)

@@ -33,17 +33,13 @@ use crate::{
         TargetRootProviderMaterialization,
         lower::{
             boundary::{RuntimeValueAddress, RuntimeValueSource},
-            classify::{
-                ref_class_for_place_result, runtime_signature_for_key_with_returns,
-                semantic_return_ty,
-            },
+            classify::{ref_class_for_place_result, semantic_return_ty},
             conversion::{RuntimeConversionEmitter, emit_runtime_coercion},
             interface::runtime_visible_binding_plans,
             realize::{
                 RuntimeValueArgSelectionCx, RuntimeValueArgSelector, RuntimeValueUseEmitter,
                 SelectedRuntimeValueArg, emit_selected_runtime_value_args,
             },
-            returns::RuntimeReturnAnalysisCx,
             tuple::{
                 RuntimeTupleFieldEmitter, extract_runtime_tuple_fields, memory_fallback_class,
             },
@@ -112,7 +108,6 @@ pub(crate) fn lower_synthetic_runtime_body<'db>(
 struct SyntheticBodyBuilder<'db> {
     db: &'db dyn MirDb,
     instance: RuntimeInstance<'db>,
-    returns: RuntimeReturnAnalysisCx<'db>,
     locals: Vec<RLocal<'db>>,
     blocks: Vec<RBlock<'db>>,
 }
@@ -265,7 +260,6 @@ impl<'db> SyntheticBodyBuilder<'db> {
         Self {
             db,
             instance,
-            returns: RuntimeReturnAnalysisCx::new(db),
             locals: Vec::new(),
             blocks: vec![RBlock {
                 stmts: Vec::new(),
@@ -289,18 +283,8 @@ impl<'db> SyntheticBodyBuilder<'db> {
         }
     }
 
-    fn runtime_signature(&mut self, callee: RuntimeInstance<'db>) -> RuntimeSignature<'db> {
-        match callee.key(self.db).source(self.db) {
-            RuntimeInstanceSource::Semantic(semantic) => runtime_signature_for_key_with_returns(
-                self.db,
-                semantic,
-                callee.key(self.db).params(self.db),
-                &mut self.returns,
-            ),
-            RuntimeInstanceSource::Synthetic(synthetic) => {
-                runtime_synthetic_signature(synthetic.spec(self.db).clone())
-            }
-        }
+    fn runtime_signature(&self, callee: RuntimeInstance<'db>) -> RuntimeSignature<'db> {
+        callee.signature(self.db)
     }
 
     fn build_entry_root(

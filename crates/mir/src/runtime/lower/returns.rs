@@ -1,4 +1,3 @@
-use std::sync::Arc;
 use std::{collections::VecDeque, convert::Infallible};
 
 use cranelift_entity::{EntityRef, PrimaryMap, SecondaryMap, entity_impl};
@@ -7,7 +6,7 @@ use hir::analysis::semantic::{
     SLocalId, SemanticInstance,
     borrowck::{NSTerminatorKind, NormalizedSemanticBody, normalize_semantic_body},
 };
-use rustc_hash::{FxHashMap, FxHashSet};
+use rustc_hash::FxHashSet;
 
 use crate::{
     db::MirDb,
@@ -37,6 +36,23 @@ pub(crate) struct RuntimeReturnSummary<'db> {
     pub(crate) slice_assignment_positions: SecondaryMap<AssignmentId, Option<SliceAssignmentId>>,
     pub(crate) slice_assignments_by_local: Vec<Vec<AssignmentId>>,
     pub(crate) slice_dynamic_dependents_by_local: Vec<Vec<SLocalId>>,
+}
+
+impl<'db> PartialEq for RuntimeReturnSummary<'db> {
+    fn eq(&self, _other: &Self) -> bool {
+        false
+    }
+}
+
+impl<'db> Eq for RuntimeReturnSummary<'db> {}
+
+unsafe impl<'db> salsa::Update for RuntimeReturnSummary<'db> {
+    unsafe fn maybe_update(old_pointer: *mut Self, new_value: Self) -> bool {
+        unsafe {
+            *old_pointer = new_value;
+        }
+        true
+    }
 }
 
 impl<'db> RuntimeReturnSummary<'db> {
@@ -156,181 +172,94 @@ impl<'db> RuntimeReturnSummary<'db> {
     }
 }
 
-#[derive(Clone)]
-enum ReturnNodeState<'db> {
-    Evaluating { current: Option<RuntimeClass<'db>> },
-    Ready(Option<RuntimeClass<'db>>),
-}
-
-impl<'db> ReturnNodeState<'db> {
-    fn current(&self) -> Option<RuntimeClass<'db>> {
-        match self {
-            Self::Evaluating { current } | Self::Ready(current) => current.clone(),
-        }
-    }
-}
-
-pub(crate) struct RuntimeReturnAnalysisCx<'db> {
+#[salsa::tracked(return_ref)]
+pub(crate) fn runtime_return_summary<'db>(
     db: &'db dyn MirDb,
-    summary_cache: FxHashMap<SemanticInstance<'db>, Arc<RuntimeReturnSummary<'db>>>,
-    value_cache: FxHashMap<RuntimeInstanceKey<'db>, ReturnNodeState<'db>>,
-    dependents: FxHashMap<RuntimeInstanceKey<'db>, FxHashSet<RuntimeInstanceKey<'db>>>,
-    solve_stack: Vec<RuntimeInstanceKey<'db>>,
-    pending: VecDeque<RuntimeInstanceKey<'db>>,
-    pending_set: FxHashSet<RuntimeInstanceKey<'db>>,
-    active_nodes: FxHashSet<RuntimeInstanceKey<'db>>,
+    semantic: SemanticInstance<'db>,
+) -> RuntimeReturnSummary<'db> {
+    RuntimeReturnSummary::build(db, semantic)
 }
 
-impl<'db> RuntimeReturnAnalysisCx<'db> {
-    pub(crate) fn new(db: &'db dyn MirDb) -> Self {
-        Self {
-            db,
-            summary_cache: FxHashMap::default(),
-            value_cache: FxHashMap::default(),
-            dependents: FxHashMap::default(),
-            solve_stack: Vec::new(),
-            pending: VecDeque::new(),
-            pending_set: FxHashSet::default(),
-            active_nodes: FxHashSet::default(),
-        }
-    }
+#[salsa::tracked(
+    cycle_fn=runtime_return_class_cycle_recover,
+    cycle_initial=runtime_return_class_cycle_initial
+)]
+pub(crate) fn runtime_return_class<'db>(
+    db: &'db dyn MirDb,
+    key: RuntimeInstanceKey<'db>,
+) -> Option<RuntimeClass<'db>> {
+    let semantic = key.semantic(db)?;
+    let summary = runtime_return_summary(db, semantic);
+    evaluate_runtime_return_class(db, summary, key.params(db), &mut |callee_key| {
+        runtime_return_class(db, callee_key)
+    })
+}
 
-    pub(crate) fn return_class_for_key(
-        &mut self,
-        key: RuntimeInstanceKey<'db>,
-    ) -> Option<RuntimeClass<'db>> {
-        if self.solve_stack.is_empty() {
-            self.solve_from_root(key)
-        } else {
-            self.lookup_during_solve(key)
-        }
-    }
+fn runtime_return_class_cycle_initial<'db>(
+    db: &'db dyn MirDb,
+    key: RuntimeInstanceKey<'db>,
+) -> Option<RuntimeClass<'db>> {
+    let semantic = key.semantic(db)?;
+    runtime_return_summary(db, semantic)
+        .default_return_class
+        .clone()
+}
 
-    fn summary(&mut self, semantic: SemanticInstance<'db>) -> Arc<RuntimeReturnSummary<'db>> {
-        self.summary_cache
-            .entry(semantic)
-            .or_insert_with(|| Arc::new(RuntimeReturnSummary::build(self.db, semantic)))
-            .clone()
-    }
+fn runtime_return_class_cycle_recover<'db>(
+    _db: &'db dyn MirDb,
+    _value: &Option<RuntimeClass<'db>>,
+    _count: u32,
+    _key: RuntimeInstanceKey<'db>,
+) -> salsa::CycleRecoveryAction<Option<RuntimeClass<'db>>> {
+    salsa::CycleRecoveryAction::Iterate
+}
 
-    fn current_value(&self, key: RuntimeInstanceKey<'db>) -> Option<RuntimeClass<'db>> {
-        self.value_cache
-            .get(&key)
-            .and_then(ReturnNodeState::current)
-    }
-
-    fn ensure_node(&mut self, key: RuntimeInstanceKey<'db>) {
-        if self.value_cache.contains_key(&key) {
-            return;
-        }
-        let initial = key
-            .semantic(self.db)
-            .map(|semantic| self.summary(semantic).default_return_class.clone())
-            .unwrap_or(None);
-        self.value_cache
-            .insert(key, ReturnNodeState::Evaluating { current: initial });
-    }
-
-    fn ensure_enqueued(&mut self, key: RuntimeInstanceKey<'db>) {
-        self.ensure_node(key);
-        if let Some(ReturnNodeState::Ready(current)) = self.value_cache.get(&key).cloned() {
-            self.value_cache
-                .insert(key, ReturnNodeState::Evaluating { current });
-        }
-        self.active_nodes.insert(key);
-        if self.pending_set.insert(key) {
-            self.pending.push_back(key);
-        }
-    }
-
-    fn lookup_during_solve(&mut self, key: RuntimeInstanceKey<'db>) -> Option<RuntimeClass<'db>> {
-        if let Some(&caller) = self.solve_stack.last() {
-            self.dependents.entry(key).or_default().insert(caller);
-        }
-        self.ensure_enqueued(key);
-        self.current_value(key)
-    }
-
-    fn solve_from_root(&mut self, root: RuntimeInstanceKey<'db>) -> Option<RuntimeClass<'db>> {
-        self.ensure_enqueued(root);
-        while let Some(key) = self.pending.pop_front() {
-            self.pending_set.remove(&key);
-            let old = self.current_value(key);
-            let new = self.evaluate_key_once(key);
-            if new != old {
-                if let Some(state) = self.value_cache.get_mut(&key) {
-                    *state = ReturnNodeState::Evaluating {
-                        current: new.clone(),
-                    };
-                }
-                let dependents = self
-                    .dependents
-                    .get(&key)
-                    .cloned()
-                    .unwrap_or_default()
-                    .into_iter()
-                    .collect::<Vec<_>>();
-                for dependent in dependents {
-                    self.ensure_enqueued(dependent);
-                }
-            }
-        }
-        let active = self.active_nodes.drain().collect::<Vec<_>>();
-        for key in active {
-            let current = self.current_value(key);
-            self.value_cache
-                .insert(key, ReturnNodeState::Ready(current));
-        }
-        self.current_value(root)
-    }
-
-    fn evaluate_key_once(&mut self, key: RuntimeInstanceKey<'db>) -> Option<RuntimeClass<'db>> {
-        let semantic = key.semantic(self.db)?;
-        let summary = self.summary(semantic);
-        self.solve_stack.push(key);
-        let carriers = ReturnSliceInferer::new(self.db, &summary, key.params(self.db), self).run();
-        let env = summary.env(self.db);
-        let mut returned = Vec::new();
-        for local in summary.return_locals.iter().copied() {
-            let Some(selected) =
-                selected_visible_return_for_local(env, local, &summary.return_plan, &carriers)
-            else {
-                self.solve_stack.pop();
-                return summary.default_return_class.clone();
-            };
-            returned.push(selected.class);
-        }
-        self.solve_stack.pop();
-        let Some(first) = returned.pop() else {
+pub(crate) fn evaluate_runtime_return_class<'db>(
+    db: &'db dyn MirDb,
+    summary: &RuntimeReturnSummary<'db>,
+    params: &[RuntimeClass<'db>],
+    lookup: &mut impl FnMut(RuntimeInstanceKey<'db>) -> Option<RuntimeClass<'db>>,
+) -> Option<RuntimeClass<'db>> {
+    let carriers = ReturnSliceInferer::new(db, summary, params, lookup).run();
+    let env = summary.env(db);
+    let mut returned = Vec::new();
+    for local in summary.return_locals.iter().copied() {
+        let Some(selected) =
+            selected_visible_return_for_local(env, local, &summary.return_plan, &carriers)
+        else {
             return summary.default_return_class.clone();
         };
-        if returned.iter().all(|class| class == &first) {
-            Some(first)
-        } else {
-            summary.default_return_class.clone()
-        }
+        returned.push(selected.class);
+    }
+    let Some(first) = returned.pop() else {
+        return summary.default_return_class.clone();
+    };
+    if returned.iter().all(|class| class == &first) {
+        Some(first)
+    } else {
+        summary.default_return_class.clone()
     }
 }
 
-struct ReturnSliceInferer<'summary, 'cx, 'db> {
+struct ReturnSliceInferer<'summary, 'lookup, 'db> {
     db: &'db dyn MirDb,
     summary: &'summary RuntimeReturnSummary<'db>,
     carriers: Vec<RuntimeCarrier<'db>>,
     class_cache: InferClassCache<'db>,
     pending_dependents: Vec<SliceAssignmentId>,
-    returns: &'cx mut RuntimeReturnAnalysisCx<'db>,
+    lookup: &'lookup mut dyn FnMut(RuntimeInstanceKey<'db>) -> Option<RuntimeClass<'db>>,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub(crate) struct SliceAssignmentId(u32);
 entity_impl!(SliceAssignmentId);
 
-impl<'summary, 'cx, 'db> ReturnSliceInferer<'summary, 'cx, 'db> {
+impl<'summary, 'lookup, 'db> ReturnSliceInferer<'summary, 'lookup, 'db> {
     fn new(
         db: &'db dyn MirDb,
         summary: &'summary RuntimeReturnSummary<'db>,
         params: &[RuntimeClass<'db>],
-        returns: &'cx mut RuntimeReturnAnalysisCx<'db>,
+        lookup: &'lookup mut dyn FnMut(RuntimeInstanceKey<'db>) -> Option<RuntimeClass<'db>>,
     ) -> Self {
         let mut carriers = vec![RuntimeCarrier::Erased; summary.semantic_body.locals.len()];
         for (class, local) in params.iter().zip(summary.param_locals.iter().copied()) {
@@ -342,7 +271,7 @@ impl<'summary, 'cx, 'db> ReturnSliceInferer<'summary, 'cx, 'db> {
             carriers,
             class_cache: InferClassCache::new(summary.semantic_body.locals.len()),
             pending_dependents: Vec::new(),
-            returns,
+            lookup,
         }
     }
 
@@ -397,7 +326,7 @@ impl<'summary, 'cx, 'db> ReturnSliceInferer<'summary, 'cx, 'db> {
     }
 }
 
-impl<'summary, 'cx, 'db> SparseAnalysis for ReturnSliceInferer<'summary, 'cx, 'db> {
+impl<'summary, 'lookup, 'db> SparseAnalysis for ReturnSliceInferer<'summary, 'lookup, 'db> {
     type Node = SliceAssignmentId;
     type State = ();
     type Error = Infallible;
@@ -433,7 +362,7 @@ impl<'summary, 'cx, 'db> SparseAnalysis for ReturnSliceInferer<'summary, 'cx, 'd
             assign.stmt_idx,
             expr,
             Some(&mut self.class_cache),
-            self.returns,
+            self.lookup,
         );
         let Some(class) = class else {
             return Ok(false);
@@ -506,12 +435,10 @@ mod tests {
             .expect("legacy return-class inference only applies to semantic runtime instances");
         let summary = RuntimeReturnSummary::build(db, semantic);
         let env = summary.env(db);
-        let mut returns = RuntimeReturnAnalysisCx::new(db);
         let inferred = LocalStateInferer::new(
             env,
             key.params(db),
             &runtime_param_locals(db, semantic, key.params(db)),
-            &mut returns,
         )
         .run();
         let mut returned = Vec::new();
@@ -653,7 +580,7 @@ pub contract C {
         let key = function.instance(&db).key(&db);
 
         assert_eq!(
-            RuntimeReturnAnalysisCx::new(&db).return_class_for_key(key),
+            runtime_return_class(&db, key),
             legacy_return_class_for_key(&db, key),
             "provider-root return slice should match full-body carrier inference:\ninstance={key:#?}"
         );
@@ -690,17 +617,15 @@ fn first(_ arr: [u8; 4]) -> u8 {
         let summary = RuntimeReturnSummary::build(&db, semantic);
         let env = summary.env(&db);
 
-        let mut legacy_returns = RuntimeReturnAnalysisCx::new(&db);
         let legacy = LocalStateInferer::new(
             env,
             key.params(&db),
             &runtime_param_locals(&db, semantic, key.params(&db)),
-            &mut legacy_returns,
         )
         .run();
-        let mut slice_returns = RuntimeReturnAnalysisCx::new(&db);
+        let mut lookup_return_class = |key| runtime_return_class(&db, key);
         let sliced =
-            ReturnSliceInferer::new(&db, &summary, key.params(&db), &mut slice_returns).run();
+            ReturnSliceInferer::new(&db, &summary, key.params(&db), &mut lookup_return_class).run();
         let locals = summary
             .semantic_body
             .locals

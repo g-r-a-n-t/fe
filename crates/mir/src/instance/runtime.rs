@@ -1,17 +1,20 @@
+use cranelift_entity::EntityRef;
 use hir::analysis::semantic::{SemanticInstance, check_semantic_borrows, check_semantic_noesc};
 use salsa::Update;
 
 use crate::{
     db::MirDb,
     runtime::{
-        LowerError, LoweredRuntimeBody, RuntimeBody, RuntimeCallEdge, RuntimeClass,
-        RuntimeSignature, RuntimeSyntheticSpec,
+        LowerError, LoweredRuntimeBody, RLocalId, RuntimeBody, RuntimeCallEdge, RuntimeClass,
+        RuntimeParam, RuntimeSignature, RuntimeSyntheticSpec,
         lower::{
             body::lower_to_rmir,
             call::{
                 collect_referenced_code_regions, collect_referenced_const_regions,
                 collect_runtime_calls as collect_runtime_calls_lowered,
             },
+            interface::runtime_param_locals,
+            returns::runtime_return_class,
         },
         synthetic::{lower_synthetic_runtime_body, runtime_synthetic_signature},
     },
@@ -56,12 +59,7 @@ pub struct RuntimeInstance<'db> {
 impl<'db> RuntimeInstance<'db> {
     #[salsa::tracked]
     pub fn signature(self, db: &'db dyn MirDb) -> RuntimeSignature<'db> {
-        match self.key(db).source(db) {
-            RuntimeInstanceSource::Semantic(_) => self.body(db).signature.clone(),
-            RuntimeInstanceSource::Synthetic(synthetic) => {
-                runtime_synthetic_signature(synthetic.spec(db).clone())
-            }
-        }
+        runtime_signature_for_key(db, self.key(db))
     }
 
     #[salsa::tracked]
@@ -88,6 +86,29 @@ impl<'db> RuntimeInstance<'db> {
         db: &'db dyn MirDb,
     ) -> Vec<crate::runtime::RuntimeCodeRegion<'db>> {
         expect_lowered_runtime_body(db, self).referenced_code_regions(db)
+    }
+}
+
+pub(crate) fn runtime_signature_for_key<'db>(
+    db: &'db dyn MirDb,
+    key: RuntimeInstanceKey<'db>,
+) -> RuntimeSignature<'db> {
+    match key.source(db) {
+        RuntimeInstanceSource::Semantic(semantic) => RuntimeSignature {
+            params: key
+                .params(db)
+                .iter()
+                .zip(runtime_param_locals(db, semantic, key.params(db)))
+                .map(|(class, local)| RuntimeParam {
+                    local: RLocalId::from_u32(local.index() as u32),
+                    class: class.clone(),
+                })
+                .collect(),
+            ret: runtime_return_class(db, key),
+        },
+        RuntimeInstanceSource::Synthetic(synthetic) => {
+            runtime_synthetic_signature(synthetic.spec(db).clone())
+        }
     }
 }
 

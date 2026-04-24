@@ -1260,7 +1260,7 @@ fn collect_region_embeds<'db>(
     let mut seen = FxHashSet::default();
     let mut embeds = Vec::new();
     let mut instances = reachable.iter().copied().collect::<Vec<_>>();
-    instances.sort_by_key(|instance| runtime_instance_sort_key(db, *instance));
+    instances.sort_by_cached_key(|instance| runtime_instance_sort_key(db, *instance));
     for instance in instances {
         let Some(node) = graph.nodes.get(&instance) else {
             continue;
@@ -1330,7 +1330,7 @@ fn collect_const_regions_for_reachable<'db>(
     let mut seen = FxHashSet::default();
     let mut regions = Vec::new();
     let mut instances = reachable.iter().copied().collect::<Vec<_>>();
-    instances.sort_by_key(|instance| runtime_instance_sort_key(db, *instance));
+    instances.sort_by_cached_key(|instance| runtime_instance_sort_key(db, *instance));
     for instance in instances {
         let Some(node) = graph.nodes.get(&instance) else {
             continue;
@@ -1732,20 +1732,22 @@ fn collect_runtime_functions<'db>(
     graph: &RuntimeGraph<'db>,
 ) -> Vec<RuntimeFunction<'db>> {
     let mut instances = graph.nodes.keys().copied().collect::<Vec<_>>();
-    instances.sort_by_key(|instance| runtime_instance_sort_key(db, *instance));
-    let duplicate_counts = instances
-        .iter()
-        .fold(FxHashMap::default(), |mut counts, instance| {
-            *counts
-                .entry(runtime_instance_symbol_base(db, *instance))
-                .or_insert(0usize) += 1;
-            counts
-        });
-    let mut emitted_counts = FxHashMap::<String, usize>::default();
-    let mut functions = instances
+    instances.sort_by_cached_key(|instance| runtime_instance_sort_key(db, *instance));
+    let instance_symbols = instances
         .into_iter()
-        .map(|instance| {
-            let base = runtime_instance_symbol_base(db, instance);
+        .map(|instance| (instance, runtime_instance_symbol_base(db, instance)))
+        .collect::<Vec<_>>();
+    let duplicate_counts =
+        instance_symbols
+            .iter()
+            .fold(FxHashMap::default(), |mut counts, (_, base)| {
+                *counts.entry(base.clone()).or_insert(0usize) += 1;
+                counts
+            });
+    let mut emitted_counts = FxHashMap::<String, usize>::default();
+    let mut functions = instance_symbols
+        .into_iter()
+        .map(|(instance, base)| {
             let symbol = match duplicate_counts.get(&base).copied().unwrap_or_default() {
                 0 | 1 => base,
                 _ => {
@@ -2273,7 +2275,7 @@ fn collect_const_regions<'db>(
     let mut seen = FxHashSet::default();
     let mut regions = Vec::new();
     let mut instances = graph.nodes.keys().copied().collect::<Vec<_>>();
-    instances.sort_by_key(|instance| runtime_instance_sort_key(db, *instance));
+    instances.sort_by_cached_key(|instance| runtime_instance_sort_key(db, *instance));
     for instance in instances {
         for region in graph
             .nodes

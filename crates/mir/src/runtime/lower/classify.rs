@@ -33,9 +33,8 @@ use crate::{
     instance::{RuntimeInstanceKey, RuntimeInstanceSource},
     runtime::{
         AddressSpaceKind, BorrowAccess, Layout, LayoutId, RefKind, RefView, RuntimeBoundarySpec,
-        RuntimeCarrier, RuntimeClass, RuntimeCodeRegion, RuntimeCodeRegionKey, RuntimeParam,
-        RuntimeParamPlan, RuntimeSignature, SaturatingBinOp, ScalarClass, ScalarRepr, ScalarRole,
-        VariantId,
+        RuntimeCarrier, RuntimeClass, RuntimeCodeRegion, RuntimeCodeRegionKey, RuntimeParamPlan,
+        SaturatingBinOp, ScalarClass, ScalarRepr, ScalarRole, VariantId,
     },
 };
 
@@ -53,7 +52,7 @@ use super::{
         compile_value_pass_plan,
     },
     infer::{fallback_root_transport_class, local_place_root_class},
-    interface::{runtime_param_locals, runtime_visible_binding_plans},
+    interface::runtime_visible_binding_plans,
     layout::{
         layout_for_aggregate_instance_in_context, layout_for_enum_variant_instance_in_context,
         layout_for_ty_in_context,
@@ -63,7 +62,6 @@ use super::{
         project_variant_field_class,
     },
     realize::SelectedRuntimeArg,
-    returns::RuntimeReturnAnalysisCx,
     type_info::{
         RuntimeTypeEnv, effect_handle_class_for_ty_in_context, provider_address_space_to_runtime,
         provider_class_for_target_in_context, provider_class_for_target_in_env,
@@ -503,7 +501,7 @@ impl<'a, 'db> BodyEnv<'a, 'db> {
         stmt_idx: usize,
         expr: &NExpr<'db>,
         mut class_cache: Option<&mut InferClassCache<'db>>,
-        returns: &mut RuntimeReturnAnalysisCx<'db>,
+        lookup_return_class: &mut dyn FnMut(RuntimeInstanceKey<'db>) -> Option<RuntimeClass<'db>>,
     ) -> Option<RuntimeClass<'db>> {
         let expr_facts = self.expr_facts(block_idx, stmt_idx);
         Some(match expr {
@@ -603,7 +601,7 @@ impl<'a, 'db> BodyEnv<'a, 'db> {
                     .into_iter()
                     .map(|arg| arg.class)
                     .collect();
-                return returns.return_class_for_key(RuntimeInstanceKey::new(
+                return lookup_return_class(RuntimeInstanceKey::new(
                     self.db,
                     RuntimeInstanceSource::Semantic(facts.semantic),
                     param_classes,
@@ -1162,30 +1160,6 @@ pub(crate) fn ref_class_for_place_result<'db>(
     RuntimeClass::RawAddr {
         space: root_class.address_space().unwrap_or(root_space),
         target: value_class.aggregate_layout(),
-    }
-}
-
-pub(crate) fn runtime_signature_for_key_with_returns<'db>(
-    db: &'db dyn MirDb,
-    semantic: SemanticInstance<'db>,
-    params: &[RuntimeClass<'db>],
-    returns: &mut RuntimeReturnAnalysisCx<'db>,
-) -> RuntimeSignature<'db> {
-    let key = RuntimeInstanceKey::new(
-        db,
-        RuntimeInstanceSource::Semantic(semantic),
-        params.to_vec(),
-    );
-    RuntimeSignature {
-        params: params
-            .iter()
-            .zip(runtime_param_locals(db, semantic, params))
-            .map(|(class, local)| RuntimeParam {
-                local: crate::runtime::RLocalId::from_u32(local.index() as u32),
-                class: class.clone(),
-            })
-            .collect(),
-        ret: returns.return_class_for_key(key),
     }
 }
 
@@ -2450,10 +2424,11 @@ mod tests {
     use super::*;
     use crate::runtime::lower::boundary::BoundaryMatcher;
     use crate::runtime::{
+        RuntimeSignature,
         lower::{
             infer::LocalStateInferer,
             interface::{runtime_param_locals, runtime_visible_binding_plans},
-            returns::RuntimeReturnAnalysisCx,
+            returns::runtime_return_class,
         },
         package::runtime_instance_for_semantic,
     };
@@ -2630,14 +2605,8 @@ mod tests {
         let facts = BodyStaticFacts::new(&db, &normalized);
         let env = BodyEnv::new(&db, &normalized, typed_body, &facts);
         let params = instance.key(&db).params(&db);
-        let mut returns = RuntimeReturnAnalysisCx::new(&db);
-        let inferred = LocalStateInferer::new(
-            env,
-            params,
-            &runtime_param_locals(&db, semantic, params),
-            &mut returns,
-        )
-        .run();
+        let inferred =
+            LocalStateInferer::new(env, params, &runtime_param_locals(&db, semantic, params)).run();
         let return_plan = desired_runtime_return_plan(&db, typed_body);
         let selected_returns = normalized
             .blocks
@@ -2877,14 +2846,8 @@ mod tests {
         let facts = BodyStaticFacts::new(&db, &normalized);
         let env = BodyEnv::new(&db, &normalized, typed_body, &facts);
         let params = instance.key(&db).params(&db);
-        let mut returns = RuntimeReturnAnalysisCx::new(&db);
-        let inferred = LocalStateInferer::new(
-            env,
-            params,
-            &runtime_param_locals(&db, semantic, params),
-            &mut returns,
-        )
-        .run();
+        let inferred =
+            LocalStateInferer::new(env, params, &runtime_param_locals(&db, semantic, params)).run();
         let mut checked_calls = Vec::new();
         for (block_idx, block) in normalized.blocks.iter().enumerate() {
             for (stmt_idx, stmt) in block.stmts.iter().enumerate() {
@@ -2938,11 +2901,14 @@ mod tests {
                         selected_classes,
                     )
                 };
-                let selected_return = returns.return_class_for_key(RuntimeInstanceKey::new(
+                let selected_return = runtime_return_class(
                     &db,
-                    RuntimeInstanceSource::Semantic(call_facts.semantic),
-                    selected_classes,
-                ));
+                    RuntimeInstanceKey::new(
+                        &db,
+                        RuntimeInstanceSource::Semantic(call_facts.semantic),
+                        selected_classes,
+                    ),
+                );
                 if !selected.is_empty() {
                     assert!(
                         matches!(
@@ -3042,14 +3008,8 @@ mod tests {
         let facts = BodyStaticFacts::new(&db, &normalized);
         let env = BodyEnv::new(&db, &normalized, typed_body, &facts);
         let params = instance.key(&db).params(&db);
-        let mut returns = RuntimeReturnAnalysisCx::new(&db);
-        let inferred = LocalStateInferer::new(
-            env,
-            params,
-            &runtime_param_locals(&db, semantic, params),
-            &mut returns,
-        )
-        .run();
+        let inferred =
+            LocalStateInferer::new(env, params, &runtime_param_locals(&db, semantic, params)).run();
         let (call_dst, args, effect_args, call_facts) = normalized
             .blocks
             .iter()
@@ -3126,7 +3086,7 @@ mod tests {
             },
             None => None,
         };
-        let lowered_return_class = returns.return_class_for_key(lowered_take.key(&db));
+        let lowered_return_class = runtime_return_class(&db, lowered_take.key(&db));
 
         assert_eq!(
             inferred_param_classes,
@@ -3186,14 +3146,8 @@ mod tests {
         let facts = BodyStaticFacts::new(&db, &normalized);
         let env = BodyEnv::new(&db, &normalized, typed_body, &facts);
         let params = instance.key(&db).params(&db);
-        let mut returns = RuntimeReturnAnalysisCx::new(&db);
-        let inferred = LocalStateInferer::new(
-            env,
-            params,
-            &runtime_param_locals(&db, semantic, params),
-            &mut returns,
-        )
-        .run();
+        let inferred =
+            LocalStateInferer::new(env, params, &runtime_param_locals(&db, semantic, params)).run();
         let (args, effect_args, call_facts) = normalized
             .blocks
             .iter()

@@ -29,7 +29,7 @@ use super::{
         runtime_class_for_direct_value_provider_in_context,
         runtime_class_for_effect_binding_provider_in_context, runtime_class_for_provider_binding,
     },
-    returns::RuntimeReturnAnalysisCx,
+    returns::runtime_return_class,
     type_info::{
         provider_class_for_target_in_context, stored_class_for_ty_in_context,
         top_level_class_for_ty_in_context,
@@ -44,20 +44,18 @@ pub(super) struct InferenceResult<'db> {
     pub(super) provider_bindings: Vec<RuntimeProviderBinding<'db>>,
 }
 
-pub(super) struct LocalStateInferer<'a, 'returns, 'db> {
+pub(super) struct LocalStateInferer<'a, 'db> {
     env: BodyEnv<'a, 'db>,
     carriers: Vec<RuntimeCarrier<'db>>,
     class_cache: InferClassCache<'db>,
     pending_dependents: Vec<AssignmentId>,
-    returns: &'returns mut RuntimeReturnAnalysisCx<'db>,
 }
 
-impl<'a, 'returns, 'db> LocalStateInferer<'a, 'returns, 'db> {
+impl<'a, 'db> LocalStateInferer<'a, 'db> {
     pub(super) fn new(
         env: BodyEnv<'a, 'db>,
         params: &[RuntimeClass<'db>],
         param_locals: &[SLocalId],
-        returns: &'returns mut RuntimeReturnAnalysisCx<'db>,
     ) -> Self {
         let mut carriers = vec![RuntimeCarrier::Erased; env.body().locals.len()];
         for (class, local) in params.iter().zip(param_locals.iter().copied()) {
@@ -68,7 +66,6 @@ impl<'a, 'returns, 'db> LocalStateInferer<'a, 'returns, 'db> {
             carriers,
             class_cache: InferClassCache::new(env.body().locals.len()),
             pending_dependents: Vec::new(),
-            returns,
         }
     }
 
@@ -143,7 +140,7 @@ impl<'a, 'returns, 'db> LocalStateInferer<'a, 'returns, 'db> {
     }
 }
 
-impl<'a, 'returns, 'db> SparseAnalysis for LocalStateInferer<'a, 'returns, 'db> {
+impl<'a, 'db> SparseAnalysis for LocalStateInferer<'a, 'db> {
     type Node = AssignmentId;
     type State = ();
     type Error = Infallible;
@@ -174,13 +171,14 @@ impl<'a, 'returns, 'db> SparseAnalysis for LocalStateInferer<'a, 'returns, 'db> 
             }
         };
         let local = &self.env.body().locals[assign.dst.index()];
+        let mut lookup_return_class = |key| runtime_return_class(self.env.db(), key);
         let class = self.env.expr_direct_class(
             &self.carriers,
             assign.block_idx,
             assign.stmt_idx,
             expr,
             Some(&mut self.class_cache),
-            self.returns,
+            &mut lookup_return_class,
         );
         let Some(class) = class else {
             return Ok(false);

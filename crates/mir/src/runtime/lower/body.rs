@@ -31,14 +31,17 @@ use hir::projection::{IndexSource, Projection};
 
 use crate::{
     db::MirDb,
-    instance::{RuntimeInstance, RuntimeInstanceKey, get_or_build_runtime_instance},
+    instance::{
+        RuntimeInstance, RuntimeInstanceKey, get_or_build_runtime_instance,
+        runtime_signature_for_key,
+    },
     resolve_runtime_place_address_class,
     runtime::{
         AddressSpaceKind, ConstScalar, IntrinsicArithBinOp, LayoutId, PlaceElem, PlaceRoot, RBlock,
         RBlockId, RExpr, RLocal, RLocalId, RStmt, RTerminator, RefKind, RefView, RuntimeBody,
         RuntimeCarrier, RuntimeClass, RuntimeCodeRegion, RuntimeLocalLowering, RuntimeLocalRoot,
-        RuntimeParam, RuntimePlace, RuntimeProviderBinding, RuntimeProviderBindingId,
-        RuntimeSignature, ScalarClass, ScalarRepr, ScalarRole, VariantId,
+        RuntimePlace, RuntimeProviderBinding, RuntimeProviderBindingId, RuntimeSignature,
+        ScalarClass, ScalarRepr, ScalarRole, VariantId,
         code_region::runtime_code_region_for_semantic_ref,
         package::{LowerError, runtime_instance_for_semantic},
     },
@@ -59,7 +62,6 @@ use super::{
     },
     conversion::{RuntimeConversionEmitter, RuntimeConversionError, emit_runtime_coercion},
     infer::{InferenceResult, LocalStateInferer, merge_runtime_class},
-    interface::runtime_param_locals,
     layout::{
         AggregateCtorElem, aggregate_ctor_elems_for_layout, layout_for_aggregate_instance_in_env,
         layout_for_enum_variant_instance_in_env, layout_for_ty_in_env,
@@ -68,7 +70,7 @@ use super::{
     realize::{
         RuntimeArgSource, RuntimeValueUseEmitter, SelectedRuntimeArg, emit_runtime_value_use_plan,
     },
-    returns::RuntimeReturnAnalysisCx,
+    returns::runtime_return_class,
     tuple::RuntimeTupleFieldEmitter,
     type_info::{
         RuntimeTypeEnv, effect_handle_class_for_ty_in_context, provider_class_for_target_in_env,
@@ -93,26 +95,15 @@ pub fn lower_to_rmir<'db>(
     let typed_body = semantic.key(db).typed_body(db);
     check_runtime_body_supported(db, semantic.key(db), &normalized_body)?;
     let facts = BodyStaticFacts::new(db, &normalized_body);
-    let mut returns = RuntimeReturnAnalysisCx::new(db);
+    let param_locals =
+        crate::runtime::lower::interface::runtime_param_locals(db, semantic, key.params(db));
     let inferred = LocalStateInferer::new(
         BodyEnv::new(db, &normalized_body, typed_body, &facts),
         key.params(db),
-        &runtime_param_locals(db, semantic, key.params(db)),
-        &mut returns,
+        &param_locals,
     )
     .run();
-    let signature = RuntimeSignature {
-        params: key
-            .params(db)
-            .iter()
-            .zip(runtime_param_locals(db, semantic, key.params(db)))
-            .map(|(class, local)| RuntimeParam {
-                local: RLocalId::from_u32(local.index() as u32),
-                class: class.clone(),
-            })
-            .collect(),
-        ret: returns.return_class_for_key(key),
-    };
+    let signature = runtime_signature_for_key(db, key);
     let mut emitter = RmirEmitter::new(
         db,
         instance,
@@ -120,7 +111,6 @@ pub fn lower_to_rmir<'db>(
         facts,
         inferred,
         signature.clone(),
-        returns,
     );
     emitter.lower_blocks();
     Ok(emitter.finish(signature))
@@ -279,7 +269,6 @@ pub(super) struct RmirEmitter<'db> {
     pub(super) semantic_carriers: Vec<RuntimeCarrier<'db>>,
     pub(super) semantic_locals: Vec<RuntimeLocalLowering<'db>>,
     pub(super) provider_bindings: Vec<RuntimeProviderBinding<'db>>,
-    pub(super) returns: RuntimeReturnAnalysisCx<'db>,
     pub(super) locals: Vec<RLocal<'db>>,
     pub(super) blocks: Vec<RBlock<'db>>,
     pub(super) terminated_blocks: Vec<bool>,
@@ -391,7 +380,6 @@ impl<'db> RmirEmitter<'db> {
         facts: BodyStaticFacts<'db>,
         inferred: InferenceResult<'db>,
         signature: RuntimeSignature<'db>,
-        returns: RuntimeReturnAnalysisCx<'db>,
     ) -> Self {
         let key = instance.key(db);
         let typed_body = key
@@ -439,7 +427,6 @@ impl<'db> RmirEmitter<'db> {
             semantic_carriers,
             semantic_locals,
             provider_bindings,
-            returns,
             locals,
             blocks,
             terminated_blocks,
@@ -570,13 +557,14 @@ impl<'db> RmirEmitter<'db> {
         stmt_idx: usize,
         expr: &NExpr<'db>,
     ) -> Option<RuntimeClass<'db>> {
+        let mut lookup_return_class = |key| runtime_return_class(self.db, key);
         BodyEnv::new(self.db, &self.semantic_body, self.typed_body, &self.facts).expr_direct_class(
             &self.semantic_carriers,
             block_idx,
             stmt_idx,
             expr,
             None,
-            &mut self.returns,
+            &mut lookup_return_class,
         )
     }
 
@@ -2424,7 +2412,7 @@ impl<'db> RmirEmitter<'db> {
         );
         let callee = get_or_build_runtime_instance(self.db, callee_key);
         let ret_ty = semantic_return_ty(self.db, semantic);
-        let ret_class = self.returns.return_class_for_key(callee_key);
+        let ret_class = runtime_return_class(self.db, callee_key);
         let Some(ret_class) = ret_class else {
             if !semantic.may_return_normally(self.db) {
                 self.set_terminator(

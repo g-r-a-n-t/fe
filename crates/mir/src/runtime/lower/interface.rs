@@ -123,7 +123,7 @@ pub(crate) fn runtime_visible_binding_plans<'db>(
     {
         let recv = hir::semantic::RecvView::new(db, contract, recv_idx);
         let arm = hir::semantic::RecvArmView::new(db, recv, arm_idx);
-        let env = RuntimeTypeEnv::new(Some(owner.scope()), semantic.assumptions(db));
+        let env = RuntimeTypeEnv::for_semantic(db, semantic);
         for arg_binding in arm.arg_bindings(db) {
             let Some(binding) = typed_body.pat_binding(arg_binding.pat) else {
                 continue;

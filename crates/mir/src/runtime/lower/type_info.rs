@@ -1,11 +1,16 @@
-use hir::analysis::ty::{
-    ProviderAddressSpace, ProviderKind,
-    normalize::normalize_ty,
-    provider::provider_semantics,
-    trait_resolution::PredicateListId,
-    ty_def::{BorrowKind, MAX_INLINE_STRING_BYTES, PrimTy, TyBase, TyData, TyId},
+use hir::{
+    analysis::{
+        semantic::SemanticInstance,
+        ty::{
+            ProviderAddressSpace, ProviderKind,
+            normalize::normalize_ty,
+            provider::provider_semantics,
+            trait_resolution::PredicateListId,
+            ty_def::{BorrowKind, MAX_INLINE_STRING_BYTES, PrimTy, TyBase, TyData, TyId},
+        },
+    },
+    hir_def::scope_graph::ScopeId,
 };
-use hir::hir_def::scope_graph::ScopeId;
 use salsa::Update;
 
 use crate::{
@@ -31,6 +36,13 @@ impl<'db> RuntimeTypeEnv<'db> {
     ) -> Self {
         Self { scope, assumptions }
     }
+
+    pub(crate) fn for_semantic(db: &'db dyn MirDb, semantic: SemanticInstance<'db>) -> Self {
+        Self {
+            scope: Some(semantic.key(db).owner(db).scope()),
+            assumptions: semantic.assumptions(db),
+        }
+    }
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, Update)]
@@ -39,13 +51,13 @@ struct RuntimeEffectHandleInfo<'db> {
     space: AddressSpaceKind,
 }
 
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq, Update)]
 struct RuntimeTypeModel<'db> {
     repr_ty: TyId<'db>,
     shape: RuntimeTypeShape<'db>,
 }
 
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq, Update)]
 enum RuntimeTypeShape<'db> {
     Borrow {
         kind: BorrowKind,
@@ -228,6 +240,16 @@ pub(crate) fn runtime_repr_ty_in_context<'db>(
     scope: Option<hir::hir_def::scope_graph::ScopeId<'db>>,
     assumptions: PredicateListId<'db>,
 ) -> TyId<'db> {
+    runtime_repr_ty(db, ty, scope, assumptions)
+}
+
+#[salsa::tracked]
+fn runtime_repr_ty<'db>(
+    db: &'db dyn MirDb,
+    ty: TyId<'db>,
+    scope: Option<hir::hir_def::scope_graph::ScopeId<'db>>,
+    assumptions: PredicateListId<'db>,
+) -> TyId<'db> {
     let mut ty = scope.map_or(ty, |scope| normalize_ty(db, ty, scope, assumptions));
     while let Some(inner) = ty.as_view(db) {
         ty = scope.map_or(inner, |scope| normalize_ty(db, inner, scope, assumptions));
@@ -318,7 +340,7 @@ pub(crate) fn stored_class_for_ty_in_context<'db>(
     scope: Option<hir::hir_def::scope_graph::ScopeId<'db>>,
     assumptions: PredicateListId<'db>,
 ) -> RuntimeClass<'db> {
-    RuntimeTypeModel::new(db, ty, scope, assumptions).stored_class(db, scope, assumptions)
+    runtime_stored_class(db, ty, scope, assumptions)
 }
 
 pub(crate) fn object_ref_class_for_target_in_context<'db>(
@@ -525,12 +547,32 @@ fn runtime_top_level_class<'db>(
     scope: Option<hir::hir_def::scope_graph::ScopeId<'db>>,
     assumptions: PredicateListId<'db>,
 ) -> Option<RuntimeClass<'db>> {
-    RuntimeTypeModel::new(db, ty, scope, assumptions).top_level_class(
+    runtime_type_model(db, ty, scope, assumptions).top_level_class(
         db,
         default_space,
         scope,
         assumptions,
     )
+}
+
+#[salsa::tracked]
+fn runtime_type_model<'db>(
+    db: &'db dyn MirDb,
+    ty: TyId<'db>,
+    scope: Option<hir::hir_def::scope_graph::ScopeId<'db>>,
+    assumptions: PredicateListId<'db>,
+) -> RuntimeTypeModel<'db> {
+    RuntimeTypeModel::new(db, ty, scope, assumptions)
+}
+
+#[salsa::tracked]
+fn runtime_stored_class<'db>(
+    db: &'db dyn MirDb,
+    ty: TyId<'db>,
+    scope: Option<hir::hir_def::scope_graph::ScopeId<'db>>,
+    assumptions: PredicateListId<'db>,
+) -> RuntimeClass<'db> {
+    runtime_type_model(db, ty, scope, assumptions).stored_class(db, scope, assumptions)
 }
 
 #[salsa::tracked]
@@ -566,7 +608,7 @@ pub(super) fn runtime_transport_sensitive_aggregate<'db>(
     scope: Option<hir::hir_def::scope_graph::ScopeId<'db>>,
     assumptions: PredicateListId<'db>,
 ) -> bool {
-    RuntimeTypeModel::new(db, ty, scope, assumptions).transport_sensitive_aggregate(
+    runtime_type_model(db, ty, scope, assumptions).transport_sensitive_aggregate(
         db,
         scope,
         assumptions,

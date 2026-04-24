@@ -245,10 +245,7 @@ struct CallStaticFacts<'db> {
 impl<'db> BodyStaticFacts<'db> {
     pub(crate) fn new(db: &'db dyn MirDb, body: &NormalizedSemanticBody<'db>) -> Self {
         let typed_body = body.owner.key(db).typed_body(db);
-        let type_env = RuntimeTypeEnv::new(
-            typed_body.body().map(|body| body.scope()),
-            typed_body.assumptions(),
-        );
+        let type_env = RuntimeTypeEnv::for_semantic(db, body.owner);
         Self::new_in_context(db, body, typed_body, type_env)
     }
 
@@ -374,13 +371,9 @@ impl<'a, 'db> BodyEnv<'a, 'db> {
     pub(crate) fn new(
         db: &'db dyn MirDb,
         body: &'a NormalizedSemanticBody<'db>,
-        typed_body: &'a hir::analysis::ty::ty_check::TypedBody<'db>,
         facts: &'a BodyStaticFacts<'db>,
     ) -> Self {
-        let type_env = RuntimeTypeEnv::new(
-            typed_body.body().map(|body| body.scope()),
-            typed_body.assumptions(),
-        );
+        let type_env = RuntimeTypeEnv::for_semantic(db, body.owner);
         Self::from_parts(db, body, type_env, facts)
     }
 
@@ -1038,7 +1031,6 @@ fn build_expr_static_facts<'db>(
                 )
             });
             let semantic = get_or_build_semantic_instance(db, callee_key);
-            let callee_typed_body = semantic.key(db).typed_body(db);
             ExprStaticFacts::Call(CallStaticFacts {
                 semantic,
                 builtin_return_class: extern_builtin_return_class(db, semantic, result_ty),
@@ -1046,10 +1038,7 @@ fn build_expr_static_facts<'db>(
                     db,
                     body,
                     semantic,
-                    RuntimeTypeEnv::new(
-                        callee_typed_body.body().map(|body| body.scope()),
-                        callee_typed_body.assumptions(),
-                    ),
+                    RuntimeTypeEnv::for_semantic(db, semantic),
                     effect_args,
                     boundary_sites,
                 ),
@@ -1303,8 +1292,7 @@ pub(crate) fn runtime_effect_binding_plan<'db>(
     if !matches!(binding, LocalBinding::EffectParam { .. }) {
         return None;
     }
-    let owner = semantic.key(db).owner(db);
-    let env = RuntimeTypeEnv::new(Some(owner.scope()), semantic.assumptions(db));
+    let env = RuntimeTypeEnv::for_semantic(db, semantic);
     let binding_ty = semantic.binding_ty(db, binding);
     match semantic.binding_role(db, binding) {
         SemanticLocalRole::Erased => None,
@@ -1506,9 +1494,7 @@ pub(crate) fn runtime_visible_binding_class<'db>(
     if let Some(plan) = runtime_effect_binding_plan(db, semantic, binding) {
         return Some(plan.class);
     }
-    let owner = semantic.key(db).owner(db);
-    let typed_body = semantic.key(db).typed_body(db);
-    let env = RuntimeTypeEnv::new(Some(owner.scope()), typed_body.assumptions());
+    let env = RuntimeTypeEnv::for_semantic(db, semantic);
     let binding_ty = semantic.binding_ty(db, binding);
     runtime_exact_class_for_visible_binding_in_env(db, semantic, env, binding, binding_ty)
 }
@@ -1545,13 +1531,7 @@ fn runtime_class_for_explicit_root_provider_param<'db>(
     let canonical = |ty| {
         strip_derived_adt_layout_args(
             db,
-            runtime_repr_ty_in_context(
-                db,
-                env.scope
-                    .map_or(ty, |scope| normalize_ty(db, ty, scope, env.assumptions)),
-                env.scope,
-                env.assumptions,
-            ),
+            runtime_repr_ty_in_context(db, ty, env.scope, env.assumptions),
         )
     };
     let binding_ty = canonical(binding_ty);
@@ -1710,9 +1690,9 @@ pub(crate) fn desired_runtime_param_plan<'db>(
         return RuntimeParamPlan::Erased;
     };
     let binding_ty = typed_body.binding_ty(db, binding);
-    let scope = typed_body.body().map(|body| body.scope());
-    let assumptions = typed_body.assumptions();
-    let env = RuntimeTypeEnv::new(scope, assumptions);
+    let env = RuntimeTypeEnv::for_semantic(db, semantic);
+    let scope = env.scope;
+    let assumptions = env.assumptions;
     let repr_ty = runtime_repr_ty_in_context(db, binding_ty, scope, assumptions);
     if runtime_abstract_param_ty(db, binding_ty, scope, assumptions)
         || matches!(
@@ -1731,6 +1711,7 @@ pub(crate) fn desired_runtime_param_plan<'db>(
             db,
             typed_body,
             binding,
+            env,
             RuntimeBoundarySpec::default_exact_boundary_for_class(class),
         ));
     }
@@ -1746,7 +1727,9 @@ pub(crate) fn desired_runtime_param_plan<'db>(
     {
         return RuntimeParamPlan::PassActual;
     }
-    RuntimeParamPlan::Boundary(runtime_param_boundary(db, typed_body, binding, boundary))
+    RuntimeParamPlan::Boundary(runtime_param_boundary(
+        db, typed_body, binding, env, boundary,
+    ))
 }
 
 pub(crate) fn resolve_runtime_call_key<'db>(
@@ -1792,9 +1775,12 @@ pub(crate) fn resolve_runtime_call_key<'db>(
                 "runtime trait-call resolution is missing a self argument: caller={caller_key:?} callee={callee_key:?}"
             )));
         };
-        let Some(self_ty) =
-            concrete_runtime_self_ty_for_call_arg(db, caller_typed_body, body, arg.local)
-        else {
+        let Some(self_ty) = concrete_runtime_self_ty_for_call_arg(
+            db,
+            RuntimeTypeEnv::for_semantic(db, body.owner),
+            body,
+            arg.local,
+        ) else {
             return Err(crate::runtime::LowerError::Unsupported(format!(
                 "runtime trait-call resolution could not infer the concrete self type: caller={caller_key:?} callee={callee_key:?} local={:?}",
                 arg.local,
@@ -1894,12 +1880,12 @@ fn runtime_callee_assumptions<'db>(
 
 fn concrete_runtime_self_ty_for_call_arg<'db>(
     db: &'db dyn MirDb,
-    caller_typed_body: &hir::analysis::ty::ty_check::TypedBody<'db>,
+    env: RuntimeTypeEnv<'db>,
     body: &NormalizedSemanticBody<'db>,
     local: SLocalId,
 ) -> Option<TyId<'db>> {
-    let scope = caller_typed_body.body().map(|body| body.scope());
-    let assumptions = caller_typed_body.assumptions();
+    let scope = env.scope;
+    let assumptions = env.assumptions;
     let normalized = |ty| normalize_runtime_self_ty(db, ty, scope, assumptions);
     let local_data = body.locals.get(local.index())?;
     match (
@@ -2143,11 +2129,7 @@ fn runtime_extern_builtin_return_class<'db>(
     semantic: SemanticInstance<'db>,
     result_ty: TyId<'db>,
 ) -> Option<Option<RuntimeClass<'db>>> {
-    let typed_body = semantic.key(db).typed_body(db);
-    let env = RuntimeTypeEnv::new(
-        typed_body.body().map(|body| body.scope()),
-        typed_body.assumptions(),
-    );
+    let env = RuntimeTypeEnv::for_semantic(db, semantic);
     if contract_metadata_builtin(db, semantic).is_some() {
         return Some(top_level_class_for_ty_in_env(
             db,
@@ -2223,19 +2205,20 @@ pub(crate) fn runtime_param_class<'db>(
     db: &'db dyn MirDb,
     typed_body: &hir::analysis::ty::ty_check::TypedBody<'db>,
     binding: hir::analysis::ty::ty_check::LocalBinding<'db>,
+    env: RuntimeTypeEnv<'db>,
     actual: RuntimeClass<'db>,
 ) -> RuntimeClass<'db> {
     let ty = runtime_repr_ty_in_context(
         db,
         typed_body.binding_ty(db, binding),
-        typed_body.body().map(|body| body.scope()),
-        typed_body.assumptions(),
+        env.scope,
+        env.assumptions,
     );
     if runtime_abstract_param_ty(
         db,
         typed_body.binding_ty(db, binding),
-        typed_body.body().map(|body| body.scope()),
-        typed_body.assumptions(),
+        env.scope,
+        env.assumptions,
     ) || matches!(
         ty.base_ty(db).data(db),
         TyData::TyParam(param) if param.is_effect() || param.is_effect_provider()
@@ -2246,8 +2229,8 @@ pub(crate) fn runtime_param_class<'db>(
         return RuntimeClass::object_ref(layout_for_ty_in_context(
             db,
             ty,
-            typed_body.body().map(|body| body.scope()),
-            typed_body.assumptions(),
+            env.scope,
+            env.assumptions,
         ));
     }
     actual
@@ -2257,15 +2240,16 @@ pub(crate) fn runtime_param_boundary<'db>(
     db: &'db dyn MirDb,
     typed_body: &hir::analysis::ty::ty_check::TypedBody<'db>,
     binding: hir::analysis::ty::ty_check::LocalBinding<'db>,
+    env: RuntimeTypeEnv<'db>,
     boundary: RuntimeBoundarySpec<'db>,
 ) -> RuntimeBoundarySpec<'db> {
     match boundary {
         RuntimeBoundarySpec::ExactTransport(actual) => RuntimeBoundarySpec::ExactTransport(
-            runtime_param_class(db, typed_body, binding, actual),
+            runtime_param_class(db, typed_body, binding, env, actual),
         ),
-        RuntimeBoundarySpec::ExactShape(actual) => {
-            RuntimeBoundarySpec::ExactShape(runtime_param_class(db, typed_body, binding, actual))
-        }
+        RuntimeBoundarySpec::ExactShape(actual) => RuntimeBoundarySpec::ExactShape(
+            runtime_param_class(db, typed_body, binding, env, actual),
+        ),
         RuntimeBoundarySpec::BorrowLike {
             pointee,
             access,
@@ -2274,17 +2258,12 @@ pub(crate) fn runtime_param_boundary<'db>(
             let ty = runtime_repr_ty_in_context(
                 db,
                 typed_body.binding_ty(db, binding),
-                typed_body.body().map(|body| body.scope()),
-                typed_body.assumptions(),
+                env.scope,
+                env.assumptions,
             );
             if binding.is_mut() && ty.as_enum(db).is_some() {
                 return RuntimeBoundarySpec::ExactTransport(RuntimeClass::object_ref(
-                    layout_for_ty_in_context(
-                        db,
-                        ty,
-                        typed_body.body().map(|body| body.scope()),
-                        typed_body.assumptions(),
-                    ),
+                    layout_for_ty_in_context(db, ty, env.scope, env.assumptions),
                 ));
             }
             RuntimeBoundarySpec::BorrowLike {
@@ -2305,12 +2284,10 @@ pub(crate) fn semantic_return_ty<'db>(
 
 pub(crate) fn default_return_class<'db>(
     db: &'db dyn MirDb,
-    typed_body: &hir::analysis::ty::ty_check::TypedBody<'db>,
+    semantic: SemanticInstance<'db>,
 ) -> Option<RuntimeClass<'db>> {
-    let env = RuntimeTypeEnv::new(
-        typed_body.body().map(|body| body.scope()),
-        typed_body.assumptions(),
-    );
+    let typed_body = semantic.key(db).typed_body(db);
+    let env = RuntimeTypeEnv::for_semantic(db, semantic);
     let return_borrow_provider = typed_body
         .result_ty()
         .as_borrow(db)
@@ -2330,12 +2307,10 @@ pub(crate) fn default_return_class<'db>(
 
 pub(crate) fn desired_runtime_return_plan<'db>(
     db: &'db dyn MirDb,
-    typed_body: &hir::analysis::ty::ty_check::TypedBody<'db>,
+    semantic: SemanticInstance<'db>,
 ) -> RuntimeVisibleReturnPlan<'db> {
-    let env = RuntimeTypeEnv::new(
-        typed_body.body().map(|body| body.scope()),
-        typed_body.assumptions(),
-    );
+    let typed_body = semantic.key(db).typed_body(db);
+    let env = RuntimeTypeEnv::for_semantic(db, semantic);
     let return_borrow_provider = typed_body
         .result_ty()
         .as_borrow(db)
@@ -2599,15 +2574,14 @@ mod tests {
         let top_mod = db.top_mod(file);
         let semantic = semantic_instance_for_named_func(&db, top_mod, "pick_ac_mut");
         let instance = runtime_instance_for_semantic(&db, semantic);
-        let typed_body = semantic.key(&db).typed_body(&db);
         let normalized = normalize_semantic_body(&db, semantic)
             .unwrap_or_else(|err| panic!("failed to normalize pick_ac_mut: {err:?}"));
         let facts = BodyStaticFacts::new(&db, &normalized);
-        let env = BodyEnv::new(&db, &normalized, typed_body, &facts);
+        let env = BodyEnv::new(&db, &normalized, &facts);
         let params = instance.key(&db).params(&db);
         let inferred =
             LocalStateInferer::new(env, params, &runtime_param_locals(&db, semantic, params)).run();
-        let return_plan = desired_runtime_return_plan(&db, typed_body);
+        let return_plan = desired_runtime_return_plan(&db, semantic);
         let selected_returns = normalized
             .blocks
             .iter()
@@ -2840,11 +2814,10 @@ mod tests {
             .unwrap_or_else(|err| panic!("failed to build recv-arm semantic key: {err:?}")),
         );
         let instance = runtime_instance_for_semantic(&db, semantic);
-        let typed_body = semantic.key(&db).typed_body(&db);
         let normalized = normalize_semantic_body(&db, semantic)
             .unwrap_or_else(|err| panic!("failed to normalize LockAndCheck: {err:?}"));
         let facts = BodyStaticFacts::new(&db, &normalized);
-        let env = BodyEnv::new(&db, &normalized, typed_body, &facts);
+        let env = BodyEnv::new(&db, &normalized, &facts);
         let params = instance.key(&db).params(&db);
         let inferred =
             LocalStateInferer::new(env, params, &runtime_param_locals(&db, semantic, params)).run();
@@ -3002,11 +2975,10 @@ mod tests {
                 }
             })
             .expect("sum_last4 should call specialized take_u256");
-        let typed_body = semantic.key(&db).typed_body(&db);
         let normalized = normalize_semantic_body(&db, semantic)
             .unwrap_or_else(|err| panic!("failed to normalize specialized take_u256: {err:?}"));
         let facts = BodyStaticFacts::new(&db, &normalized);
-        let env = BodyEnv::new(&db, &normalized, typed_body, &facts);
+        let env = BodyEnv::new(&db, &normalized, &facts);
         let params = instance.key(&db).params(&db);
         let inferred =
             LocalStateInferer::new(env, params, &runtime_param_locals(&db, semantic, params)).run();
@@ -3140,11 +3112,10 @@ mod tests {
             .unwrap_or_else(|err| panic!("failed to build recv-arm semantic key: {err:?}")),
         );
         let instance = runtime_instance_for_semantic(&db, semantic);
-        let typed_body = semantic.key(&db).typed_body(&db);
         let normalized = normalize_semantic_body(&db, semantic)
             .unwrap_or_else(|err| panic!("failed to normalize SelectAndMutate: {err:?}"));
         let facts = BodyStaticFacts::new(&db, &normalized);
-        let env = BodyEnv::new(&db, &normalized, typed_body, &facts);
+        let env = BodyEnv::new(&db, &normalized, &facts);
         let params = instance.key(&db).params(&db);
         let inferred =
             LocalStateInferer::new(env, params, &runtime_param_locals(&db, semantic, params)).run();

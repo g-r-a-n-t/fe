@@ -1526,12 +1526,12 @@ pub(crate) fn runtime_instance_for_semantic<'db>(
             semantic.key(db)
         );
     }
-    let env = RuntimeTypeEnv::new(Some(owner.scope()), semantic.assumptions(db));
+    let env = RuntimeTypeEnv::for_semantic(db, semantic);
     let mut params = Vec::new();
     let mut idx = 0;
     while let Some(binding) = typed_body.param_binding(idx) {
         if let Some(class) = runtime_visible_binding_class(db, semantic, binding)
-            .map(|class| runtime_param_class(db, typed_body, binding, class))
+            .map(|class| runtime_param_class(db, typed_body, binding, env, class))
         {
             params.push(class);
         }

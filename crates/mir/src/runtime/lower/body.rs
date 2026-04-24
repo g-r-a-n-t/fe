@@ -92,13 +92,12 @@ pub fn lower_to_rmir<'db>(
             semantic.key(db)
         )
     });
-    let typed_body = semantic.key(db).typed_body(db);
     check_runtime_body_supported(db, semantic.key(db), &normalized_body)?;
     let facts = BodyStaticFacts::new(db, &normalized_body);
     let param_locals =
         crate::runtime::lower::interface::runtime_param_locals(db, semantic, key.params(db));
     let inferred = LocalStateInferer::new(
-        BodyEnv::new(db, &normalized_body, typed_body, &facts),
+        BodyEnv::new(db, &normalized_body, &facts),
         key.params(db),
         &param_locals,
     )
@@ -262,7 +261,6 @@ pub(super) struct RmirEmitter<'db> {
     pub(super) instance: RuntimeInstance<'db>,
     pub(super) key: RuntimeInstanceKey<'db>,
     pub(super) semantic_body: NormalizedSemanticBody<'db>,
-    pub(super) typed_body: &'db hir::analysis::ty::ty_check::TypedBody<'db>,
     pub(super) facts: BodyStaticFacts<'db>,
     pub(super) ret_class: Option<RuntimeClass<'db>>,
     pub(super) env: RuntimeTypeEnv<'db>,
@@ -382,11 +380,9 @@ impl<'db> RmirEmitter<'db> {
         signature: RuntimeSignature<'db>,
     ) -> Self {
         let key = instance.key(db);
-        let typed_body = key
+        let semantic = key
             .semantic(db)
-            .expect("semantic lowering only applies to semantic runtime instances")
-            .key(db)
-            .typed_body(db);
+            .expect("semantic lowering only applies to semantic runtime instances");
         let LoweredSemanticLocals {
             carriers,
             roots,
@@ -399,10 +395,7 @@ impl<'db> RmirEmitter<'db> {
             provider_bindings: inferred.provider_bindings,
         };
         let semantic_carriers = carriers.clone();
-        let env = RuntimeTypeEnv::new(
-            typed_body.body().map(|body| body.scope()),
-            typed_body.assumptions(),
-        );
+        let env = RuntimeTypeEnv::for_semantic(db, semantic);
         let terminated_blocks = vec![false; semantic_body.blocks.len()];
         let locals = semantic_body
             .locals
@@ -420,7 +413,6 @@ impl<'db> RmirEmitter<'db> {
             instance,
             key,
             semantic_body,
-            typed_body,
             facts,
             ret_class: signature.ret.clone(),
             env,
@@ -545,10 +537,8 @@ impl<'db> RmirEmitter<'db> {
     }
 
     fn with_current_body_cx<T>(&self, f: impl FnOnce(RuntimeBodyCx<'_, '_, 'db>) -> T) -> T {
-        f(
-            BodyEnv::new(self.db, &self.semantic_body, self.typed_body, &self.facts)
-                .with_carriers(&self.semantic_carriers),
-        )
+        f(BodyEnv::new(self.db, &self.semantic_body, &self.facts)
+            .with_carriers(&self.semantic_carriers))
     }
 
     fn current_expr_direct_class(
@@ -558,7 +548,7 @@ impl<'db> RmirEmitter<'db> {
         expr: &NExpr<'db>,
     ) -> Option<RuntimeClass<'db>> {
         let mut lookup_return_class = |key| runtime_return_class(self.db, key);
-        BodyEnv::new(self.db, &self.semantic_body, self.typed_body, &self.facts).expr_direct_class(
+        BodyEnv::new(self.db, &self.semantic_body, &self.facts).expr_direct_class(
             &self.semantic_carriers,
             block_idx,
             stmt_idx,

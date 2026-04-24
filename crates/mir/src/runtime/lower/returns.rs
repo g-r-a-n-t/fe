@@ -25,7 +25,6 @@ use super::{
 
 #[derive(Clone)]
 pub(crate) struct RuntimeReturnSummary<'db> {
-    pub(crate) typed_body: &'db hir::analysis::ty::ty_check::TypedBody<'db>,
     pub(crate) semantic_body: NormalizedSemanticBody<'db>,
     pub(crate) facts: BodyStaticFacts<'db>,
     pub(crate) return_plan: RuntimeVisibleReturnPlan<'db>,
@@ -57,7 +56,6 @@ unsafe impl<'db> salsa::Update for RuntimeReturnSummary<'db> {
 
 impl<'db> RuntimeReturnSummary<'db> {
     fn build(db: &'db dyn MirDb, semantic: SemanticInstance<'db>) -> Self {
-        let typed_body = semantic.key(db).typed_body(db);
         let semantic_body = normalize_semantic_body(db, semantic).unwrap_or_else(|err| {
             panic!(
                 "semantic normalization failed for {:?}: {err:?}",
@@ -82,9 +80,9 @@ impl<'db> RuntimeReturnSummary<'db> {
             })
             .collect::<Vec<_>>()
             .into_boxed_slice();
-        let env = BodyEnv::new(db, &semantic_body, typed_body, &facts);
-        let mut return_plan = desired_runtime_return_plan(db, typed_body);
-        let mut default_return_class = default_return_class(db, typed_body);
+        let env = BodyEnv::new(db, &semantic_body, &facts);
+        let mut return_plan = desired_runtime_return_plan(db, semantic);
+        let mut default_return_class = default_return_class(db, semantic);
         if matches!(return_plan, RuntimeVisibleReturnPlan::Erased) {
             let mut fallback = None;
             let mut all_fallbacks_match = true;
@@ -153,7 +151,6 @@ impl<'db> RuntimeReturnSummary<'db> {
         }
 
         Self {
-            typed_body,
             semantic_body,
             facts,
             return_plan,
@@ -168,7 +165,7 @@ impl<'db> RuntimeReturnSummary<'db> {
     }
 
     fn env(&self, db: &'db dyn MirDb) -> BodyEnv<'_, 'db> {
-        BodyEnv::new(db, &self.semantic_body, self.typed_body, &self.facts)
+        BodyEnv::new(db, &self.semantic_body, &self.facts)
     }
 }
 

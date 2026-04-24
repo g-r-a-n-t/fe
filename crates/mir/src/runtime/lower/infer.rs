@@ -497,14 +497,13 @@ fn normalized_local_place_class<'db>(
     local: SLocalId,
     carriers: &[RuntimeCarrier<'db>],
 ) -> Option<RuntimeClass<'db>> {
-    let typed_body = body.owner.key(db).typed_body(db);
     normalized_local_place_class_in_context(
         db,
         body,
         local,
         carriers,
-        typed_body.body().map(|body| body.scope()),
-        typed_body.assumptions(),
+        Some(body.owner.key(db).owner(db).scope()),
+        body.owner.assumptions(db),
     )
 }
 

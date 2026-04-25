@@ -749,6 +749,7 @@ fn assign_yul_function_symbols<'db>(
             owner: func.runtime_function.owner(db).clone(),
             fallback_symbol: func.runtime_function.symbol(db).clone(),
             variant_suffix: func.variant_suffix.clone(),
+            disambiguator: mir::runtime_instance_stable_key(db, func.runtime_function.instance(db)),
         })
         .collect::<Vec<_>>();
     let symbols = assign_function_symbols(db, &inputs, &YUL_FUNCTION_SYMBOL_STYLE);

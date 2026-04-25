@@ -24,7 +24,7 @@ object "EnumContract" {
       $codecopy(v5, v6, v2, v1)
       let v14 := 0x00
       let v8 := v14
-      $std$lib$evm$effects$impl_trait$Evm$0098$return_data_0(v8, v1)
+      $std$lib$evm$effects$impl_trait$Evm$0098$return_data_1461(v8, v1)
       invalid()
     }
     function $manual_contract_init_root_EnumContract() {
@@ -38,7 +38,7 @@ object "EnumContract" {
       $init(v1)
       stop()
     }
-    function $std$lib$evm$effects$impl_trait$Evm$0098$return_data_0(p0, p1) {
+    function $std$lib$evm$effects$impl_trait$Evm$0098$return_data_1461(p0, p1) {
       let v3 := p0
       let v4 := p1
       return(v3, v4)
@@ -58,7 +58,7 @@ object "EnumContract" {
         $mstore(v4, v2, v5)
         let v14 := 0x20
         let v7 := v14
-        $std$lib$evm$effects$impl_trait$Evm$0098$return_data_1(v2, v7)
+        $std$lib$evm$effects$impl_trait$Evm$0098$return_data_d650(v2, v7)
         invalid()
       }
       function $calldataload(p0) -> ret {
@@ -85,12 +85,12 @@ object "EnumContract" {
         mstore(v3, v4)
         leave
       }
-      function $std$lib$evm$effects$impl_trait$Evm$0098$return_data_1(p0, p1) {
+      function $std$lib$evm$effects$impl_trait$Evm$0098$return_data_1461_0(p0, p1) {
         let v3 := p0
         let v4 := p1
         return(v3, v4)
       }
-      function $std$lib$evm$effects$impl_trait$Evm$0098$return_data_2(p0, p1) {
+      function $std$lib$evm$effects$impl_trait$Evm$0098$return_data_d650(p0, p1) {
         let v3 := p0
         let v4 := p1
         return(v3, v4)
@@ -253,7 +253,7 @@ object "EnumContract" {
               let v47 := v77
               let v78 := 0x00
               let v48 := v78
-              $std$lib$evm$effects$impl_trait$Evm$0098$return_data_2(v47, v48)
+              $std$lib$evm$effects$impl_trait$Evm$0098$return_data_1461_0(v47, v48)
               invalid()
             }
           }

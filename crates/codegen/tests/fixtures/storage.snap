@@ -24,7 +24,7 @@ object "Coin" {
       $codecopy(v5, v6, v2, v1)
       let v14 := 0x00
       let v8 := v14
-      $std$lib$evm$effects$impl_trait$Evm$0098$return_data_0(v8, v1)
+      $std$lib$evm$effects$impl_trait$Evm$0098$return_data_e8fc(v8, v1)
       invalid()
     }
     function $manual_contract_init_root_Coin() {
@@ -38,7 +38,7 @@ object "Coin" {
       $init(v1)
       stop()
     }
-    function $std$lib$evm$effects$impl_trait$Evm$0098$return_data_0(p0, p1) {
+    function $std$lib$evm$effects$impl_trait$Evm$0098$return_data_e8fc(p0, p1) {
       let v3 := p0
       let v4 := p1
       return(v3, v4)
@@ -58,7 +58,7 @@ object "Coin" {
         $mstore(v4, v2, v5)
         let v14 := 0x20
         let v7 := v14
-        $std$lib$evm$effects$impl_trait$Evm$0098$return_data_1(v2, v7)
+        $std$lib$evm$effects$impl_trait$Evm$0098$return_data_6fdc(v2, v7)
         invalid()
       }
       function $abi_encode_arg0_root_stor(p0, p1) {
@@ -72,7 +72,7 @@ object "Coin" {
         $mstore_arg2_root_stor(v4, v2, v5)
         let v14 := 0x20
         let v7 := v14
-        $std$lib$evm$effects$impl_trait$Evm$0098$return_data_1(v2, v7)
+        $std$lib$evm$effects$impl_trait$Evm$0098$return_data_6fdc(v2, v7)
         invalid()
       }
       function $balance_of_raw_eff0_stor(p0, p1) -> ret {
@@ -200,12 +200,12 @@ object "Coin" {
         mstore(v3, v4)
         leave
       }
-      function $std$lib$evm$effects$impl_trait$Evm$0098$return_data_1(p0, p1) {
+      function $std$lib$evm$effects$impl_trait$Evm$0098$return_data_6fdc(p0, p1) {
         let v3 := p0
         let v4 := p1
         return(v3, v4)
       }
-      function $std$lib$evm$effects$impl_trait$Evm$0098$return_data_2(p0, p1) {
+      function $std$lib$evm$effects$impl_trait$Evm$0098$return_data_e8fc_0(p0, p1) {
         let v3 := p0
         let v4 := p1
         return(v3, v4)
@@ -336,7 +336,7 @@ object "Coin" {
                 let v58 := v88
                 let v89 := 0x00
                 let v59 := v89
-                $std$lib$evm$effects$impl_trait$Evm$0098$return_data_2(v58, v59)
+                $std$lib$evm$effects$impl_trait$Evm$0098$return_data_e8fc_0(v58, v59)
                 invalid()
               }
             }

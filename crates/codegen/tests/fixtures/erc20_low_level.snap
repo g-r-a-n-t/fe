@@ -5,7 +5,7 @@ input_file: tests/fixtures/erc20_low_level.fe
 ---
 object "Erc20Contract" {
   code {
-    function $std$lib$evm$effects$impl_trait$Evm$a1e8$caller_0() -> ret {
+    function $std$lib$evm$effects$impl_trait$Evm$a1e8$caller_f783() -> ret {
       let v4 := caller()
       let v1 := v4
       let v2 := v1
@@ -22,12 +22,12 @@ object "Erc20Contract" {
     function $do_init_eff0_stor(p0, p1, p2) {
       let v6 := p0
       let v3 := v6
-      let v7 := $std$lib$evm$effects$impl_trait$Evm$a1e8$caller_0()
+      let v7 := $std$lib$evm$effects$impl_trait$Evm$a1e8$caller_f783()
       let v4 := v7
       $set_owner_once(v3, v4, p2)
       leave
     }
-    function $std$lib$evm$effects$impl_trait$Address$3ffb$eq_0(p0, p1) -> ret {
+    function $std$lib$evm$effects$impl_trait$Address$3ffb$eq_1193(p0, p1) -> ret {
       let r0 := mload(0x40)
       if iszero(r0) {
         r0 := 0x80
@@ -52,7 +52,7 @@ object "Erc20Contract" {
       ret := iszero(iszero(v4))
       leave
     }
-    function $core$lib$effect_ref$impl_trait$StorPtr$27da$from_raw$gb51e_0(p0) -> ret {
+    function $core$lib$effect_ref$impl_trait$StorPtr$27da$from_raw$gb51e_45c1(p0) -> ret {
       let v1 := p0
       let v3 := v1
       let v4 := v3
@@ -63,7 +63,7 @@ object "Erc20Contract" {
     function $init(p0) {
       let v14 := 0x00
       let v4 := v14
-      let v15 := $std$lib$evm$effects$trait$RawStorage$stor_ptr$g3730_0(v4)
+      let v15 := $std$lib$evm$effects$trait$RawStorage$stor_ptr$g3730_6bd4(v4)
       let v5 := v15
       let v1 := v5
       $do_init_eff0_stor(v1, p0, p0)
@@ -78,7 +78,7 @@ object "Erc20Contract" {
       $codecopy(v9, v10, v3, v2)
       let v22 := 0x00
       let v12 := v22
-      $std$lib$evm$effects$impl_trait$Evm$0098$return_data_0(v12, v2)
+      $std$lib$evm$effects$impl_trait$Evm$0098$return_data_0402(v12, v2)
       invalid()
     }
     function $manual_contract_init_root_Erc20Contract() {
@@ -92,20 +92,20 @@ object "Erc20Contract" {
       $init(v1)
       stop()
     }
-    function $core$lib$ops$trait$Eq$ne$g7528_0(p0, p1) -> ret {
-      let v4 := $std$lib$evm$effects$impl_trait$Address$3ffb$eq_0(p0, p1)
+    function $core$lib$ops$trait$Eq$ne$g7528_21d8(p0, p1) -> ret {
+      let v4 := $std$lib$evm$effects$impl_trait$Address$3ffb$eq_1193(p0, p1)
       let v2 := iszero(iszero(v4))
       let v5 := iszero(iszero(iszero(iszero(iszero(v2)))))
       let v3 := iszero(iszero(v5))
       ret := iszero(iszero(v3))
       leave
     }
-    function $std$lib$evm$effects$impl_trait$Evm$0098$return_data_0(p0, p1) {
+    function $std$lib$evm$effects$impl_trait$Evm$0098$return_data_0402(p0, p1) {
       let v3 := p0
       let v4 := p1
       return(v3, v4)
     }
-    function $std$lib$evm$effects$impl_trait$Evm$0098$revert_0(p0, p1) {
+    function $std$lib$evm$effects$impl_trait$Evm$0098$revert_bdf6(p0, p1) {
       let v3 := p0
       let v4 := p1
       revert(v3, v4)
@@ -115,14 +115,14 @@ object "Erc20Contract" {
       let v4 := t19
       let v13 := $zero()
       let v5 := v13
-      let v14 := $core$lib$ops$trait$Eq$ne$g7528_0(v4, v5)
+      let v14 := $core$lib$ops$trait$Eq$ne$g7528_21d8(v4, v5)
       let v6 := iszero(iszero(v14))
       if iszero(iszero(v6)) {
         let v15 := 0x00
         let v7 := v15
         let v16 := 0x00
         let v8 := v16
-        $std$lib$evm$effects$impl_trait$Evm$0098$revert_0(v7, v8)
+        $std$lib$evm$effects$impl_trait$Evm$0098$revert_bdf6(v7, v8)
         invalid()
       }
       if iszero(iszero(iszero(v6))) {
@@ -131,9 +131,9 @@ object "Erc20Contract" {
         leave
       }
     }
-    function $std$lib$evm$effects$trait$RawStorage$stor_ptr$g3730_0(p0) -> ret {
+    function $std$lib$evm$effects$trait$RawStorage$stor_ptr$g3730_6bd4(p0) -> ret {
       let v2 := p0
-      let v4 := $core$lib$effect_ref$impl_trait$StorPtr$27da$from_raw$gb51e_0(v2)
+      let v4 := $core$lib$effect_ref$impl_trait$StorPtr$27da$from_raw$gb51e_45c1(v2)
       let v3 := v4
       ret := v3
       leave
@@ -175,7 +175,7 @@ object "Erc20Contract" {
         let v15 := v31
         let v32 := 0x60
         let v16 := v32
-        $std$lib$evm$effects$impl_trait$Evm$0098$return_data_1(v15, v16)
+        $std$lib$evm$effects$impl_trait$Evm$0098$return_data_ad1a(v15, v16)
         invalid()
       }
       function $abi_encode_u256(p0, p1) {
@@ -189,7 +189,7 @@ object "Erc20Contract" {
         let v6 := v13
         let v14 := 0x20
         let v7 := v14
-        $std$lib$evm$effects$impl_trait$Evm$0098$return_data_1(v6, v7)
+        $std$lib$evm$effects$impl_trait$Evm$0098$return_data_ad1a(v6, v7)
         invalid()
       }
       function $allowance_eff0_stor(p0, p1, p2) -> ret {
@@ -204,7 +204,7 @@ object "Erc20Contract" {
         mstore(v8, v4)
         mstore(add(v8, 32), v5)
         let v6 := v8
-        let v9 := $std$lib$evm$storage_map$impl$StorageMap$9f54$get$ga15b_0(v6)
+        let v9 := $std$lib$evm$storage_map$impl$StorageMap$9f54$get$ga15b_679e(v6)
         let v7 := v9
         ret := v7
         leave
@@ -221,22 +221,9 @@ object "Erc20Contract" {
         mstore(v8, v4)
         mstore(add(v8, 32), v5)
         let v6 := v8
-        let v9 := $std$lib$evm$storage_map$impl$StorageMap$9f54$get$ga15b_1(v6)
+        let v9 := $std$lib$evm$storage_map$impl$StorageMap$9f54$get$ga15b_6205(v6)
         let v7 := v9
         ret := v7
-        leave
-      }
-      function $approve_eff0_stor(p0, p1, p2, p3) -> ret {
-        let v10 := p2
-        let v4 := v10
-        let v11 := $std$lib$evm$effects$impl_trait$Evm$a1e8$caller_2()
-        let v5 := v11
-        let v6 := p0
-        let v7 := p1
-        $approve(v4, v5, v6, v7)
-        let v14 := 0x01
-        let v9 := v14
-        ret := v9
         leave
       }
       function $approve(p0, p1, p2, p3) {
@@ -252,26 +239,39 @@ object "Erc20Contract" {
         mstore(add(v10, 32), v6)
         let v7 := v10
         let v8 := p3
-        $std$lib$evm$storage_map$impl$StorageMap$9f54$set$ga15b_0(v7, v8)
+        $std$lib$evm$storage_map$impl$StorageMap$9f54$set$ga15b_f433(v7, v8)
+        leave
+      }
+      function $approve_eff0_stor(p0, p1, p2, p3) -> ret {
+        let v10 := p2
+        let v4 := v10
+        let v11 := $std$lib$evm$effects$impl_trait$Evm$a1e8$caller_fcc7()
+        let v5 := v11
+        let v6 := p0
+        let v7 := p1
+        $approve(v4, v5, v6, v7)
+        let v14 := 0x01
+        let v9 := v14
+        ret := v9
         leave
       }
       function $balance_of_eff0_stor(p0, p1) -> ret {
         let v3 := p0
-        let v5 := $std$lib$evm$storage_map$impl$StorageMap$9f54$get$g2163_0(v3)
+        let v5 := $std$lib$evm$storage_map$impl$StorageMap$9f54$get$g2163_e6b0(v3)
         let v4 := v5
         ret := v4
         leave
       }
-      function $standalone$erc20_low_level$erc20_low_level$impl$Erc20$16d9$balance_of$g35d6_0(p0, p1) -> ret {
+      function $standalone$erc20_low_level$erc20_low_level$impl$Erc20$16d9$balance_of$g35d6_f4de(p0, p1) -> ret {
         let v3 := p1
-        let v5 := $std$lib$evm$storage_map$impl$StorageMap$9f54$get$g2163_1(v3)
+        let v5 := $std$lib$evm$storage_map$impl$StorageMap$9f54$get$g2163_2ea1(v3)
         let v4 := v5
         ret := v4
         leave
       }
-      function $standalone$erc20_low_level$erc20_low_level$impl$Erc20$16d9$balance_of$g35d6_1(p0, p1) -> ret {
+      function $standalone$erc20_low_level$erc20_low_level$impl$Erc20$16d9$balance_of$g35d6_fd09(p0, p1) -> ret {
         let v3 := p1
-        let v5 := $std$lib$evm$storage_map$impl$StorageMap$9f54$get$g2163_2(v3)
+        let v5 := $std$lib$evm$storage_map$impl$StorageMap$9f54$get$g2163_d8b0(v3)
         let v4 := v5
         ret := v4
         leave
@@ -283,21 +283,21 @@ object "Erc20Contract" {
         ret := v3
         leave
       }
-      function $std$lib$evm$effects$impl_trait$Evm$a1e8$caller_1() -> ret {
+      function $std$lib$evm$effects$impl_trait$Evm$a1e8$caller_f783_0() -> ret {
         let v4 := caller()
         let v1 := v4
         let v2 := v1
         ret := v2
         leave
       }
-      function $std$lib$evm$effects$impl_trait$Evm$a1e8$caller_2() -> ret {
+      function $std$lib$evm$effects$impl_trait$Evm$a1e8$caller_fcc7() -> ret {
         let v4 := caller()
         let v1 := v4
         let v2 := v1
         ret := v2
         leave
       }
-      function $std$lib$evm$effects$impl_trait$Address$3ffb$eq_1(p0, p1) -> ret {
+      function $std$lib$evm$effects$impl_trait$Address$3ffb$eq_1432(p0, p1) -> ret {
         let r0 := mload(0x40)
         if iszero(r0) {
           r0 := 0x80
@@ -322,7 +322,7 @@ object "Erc20Contract" {
         ret := iszero(iszero(v4))
         leave
       }
-      function $core$lib$effect_ref$impl_trait$StorPtr$27da$from_raw$gb51e_1(p0) -> ret {
+      function $core$lib$effect_ref$impl_trait$StorPtr$27da$from_raw$gb51e_45c1_0(p0) -> ret {
         let v1 := p0
         let v3 := v1
         let v4 := v3
@@ -330,62 +330,42 @@ object "Erc20Contract" {
         ret := v2
         leave
       }
-      function $std$lib$evm$word$impl_trait$u256$1f9e$from_word_4(p0) -> ret {
+      function $std$lib$evm$word$impl_trait$u256$1f9e$from_word_09f5(p0) -> ret {
         let v1 := p0
         ret := v1
         leave
       }
-      function $std$lib$evm$word$impl_trait$u256$1f9e$from_word_3(p0) -> ret {
+      function $std$lib$evm$word$impl_trait$u256$1f9e$from_word_3cf5(p0) -> ret {
         let v1 := p0
         ret := v1
         leave
       }
-      function $std$lib$evm$word$impl_trait$u256$1f9e$from_word_2(p0) -> ret {
+      function $std$lib$evm$word$impl_trait$u256$1f9e$from_word_7cc1(p0) -> ret {
         let v1 := p0
         ret := v1
         leave
       }
-      function $std$lib$evm$word$impl_trait$u256$1f9e$from_word_0(p0) -> ret {
+      function $std$lib$evm$word$impl_trait$u256$1f9e$from_word_87fe(p0) -> ret {
         let v1 := p0
         ret := v1
         leave
       }
-      function $std$lib$evm$word$impl_trait$u256$1f9e$from_word_1(p0) -> ret {
+      function $std$lib$evm$word$impl_trait$u256$1f9e$from_word_8815(p0) -> ret {
         let v1 := p0
         ret := v1
         leave
       }
-      function $std$lib$evm$storage_map$impl$StorageMap$9f54$get$g2163_2(p0) -> ret {
+      function $std$lib$evm$storage_map$impl$StorageMap$9f54$get$g2163_2ea1(p0) -> ret {
         let v5 := 0x00
         let v2 := v5
-        let v6 := $std$lib$evm$storage_map$storagemap_get_word_with_salt$g67a8_2(p0, v2)
+        let v6 := $std$lib$evm$storage_map$storagemap_get_word_with_salt$g67a8_b15d(p0, v2)
         let v3 := v6
-        let v7 := $std$lib$evm$word$impl_trait$u256$1f9e$from_word_4(v3)
+        let v7 := $std$lib$evm$word$impl_trait$u256$1f9e$from_word_87fe(v3)
         let v4 := v7
         ret := v4
         leave
       }
-      function $std$lib$evm$storage_map$impl$StorageMap$9f54$get$g2163_1(p0) -> ret {
-        let v5 := 0x00
-        let v2 := v5
-        let v6 := $std$lib$evm$storage_map$storagemap_get_word_with_salt$g67a8_1(p0, v2)
-        let v3 := v6
-        let v7 := $std$lib$evm$word$impl_trait$u256$1f9e$from_word_2(v3)
-        let v4 := v7
-        ret := v4
-        leave
-      }
-      function $std$lib$evm$storage_map$impl$StorageMap$9f54$get$g2163_0(p0) -> ret {
-        let v5 := 0x00
-        let v2 := v5
-        let v6 := $std$lib$evm$storage_map$storagemap_get_word_with_salt$g67a8_0(p0, v2)
-        let v3 := v6
-        let v7 := $std$lib$evm$word$impl_trait$u256$1f9e$from_word_0(v3)
-        let v4 := v7
-        ret := v4
-        leave
-      }
-      function $std$lib$evm$storage_map$impl$StorageMap$9f54$get$ga15b_0(p0) -> ret {
+      function $std$lib$evm$storage_map$impl$StorageMap$9f54$get$ga15b_6205(p0) -> ret {
         let r1 := mload(0x40)
         if iszero(r1) {
           r1 := 0x80
@@ -395,14 +375,14 @@ object "Erc20Contract" {
         mstore(add(r1, 32), mload(add(p0, 32)))
         let v5 := 0x01
         let v2 := v5
-        let v6 := $std$lib$evm$storage_map$storagemap_get_word_with_salt$g7bf4_0(r1, v2)
+        let v6 := $std$lib$evm$storage_map$storagemap_get_word_with_salt$g7bf4_0046(r1, v2)
         let v3 := v6
-        let v7 := $std$lib$evm$word$impl_trait$u256$1f9e$from_word_1(v3)
+        let v7 := $std$lib$evm$word$impl_trait$u256$1f9e$from_word_8815(v3)
         let v4 := v7
         ret := v4
         leave
       }
-      function $std$lib$evm$storage_map$impl$StorageMap$9f54$get$ga15b_1(p0) -> ret {
+      function $std$lib$evm$storage_map$impl$StorageMap$9f54$get$ga15b_679e(p0) -> ret {
         let r1 := mload(0x40)
         if iszero(r1) {
           r1 := 0x80
@@ -412,9 +392,29 @@ object "Erc20Contract" {
         mstore(add(r1, 32), mload(add(p0, 32)))
         let v5 := 0x01
         let v2 := v5
-        let v6 := $std$lib$evm$storage_map$storagemap_get_word_with_salt$g7bf4_1(r1, v2)
+        let v6 := $std$lib$evm$storage_map$storagemap_get_word_with_salt$g7bf4_fdb1(r1, v2)
         let v3 := v6
-        let v7 := $std$lib$evm$word$impl_trait$u256$1f9e$from_word_3(v3)
+        let v7 := $std$lib$evm$word$impl_trait$u256$1f9e$from_word_09f5(v3)
+        let v4 := v7
+        ret := v4
+        leave
+      }
+      function $std$lib$evm$storage_map$impl$StorageMap$9f54$get$g2163_d8b0(p0) -> ret {
+        let v5 := 0x00
+        let v2 := v5
+        let v6 := $std$lib$evm$storage_map$storagemap_get_word_with_salt$g67a8_09bc(p0, v2)
+        let v3 := v6
+        let v7 := $std$lib$evm$word$impl_trait$u256$1f9e$from_word_7cc1(v3)
+        let v4 := v7
+        ret := v4
+        leave
+      }
+      function $std$lib$evm$storage_map$impl$StorageMap$9f54$get$g2163_e6b0(p0) -> ret {
+        let v5 := 0x00
+        let v2 := v5
+        let v6 := $std$lib$evm$storage_map$storagemap_get_word_with_salt$g67a8_bfbb(p0, v2)
+        let v3 := v6
+        let v7 := $std$lib$evm$word$impl_trait$u256$1f9e$from_word_3cf5(v3)
         let v4 := v7
         ret := v4
         leave
@@ -430,19 +430,8 @@ object "Erc20Contract" {
         $runtime(v1)
         stop()
       }
-      function $mint_eff0_stor(p0, p1, p2, p3, p4) -> ret {
-        let v10 := p2
-        let v5 := v10
-        let v6 := p0
-        let v7 := p1
-        $mint(v5, v6, v7, p3, p4)
-        let v13 := 0x01
-        let v9 := v13
-        ret := v9
-        leave
-      }
       function $mint(p0, p1, p2, p3, p4) {
-        let v26 := $std$lib$evm$effects$impl_trait$Evm$a1e8$caller_1()
+        let v26 := $std$lib$evm$effects$impl_trait$Evm$a1e8$caller_f783_0()
         let v7 := v26
         let v5 := v7
         let t39 := sload(add(p0, div(add(32, 31), 32)))
@@ -450,19 +439,19 @@ object "Erc20Contract" {
         sstore(add(p0, div(add(32, 31), 32)), v27)
         let t40 := sload(add(p0, div(add(32, 31), 32)))
         let v28 := t40
-        let v29 := $core$lib$ops$trait$Eq$ne$g7528_1(v5, v28)
+        let v29 := $core$lib$ops$trait$Eq$ne$g7528_0632(v5, v28)
         let v10 := iszero(iszero(v29))
         if iszero(iszero(v10)) {
           let v30 := 0x00
           let v11 := v30
           let v31 := 0x00
           let v12 := v31
-          $std$lib$evm$effects$impl_trait$Evm$0098$revert_2(v11, v12)
+          $std$lib$evm$effects$impl_trait$Evm$0098$revert_ad8e(v11, v12)
           invalid()
         }
         if iszero(iszero(iszero(v10))) {
           let v15 := p1
-          let v34 := $standalone$erc20_low_level$erc20_low_level$impl$Erc20$16d9$balance_of$g35d6_1(p0, v15)
+          let v34 := $standalone$erc20_low_level$erc20_low_level$impl$Erc20$16d9$balance_of$g35d6_fd09(p0, v15)
           let v16 := v34
           let v6 := v16
           let v18 := p1
@@ -475,7 +464,7 @@ object "Erc20Contract" {
           }
           let v35 := t41
           let v20 := v35
-          $std$lib$evm$storage_map$impl$StorageMap$9f54$set$g2163_1(v18, v20)
+          $std$lib$evm$storage_map$impl$StorageMap$9f54$set$g2163_ecac(v18, v20)
           let t42 := sload(p0)
           let v22 := t42
           let v23 := p2
@@ -491,36 +480,47 @@ object "Erc20Contract" {
           leave
         }
       }
+      function $mint_eff0_stor(p0, p1, p2, p3, p4) -> ret {
+        let v10 := p2
+        let v5 := v10
+        let v6 := p0
+        let v7 := p1
+        $mint(v5, v6, v7, p3, p4)
+        let v13 := 0x01
+        let v9 := v13
+        ret := v9
+        leave
+      }
       function $mstore(p0, p1, p2) {
         let v3 := p1
         let v4 := p2
         mstore(v3, v4)
         leave
       }
-      function $core$lib$ops$trait$Eq$ne$g7528_1(p0, p1) -> ret {
-        let v4 := $std$lib$evm$effects$impl_trait$Address$3ffb$eq_1(p0, p1)
+      function $core$lib$ops$trait$Eq$ne$g7528_0632(p0, p1) -> ret {
+        let v4 := $std$lib$evm$effects$impl_trait$Address$3ffb$eq_1432(p0, p1)
         let v2 := iszero(iszero(v4))
         let v5 := iszero(iszero(iszero(iszero(iszero(v2)))))
         let v3 := iszero(iszero(v5))
         ret := iszero(iszero(v3))
         leave
       }
-      function $std$lib$evm$effects$impl_trait$Evm$0098$return_data_1(p0, p1) {
+      function $std$lib$evm$effects$impl_trait$Evm$0098$return_data_ad1a(p0, p1) {
         let v3 := p0
         let v4 := p1
         return(v3, v4)
       }
-      function $std$lib$evm$effects$impl_trait$Evm$0098$revert_1(p0, p1) {
+      function $std$lib$evm$effects$impl_trait$Evm$0098$revert_61f0(p0, p1) {
         let v3 := p0
         let v4 := p1
         revert(v3, v4)
       }
-      function $std$lib$evm$effects$impl_trait$Evm$0098$revert_3(p0, p1) {
+      function $std$lib$evm$effects$impl_trait$Evm$0098$revert_ad8e(p0, p1) {
         let v3 := p0
         let v4 := p1
         revert(v3, v4)
       }
-      function $std$lib$evm$effects$impl_trait$Evm$0098$revert_2(p0, p1) {
+      function $std$lib$evm$effects$impl_trait$Evm$0098$revert_bdf6_0(p0, p1) {
         let v3 := p0
         let v4 := p1
         revert(v3, v4)
@@ -530,7 +530,7 @@ object "Erc20Contract" {
         let v2 := 0
         let v95 := 0x00
         let v15 := v95
-        let v96 := $std$lib$evm$effects$trait$RawStorage$stor_ptr$g3730_1(v15)
+        let v96 := $std$lib$evm$effects$trait$RawStorage$stor_ptr$g3730_6bd4_0(v15)
         let v16 := v96
         v1 := v16
         let v97 := 0x00
@@ -708,7 +708,7 @@ object "Erc20Contract" {
                           let v92 := v163
                           let v164 := 0x00
                           let v93 := v164
-                          $std$lib$evm$effects$impl_trait$Evm$0098$revert_3(v92, v93)
+                          $std$lib$evm$effects$impl_trait$Evm$0098$revert_61f0(v92, v93)
                           invalid()
                         }
                       }
@@ -720,23 +720,7 @@ object "Erc20Contract" {
           }
         }
       }
-      function $std$lib$evm$storage_map$impl$StorageMap$9f54$set$g2163_1(p0, p1) {
-        let v6 := 0x00
-        let v3 := v6
-        let v7 := $std$lib$evm$word$impl_trait$u256$1f9e$to_word_3(p1)
-        let v4 := v7
-        $std$lib$evm$storage_map$storagemap_set_word_with_salt$g67a8_1(p0, v3, v4)
-        leave
-      }
-      function $std$lib$evm$storage_map$impl$StorageMap$9f54$set$g2163_0(p0, p1) {
-        let v6 := 0x00
-        let v3 := v6
-        let v7 := $std$lib$evm$word$impl_trait$u256$1f9e$to_word_0(p1)
-        let v4 := v7
-        $std$lib$evm$storage_map$storagemap_set_word_with_salt$g67a8_0(p0, v3, v4)
-        leave
-      }
-      function $std$lib$evm$storage_map$impl$StorageMap$9f54$set$ga15b_1(p0, p1) {
+      function $std$lib$evm$storage_map$impl$StorageMap$9f54$set$ga15b_0c21(p0, p1) {
         let r1 := mload(0x40)
         if iszero(r1) {
           r1 := 0x80
@@ -746,12 +730,28 @@ object "Erc20Contract" {
         mstore(add(r1, 32), mload(add(p0, 32)))
         let v6 := 0x01
         let v3 := v6
-        let v7 := $std$lib$evm$word$impl_trait$u256$1f9e$to_word_2(p1)
+        let v7 := $std$lib$evm$word$impl_trait$u256$1f9e$to_word_3dd5(p1)
         let v4 := v7
-        $std$lib$evm$storage_map$storagemap_set_word_with_salt$g7bf4_1(r1, v3, v4)
+        $std$lib$evm$storage_map$storagemap_set_word_with_salt$g7bf4_06e9(r1, v3, v4)
         leave
       }
-      function $std$lib$evm$storage_map$impl$StorageMap$9f54$set$ga15b_0(p0, p1) {
+      function $std$lib$evm$storage_map$impl$StorageMap$9f54$set$g2163_9582(p0, p1) {
+        let v6 := 0x00
+        let v3 := v6
+        let v7 := $std$lib$evm$word$impl_trait$u256$1f9e$to_word_807a(p1)
+        let v4 := v7
+        $std$lib$evm$storage_map$storagemap_set_word_with_salt$g67a8_a3bb(p0, v3, v4)
+        leave
+      }
+      function $std$lib$evm$storage_map$impl$StorageMap$9f54$set$g2163_ecac(p0, p1) {
+        let v6 := 0x00
+        let v3 := v6
+        let v7 := $std$lib$evm$word$impl_trait$u256$1f9e$to_word_e7d9(p1)
+        let v4 := v7
+        $std$lib$evm$storage_map$storagemap_set_word_with_salt$g67a8_225d(p0, v3, v4)
+        leave
+      }
+      function $std$lib$evm$storage_map$impl$StorageMap$9f54$set$ga15b_f433(p0, p1) {
         let r1 := mload(0x40)
         if iszero(r1) {
           r1 := 0x80
@@ -761,49 +761,19 @@ object "Erc20Contract" {
         mstore(add(r1, 32), mload(add(p0, 32)))
         let v6 := 0x01
         let v3 := v6
-        let v7 := $std$lib$evm$word$impl_trait$u256$1f9e$to_word_1(p1)
+        let v7 := $std$lib$evm$word$impl_trait$u256$1f9e$to_word_b20e(p1)
         let v4 := v7
-        $std$lib$evm$storage_map$storagemap_set_word_with_salt$g7bf4_0(r1, v3, v4)
+        $std$lib$evm$storage_map$storagemap_set_word_with_salt$g7bf4_5a12(r1, v3, v4)
         leave
       }
-      function $std$lib$evm$effects$trait$RawStorage$stor_ptr$g3730_1(p0) -> ret {
+      function $std$lib$evm$effects$trait$RawStorage$stor_ptr$g3730_6bd4_0(p0) -> ret {
         let v2 := p0
-        let v4 := $core$lib$effect_ref$impl_trait$StorPtr$27da$from_raw$gb51e_1(v2)
+        let v4 := $core$lib$effect_ref$impl_trait$StorPtr$27da$from_raw$gb51e_45c1_0(v2)
         let v3 := v4
         ret := v3
         leave
       }
-      function $std$lib$evm$storage_map$storagemap_get_word_with_salt$g67a8_2(p0, p1) -> ret {
-        let v3 := p1
-        let v6 := $std$lib$evm$storage_map$storagemap_storage_slot_with_salt$g67a8_2(p0, v3)
-        let v4 := v6
-        let v2 := v4
-        let v8 := sload(v2)
-        let v5 := v8
-        ret := v5
-        leave
-      }
-      function $std$lib$evm$storage_map$storagemap_get_word_with_salt$g67a8_1(p0, p1) -> ret {
-        let v3 := p1
-        let v6 := $std$lib$evm$storage_map$storagemap_storage_slot_with_salt$g67a8_1(p0, v3)
-        let v4 := v6
-        let v2 := v4
-        let v8 := sload(v2)
-        let v5 := v8
-        ret := v5
-        leave
-      }
-      function $std$lib$evm$storage_map$storagemap_get_word_with_salt$g67a8_0(p0, p1) -> ret {
-        let v3 := p1
-        let v6 := $std$lib$evm$storage_map$storagemap_storage_slot_with_salt$g67a8_0(p0, v3)
-        let v4 := v6
-        let v2 := v4
-        let v8 := sload(v2)
-        let v5 := v8
-        ret := v5
-        leave
-      }
-      function $std$lib$evm$storage_map$storagemap_get_word_with_salt$g7bf4_1(p0, p1) -> ret {
+      function $std$lib$evm$storage_map$storagemap_get_word_with_salt$g7bf4_0046(p0, p1) -> ret {
         let r0 := mload(0x40)
         if iszero(r0) {
           r0 := 0x80
@@ -812,7 +782,7 @@ object "Erc20Contract" {
         mstore(r0, mload(p0))
         mstore(add(r0, 32), mload(add(p0, 32)))
         let v3 := p1
-        let v6 := $std$lib$evm$storage_map$storagemap_storage_slot_with_salt$g7bf4_2(r0, v3)
+        let v6 := $std$lib$evm$storage_map$storagemap_storage_slot_with_salt$g7bf4_0776(r0, v3)
         let v4 := v6
         let v2 := v4
         let v8 := sload(v2)
@@ -820,7 +790,37 @@ object "Erc20Contract" {
         ret := v5
         leave
       }
-      function $std$lib$evm$storage_map$storagemap_get_word_with_salt$g7bf4_0(p0, p1) -> ret {
+      function $std$lib$evm$storage_map$storagemap_get_word_with_salt$g67a8_09bc(p0, p1) -> ret {
+        let v3 := p1
+        let v6 := $std$lib$evm$storage_map$storagemap_storage_slot_with_salt$g67a8_1dd3(p0, v3)
+        let v4 := v6
+        let v2 := v4
+        let v8 := sload(v2)
+        let v5 := v8
+        ret := v5
+        leave
+      }
+      function $std$lib$evm$storage_map$storagemap_get_word_with_salt$g67a8_b15d(p0, p1) -> ret {
+        let v3 := p1
+        let v6 := $std$lib$evm$storage_map$storagemap_storage_slot_with_salt$g67a8_d54e(p0, v3)
+        let v4 := v6
+        let v2 := v4
+        let v8 := sload(v2)
+        let v5 := v8
+        ret := v5
+        leave
+      }
+      function $std$lib$evm$storage_map$storagemap_get_word_with_salt$g67a8_bfbb(p0, p1) -> ret {
+        let v3 := p1
+        let v6 := $std$lib$evm$storage_map$storagemap_storage_slot_with_salt$g67a8_e7af(p0, v3)
+        let v4 := v6
+        let v2 := v4
+        let v8 := sload(v2)
+        let v5 := v8
+        ret := v5
+        leave
+      }
+      function $std$lib$evm$storage_map$storagemap_get_word_with_salt$g7bf4_fdb1(p0, p1) -> ret {
         let r0 := mload(0x40)
         if iszero(r0) {
           r0 := 0x80
@@ -829,7 +829,7 @@ object "Erc20Contract" {
         mstore(r0, mload(p0))
         mstore(add(r0, 32), mload(add(p0, 32)))
         let v3 := p1
-        let v6 := $std$lib$evm$storage_map$storagemap_storage_slot_with_salt$g7bf4_0(r0, v3)
+        let v6 := $std$lib$evm$storage_map$storagemap_storage_slot_with_salt$g7bf4_d8a5(r0, v3)
         let v4 := v6
         let v2 := v4
         let v8 := sload(v2)
@@ -837,25 +837,7 @@ object "Erc20Contract" {
         ret := v5
         leave
       }
-      function $std$lib$evm$storage_map$storagemap_set_word_with_salt$g67a8_1(p0, p1, p2) {
-        let v4 := p1
-        let v8 := $std$lib$evm$storage_map$storagemap_storage_slot_with_salt$g67a8_2(p0, v4)
-        let v5 := v8
-        let v3 := v5
-        let v6 := p2
-        sstore(v3, v6)
-        leave
-      }
-      function $std$lib$evm$storage_map$storagemap_set_word_with_salt$g67a8_0(p0, p1, p2) {
-        let v4 := p1
-        let v8 := $std$lib$evm$storage_map$storagemap_storage_slot_with_salt$g67a8_1(p0, v4)
-        let v5 := v8
-        let v3 := v5
-        let v6 := p2
-        sstore(v3, v6)
-        leave
-      }
-      function $std$lib$evm$storage_map$storagemap_set_word_with_salt$g7bf4_0(p0, p1, p2) {
+      function $std$lib$evm$storage_map$storagemap_set_word_with_salt$g7bf4_06e9(p0, p1, p2) {
         let r0 := mload(0x40)
         if iszero(r0) {
           r0 := 0x80
@@ -864,14 +846,23 @@ object "Erc20Contract" {
         mstore(r0, mload(p0))
         mstore(add(r0, 32), mload(add(p0, 32)))
         let v4 := p1
-        let v8 := $std$lib$evm$storage_map$storagemap_storage_slot_with_salt$g7bf4_1(r0, v4)
+        let v8 := $std$lib$evm$storage_map$storagemap_storage_slot_with_salt$g7bf4_0776(r0, v4)
         let v5 := v8
         let v3 := v5
         let v6 := p2
         sstore(v3, v6)
         leave
       }
-      function $std$lib$evm$storage_map$storagemap_set_word_with_salt$g7bf4_1(p0, p1, p2) {
+      function $std$lib$evm$storage_map$storagemap_set_word_with_salt$g67a8_225d(p0, p1, p2) {
+        let v4 := p1
+        let v8 := $std$lib$evm$storage_map$storagemap_storage_slot_with_salt$g67a8_1dd3(p0, v4)
+        let v5 := v8
+        let v3 := v5
+        let v6 := p2
+        sstore(v3, v6)
+        leave
+      }
+      function $std$lib$evm$storage_map$storagemap_set_word_with_salt$g7bf4_5a12(p0, p1, p2) {
         let r0 := mload(0x40)
         if iszero(r0) {
           r0 := 0x80
@@ -880,131 +871,23 @@ object "Erc20Contract" {
         mstore(r0, mload(p0))
         mstore(add(r0, 32), mload(add(p0, 32)))
         let v4 := p1
-        let v8 := $std$lib$evm$storage_map$storagemap_storage_slot_with_salt$g7bf4_2(r0, v4)
+        let v8 := $std$lib$evm$storage_map$storagemap_storage_slot_with_salt$g7bf4_e553(r0, v4)
         let v5 := v8
         let v3 := v5
         let v6 := p2
         sstore(v3, v6)
         leave
       }
-      function $std$lib$evm$storage_map$storagemap_storage_slot_with_salt$g67a8_1(p0, p1) -> ret {
-        let v13 := 0x00
-        let v4 := v13
-        let t24 := mload(0x40)
-        if iszero(t24) {
-          t24 := 0x80
-        }
-        mstore(0x40, add(t24, v4))
-        let v15 := t24
-        let v5 := v15
-        let v2 := v5
-        let v16 := $std$lib$evm$storage_map$impl_trait$Address$4d4e$write_key_2(v2, p0)
-        let v6 := v16
-        let v3 := v6
-        let t25 := add(v2, v3)
-        if lt(t25, v2) {
-          mstore(0, 0x4e487b7100000000000000000000000000000000000000000000000000000000)
-          mstore(4, 0x11)
-          revert(0, 36)
-        }
-        let v17 := t25
-        let v7 := v17
-        let v8 := p1
-        mstore(v7, v8)
-        let v20 := 0x20
-        let v10 := v20
-        let t26 := add(v3, v10)
-        if lt(t26, v3) {
-          mstore(0, 0x4e487b7100000000000000000000000000000000000000000000000000000000)
-          mstore(4, 0x11)
-          revert(0, 36)
-        }
-        let v21 := t26
-        let v11 := v21
-        let v23 := keccak256(v2, v11)
-        let v12 := v23
-        ret := v12
+      function $std$lib$evm$storage_map$storagemap_set_word_with_salt$g67a8_a3bb(p0, p1, p2) {
+        let v4 := p1
+        let v8 := $std$lib$evm$storage_map$storagemap_storage_slot_with_salt$g67a8_d54e(p0, v4)
+        let v5 := v8
+        let v3 := v5
+        let v6 := p2
+        sstore(v3, v6)
         leave
       }
-      function $std$lib$evm$storage_map$storagemap_storage_slot_with_salt$g67a8_0(p0, p1) -> ret {
-        let v13 := 0x00
-        let v4 := v13
-        let t24 := mload(0x40)
-        if iszero(t24) {
-          t24 := 0x80
-        }
-        mstore(0x40, add(t24, v4))
-        let v15 := t24
-        let v5 := v15
-        let v2 := v5
-        let v16 := $std$lib$evm$storage_map$impl_trait$Address$4d4e$write_key_0(v2, p0)
-        let v6 := v16
-        let v3 := v6
-        let t25 := add(v2, v3)
-        if lt(t25, v2) {
-          mstore(0, 0x4e487b7100000000000000000000000000000000000000000000000000000000)
-          mstore(4, 0x11)
-          revert(0, 36)
-        }
-        let v17 := t25
-        let v7 := v17
-        let v8 := p1
-        mstore(v7, v8)
-        let v20 := 0x20
-        let v10 := v20
-        let t26 := add(v3, v10)
-        if lt(t26, v3) {
-          mstore(0, 0x4e487b7100000000000000000000000000000000000000000000000000000000)
-          mstore(4, 0x11)
-          revert(0, 36)
-        }
-        let v21 := t26
-        let v11 := v21
-        let v23 := keccak256(v2, v11)
-        let v12 := v23
-        ret := v12
-        leave
-      }
-      function $std$lib$evm$storage_map$storagemap_storage_slot_with_salt$g67a8_2(p0, p1) -> ret {
-        let v13 := 0x00
-        let v4 := v13
-        let t24 := mload(0x40)
-        if iszero(t24) {
-          t24 := 0x80
-        }
-        mstore(0x40, add(t24, v4))
-        let v15 := t24
-        let v5 := v15
-        let v2 := v5
-        let v16 := $std$lib$evm$storage_map$impl_trait$Address$4d4e$write_key_5(v2, p0)
-        let v6 := v16
-        let v3 := v6
-        let t25 := add(v2, v3)
-        if lt(t25, v2) {
-          mstore(0, 0x4e487b7100000000000000000000000000000000000000000000000000000000)
-          mstore(4, 0x11)
-          revert(0, 36)
-        }
-        let v17 := t25
-        let v7 := v17
-        let v8 := p1
-        mstore(v7, v8)
-        let v20 := 0x20
-        let v10 := v20
-        let t26 := add(v3, v10)
-        if lt(t26, v3) {
-          mstore(0, 0x4e487b7100000000000000000000000000000000000000000000000000000000)
-          mstore(4, 0x11)
-          revert(0, 36)
-        }
-        let v21 := t26
-        let v11 := v21
-        let v23 := keccak256(v2, v11)
-        let v12 := v23
-        ret := v12
-        leave
-      }
-      function $std$lib$evm$storage_map$storagemap_storage_slot_with_salt$g7bf4_1(p0, p1) -> ret {
+      function $std$lib$evm$storage_map$storagemap_storage_slot_with_salt$g7bf4_0776(p0, p1) -> ret {
         let r0 := mload(0x40)
         if iszero(r0) {
           r0 := 0x80
@@ -1022,7 +905,7 @@ object "Erc20Contract" {
         let v15 := t24
         let v5 := v15
         let v2 := v5
-        let v16 := $std$lib$evm$storage_map$impl_trait$__$9761$write_key$g7528_1(v2, r0)
+        let v16 := $std$lib$evm$storage_map$impl_trait$__$9761$write_key$g7528_72b8(v2, r0)
         let v6 := v16
         let v3 := v6
         let t25 := add(v2, v3)
@@ -1050,7 +933,85 @@ object "Erc20Contract" {
         ret := v12
         leave
       }
-      function $std$lib$evm$storage_map$storagemap_storage_slot_with_salt$g7bf4_0(p0, p1) -> ret {
+      function $std$lib$evm$storage_map$storagemap_storage_slot_with_salt$g67a8_1dd3(p0, p1) -> ret {
+        let v13 := 0x00
+        let v4 := v13
+        let t24 := mload(0x40)
+        if iszero(t24) {
+          t24 := 0x80
+        }
+        mstore(0x40, add(t24, v4))
+        let v15 := t24
+        let v5 := v15
+        let v2 := v5
+        let v16 := $std$lib$evm$storage_map$impl_trait$Address$4d4e$write_key_5d2f(v2, p0)
+        let v6 := v16
+        let v3 := v6
+        let t25 := add(v2, v3)
+        if lt(t25, v2) {
+          mstore(0, 0x4e487b7100000000000000000000000000000000000000000000000000000000)
+          mstore(4, 0x11)
+          revert(0, 36)
+        }
+        let v17 := t25
+        let v7 := v17
+        let v8 := p1
+        mstore(v7, v8)
+        let v20 := 0x20
+        let v10 := v20
+        let t26 := add(v3, v10)
+        if lt(t26, v3) {
+          mstore(0, 0x4e487b7100000000000000000000000000000000000000000000000000000000)
+          mstore(4, 0x11)
+          revert(0, 36)
+        }
+        let v21 := t26
+        let v11 := v21
+        let v23 := keccak256(v2, v11)
+        let v12 := v23
+        ret := v12
+        leave
+      }
+      function $std$lib$evm$storage_map$storagemap_storage_slot_with_salt$g67a8_d54e(p0, p1) -> ret {
+        let v13 := 0x00
+        let v4 := v13
+        let t24 := mload(0x40)
+        if iszero(t24) {
+          t24 := 0x80
+        }
+        mstore(0x40, add(t24, v4))
+        let v15 := t24
+        let v5 := v15
+        let v2 := v5
+        let v16 := $std$lib$evm$storage_map$impl_trait$Address$4d4e$write_key_6b4f(v2, p0)
+        let v6 := v16
+        let v3 := v6
+        let t25 := add(v2, v3)
+        if lt(t25, v2) {
+          mstore(0, 0x4e487b7100000000000000000000000000000000000000000000000000000000)
+          mstore(4, 0x11)
+          revert(0, 36)
+        }
+        let v17 := t25
+        let v7 := v17
+        let v8 := p1
+        mstore(v7, v8)
+        let v20 := 0x20
+        let v10 := v20
+        let t26 := add(v3, v10)
+        if lt(t26, v3) {
+          mstore(0, 0x4e487b7100000000000000000000000000000000000000000000000000000000)
+          mstore(4, 0x11)
+          revert(0, 36)
+        }
+        let v21 := t26
+        let v11 := v21
+        let v23 := keccak256(v2, v11)
+        let v12 := v23
+        ret := v12
+        leave
+      }
+      function $std$lib$evm$storage_map$storagemap_storage_slot_with_salt$g7bf4_d8a5(p0, p1) -> ret {
         let r0 := mload(0x40)
         if iszero(r0) {
           r0 := 0x80
@@ -1068,7 +1029,7 @@ object "Erc20Contract" {
         let v15 := t24
         let v5 := v15
         let v2 := v5
-        let v16 := $std$lib$evm$storage_map$impl_trait$__$9761$write_key$g7528_0(v2, r0)
+        let v16 := $std$lib$evm$storage_map$impl_trait$__$9761$write_key$g7528_d74c(v2, r0)
         let v6 := v16
         let v3 := v6
         let t25 := add(v2, v3)
@@ -1096,7 +1057,7 @@ object "Erc20Contract" {
         ret := v12
         leave
       }
-      function $std$lib$evm$storage_map$storagemap_storage_slot_with_salt$g7bf4_2(p0, p1) -> ret {
+      function $std$lib$evm$storage_map$storagemap_storage_slot_with_salt$g7bf4_e553(p0, p1) -> ret {
         let r0 := mload(0x40)
         if iszero(r0) {
           r0 := 0x80
@@ -1114,7 +1075,7 @@ object "Erc20Contract" {
         let v15 := t24
         let v5 := v15
         let v2 := v5
-        let v16 := $std$lib$evm$storage_map$impl_trait$__$9761$write_key$g7528_2(v2, r0)
+        let v16 := $std$lib$evm$storage_map$impl_trait$__$9761$write_key$g7528_ef27(v2, r0)
         let v6 := v16
         let v3 := v6
         let t25 := add(v2, v3)
@@ -1142,143 +1103,170 @@ object "Erc20Contract" {
         ret := v12
         leave
       }
-      function $std$lib$evm$word$impl_trait$u256$1f9e$to_word_2(p0) -> ret {
+      function $std$lib$evm$storage_map$storagemap_storage_slot_with_salt$g67a8_e7af(p0, p1) -> ret {
+        let v13 := 0x00
+        let v4 := v13
+        let t24 := mload(0x40)
+        if iszero(t24) {
+          t24 := 0x80
+        }
+        mstore(0x40, add(t24, v4))
+        let v15 := t24
+        let v5 := v15
+        let v2 := v5
+        let v16 := $std$lib$evm$storage_map$impl_trait$Address$4d4e$write_key_72b5(v2, p0)
+        let v6 := v16
+        let v3 := v6
+        let t25 := add(v2, v3)
+        if lt(t25, v2) {
+          mstore(0, 0x4e487b7100000000000000000000000000000000000000000000000000000000)
+          mstore(4, 0x11)
+          revert(0, 36)
+        }
+        let v17 := t25
+        let v7 := v17
+        let v8 := p1
+        mstore(v7, v8)
+        let v20 := 0x20
+        let v10 := v20
+        let t26 := add(v3, v10)
+        if lt(t26, v3) {
+          mstore(0, 0x4e487b7100000000000000000000000000000000000000000000000000000000)
+          mstore(4, 0x11)
+          revert(0, 36)
+        }
+        let v21 := t26
+        let v11 := v21
+        let v23 := keccak256(v2, v11)
+        let v12 := v23
+        ret := v12
+        leave
+      }
+      function $std$lib$evm$word$impl_trait$u256$1f9e$to_word_3dd5(p0) -> ret {
         ret := p0
         leave
       }
-      function $std$lib$evm$word$impl_trait$u256$1f9e$to_word_3(p0) -> ret {
+      function $std$lib$evm$word$impl_trait$u256$1f9e$to_word_807a(p0) -> ret {
         ret := p0
         leave
       }
-      function $std$lib$evm$word$impl_trait$u256$1f9e$to_word_1(p0) -> ret {
+      function $std$lib$evm$word$impl_trait$u256$1f9e$to_word_b20e(p0) -> ret {
         ret := p0
         leave
       }
-      function $std$lib$evm$word$impl_trait$u256$1f9e$to_word_0(p0) -> ret {
+      function $std$lib$evm$word$impl_trait$u256$1f9e$to_word_e7d9(p0) -> ret {
         ret := p0
         leave
+      }
+      function $standalone$erc20_low_level$erc20_low_level$impl$Erc20$16d9$transfer$g0f37_536f(p0, p1, p2, p3, p4) {
+        let v5 := 0
+        let v7 := p1
+        let v27 := $standalone$erc20_low_level$erc20_low_level$impl$Erc20$16d9$balance_of$g35d6_f4de(p0, v7)
+        let v8 := v27
+        v5 := v8
+        let v28 := iszero(iszero(lt(v5, p3)))
+        let v10 := iszero(iszero(v28))
+        if iszero(iszero(v10)) {
+          let v29 := 0x00
+          let v11 := v29
+          let v30 := 0x00
+          let v12 := v30
+          $std$lib$evm$effects$impl_trait$Evm$0098$revert_bdf6_0(v11, v12)
+          invalid()
+        }
+        if iszero(iszero(iszero(v10))) {
+          let v15 := p2
+          let v33 := $standalone$erc20_low_level$erc20_low_level$impl$Erc20$16d9$balance_of$g35d6_f4de(p0, v15)
+          let v16 := v33
+          let v6 := v16
+          let v18 := p1
+          let v19 := p3
+          let t40 := sub(v5, v19)
+          if gt(v19, v5) {
+            mstore(0, 0x4e487b7100000000000000000000000000000000000000000000000000000000)
+            mstore(4, 0x11)
+            revert(0, 36)
+          }
+          let v34 := t40
+          let v20 := v34
+          $std$lib$evm$storage_map$impl$StorageMap$9f54$set$g2163_9582(v18, v20)
+          let v23 := p2
+          let v24 := p3
+          let t41 := add(v6, v24)
+          if lt(t41, v6) {
+            mstore(0, 0x4e487b7100000000000000000000000000000000000000000000000000000000)
+            mstore(4, 0x11)
+            revert(0, 36)
+          }
+          let v37 := t41
+          let v25 := v37
+          $std$lib$evm$storage_map$impl$StorageMap$9f54$set$g2163_9582(v23, v25)
+          leave
+        }
+      }
+      function $standalone$erc20_low_level$erc20_low_level$impl$Erc20$16d9$transfer$g0f37_ecc8(p0, p1, p2, p3, p4) {
+        let v5 := 0
+        let v7 := p1
+        let v27 := $standalone$erc20_low_level$erc20_low_level$impl$Erc20$16d9$balance_of$g35d6_f4de(p0, v7)
+        let v8 := v27
+        v5 := v8
+        let v28 := iszero(iszero(lt(v5, p3)))
+        let v10 := iszero(iszero(v28))
+        if iszero(iszero(v10)) {
+          let v29 := 0x00
+          let v11 := v29
+          let v30 := 0x00
+          let v12 := v30
+          $std$lib$evm$effects$impl_trait$Evm$0098$revert_bdf6_0(v11, v12)
+          invalid()
+        }
+        if iszero(iszero(iszero(v10))) {
+          let v15 := p2
+          let v33 := $standalone$erc20_low_level$erc20_low_level$impl$Erc20$16d9$balance_of$g35d6_f4de(p0, v15)
+          let v16 := v33
+          let v6 := v16
+          let v18 := p1
+          let v19 := p3
+          let t40 := sub(v5, v19)
+          if gt(v19, v5) {
+            mstore(0, 0x4e487b7100000000000000000000000000000000000000000000000000000000)
+            mstore(4, 0x11)
+            revert(0, 36)
+          }
+          let v34 := t40
+          let v20 := v34
+          $std$lib$evm$storage_map$impl$StorageMap$9f54$set$g2163_9582(v18, v20)
+          let v23 := p2
+          let v24 := p3
+          let t41 := add(v6, v24)
+          if lt(t41, v6) {
+            mstore(0, 0x4e487b7100000000000000000000000000000000000000000000000000000000)
+            mstore(4, 0x11)
+            revert(0, 36)
+          }
+          let v37 := t41
+          let v25 := v37
+          $std$lib$evm$storage_map$impl$StorageMap$9f54$set$g2163_9582(v23, v25)
+          leave
+        }
       }
       function $transfer_eff0_stor(p0, p1, p2, p3, p4) -> ret {
         let v11 := p2
         let v5 := v11
-        let v12 := $std$lib$evm$effects$impl_trait$Evm$a1e8$caller_1()
+        let v12 := $std$lib$evm$effects$impl_trait$Evm$a1e8$caller_f783_0()
         let v6 := v12
         let v7 := p0
         let v8 := p1
-        $standalone$erc20_low_level$erc20_low_level$impl$Erc20$16d9$transfer$g0f37_0(v5, v6, v7, v8, p4)
+        $standalone$erc20_low_level$erc20_low_level$impl$Erc20$16d9$transfer$g0f37_536f(v5, v6, v7, v8, p4)
         let v15 := 0x01
         let v10 := v15
         ret := v10
         leave
       }
-      function $standalone$erc20_low_level$erc20_low_level$impl$Erc20$16d9$transfer$g0f37_1(p0, p1, p2, p3, p4) {
-        let v5 := 0
-        let v7 := p1
-        let v27 := $standalone$erc20_low_level$erc20_low_level$impl$Erc20$16d9$balance_of$g35d6_0(p0, v7)
-        let v8 := v27
-        v5 := v8
-        let v28 := iszero(iszero(lt(v5, p3)))
-        let v10 := iszero(iszero(v28))
-        if iszero(iszero(v10)) {
-          let v29 := 0x00
-          let v11 := v29
-          let v30 := 0x00
-          let v12 := v30
-          $std$lib$evm$effects$impl_trait$Evm$0098$revert_1(v11, v12)
-          invalid()
-        }
-        if iszero(iszero(iszero(v10))) {
-          let v15 := p2
-          let v33 := $standalone$erc20_low_level$erc20_low_level$impl$Erc20$16d9$balance_of$g35d6_0(p0, v15)
-          let v16 := v33
-          let v6 := v16
-          let v18 := p1
-          let v19 := p3
-          let t40 := sub(v5, v19)
-          if gt(v19, v5) {
-            mstore(0, 0x4e487b7100000000000000000000000000000000000000000000000000000000)
-            mstore(4, 0x11)
-            revert(0, 36)
-          }
-          let v34 := t40
-          let v20 := v34
-          $std$lib$evm$storage_map$impl$StorageMap$9f54$set$g2163_0(v18, v20)
-          let v23 := p2
-          let v24 := p3
-          let t41 := add(v6, v24)
-          if lt(t41, v6) {
-            mstore(0, 0x4e487b7100000000000000000000000000000000000000000000000000000000)
-            mstore(4, 0x11)
-            revert(0, 36)
-          }
-          let v37 := t41
-          let v25 := v37
-          $std$lib$evm$storage_map$impl$StorageMap$9f54$set$g2163_0(v23, v25)
-          leave
-        }
-      }
-      function $standalone$erc20_low_level$erc20_low_level$impl$Erc20$16d9$transfer$g0f37_0(p0, p1, p2, p3, p4) {
-        let v5 := 0
-        let v7 := p1
-        let v27 := $standalone$erc20_low_level$erc20_low_level$impl$Erc20$16d9$balance_of$g35d6_0(p0, v7)
-        let v8 := v27
-        v5 := v8
-        let v28 := iszero(iszero(lt(v5, p3)))
-        let v10 := iszero(iszero(v28))
-        if iszero(iszero(v10)) {
-          let v29 := 0x00
-          let v11 := v29
-          let v30 := 0x00
-          let v12 := v30
-          $std$lib$evm$effects$impl_trait$Evm$0098$revert_1(v11, v12)
-          invalid()
-        }
-        if iszero(iszero(iszero(v10))) {
-          let v15 := p2
-          let v33 := $standalone$erc20_low_level$erc20_low_level$impl$Erc20$16d9$balance_of$g35d6_0(p0, v15)
-          let v16 := v33
-          let v6 := v16
-          let v18 := p1
-          let v19 := p3
-          let t40 := sub(v5, v19)
-          if gt(v19, v5) {
-            mstore(0, 0x4e487b7100000000000000000000000000000000000000000000000000000000)
-            mstore(4, 0x11)
-            revert(0, 36)
-          }
-          let v34 := t40
-          let v20 := v34
-          $std$lib$evm$storage_map$impl$StorageMap$9f54$set$g2163_0(v18, v20)
-          let v23 := p2
-          let v24 := p3
-          let t41 := add(v6, v24)
-          if lt(t41, v6) {
-            mstore(0, 0x4e487b7100000000000000000000000000000000000000000000000000000000)
-            mstore(4, 0x11)
-            revert(0, 36)
-          }
-          let v37 := t41
-          let v25 := v37
-          $std$lib$evm$storage_map$impl$StorageMap$9f54$set$g2163_0(v23, v25)
-          leave
-        }
-      }
-      function $transfer_from_eff0_stor(p0, p1, p2, p3, p4, p5) -> ret {
-        let v12 := p3
-        let v6 := v12
-        let v7 := p0
-        let v8 := p1
-        let v9 := p2
-        $transfer_from(v6, v7, v8, v9, p4, p5)
-        let v15 := 0x01
-        let v11 := v15
-        ret := v11
-        leave
-      }
       function $transfer_from(p0, p1, p2, p3, p4, p5) {
         let v6 := 0
         let v7 := 0
-        let v27 := $std$lib$evm$effects$impl_trait$Evm$a1e8$caller_1()
+        let v27 := $std$lib$evm$effects$impl_trait$Evm$a1e8$caller_f783_0()
         let v8 := v27
         v6 := v8
         let v9 := p1
@@ -1292,14 +1280,14 @@ object "Erc20Contract" {
           let v13 := v30
           let v31 := 0x00
           let v14 := v31
-          $std$lib$evm$effects$impl_trait$Evm$0098$revert_2(v13, v14)
+          $std$lib$evm$effects$impl_trait$Evm$0098$revert_ad8e(v13, v14)
           invalid()
         }
         if iszero(iszero(iszero(v12))) {
           let v17 := p1
           let v18 := p2
           let v19 := p3
-          $standalone$erc20_low_level$erc20_low_level$impl$Erc20$16d9$transfer$g0f37_1(p0, v17, v18, v19, p5)
+          $standalone$erc20_low_level$erc20_low_level$impl$Erc20$16d9$transfer$g0f37_ecc8(p0, v17, v18, v19, p5)
           let v22 := p1
           let t40 := mload(0x40)
           if iszero(t40) {
@@ -1319,11 +1307,23 @@ object "Erc20Contract" {
           }
           let v37 := t41
           let v25 := v37
-          $std$lib$evm$storage_map$impl$StorageMap$9f54$set$ga15b_1(v23, v25)
+          $std$lib$evm$storage_map$impl$StorageMap$9f54$set$ga15b_0c21(v23, v25)
           leave
         }
       }
-      function $std$lib$evm$storage_map$impl_trait$u256$0dfe$write_key_2(p0, p1) -> ret {
+      function $transfer_from_eff0_stor(p0, p1, p2, p3, p4, p5) -> ret {
+        let v12 := p3
+        let v6 := v12
+        let v7 := p0
+        let v8 := p1
+        let v9 := p2
+        $transfer_from(v6, v7, v8, v9, p4, p5)
+        let v15 := 0x01
+        let v11 := v15
+        ret := v11
+        leave
+      }
+      function $std$lib$evm$storage_map$impl_trait$u256$0dfe$write_key_1723(p0, p1) -> ret {
         let v2 := p0
         let v3 := p1
         mstore(v2, v3)
@@ -1332,7 +1332,7 @@ object "Erc20Contract" {
         ret := v5
         leave
       }
-      function $std$lib$evm$storage_map$impl_trait$u256$0dfe$write_key_1(p0, p1) -> ret {
+      function $std$lib$evm$storage_map$impl_trait$u256$0dfe$write_key_18df(p0, p1) -> ret {
         let v2 := p0
         let v3 := p1
         mstore(v2, v3)
@@ -1341,7 +1341,16 @@ object "Erc20Contract" {
         ret := v5
         leave
       }
-      function $std$lib$evm$storage_map$impl_trait$Address$4d4e$write_key_5(p0, p1) -> ret {
+      function $std$lib$evm$storage_map$impl_trait$u256$0dfe$write_key_30dc(p0, p1) -> ret {
+        let v2 := p0
+        let v3 := p1
+        mstore(v2, v3)
+        let v8 := 0x20
+        let v5 := v8
+        ret := v5
+        leave
+      }
+      function $std$lib$evm$storage_map$impl_trait$Address$4d4e$write_key_5ae2(p0, p1) -> ret {
         let r1 := mload(0x40)
         if iszero(r1) {
           r1 := 0x80
@@ -1351,12 +1360,12 @@ object "Erc20Contract" {
         let v2 := p0
         let t6 := mload(r1)
         let v3 := t6
-        let v5 := $std$lib$evm$storage_map$impl_trait$u256$0dfe$write_key_5(v2, v3)
+        let v5 := $std$lib$evm$storage_map$impl_trait$u256$0dfe$write_key_18df(v2, v3)
         let v4 := v5
         ret := v4
         leave
       }
-      function $std$lib$evm$storage_map$impl_trait$Address$4d4e$write_key_3(p0, p1) -> ret {
+      function $std$lib$evm$storage_map$impl_trait$Address$4d4e$write_key_5d2f(p0, p1) -> ret {
         let r1 := mload(0x40)
         if iszero(r1) {
           r1 := 0x80
@@ -1366,12 +1375,42 @@ object "Erc20Contract" {
         let v2 := p0
         let t6 := mload(r1)
         let v3 := t6
-        let v5 := $std$lib$evm$storage_map$impl_trait$u256$0dfe$write_key_3(v2, v3)
+        let v5 := $std$lib$evm$storage_map$impl_trait$u256$0dfe$write_key_1723(v2, v3)
         let v4 := v5
         ret := v4
         leave
       }
-      function $std$lib$evm$storage_map$impl_trait$__$9761$write_key$g7528_1(p0, p1) -> ret {
+      function $std$lib$evm$storage_map$impl_trait$Address$4d4e$write_key_6b4f(p0, p1) -> ret {
+        let r1 := mload(0x40)
+        if iszero(r1) {
+          r1 := 0x80
+        }
+        mstore(0x40, add(r1, 32))
+        mstore(r1, p1)
+        let v2 := p0
+        let t6 := mload(r1)
+        let v3 := t6
+        let v5 := $std$lib$evm$storage_map$impl_trait$u256$0dfe$write_key_30dc(v2, v3)
+        let v4 := v5
+        ret := v4
+        leave
+      }
+      function $std$lib$evm$storage_map$impl_trait$Address$4d4e$write_key_72b5(p0, p1) -> ret {
+        let r1 := mload(0x40)
+        if iszero(r1) {
+          r1 := 0x80
+        }
+        mstore(0x40, add(r1, 32))
+        mstore(r1, p1)
+        let v2 := p0
+        let t6 := mload(r1)
+        let v3 := t6
+        let v5 := $std$lib$evm$storage_map$impl_trait$u256$0dfe$write_key_f2a4(v2, v3)
+        let v4 := v5
+        ret := v4
+        leave
+      }
+      function $std$lib$evm$storage_map$impl_trait$__$9761$write_key$g7528_72b8(p0, p1) -> ret {
         let r1 := mload(0x40)
         if iszero(r1) {
           r1 := 0x80
@@ -1382,7 +1421,7 @@ object "Erc20Contract" {
         let v4 := p0
         let t16 := mload(r1)
         let v5 := t16
-        let v12 := $std$lib$evm$storage_map$impl_trait$Address$4d4e$write_key_3(v4, v5)
+        let v12 := $std$lib$evm$storage_map$impl_trait$Address$4d4e$write_key_9543(v4, v5)
         let v6 := v12
         let v2 := v6
         let v7 := p0
@@ -1396,7 +1435,7 @@ object "Erc20Contract" {
         let v8 := v13
         let t18 := mload(add(r1, 32))
         let v9 := t18
-        let v14 := $std$lib$evm$storage_map$impl_trait$Address$4d4e$write_key_3(v8, v9)
+        let v14 := $std$lib$evm$storage_map$impl_trait$Address$4d4e$write_key_9543(v8, v9)
         let v10 := v14
         let v3 := v10
         let t19 := add(v2, v3)
@@ -1410,7 +1449,46 @@ object "Erc20Contract" {
         ret := v11
         leave
       }
-      function $std$lib$evm$storage_map$impl_trait$__$9761$write_key$g7528_0(p0, p1) -> ret {
+      function $std$lib$evm$storage_map$impl_trait$Address$4d4e$write_key_9543(p0, p1) -> ret {
+        let r1 := mload(0x40)
+        if iszero(r1) {
+          r1 := 0x80
+        }
+        mstore(0x40, add(r1, 32))
+        mstore(r1, p1)
+        let v2 := p0
+        let t6 := mload(r1)
+        let v3 := t6
+        let v5 := $std$lib$evm$storage_map$impl_trait$u256$0dfe$write_key_e2d8(v2, v3)
+        let v4 := v5
+        ret := v4
+        leave
+      }
+      function $std$lib$evm$storage_map$impl_trait$Address$4d4e$write_key_af1b(p0, p1) -> ret {
+        let r1 := mload(0x40)
+        if iszero(r1) {
+          r1 := 0x80
+        }
+        mstore(0x40, add(r1, 32))
+        mstore(r1, p1)
+        let v2 := p0
+        let t6 := mload(r1)
+        let v3 := t6
+        let v5 := $std$lib$evm$storage_map$impl_trait$u256$0dfe$write_key_b4cb(v2, v3)
+        let v4 := v5
+        ret := v4
+        leave
+      }
+      function $std$lib$evm$storage_map$impl_trait$u256$0dfe$write_key_b4cb(p0, p1) -> ret {
+        let v2 := p0
+        let v3 := p1
+        mstore(v2, v3)
+        let v8 := 0x20
+        let v5 := v8
+        ret := v5
+        leave
+      }
+      function $std$lib$evm$storage_map$impl_trait$__$9761$write_key$g7528_d74c(p0, p1) -> ret {
         let r1 := mload(0x40)
         if iszero(r1) {
           r1 := 0x80
@@ -1421,7 +1499,7 @@ object "Erc20Contract" {
         let v4 := p0
         let t16 := mload(r1)
         let v5 := t16
-        let v12 := $std$lib$evm$storage_map$impl_trait$Address$4d4e$write_key_1(v4, v5)
+        let v12 := $std$lib$evm$storage_map$impl_trait$Address$4d4e$write_key_af1b(v4, v5)
         let v6 := v12
         let v2 := v6
         let v7 := p0
@@ -1435,7 +1513,7 @@ object "Erc20Contract" {
         let v8 := v13
         let t18 := mload(add(r1, 32))
         let v9 := t18
-        let v14 := $std$lib$evm$storage_map$impl_trait$Address$4d4e$write_key_1(v8, v9)
+        let v14 := $std$lib$evm$storage_map$impl_trait$Address$4d4e$write_key_af1b(v8, v9)
         let v10 := v14
         let v3 := v10
         let t19 := add(v2, v3)
@@ -1449,7 +1527,16 @@ object "Erc20Contract" {
         ret := v11
         leave
       }
-      function $std$lib$evm$storage_map$impl_trait$__$9761$write_key$g7528_2(p0, p1) -> ret {
+      function $std$lib$evm$storage_map$impl_trait$u256$0dfe$write_key_e2d8(p0, p1) -> ret {
+        let v2 := p0
+        let v3 := p1
+        mstore(v2, v3)
+        let v8 := 0x20
+        let v5 := v8
+        ret := v5
+        leave
+      }
+      function $std$lib$evm$storage_map$impl_trait$__$9761$write_key$g7528_ef27(p0, p1) -> ret {
         let r1 := mload(0x40)
         if iszero(r1) {
           r1 := 0x80
@@ -1460,7 +1547,7 @@ object "Erc20Contract" {
         let v4 := p0
         let t16 := mload(r1)
         let v5 := t16
-        let v12 := $std$lib$evm$storage_map$impl_trait$Address$4d4e$write_key_4(v4, v5)
+        let v12 := $std$lib$evm$storage_map$impl_trait$Address$4d4e$write_key_5ae2(v4, v5)
         let v6 := v12
         let v2 := v6
         let v7 := p0
@@ -1474,7 +1561,7 @@ object "Erc20Contract" {
         let v8 := v13
         let t18 := mload(add(r1, 32))
         let v9 := t18
-        let v14 := $std$lib$evm$storage_map$impl_trait$Address$4d4e$write_key_4(v8, v9)
+        let v14 := $std$lib$evm$storage_map$impl_trait$Address$4d4e$write_key_5ae2(v8, v9)
         let v10 := v14
         let v3 := v10
         let t19 := add(v2, v3)
@@ -1488,100 +1575,13 @@ object "Erc20Contract" {
         ret := v11
         leave
       }
-      function $std$lib$evm$storage_map$impl_trait$u256$0dfe$write_key_0(p0, p1) -> ret {
+      function $std$lib$evm$storage_map$impl_trait$u256$0dfe$write_key_f2a4(p0, p1) -> ret {
         let v2 := p0
         let v3 := p1
         mstore(v2, v3)
         let v8 := 0x20
         let v5 := v8
         ret := v5
-        leave
-      }
-      function $std$lib$evm$storage_map$impl_trait$u256$0dfe$write_key_4(p0, p1) -> ret {
-        let v2 := p0
-        let v3 := p1
-        mstore(v2, v3)
-        let v8 := 0x20
-        let v5 := v8
-        ret := v5
-        leave
-      }
-      function $std$lib$evm$storage_map$impl_trait$u256$0dfe$write_key_5(p0, p1) -> ret {
-        let v2 := p0
-        let v3 := p1
-        mstore(v2, v3)
-        let v8 := 0x20
-        let v5 := v8
-        ret := v5
-        leave
-      }
-      function $std$lib$evm$storage_map$impl_trait$u256$0dfe$write_key_3(p0, p1) -> ret {
-        let v2 := p0
-        let v3 := p1
-        mstore(v2, v3)
-        let v8 := 0x20
-        let v5 := v8
-        ret := v5
-        leave
-      }
-      function $std$lib$evm$storage_map$impl_trait$Address$4d4e$write_key_2(p0, p1) -> ret {
-        let r1 := mload(0x40)
-        if iszero(r1) {
-          r1 := 0x80
-        }
-        mstore(0x40, add(r1, 32))
-        mstore(r1, p1)
-        let v2 := p0
-        let t6 := mload(r1)
-        let v3 := t6
-        let v5 := $std$lib$evm$storage_map$impl_trait$u256$0dfe$write_key_2(v2, v3)
-        let v4 := v5
-        ret := v4
-        leave
-      }
-      function $std$lib$evm$storage_map$impl_trait$Address$4d4e$write_key_1(p0, p1) -> ret {
-        let r1 := mload(0x40)
-        if iszero(r1) {
-          r1 := 0x80
-        }
-        mstore(0x40, add(r1, 32))
-        mstore(r1, p1)
-        let v2 := p0
-        let t6 := mload(r1)
-        let v3 := t6
-        let v5 := $std$lib$evm$storage_map$impl_trait$u256$0dfe$write_key_1(v2, v3)
-        let v4 := v5
-        ret := v4
-        leave
-      }
-      function $std$lib$evm$storage_map$impl_trait$Address$4d4e$write_key_0(p0, p1) -> ret {
-        let r1 := mload(0x40)
-        if iszero(r1) {
-          r1 := 0x80
-        }
-        mstore(0x40, add(r1, 32))
-        mstore(r1, p1)
-        let v2 := p0
-        let t6 := mload(r1)
-        let v3 := t6
-        let v5 := $std$lib$evm$storage_map$impl_trait$u256$0dfe$write_key_0(v2, v3)
-        let v4 := v5
-        ret := v4
-        leave
-      }
-      function $std$lib$evm$storage_map$impl_trait$Address$4d4e$write_key_4(p0, p1) -> ret {
-        let r1 := mload(0x40)
-        if iszero(r1) {
-          r1 := 0x80
-        }
-        mstore(0x40, add(r1, 32))
-        mstore(r1, p1)
-        let v2 := p0
-        let t6 := mload(r1)
-        let v3 := t6
-        let v5 := $std$lib$evm$storage_map$impl_trait$u256$0dfe$write_key_4(v2, v3)
-        let v4 := v5
-        ret := v4
         leave
       }
       $manual_contract_runtime_root_Erc20Contract()

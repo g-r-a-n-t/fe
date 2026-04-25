@@ -19,7 +19,7 @@ func private %abi_encode(v0.i256, v1.objref<@layout_1>) {
     block1:
         v5.i256 = mload v2 i256;
         call %mstore v1 0.i256 v5;
-        call %std__lib__evm__effects__impl_trait_Evm_0098__return_data_2 0.i256 32.i256;
+        call %std__lib__evm__effects__impl_trait_Evm_0098__return_data_56b8 0.i256 32.i256;
         unreachable;
 }
 
@@ -64,19 +64,6 @@ func private %from_word(v0.i256) -> i256 {
         return v2;
 }
 
-func private %get__g7fdf(v0.i256) -> i256 {
-    block0:
-        v1.*i256 = alloca i256;
-        mstore v1 v0 i256;
-        jump block1;
-
-    block1:
-        v3.i256 = mload v1 i256;
-        v4.i256 = call %storagemap_get_word_with_salt v3 1.i256;
-        v5.i256 = call %from_word v4;
-        return v5;
-}
-
 func private %get__gcbe1(v0.i256) -> i256 {
     block0:
         v1.*i256 = alloca i256;
@@ -114,6 +101,19 @@ func private %get_balance(v0.i256, v1.objref<@layout_3>) -> i256 {
         return v4;
 }
 
+func private %get__g7fdf(v0.i256) -> i256 {
+    block0:
+        v1.*i256 = alloca i256;
+        mstore v1 v0 i256;
+        jump block1;
+
+    block1:
+        v3.i256 = mload v1 i256;
+        v4.i256 = call %storagemap_get_word_with_salt v3 1.i256;
+        v5.i256 = call %from_word v4;
+        return v5;
+}
+
 func private %init(v0.objref<@layout_1>) {
     block0:
         jump block1;
@@ -122,7 +122,7 @@ func private %init(v0.objref<@layout_1>) {
         v1.i256 = sym_size &__BalanceMap_runtime;
         v2.i256 = sym_addr &__BalanceMap_runtime;
         call %codecopy v0 0.i256 v2 v1;
-        call %std__lib__evm__effects__impl_trait_Evm_0098__return_data_1 0.i256 v1;
+        call %std__lib__evm__effects__impl_trait_Evm_0098__return_data_ad81_0 0.i256 v1;
         unreachable;
 }
 
@@ -161,14 +161,6 @@ func private %mstore(v0.objref<@layout_1>, v1.i256, v2.i256) {
         return;
 }
 
-func private %new__g7fdf() {
-    block0:
-        jump block1;
-
-    block1:
-        return;
-}
-
 func private %new__gcbe1() {
     block0:
         jump block1;
@@ -177,7 +169,15 @@ func private %new__gcbe1() {
         return;
 }
 
-func private %std__lib__evm__effects__impl_trait_Evm_0098__return_data_0(v0.i256, v1.i256) {
+func private %new__g7fdf() {
+    block0:
+        jump block1;
+
+    block1:
+        return;
+}
+
+func private %std__lib__evm__effects__impl_trait_Evm_0098__return_data_56b8(v0.i256, v1.i256) {
     block0:
         v2.*i256 = alloca i256;
         v3.*i256 = alloca i256;
@@ -191,7 +191,7 @@ func private %std__lib__evm__effects__impl_trait_Evm_0098__return_data_0(v0.i256
         evm_return v4 v5;
 }
 
-func private %std__lib__evm__effects__impl_trait_Evm_0098__return_data_1(v0.i256, v1.i256) {
+func private %std__lib__evm__effects__impl_trait_Evm_0098__return_data_ad81(v0.i256, v1.i256) {
     block0:
         v2.*i256 = alloca i256;
         v3.*i256 = alloca i256;
@@ -205,7 +205,7 @@ func private %std__lib__evm__effects__impl_trait_Evm_0098__return_data_1(v0.i256
         evm_return v4 v5;
 }
 
-func private %std__lib__evm__effects__impl_trait_Evm_0098__return_data_2(v0.i256, v1.i256) {
+func private %std__lib__evm__effects__impl_trait_Evm_0098__return_data_ad81_0(v0.i256, v1.i256) {
     block0:
         v2.*i256 = alloca i256;
         v3.*i256 = alloca i256;
@@ -278,7 +278,7 @@ func private %runtime(v0.objref<@layout_1>) {
         unreachable;
 
     block7:
-        call %std__lib__evm__effects__impl_trait_Evm_0098__return_data_0 0.i256 0.i256;
+        call %std__lib__evm__effects__impl_trait_Evm_0098__return_data_ad81 0.i256 0.i256;
         unreachable;
 
     block8:

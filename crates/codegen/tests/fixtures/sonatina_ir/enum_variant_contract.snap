@@ -21,7 +21,7 @@ func private %abi_encode_u256(v0.i256, v1.objref<@layout_1>) {
     block1:
         v5.i256 = mload v2 i256;
         call %mstore v1 0.i256 v5;
-        call %std__lib__evm__effects__impl_trait_Evm_0098__return_data_0 0.i256 32.i256;
+        call %std__lib__evm__effects__impl_trait_Evm_0098__return_data_d650 0.i256 32.i256;
         unreachable;
 }
 
@@ -63,7 +63,7 @@ func private %init(v0.objref<@layout_1>) {
         v1.i256 = sym_size &__EnumContract_runtime;
         v2.i256 = sym_addr &__EnumContract_runtime;
         call %codecopy v0 0.i256 v2 v1;
-        call %std__lib__evm__effects__impl_trait_Evm_0098__return_data_1 0.i256 v1;
+        call %std__lib__evm__effects__impl_trait_Evm_0098__return_data_1461 0.i256 v1;
         unreachable;
 }
 
@@ -102,7 +102,7 @@ func private %mstore(v0.objref<@layout_1>, v1.i256, v2.i256) {
         return;
 }
 
-func private %std__lib__evm__effects__impl_trait_Evm_0098__return_data_0(v0.i256, v1.i256) {
+func private %std__lib__evm__effects__impl_trait_Evm_0098__return_data_1461(v0.i256, v1.i256) {
     block0:
         v2.*i256 = alloca i256;
         v3.*i256 = alloca i256;
@@ -116,7 +116,7 @@ func private %std__lib__evm__effects__impl_trait_Evm_0098__return_data_0(v0.i256
         evm_return v4 v5;
 }
 
-func private %std__lib__evm__effects__impl_trait_Evm_0098__return_data_1(v0.i256, v1.i256) {
+func private %std__lib__evm__effects__impl_trait_Evm_0098__return_data_1461_0(v0.i256, v1.i256) {
     block0:
         v2.*i256 = alloca i256;
         v3.*i256 = alloca i256;
@@ -130,7 +130,7 @@ func private %std__lib__evm__effects__impl_trait_Evm_0098__return_data_1(v0.i256
         evm_return v4 v5;
 }
 
-func private %std__lib__evm__effects__impl_trait_Evm_0098__return_data_2(v0.i256, v1.i256) {
+func private %std__lib__evm__effects__impl_trait_Evm_0098__return_data_d650(v0.i256, v1.i256) {
     block0:
         v2.*i256 = alloca i256;
         v3.*i256 = alloca i256;
@@ -220,7 +220,7 @@ func private %runtime(v0.objref<@layout_1>) {
         jump block16;
 
     block16:
-        call %std__lib__evm__effects__impl_trait_Evm_0098__return_data_2 0.i256 0.i256;
+        call %std__lib__evm__effects__impl_trait_Evm_0098__return_data_1461_0 0.i256 0.i256;
         unreachable;
 
     block17:

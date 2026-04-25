@@ -31,12 +31,12 @@ object "main" {
       ret := and(v0, 0xffffffff)
       leave
     }
-    function $generic_fn$gb148(p0) -> ret {
-      ret := and(p0, 0xffffffff)
-      leave
-    }
     function $generic_fn$gf088(p0) -> ret {
       ret := and(p0, 0xffffffffffffffff)
+      leave
+    }
+    function $generic_fn$gb148(p0) -> ret {
+      ret := and(p0, 0xffffffff)
       leave
     }
     function $main() -> ret {
@@ -92,22 +92,6 @@ object "main" {
       ret := and(v2, 0xffffffff)
       leave
     }
-    function $name_collisions$impl_a$impl$Widget$process(p0) -> ret {
-      let t6 := and(mload(p0), 0xffffffff)
-      let v1 := t6
-      let v4 := 0x02
-      let v2 := and(v4, 0xffffffff)
-      let t7 := and(mul(and(v1, 0xffffffff), and(v2, 0xffffffff)), 0xffffffff)
-      if and(iszero(iszero(and(v1, 0xffffffff))), iszero(eq(div(t7, and(v1, 0xffffffff)), and(v2, 0xffffffff)))) {
-        mstore(0, 0x4e487b7100000000000000000000000000000000000000000000000000000000)
-        mstore(4, 0x11)
-        revert(0, 36)
-      }
-      let v5 := t7
-      let v3 := and(v5, 0xffffffff)
-      ret := and(v3, 0xffffffff)
-      leave
-    }
     function $name_collisions$impl_b$impl$Widget$process(p0) -> ret {
       let t6 := and(mload(p0), 0xffffffffffffffff)
       let v1 := t6
@@ -122,6 +106,22 @@ object "main" {
       let v5 := t7
       let v3 := and(v5, 0xffffffffffffffff)
       ret := and(v3, 0xffffffffffffffff)
+      leave
+    }
+    function $name_collisions$impl_a$impl$Widget$process(p0) -> ret {
+      let t6 := and(mload(p0), 0xffffffff)
+      let v1 := t6
+      let v4 := 0x02
+      let v2 := and(v4, 0xffffffff)
+      let t7 := and(mul(and(v1, 0xffffffff), and(v2, 0xffffffff)), 0xffffffff)
+      if and(iszero(iszero(and(v1, 0xffffffff))), iszero(eq(div(t7, and(v1, 0xffffffff)), and(v2, 0xffffffff)))) {
+        mstore(0, 0x4e487b7100000000000000000000000000000000000000000000000000000000)
+        mstore(4, 0x11)
+        revert(0, 36)
+      }
+      let v5 := t7
+      let v3 := and(v5, 0xffffffff)
+      ret := and(v3, 0xffffffff)
       leave
     }
     function $ret_param_collision(p0) -> ret {

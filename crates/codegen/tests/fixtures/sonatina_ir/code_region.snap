@@ -47,7 +47,7 @@ func private %balance(v0.objref<@layout_1>) {
         jump block1;
 
     block1:
-        call %std__lib__evm__effects__impl_trait_Evm_0098__return_data_1 0.i256 0.i256;
+        call %std__lib__evm__effects__impl_trait_Evm_0098__return_data_264c 0.i256 0.i256;
         unreachable;
 }
 
@@ -88,8 +88,8 @@ func private %child_init(v0.objref<@layout_1>) {
     block1:
         v1.i256 = sym_size &__Child_runtime;
         v2.i256 = sym_addr &__Child_runtime;
-        call %std__lib__evm__effects__impl_trait_Evm_0098__codecopy_1 v0 0.i256 v2 v1;
-        call %std__lib__evm__effects__impl_trait_Evm_0098__return_data_2 0.i256 v1;
+        call %std__lib__evm__effects__impl_trait_Evm_0098__codecopy_48e9_0 v0 0.i256 v2 v1;
+        call %std__lib__evm__effects__impl_trait_Evm_0098__return_data_5f25_0 0.i256 v1;
         unreachable;
 }
 
@@ -99,11 +99,11 @@ func private %child_runtime(v0.objref<@layout_1>) {
 
     block1:
         call %calldatacopy v0 0.i256 0.i256 4.i256;
-        call %std__lib__evm__effects__impl_trait_Evm_0098__return_data_3 0.i256 4.i256;
+        call %std__lib__evm__effects__impl_trait_Evm_0098__return_data_5f25_1 0.i256 4.i256;
         unreachable;
 }
 
-func private %std__lib__evm__effects__impl_trait_Evm_0098__codecopy_0(v0.objref<@layout_1>, v1.i256, v2.i256, v3.i256) {
+func private %std__lib__evm__effects__impl_trait_Evm_0098__codecopy_48e9(v0.objref<@layout_1>, v1.i256, v2.i256, v3.i256) {
     block0:
         v4.*i256 = alloca i256;
         v5.*i256 = alloca i256;
@@ -121,7 +121,7 @@ func private %std__lib__evm__effects__impl_trait_Evm_0098__codecopy_0(v0.objref<
         return;
 }
 
-func private %std__lib__evm__effects__impl_trait_Evm_0098__codecopy_1(v0.objref<@layout_1>, v1.i256, v2.i256, v3.i256) {
+func private %std__lib__evm__effects__impl_trait_Evm_0098__codecopy_48e9_0(v0.objref<@layout_1>, v1.i256, v2.i256, v3.i256) {
     block0:
         v4.*i256 = alloca i256;
         v5.*i256 = alloca i256;
@@ -172,13 +172,13 @@ func private %init(v0.objref<@layout_1>) {
         v1.i256 = sym_size &__Child_init;
         v2.i256 = sym_addr &__Child_init;
         v4.i256 = call %allocate v1 v0;
-        call %std__lib__evm__effects__impl_trait_Evm_0098__codecopy_0 v0 v4 v2 v1;
+        call %std__lib__evm__effects__impl_trait_Evm_0098__codecopy_48e9 v0 v4 v2 v1;
         v8.@layout_2 = call %create2_raw v0 0.i256 v4 v1 4660.i256;
         v9.i256 = sym_size &__Foo_runtime;
         v10.i256 = sym_addr &__Foo_runtime;
         v11.i256 = call %allocate v9 v0;
-        call %std__lib__evm__effects__impl_trait_Evm_0098__codecopy_0 v0 v11 v10 v9;
-        call %std__lib__evm__effects__impl_trait_Evm_0098__return_data_4 v11 v9;
+        call %std__lib__evm__effects__impl_trait_Evm_0098__codecopy_48e9 v0 v11 v10 v9;
+        call %std__lib__evm__effects__impl_trait_Evm_0098__return_data_5f25_2 v11 v9;
         unreachable;
 }
 
@@ -259,7 +259,7 @@ func private %read_selector(v0.objref<@layout_1>) -> i256 {
         return v4;
 }
 
-func private %std__lib__evm__effects__impl_trait_Evm_0098__return_data_0(v0.i256, v1.i256) {
+func private %std__lib__evm__effects__impl_trait_Evm_0098__return_data_264c(v0.i256, v1.i256) {
     block0:
         v2.*i256 = alloca i256;
         v3.*i256 = alloca i256;
@@ -273,7 +273,7 @@ func private %std__lib__evm__effects__impl_trait_Evm_0098__return_data_0(v0.i256
         evm_return v4 v5;
 }
 
-func private %std__lib__evm__effects__impl_trait_Evm_0098__return_data_1(v0.i256, v1.i256) {
+func private %std__lib__evm__effects__impl_trait_Evm_0098__return_data_5f25(v0.i256, v1.i256) {
     block0:
         v2.*i256 = alloca i256;
         v3.*i256 = alloca i256;
@@ -287,7 +287,7 @@ func private %std__lib__evm__effects__impl_trait_Evm_0098__return_data_1(v0.i256
         evm_return v4 v5;
 }
 
-func private %std__lib__evm__effects__impl_trait_Evm_0098__return_data_2(v0.i256, v1.i256) {
+func private %std__lib__evm__effects__impl_trait_Evm_0098__return_data_5f25_0(v0.i256, v1.i256) {
     block0:
         v2.*i256 = alloca i256;
         v3.*i256 = alloca i256;
@@ -301,7 +301,7 @@ func private %std__lib__evm__effects__impl_trait_Evm_0098__return_data_2(v0.i256
         evm_return v4 v5;
 }
 
-func private %std__lib__evm__effects__impl_trait_Evm_0098__return_data_3(v0.i256, v1.i256) {
+func private %std__lib__evm__effects__impl_trait_Evm_0098__return_data_5f25_1(v0.i256, v1.i256) {
     block0:
         v2.*i256 = alloca i256;
         v3.*i256 = alloca i256;
@@ -315,7 +315,7 @@ func private %std__lib__evm__effects__impl_trait_Evm_0098__return_data_3(v0.i256
         evm_return v4 v5;
 }
 
-func private %std__lib__evm__effects__impl_trait_Evm_0098__return_data_4(v0.i256, v1.i256) {
+func private %std__lib__evm__effects__impl_trait_Evm_0098__return_data_5f25_2(v0.i256, v1.i256) {
     block0:
         v2.*i256 = alloca i256;
         v3.*i256 = alloca i256;
@@ -339,7 +339,7 @@ func private %runtime(v0.objref<@layout_1>) {
         br v4 block3 block6;
 
     block2:
-        call %std__lib__evm__effects__impl_trait_Evm_0098__return_data_0 0.i256 0.i256;
+        call %std__lib__evm__effects__impl_trait_Evm_0098__return_data_5f25 0.i256 0.i256;
         unreachable;
 
     block3:
@@ -366,7 +366,7 @@ func private %transfer(v0.objref<@layout_1>) {
         jump block1;
 
     block1:
-        call %std__lib__evm__effects__impl_trait_Evm_0098__return_data_1 0.i256 0.i256;
+        call %std__lib__evm__effects__impl_trait_Evm_0098__return_data_264c 0.i256 0.i256;
         unreachable;
 }
 

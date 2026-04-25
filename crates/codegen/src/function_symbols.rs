@@ -18,6 +18,7 @@ use std::collections::BTreeMap;
 
 const GENERIC_SUFFIX_HASH_LEN: usize = 4;
 const OWNER_CONTEXT_HASH_LEN: usize = 4;
+const CONFLICT_SUFFIX_HASH_LEN: usize = 4;
 
 struct OwnerContextCandidates {
     primary: Option<String>,
@@ -36,6 +37,7 @@ pub(crate) struct FunctionSymbolInput<'db> {
     pub owner: RuntimeFunctionOwner<'db>,
     pub fallback_symbol: String,
     pub variant_suffix: String,
+    pub disambiguator: String,
 }
 
 pub(crate) fn assign_function_symbols<'db>(
@@ -75,7 +77,7 @@ pub(crate) fn assign_function_symbols<'db>(
         .zip(selected)
         .map(|(candidates, selected)| candidates[selected].clone())
         .collect::<Vec<_>>();
-    uniquify_function_symbols(&mut symbols, style, &candidates);
+    uniquify_function_symbols(&mut symbols, style, &candidates, inputs);
     symbols
 }
 
@@ -220,6 +222,7 @@ fn uniquify_function_symbols(
     symbols: &mut [String],
     style: &FunctionSymbolStyle,
     candidates: &[Vec<String>],
+    inputs: &[FunctionSymbolInput<'_>],
 ) {
     let conflicts = symbols.iter().enumerate().fold(
         BTreeMap::<String, Vec<usize>>::new(),
@@ -241,12 +244,28 @@ fn uniquify_function_symbols(
         group.sort_by(|lhs, rhs| {
             candidates[*lhs]
                 .cmp(&candidates[*rhs])
+                .then_with(|| inputs[*lhs].disambiguator.cmp(&inputs[*rhs].disambiguator))
                 .then_with(|| lhs.cmp(rhs))
         });
         for idx in group {
             let base = symbols[idx].clone();
+            let hash = stable_identity_hash(&inputs[idx].disambiguator);
+            let candidate = format!(
+                "{base}{}{}",
+                style.fallback_separator,
+                &hash[..CONFLICT_SUFFIX_HASH_LEN]
+            );
+            if used.insert((style.namespace_key)(&candidate)) {
+                symbols[idx] = candidate;
+                continue;
+            }
             for suffix in 0.. {
-                let candidate = format!("{base}{}{suffix}", style.fallback_separator);
+                let candidate = format!(
+                    "{base}{}{}{}{suffix}",
+                    style.fallback_separator,
+                    &hash[..CONFLICT_SUFFIX_HASH_LEN],
+                    style.fallback_separator
+                );
                 if used.insert((style.namespace_key)(&candidate)) {
                     symbols[idx] = candidate;
                     break;

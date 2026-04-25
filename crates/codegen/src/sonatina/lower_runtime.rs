@@ -529,6 +529,7 @@ fn assign_sonatina_function_symbols<'db>(
             owner: function.owner(db).clone(),
             fallback_symbol: function.symbol(db).clone(),
             variant_suffix: String::new(),
+            disambiguator: mir::runtime_instance_stable_key(db, function.instance(db)),
         })
         .collect::<Vec<_>>();
     functions

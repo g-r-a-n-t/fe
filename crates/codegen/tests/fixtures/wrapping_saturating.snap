@@ -80,18 +80,6 @@ object "main" {
       ret := and(v4, 0xffffffffffffffff)
       leave
     }
-    function $impl_trait$u64$saturating_mul(p0, p1) -> ret {
-      let v2 := and(p0, 0xffffffffffffffff)
-      let v3 := and(p1, 0xffffffffffffffff)
-      let t6 := and(mul(and(v2, 0xffffffffffffffff), and(v3, 0xffffffffffffffff)), 0xffffffffffffffff)
-      if and(iszero(iszero(and(v2, 0xffffffffffffffff))), iszero(eq(div(t6, and(v2, 0xffffffffffffffff)), and(v3, 0xffffffffffffffff)))) {
-        t6 := 0xffffffffffffffff
-      }
-      let v5 := t6
-      let v4 := and(v5, 0xffffffffffffffff)
-      ret := and(v4, 0xffffffffffffffff)
-      leave
-    }
     function $impl_trait$u256$saturating_mul(p0, p1) -> ret {
       let v2 := p0
       let v3 := p1
@@ -102,6 +90,18 @@ object "main" {
       let v5 := t6
       let v4 := v5
       ret := v4
+      leave
+    }
+    function $impl_trait$u64$saturating_mul(p0, p1) -> ret {
+      let v2 := and(p0, 0xffffffffffffffff)
+      let v3 := and(p1, 0xffffffffffffffff)
+      let t6 := and(mul(and(v2, 0xffffffffffffffff), and(v3, 0xffffffffffffffff)), 0xffffffffffffffff)
+      if and(iszero(iszero(and(v2, 0xffffffffffffffff))), iszero(eq(div(t6, and(v2, 0xffffffffffffffff)), and(v3, 0xffffffffffffffff)))) {
+        t6 := 0xffffffffffffffff
+      }
+      let v5 := t6
+      let v4 := and(v5, 0xffffffffffffffff)
+      ret := and(v4, 0xffffffffffffffff)
       leave
     }
     function $saturating_ops_u256(p0, p1) -> ret {
@@ -156,18 +156,6 @@ object "main" {
       ret := v11
       leave
     }
-    function $impl_trait$u256$saturating_sub(p0, p1) -> ret {
-      let v2 := p0
-      let v3 := p1
-      let t6 := sub(v2, v3)
-      if gt(v3, v2) {
-        t6 := 0
-      }
-      let v5 := t6
-      let v4 := v5
-      ret := v4
-      leave
-    }
     function $impl_trait$u64$saturating_sub(p0, p1) -> ret {
       let v2 := and(p0, 0xffffffffffffffff)
       let v3 := and(p1, 0xffffffffffffffff)
@@ -178,6 +166,18 @@ object "main" {
       let v5 := t6
       let v4 := and(v5, 0xffffffffffffffff)
       ret := and(v4, 0xffffffffffffffff)
+      leave
+    }
+    function $impl_trait$u256$saturating_sub(p0, p1) -> ret {
+      let v2 := p0
+      let v3 := p1
+      let t6 := sub(v2, v3)
+      if gt(v3, v2) {
+        t6 := 0
+      }
+      let v5 := t6
+      let v4 := v5
+      ret := v4
       leave
     }
     function $impl_trait$u256$wrapping_add(p0, p1) -> ret {
@@ -196,20 +196,20 @@ object "main" {
       ret := and(v4, 0xffffffffffffffff)
       leave
     }
-    function $impl_trait$u256$wrapping_mul(p0, p1) -> ret {
-      let v2 := p0
-      let v3 := p1
-      let v5 := mul(v2, v3)
-      let v4 := v5
-      ret := v4
-      leave
-    }
     function $impl_trait$u64$wrapping_mul(p0, p1) -> ret {
       let v2 := and(p0, 0xffffffffffffffff)
       let v3 := and(p1, 0xffffffffffffffff)
       let v5 := and(mul(and(v2, 0xffffffffffffffff), and(v3, 0xffffffffffffffff)), 0xffffffffffffffff)
       let v4 := and(v5, 0xffffffffffffffff)
       ret := and(v4, 0xffffffffffffffff)
+      leave
+    }
+    function $impl_trait$u256$wrapping_mul(p0, p1) -> ret {
+      let v2 := p0
+      let v3 := p1
+      let v5 := mul(v2, v3)
+      let v4 := v5
+      ret := v4
       leave
     }
     function $wrapping_ops_u256(p0, p1) -> ret {
@@ -264,20 +264,20 @@ object "main" {
       ret := v11
       leave
     }
-    function $impl_trait$u256$wrapping_sub(p0, p1) -> ret {
-      let v2 := p0
-      let v3 := p1
-      let v5 := sub(v2, v3)
-      let v4 := v5
-      ret := v4
-      leave
-    }
     function $impl_trait$u64$wrapping_sub(p0, p1) -> ret {
       let v2 := and(p0, 0xffffffffffffffff)
       let v3 := and(p1, 0xffffffffffffffff)
       let v5 := and(sub(and(v2, 0xffffffffffffffff), and(v3, 0xffffffffffffffff)), 0xffffffffffffffff)
       let v4 := and(v5, 0xffffffffffffffff)
       ret := and(v4, 0xffffffffffffffff)
+      leave
+    }
+    function $impl_trait$u256$wrapping_sub(p0, p1) -> ret {
+      let v2 := p0
+      let v3 := p1
+      let v5 := sub(v2, v3)
+      let v4 := v5
+      ret := v4
       leave
     }
     $main_root()

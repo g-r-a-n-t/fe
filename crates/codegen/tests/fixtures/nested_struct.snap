@@ -24,7 +24,7 @@ object "NestedStruct" {
       $codecopy(v5, v6, v2, v1)
       let v14 := 0x00
       let v8 := v14
-      $std$lib$evm$effects$impl_trait$Evm$0098$return_data_0(v8, v1)
+      $std$lib$evm$effects$impl_trait$Evm$0098$return_data_7adf(v8, v1)
       invalid()
     }
     function $manual_contract_init_root_NestedStruct() {
@@ -38,7 +38,7 @@ object "NestedStruct" {
       $init(v1)
       stop()
     }
-    function $std$lib$evm$effects$impl_trait$Evm$0098$return_data_0(p0, p1) {
+    function $std$lib$evm$effects$impl_trait$Evm$0098$return_data_7adf(p0, p1) {
       let v3 := p0
       let v4 := p1
       return(v3, v4)
@@ -58,7 +58,7 @@ object "NestedStruct" {
         let v6 := v13
         let v14 := 0x20
         let v7 := v14
-        $std$lib$evm$effects$impl_trait$Evm$0098$return_data_1(v6, v7)
+        $std$lib$evm$effects$impl_trait$Evm$0098$return_data_8ec3(v6, v7)
         invalid()
       }
       function $abi_encode_arg0_root_stor(p0, p1) {
@@ -72,7 +72,7 @@ object "NestedStruct" {
         let v6 := v13
         let v14 := 0x20
         let v7 := v14
-        $std$lib$evm$effects$impl_trait$Evm$0098$return_data_1(v6, v7)
+        $std$lib$evm$effects$impl_trait$Evm$0098$return_data_8ec3(v6, v7)
         invalid()
       }
       function $calldataload(p0) -> ret {
@@ -146,12 +146,12 @@ object "NestedStruct" {
         ret := v1
         leave
       }
-      function $std$lib$evm$effects$impl_trait$Evm$0098$return_data_1(p0, p1) {
+      function $std$lib$evm$effects$impl_trait$Evm$0098$return_data_7adf_0(p0, p1) {
         let v3 := p0
         let v4 := p1
         return(v3, v4)
       }
-      function $std$lib$evm$effects$impl_trait$Evm$0098$return_data_2(p0, p1) {
+      function $std$lib$evm$effects$impl_trait$Evm$0098$return_data_8ec3(p0, p1) {
         let v3 := p0
         let v4 := p1
         return(v3, v4)
@@ -216,7 +216,7 @@ object "NestedStruct" {
               let v28 := v52
               let v53 := 0x00
               let v29 := v53
-              $std$lib$evm$effects$impl_trait$Evm$0098$return_data_2(v28, v29)
+              $std$lib$evm$effects$impl_trait$Evm$0098$return_data_7adf_0(v28, v29)
               invalid()
             }
           }

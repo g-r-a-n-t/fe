@@ -5,7 +5,7 @@ input_file: tests/fixtures/effect_ptr_domains.fe
 ---
 object "main" {
   code {
-    function $bump$gb2d8(p0) {
+    function $bump$gaab0(p0) {
       let t13 := mload(p0)
       let v1 := t13
       let v9 := 0x01
@@ -34,7 +34,7 @@ object "main" {
       mstore(add(p0, 32), v7)
       leave
     }
-    function $bump$gaab0(p0) {
+    function $bump$gb2d8(p0) {
       let t13 := mload(p0)
       let v1 := t13
       let v9 := 0x01
@@ -92,18 +92,18 @@ object "main" {
       sstore(add(p0, div(add(32, 31), 32)), v7)
       leave
     }
+    function $impl_trait$MemPtr$from_raw$gb2d8(p0) -> ret {
+      let v1 := p0
+      let v3 := v1
+      let v2 := v3
+      ret := v2
+      leave
+    }
     function $impl_trait$StorPtr$from_raw$gb2d8(p0) -> ret {
       let v1 := p0
       let v3 := v1
       let v4 := v3
       let v2 := v4
-      ret := v2
-      leave
-    }
-    function $impl_trait$MemPtr$from_raw$gb2d8(p0) -> ret {
-      let v1 := p0
-      let v3 := v1
-      let v2 := v3
       ret := v2
       leave
     }

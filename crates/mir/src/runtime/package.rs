@@ -33,7 +33,9 @@ use crate::{
     runtime::lower::interface::runtime_visible_binding_plans,
     runtime::lower::type_info::{RuntimeTypeEnv, top_level_class_for_ty_in_env},
     runtime::root_effects::{EntryEffectContext, entry_effect_arg_plans},
-    runtime::stable_key::{item_identity, semantic_instance_identity, type_identity},
+    runtime::stable_key::{
+        item_identity, semantic_instance_identity, stable_identity_hash, type_identity,
+    },
     runtime::{
         AddressSpaceKind, ConstRegionId, ContractInitAbiPlan, ContractRecvAbiPlan, DispatchArm,
         DispatchDefault, EntryEffectArgPlan, InitArgsPlan, LayoutId, LayoutKey, RefKind, RefView,
@@ -1727,6 +1729,8 @@ fn make_resolved_code_region<'db>(
     ResolvedCodeRegion::new(db, region, symbol, source, root)
 }
 
+const RUNTIME_SYMBOL_DISAMBIG_HASH_LEN: usize = 4;
+
 fn collect_runtime_functions<'db>(
     db: &'db dyn MirDb,
     graph: &RuntimeGraph<'db>,
@@ -1735,28 +1739,32 @@ fn collect_runtime_functions<'db>(
     instances.sort_by_cached_key(|instance| runtime_instance_sort_key(db, *instance));
     let instance_symbols = instances
         .into_iter()
-        .map(|instance| (instance, runtime_instance_symbol_base(db, instance)))
+        .map(|instance| {
+            (
+                instance,
+                runtime_instance_symbol_base(db, instance),
+                runtime_instance_sort_key(db, instance),
+            )
+        })
         .collect::<Vec<_>>();
     let duplicate_counts =
         instance_symbols
             .iter()
-            .fold(FxHashMap::default(), |mut counts, (_, base)| {
+            .fold(FxHashMap::default(), |mut counts, (_, base, _)| {
                 *counts.entry(base.clone()).or_insert(0usize) += 1;
                 counts
             });
     let mut emitted_counts = FxHashMap::<String, usize>::default();
     let mut functions = instance_symbols
         .into_iter()
-        .map(|(instance, base)| {
-            let symbol = match duplicate_counts.get(&base).copied().unwrap_or_default() {
-                0 | 1 => base,
-                _ => {
-                    let ordinal = emitted_counts.entry(base.clone()).or_insert(0);
-                    let symbol = format!("{base}_{ordinal}");
-                    *ordinal += 1;
-                    symbol
-                }
-            };
+        .map(|(instance, base, stable_key)| {
+            let needs_disambiguator = duplicate_counts.get(&base).copied().unwrap_or_default() > 1;
+            let symbol = runtime_instance_symbol(
+                base,
+                &stable_key,
+                needs_disambiguator,
+                &mut emitted_counts,
+            );
             runtime_function_for_instance(
                 db,
                 instance,
@@ -1772,6 +1780,26 @@ fn collect_runtime_functions<'db>(
         .collect::<Vec<_>>();
     functions.sort_by_key(|function| function.symbol(db));
     functions
+}
+
+fn runtime_instance_symbol(
+    base: String,
+    stable_key: &str,
+    needs_disambiguator: bool,
+    emitted_counts: &mut FxHashMap<String, usize>,
+) -> String {
+    let mut symbol = if needs_disambiguator {
+        let hash = stable_identity_hash(stable_key);
+        format!("{base}_{}", &hash[..RUNTIME_SYMBOL_DISAMBIG_HASH_LEN])
+    } else {
+        base
+    };
+    let ordinal = emitted_counts.entry(symbol.clone()).or_insert(0);
+    if *ordinal > 0 {
+        symbol = format!("{symbol}_{ordinal}");
+    }
+    *ordinal += 1;
+    symbol
 }
 
 fn runtime_function_for_instance<'db>(
@@ -1803,6 +1831,13 @@ fn runtime_function_for_instance<'db>(
             )
         }
     }
+}
+
+pub fn runtime_instance_stable_key<'db>(
+    db: &'db dyn MirDb,
+    instance: RuntimeInstance<'db>,
+) -> String {
+    runtime_instance_sort_key(db, instance)
 }
 
 fn runtime_instance_sort_key<'db>(db: &'db dyn MirDb, instance: RuntimeInstance<'db>) -> String {

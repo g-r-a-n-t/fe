@@ -2,24 +2,31 @@ use common::ingot::{Ingot, IngotKind};
 use hir::{
     analysis::{
         HirAnalysisDb,
-        semantic::SemanticInstance,
+        semantic::{EffectProviderSubst, GenericSubst, ImplEnv, SemanticInstance},
         ty::{
             trait_def::TraitInstId,
-            ty_check::BodyOwner,
+            ty_check::{
+                BodyOwner, EffectParamSite, EffectProviderProvenance, EffectProviderSpecialization,
+                LocalBinding,
+            },
             ty_def::{TyBase, TyData, TyId},
         },
     },
-    hir_def::{CallableDef, ItemKind, TopLevelMod, scope_graph::ScopeId},
+    hir_def::{CallableDef, ExprId, ItemKind, PatId, TopLevelMod, scope_graph::ScopeId},
+    semantic::{ProviderBinding, ProviderSource},
 };
 
 pub fn semantic_instance_identity<'db>(
     db: &'db dyn HirAnalysisDb,
     semantic: SemanticInstance<'db>,
 ) -> String {
+    let key = semantic.key(db);
     format!(
-        "{}${}",
-        body_owner_identity(db, semantic.key(db).owner(db)),
-        generic_args_identity(db, semantic.key(db).subst(db).generic_args(db))
+        "{}$subst${}$effects${}$impl${}",
+        body_owner_identity(db, key.owner(db)),
+        generic_subst_identity(db, key.subst(db)),
+        effect_provider_subst_identity(db, key.effect_providers(db)),
+        impl_env_identity(db, key.impl_env(db))
     )
 }
 
@@ -84,11 +91,196 @@ pub fn semantic_owner_context_identity<'db>(
     })
 }
 
+fn generic_subst_identity<'db>(db: &'db dyn HirAnalysisDb, subst: GenericSubst<'db>) -> String {
+    generic_args_identity(db, subst.generic_args(db))
+}
+
 pub fn generic_args_identity<'db>(db: &'db dyn HirAnalysisDb, args: &[TyId<'db>]) -> String {
     args.iter()
         .map(|ty| type_identity(db, *ty))
         .collect::<Vec<_>>()
         .join("$")
+}
+
+fn effect_provider_subst_identity<'db>(
+    db: &'db dyn HirAnalysisDb,
+    subst: EffectProviderSubst<'db>,
+) -> String {
+    subst
+        .providers(db)
+        .iter()
+        .map(|provider| effect_provider_specialization_identity(db, provider))
+        .collect::<Vec<_>>()
+        .join("$")
+}
+
+fn effect_provider_specialization_identity<'db>(
+    db: &'db dyn HirAnalysisDb,
+    specialization: &EffectProviderSpecialization<'db>,
+) -> String {
+    format!(
+        "provider${}$provenance${}",
+        provider_binding_identity(db, &specialization.provider),
+        effect_provider_provenance_identity(db, specialization.provenance)
+    )
+}
+
+fn provider_binding_identity<'db>(
+    db: &'db dyn HirAnalysisDb,
+    binding: &ProviderBinding<'db>,
+) -> String {
+    format!(
+        "idx${}$ty${}$mut${}$source${}$semantics${}",
+        binding.provider_idx,
+        type_identity(db, binding.provider_ty),
+        binding.is_mut,
+        provider_source_identity(db, &binding.source),
+        provider_semantics_identity(db, &binding.semantics)
+    )
+}
+
+fn provider_source_identity<'db>(
+    db: &'db dyn HirAnalysisDb,
+    source: &ProviderSource<'db>,
+) -> String {
+    match source {
+        ProviderSource::UsesParam {
+            site,
+            requirement_idx,
+        } => format!(
+            "uses_param${}${requirement_idx}",
+            effect_param_site_identity(db, *site)
+        ),
+        ProviderSource::ContractField {
+            contract,
+            field_idx,
+        } => format!(
+            "contract_field${}${field_idx}",
+            item_identity(db, (*contract).into())
+        ),
+        ProviderSource::RootProvider { site, registration } => format!(
+            "root_provider${}$idx${}$kind${:?}$ty${}",
+            effect_param_site_identity(db, *site),
+            registration.idx,
+            registration.site_kind,
+            type_identity(db, registration.provider_ty)
+        ),
+    }
+}
+
+fn provider_semantics_identity<'db>(
+    db: &'db dyn HirAnalysisDb,
+    semantics: &hir::analysis::ty::ProviderSemantics<'db>,
+) -> String {
+    let target = semantics
+        .target_ty
+        .map(|ty| type_identity(db, ty))
+        .unwrap_or_default();
+    format!(
+        "ty${}$kind${:?}$space${:?}$target${target}$transport${:?}",
+        type_identity(db, semantics.provider_ty),
+        semantics.kind,
+        semantics.address_space,
+        semantics.transport
+    )
+}
+
+fn effect_provider_provenance_identity<'db>(
+    db: &'db dyn HirAnalysisDb,
+    provenance: EffectProviderProvenance<'db>,
+) -> String {
+    match provenance {
+        EffectProviderProvenance::Binding { owner, binding } => format!(
+            "binding${}${}",
+            body_owner_identity(db, owner),
+            local_binding_identity(db, binding)
+        ),
+        EffectProviderProvenance::Expr { owner, expr } => {
+            format!("expr${}${}", body_owner_identity(db, owner), expr_id(expr))
+        }
+    }
+}
+
+fn local_binding_identity<'db>(db: &'db dyn HirAnalysisDb, binding: LocalBinding<'db>) -> String {
+    match binding {
+        LocalBinding::Local { pat, is_mut } => {
+            format!("local${}${is_mut}", pat_id(pat))
+        }
+        LocalBinding::Param {
+            site,
+            idx,
+            mode,
+            ty,
+            is_mut,
+        } => format!(
+            "param${:?}${idx}${mode:?}${}${is_mut}",
+            site,
+            type_identity(db, ty)
+        ),
+        LocalBinding::EffectParam {
+            site,
+            idx,
+            binding_name,
+            provider_idx,
+            is_mut,
+            ..
+        } => format!(
+            "effect_param${}${idx}${}${provider_idx}${is_mut}",
+            effect_param_site_identity(db, site),
+            binding_name.data(db)
+        ),
+    }
+}
+
+fn impl_env_identity<'db>(db: &'db dyn HirAnalysisDb, env: ImplEnv<'db>) -> String {
+    let assumptions = env
+        .assumptions(db)
+        .list(db)
+        .iter()
+        .map(|inst| trait_identity(db, *inst))
+        .collect::<Vec<_>>()
+        .join("$");
+    let witnesses = env
+        .witnesses(db)
+        .iter()
+        .map(|inst| trait_identity(db, *inst))
+        .collect::<Vec<_>>()
+        .join("$");
+    format!(
+        "scope${}$assumptions${assumptions}$witnesses${witnesses}",
+        module_path_components_for_scope(db, env.normalization_scope(db)).join("$")
+    )
+}
+
+fn effect_param_site_identity<'db>(
+    db: &'db dyn HirAnalysisDb,
+    site: EffectParamSite<'db>,
+) -> String {
+    match site {
+        EffectParamSite::Func(func) => format!("func${}", item_identity(db, func.into())),
+        EffectParamSite::Contract(contract) => {
+            format!("contract${}", item_identity(db, contract.into()))
+        }
+        EffectParamSite::ContractInit { contract } => {
+            format!("contract_init${}", item_identity(db, contract.into()))
+        }
+        EffectParamSite::ContractRecvArm {
+            contract,
+            recv_idx,
+            arm_idx,
+        } => format!(
+            "contract_recv${}${recv_idx}${arm_idx}",
+            item_identity(db, contract.into())
+        ),
+    }
+}
+
+fn expr_id(expr: ExprId) -> u32 {
+    expr.as_u32()
+}
+
+fn pat_id(pat: PatId) -> u32 {
+    pat.as_u32()
 }
 
 pub fn type_identity<'db>(db: &'db dyn HirAnalysisDb, ty: TyId<'db>) -> String {

@@ -2,11 +2,15 @@ use std::{collections::VecDeque, convert::Infallible};
 
 use cranelift_entity::{EntityRef, PrimaryMap, SecondaryMap, entity_impl};
 use dataflow::{SparseAnalysis, solve_sparse};
-use hir::analysis::semantic::{
-    SLocalId, SemanticInstance,
-    borrowck::{NSTerminatorKind, NormalizedSemanticBody, normalize_semantic_body},
+use hir::analysis::{
+    semantic::{
+        SLocalId, SemanticInstance,
+        borrowck::{NSTerminatorKind, NormalizedSemanticBody, normalize_semantic_body},
+    },
+    ty::ty_def::TyId,
 };
 use rustc_hash::FxHashSet;
+use salsa::Update;
 
 use crate::{
     db::MirDb,
@@ -22,6 +26,12 @@ use super::{
     infer::{desired_runtime_value_carrier, merge_runtime_carrier, seed_root_provider_carriers},
     interface::runtime_visible_binding_plans,
 };
+
+#[derive(Clone, Debug, PartialEq, Eq, Update)]
+pub(crate) enum StaticRuntimeReturnDecision<'db> {
+    Known(Option<RuntimeClass<'db>>),
+    Dynamic,
+}
 
 #[derive(Clone)]
 pub(crate) struct RuntimeReturnSummary<'db> {
@@ -186,8 +196,9 @@ pub(crate) fn runtime_return_class<'db>(
     key: RuntimeInstanceKey<'db>,
 ) -> Option<RuntimeClass<'db>> {
     let semantic = key.semantic(db)?;
-    if let Some(class) = static_runtime_return_class(db, semantic) {
-        return Some(class);
+    if let StaticRuntimeReturnDecision::Known(class) = static_runtime_return_decision(db, semantic)
+    {
+        return class;
     }
     let summary = runtime_return_summary(db, semantic);
     evaluate_runtime_return_class(db, summary, key.params(db), &mut |callee_key| {
@@ -209,15 +220,19 @@ pub(crate) fn runtime_exit_behavior<'db>(
     }
 }
 
-fn static_runtime_return_class<'db>(
+#[salsa::tracked]
+pub(crate) fn static_runtime_return_decision<'db>(
     db: &'db dyn MirDb,
     semantic: SemanticInstance<'db>,
-) -> Option<RuntimeClass<'db>> {
+) -> StaticRuntimeReturnDecision<'db> {
+    if semantic.key(db).typed_body(db).result_ty() == TyId::unit(db) {
+        return StaticRuntimeReturnDecision::Known(None);
+    }
     match desired_runtime_return_plan(db, semantic) {
-        RuntimeVisibleReturnPlan::Exact(class) => Some(class),
+        RuntimeVisibleReturnPlan::Exact(class) => StaticRuntimeReturnDecision::Known(Some(class)),
         RuntimeVisibleReturnPlan::Erased
         | RuntimeVisibleReturnPlan::Constrained(_)
-        | RuntimeVisibleReturnPlan::PassActual => None,
+        | RuntimeVisibleReturnPlan::PassActual => StaticRuntimeReturnDecision::Dynamic,
     }
 }
 
@@ -226,6 +241,10 @@ fn runtime_return_class_cycle_initial<'db>(
     key: RuntimeInstanceKey<'db>,
 ) -> Option<RuntimeClass<'db>> {
     let semantic = key.semantic(db)?;
+    if let StaticRuntimeReturnDecision::Known(class) = static_runtime_return_decision(db, semantic)
+    {
+        return class;
+    }
     runtime_return_summary(db, semantic)
         .default_return_class
         .clone()
@@ -509,6 +528,13 @@ mod tests {
             ),
             "`{name}` should exercise the static exact return-class path"
         );
+        assert!(
+            matches!(
+                static_runtime_return_decision(&db, semantic),
+                StaticRuntimeReturnDecision::Known(Some(_))
+            ),
+            "`{name}` should use the semantic-level static return decision"
+        );
         assert_eq!(
             runtime_return_class(&db, key),
             legacy_return_class_for_key(&db, key),
@@ -616,6 +642,74 @@ fn exact_aggregate_return_class_does_not_need_body_inference() -> Pair {
 }
 "#,
             "exact_aggregate_return_class_does_not_need_body_inference",
+        );
+    }
+
+    #[test]
+    fn unit_return_class_is_statically_known_absent() {
+        let mut db = DriverDataBase::default();
+        let file_url =
+            Url::parse("file:///unit_return_class_is_statically_known_absent.fe").unwrap();
+        db.workspace().touch(
+            &mut db,
+            file_url.clone(),
+            Some(
+                r#"
+fn helper() {}
+"#
+                .to_string(),
+            ),
+        );
+        let file = db
+            .workspace()
+            .get(&db, &file_url)
+            .expect("file should be loaded");
+        let top_mod = db.top_mod(file);
+        let semantic = semantic_instance_for_named_func(&db, top_mod, "helper");
+        let key = runtime_instance_for_semantic(&db, semantic).key(&db);
+
+        assert_eq!(
+            static_runtime_return_decision(&db, semantic),
+            StaticRuntimeReturnDecision::Known(None)
+        );
+        assert_eq!(runtime_return_class(&db, key), None);
+    }
+
+    #[test]
+    fn borrow_return_class_remains_dynamic() {
+        let mut db = DriverDataBase::default();
+        let file_url = Url::parse("file:///borrow_return_class_remains_dynamic.fe").unwrap();
+        db.workspace().touch(
+            &mut db,
+            file_url.clone(),
+            Some(
+                r#"
+struct Holder {
+    value: u256,
+}
+
+impl Holder {
+    fn value_mut(mut self) -> mut u256 {
+        mut self.value
+    }
+}
+"#
+                .to_string(),
+            ),
+        );
+        let file = db
+            .workspace()
+            .get(&db, &file_url)
+            .expect("file should be loaded");
+        let top_mod = db.top_mod(file);
+        let semantic = semantic_instance_for_named_func(&db, top_mod, "value_mut");
+
+        assert!(
+            matches!(
+                static_runtime_return_decision(&db, semantic),
+                StaticRuntimeReturnDecision::Dynamic
+            ),
+            "borrow-derived returns depend on the returned source transport"
         );
     }
 

@@ -63,6 +63,7 @@ use super::{
         project_variant_field_class,
     },
     realize::SelectedRuntimeArg,
+    returns::{StaticRuntimeReturnDecision, static_runtime_return_decision},
     type_info::{
         RuntimeTypeEnv, effect_handle_class_for_ty_in_context, provider_address_space_to_runtime,
         provider_class_for_target_in_context, provider_class_for_target_in_env,
@@ -241,7 +242,8 @@ struct AggregateMakeFieldStaticFacts<'db> {
 struct CallStaticFacts<'db> {
     semantic: SemanticInstance<'db>,
     builtin_return_class: Option<Option<RuntimeClass<'db>>>,
-    input_plan: CompiledCallInputPlan<'db>,
+    return_decision: StaticRuntimeReturnDecision<'db>,
+    input_plan: Option<CompiledCallInputPlan<'db>>,
 }
 
 impl<'db> BodyStaticFacts<'db> {
@@ -603,8 +605,15 @@ impl<'a, 'db> BodyEnv<'a, 'db> {
                 if let Some(class) = facts.builtin_return_class.clone() {
                     return class;
                 }
+                if let StaticRuntimeReturnDecision::Known(class) = &facts.return_decision {
+                    return class.clone();
+                }
+                let input_plan = facts
+                    .input_plan
+                    .as_ref()
+                    .expect("dynamic call return should keep a staged input plan");
                 let param_classes: Vec<_> = RuntimeArgSelector::new(self, carriers, class_cache)
-                    .selected_call_inputs(args, effect_args, &facts.input_plan)
+                    .selected_call_inputs(args, effect_args, input_plan)
                     .into_iter()
                     .map(|arg| arg.class)
                     .collect();
@@ -1049,17 +1058,24 @@ fn build_expr_static_facts<'db>(
                 )
             });
             let semantic = get_or_build_semantic_instance(db, callee_key);
+            let builtin_return_class = extern_builtin_return_class(db, semantic, result_ty);
+            let return_decision = static_runtime_return_decision(db, semantic);
+            let needs_input_plan = builtin_return_class.is_none()
+                && matches!(return_decision, StaticRuntimeReturnDecision::Dynamic);
             ExprStaticFacts::Call(CallStaticFacts {
                 semantic,
-                builtin_return_class: extern_builtin_return_class(db, semantic, result_ty),
-                input_plan: compile_call_input_plan_for_semantic(
-                    db,
-                    body,
-                    semantic,
-                    RuntimeTypeEnv::for_semantic(db, semantic),
-                    effect_args,
-                    boundary_sites,
-                ),
+                builtin_return_class,
+                return_decision,
+                input_plan: needs_input_plan.then(|| {
+                    compile_call_input_plan_for_semantic(
+                        db,
+                        body,
+                        semantic,
+                        RuntimeTypeEnv::for_semantic(db, semantic),
+                        effect_args,
+                        boundary_sites,
+                    )
+                }),
             })
         }
     })
@@ -2480,15 +2496,19 @@ mod tests {
     use driver::DriverDataBase;
     use hir::{
         analysis::semantic::{
-            SemanticInstance,
-            borrowck::{NSTerminatorKind, normalize_semantic_body},
+            NEffectArg, SemanticInstance,
+            borrowck::{NSTerminatorKind, NormalizedSemanticBody, normalize_semantic_body},
             get_or_build_semantic_instance, owner_effect_bindings, root_semantic_instance_key,
         },
         analysis::ty::ty_check::BodyOwner,
     };
     use url::Url;
 
-    use super::super::arg_selector::RuntimeArgSelector;
+    use super::super::{
+        arg_selector::RuntimeArgSelector,
+        boundary::BoundarySiteAllocator,
+        call_input::{CompiledCallInputPlan, compile_call_input_plan_for_semantic},
+    };
     use super::*;
     use crate::runtime::lower::boundary::BoundaryMatcher;
     use crate::runtime::{
@@ -2500,6 +2520,25 @@ mod tests {
         },
         package::runtime_instance_for_semantic,
     };
+
+    fn call_input_plan_for_test<'db>(
+        db: &'db DriverDataBase,
+        body: &NormalizedSemanticBody<'db>,
+        call_facts: &CallStaticFacts<'db>,
+        effect_args: &[NEffectArg<'db>],
+    ) -> CompiledCallInputPlan<'db> {
+        call_facts.input_plan.clone().unwrap_or_else(|| {
+            let mut boundary_sites = BoundarySiteAllocator::default();
+            compile_call_input_plan_for_semantic(
+                db,
+                body,
+                call_facts.semantic,
+                RuntimeTypeEnv::for_semantic(db, call_facts.semantic),
+                effect_args,
+                &mut boundary_sites,
+            )
+        })
+    }
 
     fn runtime_signature_for_named_func<'db>(
         db: &'db DriverDataBase,
@@ -2954,8 +2993,9 @@ mod tests {
                         receiver.and_then(|local| evaluator.selected_actual_value(local));
                     let receiver_materialized =
                         receiver.and_then(|local| evaluator.selected_materialized_value(local));
-                    let selected =
-                        evaluator.selected_call_inputs(args, effect_args, &call_facts.input_plan);
+                    let input_plan =
+                        call_input_plan_for_test(&db, &normalized, call_facts, effect_args);
+                    let selected = evaluator.selected_call_inputs(args, effect_args, &input_plan);
                     let selected_classes = selected
                         .iter()
                         .map(|arg| arg.class.clone())
@@ -3116,9 +3156,10 @@ mod tests {
             })
             .expect("specialized take_u256 should contain an inner call to take");
         let mut class_cache = InferClassCache::new(normalized.locals.len());
+        let input_plan = call_input_plan_for_test(&db, &normalized, &call_facts, &effect_args);
         let inferred_param_classes =
             RuntimeArgSelector::new(env, &inferred.carriers, Some(&mut class_cache))
-                .selected_call_inputs(&args, &effect_args, &call_facts.input_plan)
+                .selected_call_inputs(&args, &effect_args, &input_plan)
                 .into_iter()
                 .map(|arg| arg.class)
                 .collect::<Vec<_>>();
@@ -3253,9 +3294,10 @@ mod tests {
             })
             .expect("SelectAndMutate should call set_scaled");
         let mut class_cache = InferClassCache::new(normalized.locals.len());
+        let input_plan = call_input_plan_for_test(&db, &normalized, &call_facts, &effect_args);
         let inferred_param_classes =
             RuntimeArgSelector::new(env, &inferred.carriers, Some(&mut class_cache))
-                .selected_call_inputs(&args, &effect_args, &call_facts.input_plan)
+                .selected_call_inputs(&args, &effect_args, &input_plan)
                 .into_iter()
                 .map(|arg| arg.class)
                 .collect::<Vec<_>>();

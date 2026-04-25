@@ -558,7 +558,7 @@ pub type RValueId = RLocalId;
 pub struct RuntimeBody<'db> {
     pub owner: RuntimeInstance<'db>,
     pub key: RuntimeInstanceKey<'db>,
-    pub signature: RuntimeSignature<'db>,
+    pub signature: RuntimeInterfaceSignature<'db>,
     pub semantic_locals: Vec<RuntimeLocalLowering<'db>>,
     pub provider_bindings: Vec<RuntimeProviderBinding<'db>>,
     pub locals: Vec<RLocal<'db>>,
@@ -639,10 +639,9 @@ pub struct RuntimeProviderBinding<'db> {
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Hash, Update)]
-pub struct RuntimeSignature<'db> {
+pub struct RuntimeInterfaceSignature<'db> {
     pub params: Vec<RuntimeParam<'db>>,
     pub ret: Option<RuntimeClass<'db>>,
-    pub exit: RuntimeExitBehavior,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, Update)]
@@ -1401,7 +1400,8 @@ pub enum RTerminator<'db> {
 }
 
 pub trait RuntimeProgramView<'db> {
-    fn signature(&self, id: RuntimeInstance<'db>) -> RuntimeSignature<'db>;
+    fn interface_signature(&self, id: RuntimeInstance<'db>) -> RuntimeInterfaceSignature<'db>;
+    fn exit_behavior(&self, id: RuntimeInstance<'db>) -> RuntimeExitBehavior;
     fn body(&self, id: RuntimeInstance<'db>) -> RuntimeBody<'db>;
     fn layout(&self, id: LayoutId<'db>) -> Layout<'db>;
     fn const_region(&self, id: ConstRegionId<'db>) -> ConstRegion<'db>;
@@ -1409,8 +1409,12 @@ pub trait RuntimeProgramView<'db> {
 }
 
 impl<'db> RuntimeProgramView<'db> for &'db dyn MirDb {
-    fn signature(&self, id: RuntimeInstance<'db>) -> RuntimeSignature<'db> {
-        id.signature(*self)
+    fn interface_signature(&self, id: RuntimeInstance<'db>) -> RuntimeInterfaceSignature<'db> {
+        id.interface_signature(*self)
+    }
+
+    fn exit_behavior(&self, id: RuntimeInstance<'db>) -> RuntimeExitBehavior {
+        id.exit_behavior(*self)
     }
 
     fn body(&self, id: RuntimeInstance<'db>) -> RuntimeBody<'db> {

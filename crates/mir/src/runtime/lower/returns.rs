@@ -14,7 +14,7 @@ use salsa::Update;
 
 use crate::{
     db::MirDb,
-    instance::RuntimeInstanceKey,
+    instance::{RuntimeInstanceKey, RuntimeInstanceSource},
     runtime::{RuntimeCarrier, RuntimeClass, RuntimeExitBehavior},
 };
 
@@ -26,6 +26,7 @@ use super::{
     infer::{desired_runtime_value_carrier, merge_runtime_carrier, seed_root_provider_carriers},
     interface::runtime_visible_binding_plans,
 };
+use crate::runtime::synthetic::runtime_synthetic_exit_behavior;
 
 #[derive(Clone, Debug, PartialEq, Eq, Update)]
 pub(crate) enum StaticRuntimeReturnDecision<'db> {
@@ -210,13 +211,17 @@ pub(crate) fn runtime_exit_behavior<'db>(
     db: &'db dyn MirDb,
     key: RuntimeInstanceKey<'db>,
 ) -> RuntimeExitBehavior {
-    if key
-        .semantic(db)
-        .is_some_and(|semantic| semantic.known_never_returns(db))
-    {
-        RuntimeExitBehavior::NeverReturns
-    } else {
-        RuntimeExitBehavior::MayReturn
+    match key.source(db) {
+        RuntimeInstanceSource::Semantic(semantic) => {
+            if semantic.known_never_returns(db) {
+                RuntimeExitBehavior::NeverReturns
+            } else {
+                RuntimeExitBehavior::MayReturn
+            }
+        }
+        RuntimeInstanceSource::Synthetic(synthetic) => {
+            runtime_synthetic_exit_behavior(synthetic.spec(db).clone())
+        }
     }
 }
 
@@ -442,7 +447,7 @@ mod tests {
 
     use crate::{
         build_runtime_package,
-        runtime::{RuntimeCarrier, RuntimeClass, RuntimeExitBehavior},
+        runtime::{RExpr, RStmt, RTerminator, RuntimeCarrier, RuntimeClass, RuntimeExitBehavior},
     };
 
     use super::*;
@@ -559,7 +564,7 @@ mod tests {
         for &(name, exit) in expected {
             let semantic = semantic_instance_for_named_func(&db, top_mod, name);
             let runtime = runtime_instance_for_semantic(&db, semantic);
-            assert_eq!(runtime.signature(&db).exit, exit, "`{name}` exit behavior");
+            assert_eq!(runtime.exit_behavior(&db), exit, "`{name}` exit behavior");
         }
     }
 
@@ -613,6 +618,57 @@ fn maybe(flag: bool) {
 "#,
             "mixed_panic_branch_may_return_normally",
             &[("maybe", RuntimeExitBehavior::MayReturn)],
+        );
+    }
+
+    #[test]
+    fn semantic_panic_wrapper_call_lowers_as_normal_call() {
+        let mut db = DriverDataBase::default();
+        let file_url =
+            Url::parse("file:///semantic_panic_wrapper_call_lowers_as_normal_call.fe").unwrap();
+        db.workspace().touch(
+            &mut db,
+            file_url.clone(),
+            Some(
+                r#"
+fn fail() {
+    core::panic()
+}
+
+fn caller() {
+    fail()
+}
+"#
+                .to_string(),
+            ),
+        );
+        let file = db
+            .workspace()
+            .get(&db, &file_url)
+            .expect("file should be loaded");
+        let top_mod = db.top_mod(file);
+        let caller = semantic_instance_for_named_func(&db, top_mod, "caller");
+        let body = runtime_instance_for_semantic(&db, caller).body(&db);
+
+        assert!(
+            body.blocks.iter().any(|block| {
+                block.stmts.iter().any(|stmt| {
+                    matches!(
+                        stmt,
+                        RStmt::Assign {
+                            expr: RExpr::Call { .. },
+                            ..
+                        }
+                    )
+                })
+            }),
+            "semantic nonreturning wrapper calls should stay ordinary calls:\n{body:#?}"
+        );
+        assert!(
+            body.blocks
+                .iter()
+                .all(|block| !matches!(block.terminator, RTerminator::TerminalCall { .. })),
+            "ordinary semantic calls should not be terminalized by exit analysis:\n{body:#?}"
         );
     }
 

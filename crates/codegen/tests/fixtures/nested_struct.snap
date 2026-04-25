@@ -25,18 +25,18 @@ object "NestedStruct" {
       let v14 := 0x00
       let v8 := v14
       $std$lib$evm$effects$impl_trait$Evm$0098$return_data_7adf(v8, v1)
-      invalid()
+      leave
     }
     function $manual_contract_init_root_NestedStruct() {
-      let t2 := mload(0x40)
-      if iszero(t2) {
-        t2 := 0x80
+      let t3 := mload(0x40)
+      if iszero(t3) {
+        t3 := 0x80
       }
-      mstore(0x40, add(t2, 0))
-      let v0 := t2
+      mstore(0x40, add(t3, 0))
+      let v0 := t3
       let v1 := v0
       $init(v1)
-      invalid()
+      stop()
     }
     function $std$lib$evm$effects$impl_trait$Evm$0098$return_data_7adf(p0, p1) {
       let v3 := p0
@@ -59,7 +59,7 @@ object "NestedStruct" {
         let v14 := 0x20
         let v7 := v14
         $std$lib$evm$effects$impl_trait$Evm$0098$return_data_8ec3(v6, v7)
-        invalid()
+        leave
       }
       function $abi_encode_arg0_root_stor(p0, p1) {
         let v9 := p1
@@ -73,7 +73,7 @@ object "NestedStruct" {
         let v14 := 0x20
         let v7 := v14
         $std$lib$evm$effects$impl_trait$Evm$0098$return_data_8ec3(v6, v7)
-        invalid()
+        leave
       }
       function $calldataload(p0) -> ret {
         let v2 := p0
@@ -184,7 +184,6 @@ object "NestedStruct" {
           let v3 := v19
           $write_inner_eff0_stor(v3, v1)
           $abi_encode(v3, p0)
-          invalid()
         }
         if iszero(iszero(iszero(v13))) {
           let v56 := 0xd164e48d
@@ -194,7 +193,6 @@ object "NestedStruct" {
             let v44 := $read_inner_eff0_stor(v1)
             let v22 := v44
             $abi_encode_arg0_root_stor(v22, p0)
-            invalid()
           }
           if iszero(iszero(iszero(v15))) {
             let v57 := 0x806f30cd
@@ -209,7 +207,6 @@ object "NestedStruct" {
               let v49 := $mem_read(v4)
               let v26 := v49
               $abi_encode(v26, p0)
-              invalid()
             }
             if iszero(iszero(iszero(v17))) {
               let v52 := 0x00
@@ -217,10 +214,10 @@ object "NestedStruct" {
               let v53 := 0x00
               let v29 := v53
               $std$lib$evm$effects$impl_trait$Evm$0098$return_data_7adf_0(v28, v29)
-              invalid()
             }
           }
         }
+        leave
       }
       function $stor_ptr(p0) -> ret {
         let v2 := p0

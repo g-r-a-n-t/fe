@@ -17,11 +17,18 @@ struct PackageView<'db> {
 }
 
 impl<'db> RuntimeProgramView<'db> for PackageView<'db> {
-    fn signature(
+    fn interface_signature(
         &self,
         id: crate::instance::RuntimeInstance<'db>,
-    ) -> crate::runtime::RuntimeSignature<'db> {
-        id.signature(self.db)
+    ) -> crate::runtime::RuntimeInterfaceSignature<'db> {
+        id.interface_signature(self.db)
+    }
+
+    fn exit_behavior(
+        &self,
+        id: crate::instance::RuntimeInstance<'db>,
+    ) -> crate::runtime::RuntimeExitBehavior {
+        id.exit_behavior(self.db)
     }
 
     fn body(&self, id: crate::instance::RuntimeInstance<'db>) -> crate::runtime::RuntimeBody<'db> {

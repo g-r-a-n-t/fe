@@ -34,7 +34,7 @@ func private %assert(v0.i1) {
         obj.store v6 1.i256;
         v7.@layout_0 = obj.load v4;
         call %revert_error v7;
-        unreachable;
+        jump block4;
 
     block3:
         jump block4;

@@ -28,8 +28,8 @@ use crate::{
         DispatchDefault, EntryEffectArgPlan, InitArgsPlan, PlaceElem, PlaceRoot, RBlock, RBlockId,
         RExpr, RLocal, RLocalId, RStmt, RTerminator, RefKind, RefView, RuntimeBody,
         RuntimeBoundarySpec, RuntimeBuiltin, RuntimeCarrier, RuntimeClass, RuntimeExitBehavior,
-        RuntimeInputPlan, RuntimeLocalRoot, RuntimeParamPlan, RuntimePlace, RuntimeReturnPlan,
-        RuntimeSignature, RuntimeSyntheticSpec, ScalarClass, ScalarRepr, ScalarRole,
+        RuntimeInputPlan, RuntimeInterfaceSignature, RuntimeLocalRoot, RuntimeParamPlan,
+        RuntimePlace, RuntimeReturnPlan, RuntimeSyntheticSpec, ScalarClass, ScalarRepr, ScalarRole,
         TargetRootProviderBinding, TargetRootProviderMaterialization,
         lower::{
             boundary::{RuntimeValueAddress, RuntimeValueSource},
@@ -49,10 +49,10 @@ use crate::{
     },
 };
 
-pub(crate) fn runtime_synthetic_signature<'db>(
+pub(crate) fn runtime_synthetic_exit_behavior<'db>(
     spec: RuntimeSyntheticSpec<'db>,
-) -> RuntimeSignature<'db> {
-    let exit = match spec {
+) -> RuntimeExitBehavior {
+    match spec {
         RuntimeSyntheticSpec::ContractInitAbi { .. } => RuntimeExitBehavior::MayReturn,
         RuntimeSyntheticSpec::MainRoot { .. }
         | RuntimeSyntheticSpec::TestRoot { .. }
@@ -61,11 +61,15 @@ pub(crate) fn runtime_synthetic_signature<'db>(
         | RuntimeSyntheticSpec::ContractInitRoot { .. }
         | RuntimeSyntheticSpec::ContractRuntimeRoot { .. }
         | RuntimeSyntheticSpec::CodeRegionRoot { .. } => RuntimeExitBehavior::NeverReturns,
-    };
-    RuntimeSignature {
+    }
+}
+
+pub(crate) fn runtime_synthetic_interface_signature<'db>(
+    _spec: RuntimeSyntheticSpec<'db>,
+) -> RuntimeInterfaceSignature<'db> {
+    RuntimeInterfaceSignature {
         params: Vec::new(),
         ret: None,
-        exit,
     }
 }
 
@@ -271,7 +275,7 @@ impl<'db> SyntheticBodyBuilder<'db> {
     }
 
     fn finish(self) -> RuntimeBody<'db> {
-        let signature = self.instance.signature(self.db);
+        let signature = self.instance.interface_signature(self.db);
         RuntimeBody {
             owner: self.instance,
             key: self.instance.key(self.db),
@@ -283,8 +287,11 @@ impl<'db> SyntheticBodyBuilder<'db> {
         }
     }
 
-    fn runtime_signature(&self, callee: RuntimeInstance<'db>) -> RuntimeSignature<'db> {
-        callee.signature(self.db)
+    fn runtime_interface_signature(
+        &self,
+        callee: RuntimeInstance<'db>,
+    ) -> RuntimeInterfaceSignature<'db> {
+        callee.interface_signature(self.db)
     }
 
     fn build_entry_root(
@@ -297,7 +304,7 @@ impl<'db> SyntheticBodyBuilder<'db> {
     }
 
     fn build_passthrough_root(&mut self, callee: RuntimeInstance<'db>) {
-        let signature = self.runtime_signature(callee);
+        let signature = self.runtime_interface_signature(callee);
         let semantic = callee.key(self.db).semantic(self.db);
         let param_entries =
             semantic.map(|semantic| runtime_visible_binding_plans(self.db, semantic));
@@ -325,14 +332,17 @@ impl<'db> SyntheticBodyBuilder<'db> {
     }
 
     fn build_root_call(&mut self, callee: RuntimeInstance<'db>, args: Vec<RLocalId>) {
-        let signature = self.runtime_signature(callee);
+        let signature = self.runtime_interface_signature(callee);
         assert_eq!(
             args.len(),
             signature.params.len(),
             "synthetic root arg count mismatch for {callee:?}"
         );
         let semantic = callee.key(self.db).semantic(self.db);
-        if signature.exit == RuntimeExitBehavior::NeverReturns {
+        if let RuntimeInstanceSource::Synthetic(synthetic) = callee.key(self.db).source(self.db)
+            && runtime_synthetic_exit_behavior(synthetic.spec(self.db).clone())
+                == RuntimeExitBehavior::NeverReturns
+        {
             self.blocks[0].terminator = RTerminator::TerminalCall {
                 callee,
                 args: args.into_boxed_slice(),
@@ -704,7 +714,7 @@ impl<'db> SyntheticBodyBuilder<'db> {
         bindings: &[EntryEffectArgPlan<'db>],
     ) -> Vec<RLocalId> {
         let needed = self
-            .runtime_signature(callee)
+            .runtime_interface_signature(callee)
             .params
             .len()
             .saturating_sub(provided_prefix);
@@ -834,10 +844,14 @@ impl<'db> SyntheticBodyBuilder<'db> {
         bb: RBlockId,
         callee: RuntimeInstance<'db>,
         args: Vec<RLocalId>,
-    ) -> (RuntimeInstance<'db>, RuntimeSignature<'db>, Vec<RLocalId>) {
+    ) -> (
+        RuntimeInstance<'db>,
+        RuntimeInterfaceSignature<'db>,
+        Vec<RLocalId>,
+    ) {
         let selected = self.select_call_args(callee, &args);
         let callee = self.specialize_callee_for_selected_args(callee, &selected);
-        let signature = self.runtime_signature(callee);
+        let signature = self.runtime_interface_signature(callee);
         self.assert_selected_args_match_signature(callee, &selected, &signature);
         let args = self.lower_selected_call_args(bb, &selected);
         (callee, signature, args)
@@ -858,7 +872,7 @@ impl<'db> SyntheticBodyBuilder<'db> {
         callee: RuntimeInstance<'db>,
         args: &[RLocalId],
     ) -> Vec<SelectedRuntimeValueArg<'db>> {
-        let signature = self.runtime_signature(callee);
+        let signature = self.runtime_interface_signature(callee);
         if args.is_empty() && signature.params.is_empty() {
             return Vec::new();
         }
@@ -916,7 +930,7 @@ impl<'db> SyntheticBodyBuilder<'db> {
         let RuntimeInstanceSource::Semantic(semantic) = callee.key(self.db).source(self.db) else {
             return callee;
         };
-        let signature = self.runtime_signature(callee);
+        let signature = self.runtime_interface_signature(callee);
         let param_entries = runtime_visible_binding_plans(self.db, semantic);
         assert_eq!(
             param_entries.len(),
@@ -937,7 +951,7 @@ impl<'db> SyntheticBodyBuilder<'db> {
         &self,
         callee: RuntimeInstance<'db>,
         selected: &[SelectedRuntimeValueArg<'db>],
-        signature: &RuntimeSignature<'db>,
+        signature: &RuntimeInterfaceSignature<'db>,
     ) {
         assert_eq!(
             selected.len(),

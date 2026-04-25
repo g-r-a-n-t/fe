@@ -5,8 +5,8 @@ use crate::{
     instance::RuntimeInstance,
     runtime::{
         AddressSpaceKind, Layout, RExpr, RStmt, RTerminator, RuntimeBody, RuntimeBuiltin,
-        RuntimeCarrier, RuntimeClass, RuntimeExitBehavior, RuntimeLocalRoot, RuntimeProgramView,
-        RuntimeSignature, ScalarClass, ScalarRepr, ScalarRole,
+        RuntimeCarrier, RuntimeClass, RuntimeExitBehavior, RuntimeInterfaceSignature,
+        RuntimeLocalRoot, RuntimeProgramView, ScalarClass, ScalarRepr, ScalarRole,
     },
     verify::VerifyError,
 };
@@ -153,8 +153,10 @@ fn verify_call<'db>(
     args: &[crate::runtime::RValueId],
     kind: RuntimeCallKind,
 ) -> Result<(), VerifyError<'db>> {
-    let RuntimeSignature { params, exit, .. } = program.signature(callee);
-    if kind == RuntimeCallKind::Terminal && exit != RuntimeExitBehavior::NeverReturns {
+    let RuntimeInterfaceSignature { params, .. } = program.interface_signature(callee);
+    if kind == RuntimeCallKind::Terminal
+        && program.exit_behavior(callee) != RuntimeExitBehavior::NeverReturns
+    {
         return Err(VerifyError::InvalidTerminalCall(callee));
     }
     if params.len() != args.len() {
@@ -357,7 +359,7 @@ fn verify_assign<'db>(
         RExpr::Load { place } => Some(project_place(db, program, body, place)?),
         RExpr::Call { callee, args } => {
             verify_call(db, program, body, *callee, args, RuntimeCallKind::Normal)?;
-            program.signature(*callee).ret.clone()
+            program.interface_signature(*callee).ret.clone()
         }
         RExpr::ProviderToRaw { value } => {
             if !matches!(

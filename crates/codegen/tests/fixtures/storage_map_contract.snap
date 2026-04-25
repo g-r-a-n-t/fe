@@ -25,18 +25,18 @@ object "BalanceMap" {
       let v14 := 0x00
       let v8 := v14
       $std$lib$evm$effects$impl_trait$Evm$0098$return_data_ad81(v8, v1)
-      invalid()
+      leave
     }
     function $manual_contract_init_root_BalanceMap() {
-      let t2 := mload(0x40)
-      if iszero(t2) {
-        t2 := 0x80
+      let t3 := mload(0x40)
+      if iszero(t3) {
+        t3 := 0x80
       }
-      mstore(0x40, add(t2, 0))
-      let v0 := t2
+      mstore(0x40, add(t3, 0))
+      let v0 := t3
       let v1 := v0
       $init(v1)
-      invalid()
+      stop()
     }
     function $std$lib$evm$effects$impl_trait$Evm$0098$return_data_ad81(p0, p1) {
       let v3 := p0
@@ -59,7 +59,7 @@ object "BalanceMap" {
         let v14 := 0x20
         let v7 := v14
         $std$lib$evm$effects$impl_trait$Evm$0098$return_data_56b8(v2, v7)
-        invalid()
+        leave
       }
       function $calldataload(p0) -> ret {
         let v2 := p0
@@ -178,7 +178,6 @@ object "BalanceMap" {
           let v35 := v79
           let v5 := v35
           $abi_encode(v5, p0)
-          invalid()
         }
         if iszero(iszero(iszero(v24))) {
           let v126 := 0x4a4b9feb
@@ -201,7 +200,6 @@ object "BalanceMap" {
             let v90 := 0x00
             let v42 := v90
             $abi_encode(v42, p0)
-            invalid()
           }
           if iszero(iszero(iszero(v26))) {
             let v127 := 0x90dd2627
@@ -229,7 +227,6 @@ object "BalanceMap" {
               let v50 := v101
               let v11 := v50
               $abi_encode(v11, p0)
-              invalid()
             }
             if iszero(iszero(iszero(v28))) {
               let v128 := 0xc960174e
@@ -247,7 +244,6 @@ object "BalanceMap" {
                 let v54 := v108
                 let v13 := v54
                 $abi_encode(v13, p0)
-                invalid()
               }
               if iszero(iszero(iszero(v30))) {
                 let v129 := 0x0bca4841
@@ -270,7 +266,6 @@ object "BalanceMap" {
                   let v119 := 0x00
                   let v61 := v119
                   $abi_encode(v61, p0)
-                  invalid()
                 }
                 if iszero(iszero(iszero(v32))) {
                   let v122 := 0x00
@@ -278,12 +273,12 @@ object "BalanceMap" {
                   let v123 := 0x00
                   let v64 := v123
                   $std$lib$evm$effects$impl_trait$Evm$0098$return_data_ad81_0(v63, v64)
-                  invalid()
                 }
               }
             }
           }
         }
+        leave
       }
       function $set$g7fdf(p0, p1) {
         let v6 := 0x01

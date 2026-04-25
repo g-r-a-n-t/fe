@@ -18,11 +18,11 @@ object "main" {
       let v14 := 0x20
       let v6 := v14
       $revert(v5, v6)
-      invalid()
+      leave
     }
     function $main(p0) {
       $fail(p0)
-      invalid()
+      leave
     }
     function $main_root() {
       let t3 := mload(0x40)

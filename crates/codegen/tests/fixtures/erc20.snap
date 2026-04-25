@@ -65,11 +65,8 @@ object "CoolCoin" {
         let v10 := v9
         let v4 := v10
         $std$lib$evm$effects$revert_error$geb2e_3b9a(v4)
-        invalid()
       }
-      if iszero(iszero(iszero(v2))) {
-        leave
-      }
+      leave
     }
     function $std$lib$abi$sol$impl_trait$SolDecoder$68ab$base$g463e_22ad(p0) -> ret {
       let t2 := mload(add(p0, 96))
@@ -2259,11 +2256,8 @@ object "CoolCoin" {
           let v10 := v9
           let v4 := v10
           $std$lib$evm$effects$revert_error$geb2e_3b9a(v4)
-          invalid()
         }
-        if iszero(iszero(iszero(v2))) {
-          leave
-        }
+        leave
       }
       function $std$lib$evm$effects$assert_d98e(p0) {
         let v7 := iszero(iszero(iszero(iszero(iszero(p0)))))
@@ -2275,11 +2269,8 @@ object "CoolCoin" {
           let v10 := v9
           let v4 := v10
           $std$lib$evm$effects$revert_error$geb2e_c430(v4)
-          invalid()
         }
-        if iszero(iszero(iszero(v2))) {
-          leave
-        }
+        leave
       }
       function $std$lib$abi$sol$impl_trait$SolDecoder$68ab$base$g463e_01fe(p0) -> ret {
         let t2 := mload(add(p0, 96))

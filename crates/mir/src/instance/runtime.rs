@@ -6,7 +6,7 @@ use crate::{
     db::MirDb,
     runtime::{
         LowerError, LoweredRuntimeBody, RLocalId, RuntimeBody, RuntimeCallEdge, RuntimeClass,
-        RuntimeParam, RuntimeSignature, RuntimeSyntheticSpec,
+        RuntimeExitBehavior, RuntimeInterfaceSignature, RuntimeParam, RuntimeSyntheticSpec,
         lower::{
             body::lower_to_rmir,
             call::{
@@ -16,7 +16,7 @@ use crate::{
             interface::runtime_param_locals,
             returns::{runtime_exit_behavior, runtime_return_class},
         },
-        synthetic::{lower_synthetic_runtime_body, runtime_synthetic_signature},
+        synthetic::{lower_synthetic_runtime_body, runtime_synthetic_interface_signature},
     },
 };
 
@@ -58,8 +58,13 @@ pub struct RuntimeInstance<'db> {
 #[salsa::tracked]
 impl<'db> RuntimeInstance<'db> {
     #[salsa::tracked]
-    pub fn signature(self, db: &'db dyn MirDb) -> RuntimeSignature<'db> {
-        runtime_signature_for_key(db, self.key(db))
+    pub fn interface_signature(self, db: &'db dyn MirDb) -> RuntimeInterfaceSignature<'db> {
+        runtime_interface_signature_for_key(db, self.key(db))
+    }
+
+    #[salsa::tracked]
+    pub fn exit_behavior(self, db: &'db dyn MirDb) -> RuntimeExitBehavior {
+        runtime_exit_behavior(db, self.key(db))
     }
 
     #[salsa::tracked]
@@ -89,12 +94,12 @@ impl<'db> RuntimeInstance<'db> {
     }
 }
 
-pub(crate) fn runtime_signature_for_key<'db>(
+pub(crate) fn runtime_interface_signature_for_key<'db>(
     db: &'db dyn MirDb,
     key: RuntimeInstanceKey<'db>,
-) -> RuntimeSignature<'db> {
+) -> RuntimeInterfaceSignature<'db> {
     match key.source(db) {
-        RuntimeInstanceSource::Semantic(semantic) => RuntimeSignature {
+        RuntimeInstanceSource::Semantic(semantic) => RuntimeInterfaceSignature {
             params: key
                 .params(db)
                 .iter()
@@ -105,10 +110,9 @@ pub(crate) fn runtime_signature_for_key<'db>(
                 })
                 .collect(),
             ret: runtime_return_class(db, key),
-            exit: runtime_exit_behavior(db, key),
         },
         RuntimeInstanceSource::Synthetic(synthetic) => {
-            runtime_synthetic_signature(synthetic.spec(db).clone())
+            runtime_synthetic_interface_signature(synthetic.spec(db).clone())
         }
     }
 }

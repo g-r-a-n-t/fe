@@ -2512,7 +2512,7 @@ mod tests {
     use super::*;
     use crate::runtime::lower::boundary::BoundaryMatcher;
     use crate::runtime::{
-        RuntimeSignature,
+        RuntimeInterfaceSignature,
         lower::{
             infer::LocalStateInferer,
             interface::{runtime_param_locals, runtime_visible_binding_plans},
@@ -2544,9 +2544,9 @@ mod tests {
         db: &'db DriverDataBase,
         top_mod: hir::hir_def::TopLevelMod<'db>,
         name: &str,
-    ) -> RuntimeSignature<'db> {
+    ) -> RuntimeInterfaceSignature<'db> {
         runtime_instance_for_semantic(db, semantic_instance_for_named_func(db, top_mod, name))
-            .signature(db)
+            .interface_signature(db)
     }
 
     fn func_by_name<'db>(
@@ -2804,7 +2804,7 @@ mod tests {
             .expect("grant typed body should keep self as the first param binding");
         let self_role = semantic.binding_role(&db, self_binding);
         let plans = runtime_visible_binding_plans(&db, semantic);
-        let signature = callee.signature(&db);
+        let signature = callee.interface_signature(&db);
 
         assert_eq!(
             plans.len(),

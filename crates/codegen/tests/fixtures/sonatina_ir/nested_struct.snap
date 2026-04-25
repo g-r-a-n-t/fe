@@ -20,7 +20,7 @@ func private %abi_encode(v0.i256, v1.objref<@layout_1>) {
         v5.i256 = mload v2 i256;
         call %mstore v1 0.i256 v5;
         call %std__lib__evm__effects__impl_trait_Evm_0098__return_data_8ec3 0.i256 32.i256;
-        unreachable;
+        return;
 }
 
 func private %calldataload(v0.i256) -> i256 {
@@ -73,7 +73,7 @@ func private %init(v0.objref<@layout_1>) {
         v2.i256 = sym_addr &__NestedStruct_runtime;
         call %codecopy v0 0.i256 v2 v1;
         call %std__lib__evm__effects__impl_trait_Evm_0098__return_data_7adf 0.i256 v1;
-        unreachable;
+        return;
 }
 
 func private %manual_contract_init_root_NestedStruct() {
@@ -83,7 +83,7 @@ func private %manual_contract_init_root_NestedStruct() {
     block1:
         v0.objref<@layout_1> = obj.alloc @layout_1;
         call %init v0;
-        unreachable;
+        evm_stop;
 }
 
 func private %manual_contract_runtime_root_NestedStruct() {
@@ -211,39 +211,42 @@ func private %runtime(v0.objref<@layout_1>) {
         v3.i256 = call %calldataload 0.i256;
         v5.i256 = shr 224.i256 v3;
         v7.i1 = eq v5 3091856072.i256;
-        br v7 block2 block6;
+        br v7 block3 block7;
 
     block2:
+        return;
+
+    block3:
         v9.i256 = call %calldataload 4.i256;
         call %write_inner v9 v2;
         call %abi_encode v9 v0;
-        unreachable;
-
-    block3:
-        v14.i256 = call %read_inner v2;
-        call %abi_encode v14 v0;
-        unreachable;
+        jump block2;
 
     block4:
-        v16.i256 = call %calldataload 4.i256;
-        v17.i256 = call %mem_read v16;
-        call %abi_encode v17 v0;
-        unreachable;
+        v15.i256 = call %read_inner v2;
+        call %abi_encode v15 v0;
+        jump block2;
 
     block5:
-        call %std__lib__evm__effects__impl_trait_Evm_0098__return_data_7adf_0 0.i256 0.i256;
-        unreachable;
+        v18.i256 = call %calldataload 4.i256;
+        v19.i256 = call %mem_read v18;
+        call %abi_encode v19 v0;
+        jump block2;
 
     block6:
-        v21.i1 = eq v5 3513050253.i256;
-        br v21 block3 block7;
+        call %std__lib__evm__effects__impl_trait_Evm_0098__return_data_7adf_0 0.i256 0.i256;
+        jump block2;
 
     block7:
-        v24.i1 = eq v5 2154770637.i256;
-        br v24 block4 block8;
+        v25.i1 = eq v5 3513050253.i256;
+        br v25 block4 block8;
 
     block8:
-        jump block5;
+        v28.i1 = eq v5 2154770637.i256;
+        br v28 block5 block9;
+
+    block9:
+        jump block6;
 }
 
 func private %stor_ptr(v0.i256) -> i256 {

@@ -48,7 +48,7 @@ func private %balance(v0.objref<@layout_1>) {
 
     block1:
         call %std__lib__evm__effects__impl_trait_Evm_0098__return_data_264c 0.i256 0.i256;
-        unreachable;
+        return;
 }
 
 func private %calldatacopy(v0.objref<@layout_1>, v1.i256, v2.i256, v3.i256) {
@@ -90,7 +90,7 @@ func private %child_init(v0.objref<@layout_1>) {
         v2.i256 = sym_addr &__Child_runtime;
         call %std__lib__evm__effects__impl_trait_Evm_0098__codecopy_48e9_0 v0 0.i256 v2 v1;
         call %std__lib__evm__effects__impl_trait_Evm_0098__return_data_5f25_0 0.i256 v1;
-        unreachable;
+        return;
 }
 
 func private %child_runtime(v0.objref<@layout_1>) {
@@ -100,7 +100,7 @@ func private %child_runtime(v0.objref<@layout_1>) {
     block1:
         call %calldatacopy v0 0.i256 0.i256 4.i256;
         call %std__lib__evm__effects__impl_trait_Evm_0098__return_data_5f25_1 0.i256 4.i256;
-        unreachable;
+        return;
 }
 
 func private %std__lib__evm__effects__impl_trait_Evm_0098__codecopy_48e9(v0.objref<@layout_1>, v1.i256, v2.i256, v3.i256) {
@@ -179,7 +179,7 @@ func private %init(v0.objref<@layout_1>) {
         v11.i256 = call %allocate v9 v0;
         call %std__lib__evm__effects__impl_trait_Evm_0098__codecopy_48e9 v0 v11 v10 v9;
         call %std__lib__evm__effects__impl_trait_Evm_0098__return_data_5f25_2 v11 v9;
-        unreachable;
+        return;
 }
 
 func private %manual_contract_init_root_Child() {
@@ -189,7 +189,7 @@ func private %manual_contract_init_root_Child() {
     block1:
         v0.objref<@layout_1> = obj.alloc @layout_1;
         call %child_init v0;
-        unreachable;
+        evm_stop;
 }
 
 func private %manual_contract_init_root_Foo() {
@@ -199,7 +199,7 @@ func private %manual_contract_init_root_Foo() {
     block1:
         v0.objref<@layout_1> = obj.alloc @layout_1;
         call %init v0;
-        unreachable;
+        evm_stop;
 }
 
 func private %manual_contract_runtime_root_Child() {
@@ -209,7 +209,7 @@ func private %manual_contract_runtime_root_Child() {
     block1:
         v0.objref<@layout_1> = obj.alloc @layout_1;
         call %child_runtime v0;
-        unreachable;
+        evm_stop;
 }
 
 func private %manual_contract_runtime_root_Foo() {
@@ -219,7 +219,7 @@ func private %manual_contract_runtime_root_Foo() {
     block1:
         v0.objref<@layout_1> = obj.alloc @layout_1;
         call %runtime v0;
-        unreachable;
+        evm_stop;
 }
 
 func private %mload(v0.i256) -> i256 {
@@ -340,22 +340,22 @@ func private %runtime(v0.objref<@layout_1>) {
 
     block2:
         call %std__lib__evm__effects__impl_trait_Evm_0098__return_data_5f25 0.i256 0.i256;
-        unreachable;
+        return;
 
     block3:
         call %transfer v0;
-        unreachable;
+        jump block2;
 
     block4:
         call %balance v0;
-        unreachable;
+        jump block2;
 
     block5:
         jump block2;
 
     block6:
-        v10.i1 = eq v2 591751049.i256;
-        br v10 block4 block7;
+        v13.i1 = eq v2 591751049.i256;
+        br v13 block4 block7;
 
     block7:
         jump block5;
@@ -367,7 +367,7 @@ func private %transfer(v0.objref<@layout_1>) {
 
     block1:
         call %std__lib__evm__effects__impl_trait_Evm_0098__return_data_264c 0.i256 0.i256;
-        unreachable;
+        return;
 }
 
 

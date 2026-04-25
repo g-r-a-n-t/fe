@@ -262,7 +262,7 @@ fn provider_root_trait_receivers_preserve_concrete_runtime_layouts() {
         Some(layout),
         "use_ctx should pass the storage receiver handle directly:\n{body:#?}"
     );
-    let callee_signature = callee.signature(&db);
+    let callee_signature = callee.interface_signature(&db);
     assert_eq!(
         callee_signature
             .params

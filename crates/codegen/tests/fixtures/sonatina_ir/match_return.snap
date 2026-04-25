@@ -19,15 +19,18 @@ func private %f(v0.objref<@layout_0>, v1.objref<@layout_2>) {
     block1:
         v3.@layout_0 = obj.load v0;
         v4.enumtag(@layout_0) = enum.tag v3;
-        br_table v4 (0.enumtag(@layout_0) block2) (1.enumtag(@layout_0) block3);
+        br_table v4 (0.enumtag(@layout_0) block3) (1.enumtag(@layout_0) block4);
 
     block2:
-        call %return_data 0.i256 0.i256;
-        unreachable;
+        return;
 
     block3:
         call %return_data 0.i256 0.i256;
-        unreachable;
+        jump block2;
+
+    block4:
+        call %return_data 0.i256 0.i256;
+        jump block2;
 }
 
 func private %main(v0.objref<@layout_2>) {
@@ -42,7 +45,7 @@ func private %main(v0.objref<@layout_2>) {
 
     block2:
         call %f v2 v0;
-        unreachable;
+        return;
 
     block3:
         unreachable;

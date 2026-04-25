@@ -1039,6 +1039,76 @@ fn test_cli_build_ingot_dir_all_contracts_multi_file_fake_solc_artifacts() {
     snap_test!(snapshot, snapshot_path.to_str().unwrap());
 }
 
+#[cfg(unix)]
+#[test]
+fn test_cli_build_ingot_root_reexported_contract_fake_solc_artifacts() {
+    let fixture_dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("tests/fixtures/cli_output/build_ingots/root_reexport_contract");
+    let fixture_dir_str = fixture_dir.to_str().expect("fixture dir utf8");
+
+    let temp = tempdir().expect("tempdir");
+    let fake_solc = write_fake_solc(&temp);
+
+    let out_dir = temp.path().join("out");
+    let out_dir_str = out_dir.to_string_lossy().to_string();
+
+    let (output, exit_code) = run_fe_main_with_env(
+        &[
+            "build",
+            "--backend",
+            "yul",
+            "--contract",
+            "KeyperSet",
+            "--out-dir",
+            out_dir_str.as_str(),
+            fixture_dir_str,
+        ],
+        &[
+            ("FE_SOLC_PATH", fake_solc.to_str().expect("fake solc utf8")),
+            ("FAKE_SOLC_CONTRACT", "KeyperSet"),
+        ],
+    );
+    assert_eq!(exit_code, 0, "fe build failed:\n{output}");
+
+    let deploy_path = out_dir.join("KeyperSet.bin");
+    let runtime_path = out_dir.join("KeyperSet.runtime.bin");
+    let deploy = fs::read_to_string(&deploy_path).expect("read KeyperSet deploy bytecode");
+    let runtime = fs::read_to_string(&runtime_path).expect("read KeyperSet runtime bytecode");
+
+    let mut snapshot = replace_path_token(&output, &out_dir, "<out>");
+    snapshot.push_str("\n\n=== ARTIFACTS ===\n");
+    snapshot.push_str(&format!("KeyperSet.bin: {}\n", deploy.trim()));
+    snapshot.push_str(&format!("KeyperSet.runtime.bin: {}\n", runtime.trim()));
+
+    let snapshot_path = fixture_dir.join("build_fake_solc.case");
+    snap_test!(snapshot, snapshot_path.to_str().unwrap());
+}
+
+#[test]
+fn test_cli_build_ingot_root_reexported_contract_sonatina_artifacts() {
+    let fixture_dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("tests/fixtures/cli_output/build_ingots/root_reexport_contract");
+    let fixture_dir_str = fixture_dir.to_str().expect("fixture dir utf8");
+
+    let temp = tempdir().expect("tempdir");
+    let out_dir = temp.path().join("out");
+    let out_dir_str = out_dir.to_string_lossy().to_string();
+
+    let (output, exit_code) = run_fe_main(&[
+        "build",
+        "--backend",
+        "sonatina",
+        "--contract",
+        "KeyperSet",
+        "--out-dir",
+        out_dir_str.as_str(),
+        fixture_dir_str,
+    ]);
+    assert_eq!(exit_code, 0, "fe build failed:\n{output}");
+    assert_hex_artifact(&out_dir.join("KeyperSet.bin"));
+    assert_hex_artifact(&out_dir.join("KeyperSet.runtime.bin"));
+}
+
 fn assert_hex_artifact(path: &std::path::Path) {
     let contents = fs::read_to_string(path).unwrap_or_else(|err| {
         panic!("read artifact {path:?}: {err}");

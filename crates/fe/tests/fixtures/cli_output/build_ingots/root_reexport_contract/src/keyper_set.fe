@@ -1,0 +1,13 @@
+msg KeyperSetMsg {
+    #[selector = 0x12345678]
+    Get -> u256,
+}
+
+pub contract KeyperSet {
+    recv KeyperSetMsg {
+        Get -> u256 {
+            1
+        }
+    }
+}
+

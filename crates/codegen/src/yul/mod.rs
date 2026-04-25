@@ -120,7 +120,17 @@ pub fn emit_ingot_yul_with_layout(
 ) -> Result<String, EmitModuleError> {
     let mut modules = Vec::new();
     for &top_mod in ingot.all_modules(db) {
-        modules.push(emit_module_yul_with_layout(db, top_mod, layout)?);
+        let package = build_runtime_package(db, top_mod)?;
+        if package.root_objects(db).is_empty() {
+            continue;
+        }
+        modules.push(emit_runtime_package_yul(db, &package, layout)?);
+    }
+    if modules.is_empty() {
+        return Err(mir::LowerError::Unsupported(
+            "runtime package has no root objects; refusing to emit target-only Yul".to_string(),
+        )
+        .into());
     }
     Ok(modules.join("\n\n"))
 }

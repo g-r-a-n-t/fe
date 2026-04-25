@@ -347,7 +347,22 @@ pub fn emit_module_sonatina_ir_optimized(
 pub fn emit_ingot_sonatina_ir(db: &DriverDataBase, ingot: Ingot<'_>) -> Result<String, LowerError> {
     let mut modules = Vec::new();
     for &top_mod in ingot.all_modules(db) {
-        modules.push(emit_module_sonatina_ir(db, top_mod)?);
+        let package = build_runtime_package(db, top_mod)?;
+        if package.root_objects(db).is_empty() {
+            continue;
+        }
+        modules.push(emit_runtime_package_sonatina_ir(
+            db,
+            &package,
+            crate::EVM_LAYOUT,
+        )?);
+    }
+    if modules.is_empty() {
+        return Err(mir::LowerError::Unsupported(
+            "runtime package has no root objects; refusing to emit target-only Sonatina IR"
+                .to_string(),
+        )
+        .into());
     }
     Ok(modules.join("\n\n"))
 }
@@ -360,9 +375,23 @@ pub fn emit_ingot_sonatina_ir_optimized(
 ) -> Result<String, LowerError> {
     let mut modules = Vec::new();
     for &top_mod in ingot.all_modules(db) {
-        modules.push(emit_module_sonatina_ir_optimized(
-            db, top_mod, opt_level, None,
+        let package = build_runtime_package(db, top_mod)?;
+        if package.root_objects(db).is_empty() {
+            continue;
+        }
+        modules.push(emit_runtime_package_sonatina_ir_optimized(
+            db,
+            &package,
+            crate::EVM_LAYOUT,
+            opt_level,
         )?);
+    }
+    if modules.is_empty() {
+        return Err(mir::LowerError::Unsupported(
+            "runtime package has no root objects; refusing to emit target-only Sonatina IR"
+                .to_string(),
+        )
+        .into());
     }
     Ok(modules.join("\n\n"))
 }
@@ -394,13 +423,26 @@ pub fn emit_ingot_sonatina_bytecode(
 ) -> Result<BTreeMap<String, SonatinaContractBytecode>, LowerError> {
     let mut outputs = BTreeMap::new();
     for &top_mod in ingot.all_modules(db) {
-        for (name, bytecode) in emit_module_sonatina_bytecode(db, top_mod, opt_level, None)? {
+        let package = build_runtime_package(db, top_mod)?;
+        if package.root_objects(db).is_empty() {
+            continue;
+        }
+        for (name, bytecode) in
+            emit_runtime_package_sonatina_bytecode(db, &package, crate::EVM_LAYOUT, opt_level)?
+        {
             if outputs.insert(name.clone(), bytecode).is_some() {
                 return Err(LowerError::Internal(format!(
                     "duplicate root object `{name}` across ingot modules"
                 )));
             }
         }
+    }
+    if outputs.is_empty() {
+        return Err(mir::LowerError::Unsupported(
+            "runtime package has no root objects; refusing to emit target-only Sonatina bytecode"
+                .to_string(),
+        )
+        .into());
     }
     Ok(outputs)
 }

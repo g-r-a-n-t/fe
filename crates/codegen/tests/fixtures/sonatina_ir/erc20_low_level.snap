@@ -521,7 +521,7 @@ func private %manual_contract_runtime_root_Erc20Contract() {
     block1:
         v0.objref<@layout_1> = obj.alloc @layout_1;
         call %runtime v0;
-        unreachable;
+        evm_stop;
 }
 
 func private %mint__g0502(v0.i256, v1.@layout_2, v2.i256, v3.objref<@layout_1>, v4.objref<@layout_1>) {

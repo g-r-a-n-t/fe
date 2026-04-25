@@ -782,7 +782,8 @@ impl<'db> SemanticInstance<'db> {
                 else {
                     continue;
                 };
-                if SemanticInstance::new(db, callee.key).known_never_returns(db) {
+                if semantic_call_is_known_never_returning(db, SemanticInstance::new(db, callee.key))
+                {
                     terminated_in_stmt = true;
                     break;
                 }
@@ -1912,6 +1913,39 @@ fn semantic_is_nonreturning_builtin<'db>(
                 | RuntimeBuiltinFuncKind::Todo
         )
     )
+}
+
+fn semantic_call_is_known_never_returning<'db>(
+    db: &'db dyn HirAnalysisDb,
+    callee: SemanticInstance<'db>,
+) -> bool {
+    semantic_is_nonreturning_builtin(db, callee)
+        || (semantic_contains_direct_nonreturning_call(db, callee)
+            && callee.known_never_returns(db))
+}
+
+#[salsa::tracked]
+fn semantic_contains_direct_nonreturning_call<'db>(
+    db: &'db dyn HirAnalysisDb,
+    instance: SemanticInstance<'db>,
+) -> bool {
+    if semantic_is_nonreturning_builtin(db, instance) {
+        return true;
+    }
+
+    instance.body(db).blocks.iter().any(|block| {
+        block.stmts.iter().any(|stmt| {
+            if let SStmtKind::Assign {
+                expr: SExpr::Call { callee, .. },
+                ..
+            } = &stmt.kind
+            {
+                semantic_is_nonreturning_builtin(db, SemanticInstance::new(db, callee.key))
+            } else {
+                false
+            }
+        })
+    })
 }
 
 fn known_never_returns_cycle_initial<'db>(

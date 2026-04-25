@@ -44,7 +44,7 @@ func private %main_root() {
     block1:
         v0.objref<@layout_1> = obj.alloc @layout_1;
         call %main v0;
-        unreachable;
+        evm_stop;
 }
 
 func private %std__lib__evm__effects__impl_trait_Evm_d0d8__mstore_864e(v0.objref<@layout_1>, v1.i256, v2.i256) {

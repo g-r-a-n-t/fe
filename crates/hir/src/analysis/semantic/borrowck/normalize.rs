@@ -934,6 +934,10 @@ impl<'db> NormalizeCtxt<'db> {
     }
 
     fn read_mode_for_view_call_arg(&self, ty: TyId<'db>) -> ReadMode {
+        self.copy_or_read_mode(ty)
+    }
+
+    fn copy_or_read_mode(&self, ty: TyId<'db>) -> ReadMode {
         let scope = self.raw.template_owner.scope();
         let ty = normalize_ty(self.db, ty, scope, self.assumptions);
         let value_ty = ty
@@ -947,28 +951,46 @@ impl<'db> NormalizeCtxt<'db> {
         }
     }
 
-    fn read_mode(
-        &self,
-        origin: crate::analysis::semantic::SemOrigin<'db>,
-        ty: TyId<'db>,
-    ) -> ReadMode {
-        match origin {
+    fn origin_is_implicit_move(&self, origin: crate::analysis::semantic::SemOrigin<'db>) -> bool {
+        matches!(
+            origin,
             crate::analysis::semantic::SemOrigin::Expr(expr)
                 if self
                     .instance
                     .key(self.db)
                     .instantiate_typed_body(self.db)
                     .is_implicit_move(expr)
-                    || !ty_is_copy(
-                        self.db,
-                        self.raw.template_owner.scope(),
-                        ty,
-                        self.assumptions,
-                    ) =>
-            {
-                ReadMode::Move
-            }
-            _ => ReadMode::Copy,
+        )
+    }
+
+    fn read_mode_for_capability_place(
+        &self,
+        origin: crate::analysis::semantic::SemOrigin<'db>,
+        ty: TyId<'db>,
+    ) -> ReadMode {
+        if self.origin_is_implicit_move(origin) {
+            ReadMode::Move
+        } else {
+            self.copy_or_read_mode(ty)
+        }
+    }
+
+    fn read_mode(
+        &self,
+        origin: crate::analysis::semantic::SemOrigin<'db>,
+        ty: TyId<'db>,
+    ) -> ReadMode {
+        if self.origin_is_implicit_move(origin)
+            || !ty_is_copy(
+                self.db,
+                self.raw.template_owner.scope(),
+                ty,
+                self.assumptions,
+            )
+        {
+            ReadMode::Move
+        } else {
+            ReadMode::Copy
         }
     }
 
@@ -1040,27 +1062,7 @@ impl<'db> NormalizeCtxt<'db> {
         if local.ty.as_capability(self.db).is_none() {
             return ReadMode::Copy;
         }
-        match origin {
-            crate::analysis::semantic::SemOrigin::Expr(expr)
-                if self
-                    .instance
-                    .key(self.db)
-                    .instantiate_typed_body(self.db)
-                    .is_implicit_move(expr) =>
-            {
-                ReadMode::Move
-            }
-            _ if !ty_is_copy(
-                self.db,
-                self.raw.template_owner.scope(),
-                ty,
-                self.assumptions,
-            ) =>
-            {
-                ReadMode::Move
-            }
-            _ => ReadMode::Copy,
-        }
+        self.read_mode_for_capability_place(origin, ty)
     }
 
     fn read_mode_for_root(
@@ -1087,27 +1089,7 @@ impl<'db> NormalizeCtxt<'db> {
                         )
                     }) =>
             {
-                match origin {
-                    crate::analysis::semantic::SemOrigin::Expr(expr)
-                        if self
-                            .instance
-                            .key(self.db)
-                            .instantiate_typed_body(self.db)
-                            .is_implicit_move(expr) =>
-                    {
-                        ReadMode::Move
-                    }
-                    _ if !ty_is_copy(
-                        self.db,
-                        self.raw.template_owner.scope(),
-                        ty,
-                        self.assumptions,
-                    ) =>
-                    {
-                        ReadMode::Move
-                    }
-                    _ => ReadMode::Copy,
-                }
+                self.read_mode_for_capability_place(origin, ty)
             }
             Some(NBorrowRoot::Param { .. }) | Some(NBorrowRoot::LocalSlot { .. }) | None => {
                 self.read_mode(origin, ty)

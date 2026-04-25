@@ -6,7 +6,7 @@ use fe_hir::{
     analysis::{
         semantic::{
             BorrowInputRef, BorrowTransform, NBorrowRoot, NExpr, NLocalOrigin, NSPlaceRoot,
-            NSStmtKind, NormalizedBindingLowering, SStmtKind, SemanticBorrowDiagKind,
+            NSStmtKind, NormalizedBindingLowering, ReadMode, SStmtKind, SemanticBorrowDiagKind,
             SemanticInstance, SemanticLocalKind, check_semantic_borrows, check_semantic_noesc,
             collect_semantic_borrow_diagnostic_vouchers, get_or_build_semantic_instance,
             identity_semantic_instance_key, normalize_semantic_body, semantic_borrow_summary,
@@ -903,6 +903,109 @@ fn unwrap(w: Wrapper) -> Pair {
     assert!(diags.contains("move conflict in `fn unwrap`"), "{diags:?}");
     assert!(
         diags.contains("cannot move out of a view parameter"),
+        "{diags:?}"
+    );
+}
+
+#[test]
+fn non_copy_projection_to_view_receiver_does_not_move_from_view_param() {
+    let mut db = HirAnalysisTestDb::default();
+    let file = db.new_stand_alone(
+        "semantic_borrowck.fe".into(),
+        r#"
+struct Row {
+    cells: [u256; 4],
+}
+
+impl Row {
+    fn get_cell(self, col: usize) -> u256 {
+        self.cells[col]
+    }
+
+    fn has_value(self, val: u256) -> bool {
+        let mut c: usize = 0
+        while c < 4 {
+            if self.cells[c] == val {
+                return true
+            }
+            c += 1
+        }
+        return false
+    }
+}
+
+struct Board {
+    rows: [Row; 4],
+}
+
+fn read_board(board: Board, row: usize, col: usize) -> u256 {
+    board.rows[row].get_cell(col: col)
+}
+
+fn find_empty(board: Board, row: usize, col: usize) -> bool {
+    if board.rows[row].has_value(val: 0) {
+        return board.rows[row].get_cell(col: col) == 0
+    }
+    false
+}
+"#,
+    );
+    let (top_mod, _) = db.top_mod(file);
+    let diags = format_diagnostics(
+        &db,
+        &collect_semantic_borrow_diagnostic_vouchers(&db, top_mod),
+    );
+    assert!(!diags.contains("move conflict"), "{diags:?}");
+    assert!(
+        !diags.contains("internal borrow checking error"),
+        "{diags:?}"
+    );
+
+    let normalized = normalized_func_body(&db, top_mod, "read_board");
+    let row_read_mode = normalized
+        .blocks
+        .iter()
+        .flat_map(|block| block.stmts.iter())
+        .find_map(|stmt| match &stmt.kind {
+            NSStmtKind::Assign {
+                dst,
+                expr: NExpr::ReadPlace { mode, .. },
+            } if normalized.locals[dst.index()].ty.pretty_print(&db) == "Row" => Some(mode),
+            _ => None,
+        })
+        .expect("row projection read");
+    assert_eq!(*row_read_mode, ReadMode::Read);
+}
+
+#[test]
+fn non_copy_field_projection_to_view_receiver_does_not_move_from_mut_receiver() {
+    let diags = borrow_diags(
+        r#"
+struct LockStore {
+    active: bool,
+}
+
+impl LockStore {
+    fn is_active(self) -> bool {
+        self.active
+    }
+}
+
+struct RegistryStore {
+    lock_store: LockStore,
+}
+
+impl RegistryStore {
+    fn check(mut self) -> bool {
+        self.lock_store.is_active()
+    }
+}
+"#,
+    );
+
+    assert!(!diags.contains("move conflict"), "{diags:?}");
+    assert!(
+        !diags.contains("internal borrow checking error"),
         "{diags:?}"
     );
 }

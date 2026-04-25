@@ -186,10 +186,25 @@ pub(crate) fn runtime_return_class<'db>(
     key: RuntimeInstanceKey<'db>,
 ) -> Option<RuntimeClass<'db>> {
     let semantic = key.semantic(db)?;
+    if let Some(class) = static_runtime_return_class(db, semantic) {
+        return Some(class);
+    }
     let summary = runtime_return_summary(db, semantic);
     evaluate_runtime_return_class(db, summary, key.params(db), &mut |callee_key| {
         runtime_return_class(db, callee_key)
     })
+}
+
+fn static_runtime_return_class<'db>(
+    db: &'db dyn MirDb,
+    semantic: SemanticInstance<'db>,
+) -> Option<RuntimeClass<'db>> {
+    match desired_runtime_return_plan(db, semantic) {
+        RuntimeVisibleReturnPlan::Exact(class) => Some(class),
+        RuntimeVisibleReturnPlan::Erased
+        | RuntimeVisibleReturnPlan::Constrained(_)
+        | RuntimeVisibleReturnPlan::PassActual => None,
+    }
 }
 
 fn runtime_return_class_cycle_initial<'db>(
@@ -458,6 +473,62 @@ mod tests {
         } else {
             summary.default_return_class.clone()
         }
+    }
+
+    fn assert_static_exact_return_matches_full_inference(source: &str, name: &str) {
+        let mut db = DriverDataBase::default();
+        let file_url = Url::parse(&format!("file:///{name}.fe")).unwrap();
+        db.workspace()
+            .touch(&mut db, file_url.clone(), Some(source.to_string()));
+        let file = db
+            .workspace()
+            .get(&db, &file_url)
+            .expect("file should be loaded");
+        let top_mod = db.top_mod(file);
+        let semantic = semantic_instance_for_named_func(&db, top_mod, name);
+        let key = runtime_instance_for_semantic(&db, semantic).key(&db);
+
+        assert!(
+            matches!(
+                desired_runtime_return_plan(&db, semantic),
+                RuntimeVisibleReturnPlan::Exact(_)
+            ),
+            "`{name}` should exercise the static exact return-class path"
+        );
+        assert_eq!(
+            runtime_return_class(&db, key),
+            legacy_return_class_for_key(&db, key),
+            "static exact return class should match full-body carrier inference"
+        );
+    }
+
+    #[test]
+    fn exact_scalar_return_class_does_not_need_body_inference() {
+        assert_static_exact_return_matches_full_inference(
+            r#"
+fn exact_scalar_return_class_does_not_need_body_inference() -> u256 {
+    42
+}
+"#,
+            "exact_scalar_return_class_does_not_need_body_inference",
+        );
+    }
+
+    #[test]
+    fn exact_aggregate_return_class_does_not_need_body_inference() {
+        assert_static_exact_return_matches_full_inference(
+            r#"
+struct Pair {
+    a: u256,
+    b: u256,
+}
+
+fn exact_aggregate_return_class_does_not_need_body_inference() -> Pair {
+    Pair { a: 1, b: 2 }
+}
+"#,
+            "exact_aggregate_return_class_does_not_need_body_inference",
+        );
     }
 
     #[test]

@@ -14,6 +14,7 @@ use common::indexmap::IndexMap;
 use diagnostics::{DefConflictError, TraitLowerDiag, TyLowerDiag};
 use rustc_hash::{FxHashMap, FxHashSet};
 use smallvec1::SmallVec;
+use trait_def::impls_for_trait_def;
 use trait_resolution::constraint::super_trait_cycle;
 use ty_def::{BorrowKind, InvalidCause, TyBase, TyData, TyId, instantiate_adt_field_ty};
 use ty_lower::lower_type_alias;
@@ -136,10 +137,69 @@ fn ty_is_copy_query<'db>(
         return true;
     }
     let solve_cx = TraitSolveCx::new(db, scope).with_assumptions(assumptions);
+    if !copy_goal_has_possible_impl(db, solve_cx, inst) {
+        return false;
+    }
     matches!(
         is_goal_satisfiable(db, solve_cx, inst),
         GoalSatisfiability::Satisfied(_)
     )
+}
+
+fn copy_goal_has_possible_impl<'db>(
+    db: &'db dyn HirAnalysisDb,
+    solve_cx: TraitSolveCx<'db>,
+    inst: trait_def::TraitInstId<'db>,
+) -> bool {
+    let Some(self_base) = concrete_copy_candidate_base(db, inst.self_ty(db)) else {
+        return true;
+    };
+
+    let trait_def = inst.def(db);
+    let (primary, secondary) = solve_cx.search_ingots_for_trait_inst(db, inst);
+    [Some(primary), secondary]
+        .into_iter()
+        .flatten()
+        .any(|ingot| {
+            impls_for_trait_def(db, ingot, trait_def)
+                .iter()
+                .any(|implementor| {
+                    let impl_self = implementor.skip_binder().self_ty(db);
+                    copy_impl_self_may_match(db, impl_self, self_base)
+                })
+        })
+}
+
+fn concrete_copy_candidate_base<'db>(
+    db: &'db dyn HirAnalysisDb,
+    ty: TyId<'db>,
+) -> Option<TyId<'db>> {
+    if ty.has_param(db) || ty.has_var(db) {
+        return None;
+    }
+    let base = ty.base_ty(db);
+    match base.data(db) {
+        TyData::AssocTy(_) | TyData::QualifiedTy(_) => None,
+        _ => Some(base),
+    }
+}
+
+fn copy_impl_self_may_match<'db>(
+    db: &'db dyn HirAnalysisDb,
+    impl_self: TyId<'db>,
+    target_base: TyId<'db>,
+) -> bool {
+    let impl_base = impl_self.base_ty(db);
+    if impl_base.has_param(db)
+        || impl_base.has_var(db)
+        || matches!(
+            impl_base.data(db),
+            TyData::AssocTy(_) | TyData::QualifiedTy(_)
+        )
+    {
+        return true;
+    }
+    impl_base == target_base
 }
 
 pub fn ty_is_noesc<'db>(db: &'db dyn HirAnalysisDb, ty: TyId<'db>) -> bool {
@@ -677,5 +737,87 @@ impl ModuleAnalysisPass for TypeAliasAnalysisPass {
             }
         }
         diags
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use camino::Utf8PathBuf;
+    use common::indexmap::IndexMap;
+
+    use super::{
+        PredicateListId, TraitSolveCx, adt_def::AdtRef, copy_goal_has_possible_impl,
+        corelib::resolve_core_trait, trait_def::TraitInstId, ty_def::TyId, ty_is_copy,
+    };
+    use crate::{hir_def::ItemKind, test_db::HirAnalysisTestDb};
+
+    fn named_struct_ty<'db>(
+        db: &'db HirAnalysisTestDb,
+        top_mod: crate::hir_def::TopLevelMod<'db>,
+        name: &str,
+    ) -> TyId<'db> {
+        let struct_ = top_mod
+            .children_non_nested(db)
+            .find_map(|item| match item {
+                ItemKind::Struct(struct_)
+                    if struct_
+                        .name(db)
+                        .to_opt()
+                        .is_some_and(|ident| ident.data(db) == name) =>
+                {
+                    Some(struct_)
+                }
+                _ => None,
+            })
+            .unwrap_or_else(|| panic!("missing `{name}` struct"));
+        TyId::adt(db, AdtRef::from(struct_).as_adt(db))
+    }
+
+    #[test]
+    fn copy_prefilter_rejects_concrete_noncopy_struct() {
+        let mut db = HirAnalysisTestDb::default();
+        let file = db.new_stand_alone(
+            Utf8PathBuf::from("copy_prefilter_rejects_concrete_noncopy_struct.fe"),
+            r#"
+struct Plain {
+    value: u256,
+}
+"#,
+        );
+        let (top_mod, _) = db.top_mod(file);
+        let copy_trait = resolve_core_trait(&db, top_mod.scope(), &["marker", "Copy"])
+            .expect("missing Copy trait");
+        let plain = named_struct_ty(&db, top_mod, "Plain");
+        let copy_plain = TraitInstId::new(&db, copy_trait, vec![plain], IndexMap::new());
+        let assumptions = PredicateListId::empty_list(&db);
+        let solve_cx = TraitSolveCx::new(&db, top_mod.scope()).with_assumptions(assumptions);
+
+        assert!(!copy_goal_has_possible_impl(&db, solve_cx, copy_plain));
+        assert!(!ty_is_copy(&db, top_mod.scope(), plain, assumptions));
+    }
+
+    #[test]
+    fn copy_prefilter_preserves_explicit_copy_struct() {
+        let mut db = HirAnalysisTestDb::default();
+        let file = db.new_stand_alone(
+            Utf8PathBuf::from("copy_prefilter_preserves_explicit_copy_struct.fe"),
+            r#"
+struct Explicit {
+    value: u256,
+}
+
+impl Copy for Explicit {}
+"#,
+        );
+        let (top_mod, _) = db.top_mod(file);
+        let copy_trait = resolve_core_trait(&db, top_mod.scope(), &["marker", "Copy"])
+            .expect("missing Copy trait");
+        let explicit = named_struct_ty(&db, top_mod, "Explicit");
+        let copy_explicit = TraitInstId::new(&db, copy_trait, vec![explicit], IndexMap::new());
+        let assumptions = PredicateListId::empty_list(&db);
+        let solve_cx = TraitSolveCx::new(&db, top_mod.scope()).with_assumptions(assumptions);
+
+        assert!(copy_goal_has_possible_impl(&db, solve_cx, copy_explicit));
+        assert!(ty_is_copy(&db, top_mod.scope(), explicit, assumptions));
     }
 }

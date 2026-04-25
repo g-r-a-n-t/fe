@@ -1,11 +1,13 @@
 mod lower_runtime;
 
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, VecDeque};
 
 use common::ingot::Ingot;
 use driver::DriverDataBase;
 use hir::hir_def::{HirIngot, TopLevelMod};
+use mir::runtime::ir::RuntimePackagePlan;
 use mir::{RuntimePackage, build_runtime_package, build_test_runtime_package};
+use rustc_hash::FxHashSet;
 use sonatina_codegen::{
     isa::evm::EvmBackend,
     object::{CompileOptions, ObjectArtifact, compile_all_objects},
@@ -239,6 +241,235 @@ pub fn compile_runtime_package_sonatina(
     lower_runtime::compile_runtime_package_sonatina(db, package, layout)
 }
 
+fn select_runtime_package_contract<'db>(
+    db: &'db dyn mir::MirDb,
+    package: RuntimePackage<'db>,
+    contract: Option<&str>,
+) -> Result<RuntimePackage<'db>, LowerError> {
+    let Some(contract) = contract else {
+        return Ok(package);
+    };
+    let matches = root_objects_named(db, package, contract);
+    match matches.as_slice() {
+        [] => Err(LowerError::Internal(format!(
+            "root object `{contract}` not found in runtime package"
+        ))),
+        [root] => Ok(filter_runtime_package_to_root_objects(
+            db,
+            package,
+            &[*root],
+        )),
+        _ => Err(LowerError::Internal(format!(
+            "multiple root objects named `{contract}` in runtime package"
+        ))),
+    }
+}
+
+fn select_ingot_runtime_packages<'db>(
+    db: &'db dyn mir::MirDb,
+    ingot: Ingot<'db>,
+    contract: Option<&str>,
+) -> Result<Vec<RuntimePackage<'db>>, LowerError> {
+    let mut packages = Vec::new();
+    for &top_mod in ingot.all_modules(db) {
+        let package = build_runtime_package(db, top_mod)?;
+        if package.root_objects(db).is_empty() {
+            continue;
+        }
+        let Some(contract) = contract else {
+            packages.push(package);
+            continue;
+        };
+        let matches = root_objects_named(db, package, contract);
+        if matches.len() > 1 {
+            return Err(LowerError::Internal(format!(
+                "multiple root objects named `{contract}` in runtime package"
+            )));
+        }
+        if let Some(root) = matches.first().copied() {
+            packages.push(filter_runtime_package_to_root_objects(db, package, &[root]));
+        }
+    }
+    if let Some(contract) = contract {
+        if packages.is_empty() {
+            return Err(LowerError::Internal(format!(
+                "root object `{contract}` not found in ingot runtime packages"
+            )));
+        }
+        if packages.len() > 1 {
+            return Err(LowerError::Internal(format!(
+                "duplicate root object `{contract}` across ingot modules"
+            )));
+        }
+    }
+    Ok(packages)
+}
+
+fn root_objects_named<'db>(
+    db: &'db dyn mir::MirDb,
+    package: RuntimePackage<'db>,
+    name: &str,
+) -> Vec<mir::RuntimeObject<'db>> {
+    package
+        .root_objects(db)
+        .into_iter()
+        .filter(|object| object.name(db) == name)
+        .collect()
+}
+
+fn filter_runtime_package_to_root_objects<'db>(
+    db: &'db dyn mir::MirDb,
+    package: RuntimePackage<'db>,
+    roots: &[mir::RuntimeObject<'db>],
+) -> RuntimePackage<'db> {
+    let root_names = roots
+        .iter()
+        .map(|object| object.name(db).clone())
+        .collect::<FxHashSet<_>>();
+    let section_set = reachable_sections(db, roots);
+    let objects = package
+        .objects(db)
+        .into_iter()
+        .filter_map(|object| {
+            let sections = object
+                .sections(db)
+                .into_iter()
+                .filter(|section| section_set.contains(&(object, section.name.clone())))
+                .collect::<Vec<_>>();
+            (!sections.is_empty())
+                .then(|| mir::RuntimeObject::new(db, object.name(db).clone(), sections))
+        })
+        .collect::<Vec<_>>();
+    let function_set = reachable_functions(db, &objects);
+    let functions = package
+        .functions(db)
+        .into_iter()
+        .filter(|function| function_set.contains(&function.instance(db)))
+        .collect::<Vec<_>>();
+    let const_region_set = reachable_const_regions(db, &objects, &functions);
+    let const_regions = package
+        .const_regions(db)
+        .into_iter()
+        .filter(|region| const_region_set.contains(region))
+        .collect::<Vec<_>>();
+    let code_regions = package
+        .code_regions(db)
+        .into_iter()
+        .filter(|region| section_set.contains(&section_ref_key(region.source(db))))
+        .collect::<Vec<_>>();
+    let root_objects = package
+        .objects(db)
+        .into_iter()
+        .filter(|object| root_names.contains(&object.name(db)))
+        .filter_map(|object| {
+            objects
+                .iter()
+                .find(|filtered| filtered.name(db) == object.name(db))
+                .copied()
+        })
+        .collect::<Vec<_>>();
+    let primary_object = package
+        .primary_object(db)
+        .filter(|object| root_names.contains(&object.name(db)))
+        .and_then(|object| {
+            objects
+                .iter()
+                .find(|filtered| filtered.name(db) == object.name(db))
+                .copied()
+        })
+        .or_else(|| root_objects.first().copied());
+
+    RuntimePackage::new(
+        db,
+        package.top_mod(db),
+        functions,
+        RuntimePackagePlan::new(
+            db,
+            objects,
+            const_regions,
+            code_regions,
+            root_objects,
+            primary_object,
+        ),
+    )
+}
+
+fn reachable_sections<'db>(
+    db: &'db dyn mir::MirDb,
+    roots: &[mir::RuntimeObject<'db>],
+) -> FxHashSet<(mir::RuntimeObject<'db>, mir::RuntimeSectionName)> {
+    let mut seen = FxHashSet::default();
+    let mut queue = roots
+        .iter()
+        .flat_map(|object| {
+            object
+                .sections(db)
+                .into_iter()
+                .map(|section| (*object, section.name))
+        })
+        .collect::<VecDeque<_>>();
+    while let Some((object, section_name)) = queue.pop_front() {
+        if !seen.insert((object, section_name.clone())) {
+            continue;
+        }
+        for section in object
+            .sections(db)
+            .into_iter()
+            .filter(|section| section.name == section_name)
+        {
+            for embed in section.embeds {
+                queue.push_back(section_ref_key(embed.source));
+            }
+        }
+    }
+    seen
+}
+
+fn section_ref_key<'db>(
+    section_ref: mir::RuntimeSectionRef<'db>,
+) -> (mir::RuntimeObject<'db>, mir::RuntimeSectionName) {
+    match section_ref {
+        mir::RuntimeSectionRef::Local { object, section }
+        | mir::RuntimeSectionRef::External { object, section } => (object, section),
+    }
+}
+
+fn reachable_functions<'db>(
+    db: &'db dyn mir::MirDb,
+    objects: &[mir::RuntimeObject<'db>],
+) -> FxHashSet<mir::RuntimeInstance<'db>> {
+    let mut seen = FxHashSet::default();
+    let mut queue = objects
+        .iter()
+        .flat_map(|object| object.sections(db))
+        .map(|section| section.entry.instance(db))
+        .collect::<VecDeque<_>>();
+    while let Some(instance) = queue.pop_front() {
+        if !seen.insert(instance) {
+            continue;
+        }
+        for call in instance.calls(db) {
+            queue.push_back(call.callee);
+        }
+    }
+    seen
+}
+
+fn reachable_const_regions<'db>(
+    db: &'db dyn mir::MirDb,
+    objects: &[mir::RuntimeObject<'db>],
+    functions: &[mir::RuntimeFunction<'db>],
+) -> FxHashSet<mir::ConstRegionId<'db>> {
+    let mut seen = FxHashSet::default();
+    for section in objects.iter().flat_map(|object| object.sections(db)) {
+        seen.extend(section.const_regions);
+    }
+    for function in functions {
+        seen.extend(function.referenced_const_regions(db));
+    }
+    seen
+}
+
 pub fn emit_runtime_package_sonatina_ir(
     db: &DriverDataBase,
     package: &RuntimePackage<'_>,
@@ -338,9 +569,10 @@ pub fn emit_module_sonatina_ir_optimized(
     db: &DriverDataBase,
     top_mod: TopLevelMod<'_>,
     opt_level: OptLevel,
-    _contract: Option<&str>,
+    contract: Option<&str>,
 ) -> Result<String, LowerError> {
     let package = build_runtime_package(db, top_mod)?;
+    let package = select_runtime_package_contract(db, package, contract)?;
     emit_runtime_package_sonatina_ir_optimized(db, &package, crate::EVM_LAYOUT, opt_level)
 }
 
@@ -371,14 +603,10 @@ pub fn emit_ingot_sonatina_ir_optimized(
     db: &DriverDataBase,
     ingot: Ingot<'_>,
     opt_level: OptLevel,
-    _contract: Option<&str>,
+    contract: Option<&str>,
 ) -> Result<String, LowerError> {
     let mut modules = Vec::new();
-    for &top_mod in ingot.all_modules(db) {
-        let package = build_runtime_package(db, top_mod)?;
-        if package.root_objects(db).is_empty() {
-            continue;
-        }
+    for package in select_ingot_runtime_packages(db, ingot, contract)? {
         modules.push(emit_runtime_package_sonatina_ir_optimized(
             db,
             &package,
@@ -409,9 +637,10 @@ pub fn emit_module_sonatina_bytecode(
     db: &DriverDataBase,
     top_mod: TopLevelMod<'_>,
     opt_level: OptLevel,
-    _contract: Option<&str>,
+    contract: Option<&str>,
 ) -> Result<BTreeMap<String, SonatinaContractBytecode>, LowerError> {
     let package = build_runtime_package(db, top_mod)?;
+    let package = select_runtime_package_contract(db, package, contract)?;
     emit_runtime_package_sonatina_bytecode(db, &package, crate::EVM_LAYOUT, opt_level)
 }
 
@@ -419,14 +648,10 @@ pub fn emit_ingot_sonatina_bytecode(
     db: &DriverDataBase,
     ingot: Ingot<'_>,
     opt_level: OptLevel,
-    _contract: Option<&str>,
+    contract: Option<&str>,
 ) -> Result<BTreeMap<String, SonatinaContractBytecode>, LowerError> {
     let mut outputs = BTreeMap::new();
-    for &top_mod in ingot.all_modules(db) {
-        let package = build_runtime_package(db, top_mod)?;
-        if package.root_objects(db).is_empty() {
-            continue;
-        }
+    for package in select_ingot_runtime_packages(db, ingot, contract)? {
         for (name, bytecode) in
             emit_runtime_package_sonatina_bytecode(db, &package, crate::EVM_LAYOUT, opt_level)?
         {
@@ -543,6 +768,32 @@ mod tests {
     fn temp_fixture_url(name: &str) -> Url {
         let fixture_path = std::env::temp_dir().join(name);
         Url::from_file_path(&fixture_path).expect("fixture path should be absolute")
+    }
+
+    #[test]
+    fn module_sonatina_bytecode_respects_contract_filter() {
+        let mut db = DriverDataBase::default();
+        let fixture_path = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+            .join("../fe/tests/fixtures/cli_output/build/multi_contract.fe");
+        let fixture_source =
+            fs::read_to_string(&fixture_path).expect("multi_contract fixture should be readable");
+        let file_url = Url::from_file_path(&fixture_path).expect("fixture path should be absolute");
+        db.workspace()
+            .touch(&mut db, file_url.clone(), Some(fixture_source));
+        let file = db
+            .workspace()
+            .get(&db, &file_url)
+            .expect("file should be loaded");
+        let top_mod = db.top_mod(file);
+        let bytecode = emit_module_sonatina_bytecode(&db, top_mod, OptLevel::O0, Some("Foo"))
+            .expect("selected contract should compile");
+        let keys = bytecode.keys().map(String::as_str).collect::<Vec<_>>();
+
+        assert_eq!(
+            keys,
+            vec!["Foo"],
+            "selected contract bytecode should exclude unselected roots"
+        );
     }
 
     #[test]

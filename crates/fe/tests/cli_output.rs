@@ -464,6 +464,39 @@ fn test_cli_build_all_contracts_fake_solc_artifacts() {
 }
 
 #[test]
+fn test_cli_build_sonatina_ir_respects_contract_filter() {
+    let fixture_path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("tests/fixtures/cli_output/build/multi_contract.fe");
+    let fixture_path_str = fixture_path.to_str().expect("fixture path utf8");
+
+    let temp = tempdir().expect("tempdir");
+    let out_dir = temp.path().join("out");
+    let out_dir_str = out_dir.to_string_lossy().to_string();
+
+    let (output, exit_code) = run_fe_main(&[
+        "build",
+        "--backend",
+        "sonatina",
+        "--emit",
+        "ir",
+        "--contract",
+        "Foo",
+        "--out-dir",
+        out_dir_str.as_str(),
+        fixture_path_str,
+    ]);
+    assert_eq!(exit_code, 0, "fe build failed:\n{output}");
+
+    let ir_path = out_dir.join("multi_contract.sona");
+    let ir = fs::read_to_string(&ir_path).expect("read Sonatina IR");
+    assert!(ir.contains("object @Foo"), "expected Foo object:\n{ir}");
+    assert!(
+        !ir.contains("object @Bar"),
+        "contract filter should exclude Bar object:\n{ir}"
+    );
+}
+
+#[test]
 fn test_cli_build_emit_abi_writes_json_artifact() {
     let fixture_path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
         .join("tests/fixtures/cli_output/emit_abi/abi_contract.fe");
@@ -1107,6 +1140,39 @@ fn test_cli_build_ingot_root_reexported_contract_sonatina_artifacts() {
     assert_eq!(exit_code, 0, "fe build failed:\n{output}");
     assert_hex_artifact(&out_dir.join("KeyperSet.bin"));
     assert_hex_artifact(&out_dir.join("KeyperSet.runtime.bin"));
+}
+
+#[test]
+fn test_cli_build_ingot_sonatina_ir_respects_contract_filter() {
+    let fixture_dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("tests/fixtures/cli_output/build_ingots/multi_file");
+    let fixture_dir_str = fixture_dir.to_str().expect("fixture dir utf8");
+
+    let temp = tempdir().expect("tempdir");
+    let out_dir = temp.path().join("out");
+    let out_dir_str = out_dir.to_string_lossy().to_string();
+
+    let (output, exit_code) = run_fe_main(&[
+        "build",
+        "--backend",
+        "sonatina",
+        "--emit",
+        "ir",
+        "--contract",
+        "Foo",
+        "--out-dir",
+        out_dir_str.as_str(),
+        fixture_dir_str,
+    ]);
+    assert_eq!(exit_code, 0, "fe build failed:\n{output}");
+
+    let ir_path = out_dir.join("multi_file.sona");
+    let ir = fs::read_to_string(&ir_path).expect("read Sonatina IR");
+    assert!(ir.contains("object @Foo"), "expected Foo object:\n{ir}");
+    assert!(
+        !ir.contains("object @Bar"),
+        "contract filter should exclude Bar object:\n{ir}"
+    );
 }
 
 fn assert_hex_artifact(path: &std::path::Path) {

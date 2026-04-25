@@ -113,6 +113,16 @@ pub fn ty_is_copy<'db>(
         return true;
     }
 
+    ty_is_copy_query(db, scope, ty, assumptions)
+}
+
+#[salsa::tracked]
+fn ty_is_copy_query<'db>(
+    db: &'db dyn HirAnalysisDb,
+    scope: ScopeId<'db>,
+    ty: TyId<'db>,
+    assumptions: PredicateListId<'db>,
+) -> bool {
     let Some(copy_trait) = corelib::resolve_core_trait(db, scope, &["marker", "Copy"]) else {
         return false;
     };

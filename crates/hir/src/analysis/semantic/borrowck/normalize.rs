@@ -1,4 +1,6 @@
 use cranelift_entity::EntityRef;
+use rustc_hash::FxHashMap;
+use std::cell::RefCell;
 
 use crate::{
     analysis::{
@@ -98,6 +100,7 @@ struct NormalizeCtxt<'db> {
     local_state: Vec<LocalNormState>,
     root_demands: Vec<NLocalRootDemand>,
     borrow_roots: Vec<NBorrowRoot<'db>>,
+    copy_cache: RefCell<FxHashMap<TyId<'db>, bool>>,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -124,6 +127,7 @@ impl<'db> NormalizeCtxt<'db> {
             local_state: vec![LocalNormState::Unseen; local_capacity],
             root_demands: vec![NLocalRootDemand::default(); local_capacity],
             borrow_roots: Vec::new(),
+            copy_cache: RefCell::new(FxHashMap::default()),
         }
     }
 
@@ -937,6 +941,20 @@ impl<'db> NormalizeCtxt<'db> {
         self.copy_or_read_mode(ty)
     }
 
+    fn ty_is_copy(&self, ty: TyId<'db>) -> bool {
+        if let Some(is_copy) = self.copy_cache.borrow().get(&ty).copied() {
+            return is_copy;
+        }
+        let is_copy = ty_is_copy(
+            self.db,
+            self.raw.template_owner.scope(),
+            ty,
+            self.assumptions,
+        );
+        self.copy_cache.borrow_mut().insert(ty, is_copy);
+        is_copy
+    }
+
     fn copy_or_read_mode(&self, ty: TyId<'db>) -> ReadMode {
         let scope = self.raw.template_owner.scope();
         let ty = normalize_ty(self.db, ty, scope, self.assumptions);
@@ -944,7 +962,7 @@ impl<'db> NormalizeCtxt<'db> {
             .as_capability(self.db)
             .map(|(_, inner)| normalize_ty(self.db, inner, scope, self.assumptions))
             .unwrap_or(ty);
-        if ty_is_copy(self.db, scope, value_ty, self.assumptions) {
+        if self.ty_is_copy(value_ty) {
             ReadMode::Copy
         } else {
             ReadMode::Read
@@ -980,14 +998,7 @@ impl<'db> NormalizeCtxt<'db> {
         origin: crate::analysis::semantic::SemOrigin<'db>,
         ty: TyId<'db>,
     ) -> ReadMode {
-        if self.origin_is_implicit_move(origin)
-            || !ty_is_copy(
-                self.db,
-                self.raw.template_owner.scope(),
-                ty,
-                self.assumptions,
-            )
-        {
+        if self.origin_is_implicit_move(origin) || !self.ty_is_copy(ty) {
             ReadMode::Move
         } else {
             ReadMode::Copy
@@ -1010,12 +1021,7 @@ impl<'db> NormalizeCtxt<'db> {
         if !local_has_runtime_move_semantics(self.db, local, &self.borrow_roots) {
             return ReadMode::Copy;
         }
-        if !ty_is_copy(
-            self.db,
-            self.raw.template_owner.scope(),
-            ty,
-            self.assumptions,
-        ) {
+        if !self.ty_is_copy(ty) {
             return ReadMode::Move;
         }
         match origin {

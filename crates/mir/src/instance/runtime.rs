@@ -14,7 +14,7 @@ use crate::{
                 collect_runtime_calls as collect_runtime_calls_lowered,
             },
             interface::runtime_param_locals,
-            returns::runtime_return_class,
+            returns::{runtime_exit_behavior, runtime_return_class},
         },
         synthetic::{lower_synthetic_runtime_body, runtime_synthetic_signature},
     },
@@ -105,6 +105,7 @@ pub(crate) fn runtime_signature_for_key<'db>(
                 })
                 .collect(),
             ret: runtime_return_class(db, key),
+            exit: runtime_exit_behavior(db, key),
         },
         RuntimeInstanceSource::Synthetic(synthetic) => {
             runtime_synthetic_signature(synthetic.spec(db).clone())

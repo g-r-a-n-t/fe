@@ -642,6 +642,13 @@ pub struct RuntimeProviderBinding<'db> {
 pub struct RuntimeSignature<'db> {
     pub params: Vec<RuntimeParam<'db>>,
     pub ret: Option<RuntimeClass<'db>>,
+    pub exit: RuntimeExitBehavior,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, Update)]
+pub enum RuntimeExitBehavior {
+    MayReturn,
+    NeverReturns,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Hash, Update)]

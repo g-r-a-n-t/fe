@@ -27,10 +27,10 @@ use crate::{
         AddressSpaceKind, BorrowAccess, ConstScalar, ContractInitAbiPlan, ContractRecvAbiPlan,
         DispatchDefault, EntryEffectArgPlan, InitArgsPlan, PlaceElem, PlaceRoot, RBlock, RBlockId,
         RExpr, RLocal, RLocalId, RStmt, RTerminator, RefKind, RefView, RuntimeBody,
-        RuntimeBoundarySpec, RuntimeBuiltin, RuntimeCarrier, RuntimeClass, RuntimeInputPlan,
-        RuntimeLocalRoot, RuntimeParamPlan, RuntimePlace, RuntimeReturnPlan, RuntimeSignature,
-        RuntimeSyntheticSpec, ScalarClass, ScalarRepr, ScalarRole, TargetRootProviderBinding,
-        TargetRootProviderMaterialization,
+        RuntimeBoundarySpec, RuntimeBuiltin, RuntimeCarrier, RuntimeClass, RuntimeExitBehavior,
+        RuntimeInputPlan, RuntimeLocalRoot, RuntimeParamPlan, RuntimePlace, RuntimeReturnPlan,
+        RuntimeSignature, RuntimeSyntheticSpec, ScalarClass, ScalarRepr, ScalarRole,
+        TargetRootProviderBinding, TargetRootProviderMaterialization,
         lower::{
             boundary::{RuntimeValueAddress, RuntimeValueSource},
             classify::{ref_class_for_place_result, semantic_return_ty},
@@ -52,18 +52,20 @@ use crate::{
 pub(crate) fn runtime_synthetic_signature<'db>(
     spec: RuntimeSyntheticSpec<'db>,
 ) -> RuntimeSignature<'db> {
-    match spec {
+    let exit = match spec {
+        RuntimeSyntheticSpec::ContractInitAbi { .. } => RuntimeExitBehavior::MayReturn,
         RuntimeSyntheticSpec::MainRoot { .. }
         | RuntimeSyntheticSpec::TestRoot { .. }
         | RuntimeSyntheticSpec::ManualContractRoot { .. }
-        | RuntimeSyntheticSpec::ContractInitAbi { .. }
         | RuntimeSyntheticSpec::ContractRecvAbi { .. }
         | RuntimeSyntheticSpec::ContractInitRoot { .. }
         | RuntimeSyntheticSpec::ContractRuntimeRoot { .. }
-        | RuntimeSyntheticSpec::CodeRegionRoot { .. } => RuntimeSignature {
-            params: Vec::new(),
-            ret: None,
-        },
+        | RuntimeSyntheticSpec::CodeRegionRoot { .. } => RuntimeExitBehavior::NeverReturns,
+    };
+    RuntimeSignature {
+        params: Vec::new(),
+        ret: None,
+        exit,
     }
 }
 
@@ -269,13 +271,11 @@ impl<'db> SyntheticBodyBuilder<'db> {
     }
 
     fn finish(self) -> RuntimeBody<'db> {
+        let signature = self.instance.signature(self.db);
         RuntimeBody {
             owner: self.instance,
             key: self.instance.key(self.db),
-            signature: RuntimeSignature {
-                params: Vec::new(),
-                ret: None,
-            },
+            signature,
             semantic_locals: Vec::new(),
             provider_bindings: Vec::new(),
             locals: self.locals,
@@ -332,6 +332,14 @@ impl<'db> SyntheticBodyBuilder<'db> {
             "synthetic root arg count mismatch for {callee:?}"
         );
         let semantic = callee.key(self.db).semantic(self.db);
+        if signature.exit == RuntimeExitBehavior::NeverReturns {
+            self.blocks[0].terminator = RTerminator::TerminalCall {
+                callee,
+                args: args.into_boxed_slice(),
+            };
+            return;
+        }
+
         if let Some(class) = signature.ret.clone() {
             let dst = self.push_local(
                 semantic

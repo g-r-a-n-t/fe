@@ -83,7 +83,7 @@ func private %manual_contract_init_root_NestedStruct() {
     block1:
         v0.objref<@layout_1> = obj.alloc @layout_1;
         call %init v0;
-        evm_stop;
+        unreachable;
 }
 
 func private %manual_contract_runtime_root_NestedStruct() {
@@ -93,7 +93,7 @@ func private %manual_contract_runtime_root_NestedStruct() {
     block1:
         v0.objref<@layout_1> = obj.alloc @layout_1;
         call %runtime v0;
-        evm_stop;
+        unreachable;
 }
 
 func private %mem_read(v0.i256) -> i256 {

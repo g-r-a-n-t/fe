@@ -26,6 +26,7 @@ pub enum VerifyError<'db> {
     InvalidExprClass(RLocalId),
     InvalidStoreClass,
     InvalidCopyClass,
+    InvalidTerminalCall(RuntimeInstance<'db>),
     CallArgCountMismatch(RuntimeInstance<'db>),
     CallArgClassMismatch(RuntimeInstance<'db>, usize),
     InvalidCodeRegion(crate::runtime::RuntimeCodeRegion<'db>),
@@ -55,6 +56,7 @@ impl<'db> VerifyError<'db> {
             | VerifyError::InvalidEnumTag(_)
             | VerifyError::InvalidStoreClass
             | VerifyError::InvalidCopyClass
+            | VerifyError::InvalidTerminalCall(_)
             | VerifyError::InvalidReturnClass
             | VerifyError::CallArgCountMismatch(_)
             | VerifyError::CallArgClassMismatch(_, _)

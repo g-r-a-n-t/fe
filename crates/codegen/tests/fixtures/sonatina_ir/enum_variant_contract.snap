@@ -74,7 +74,7 @@ func private %manual_contract_init_root_EnumContract() {
     block1:
         v0.objref<@layout_1> = obj.alloc @layout_1;
         call %init v0;
-        evm_stop;
+        unreachable;
 }
 
 func private %manual_contract_runtime_root_EnumContract() {
@@ -84,7 +84,7 @@ func private %manual_contract_runtime_root_EnumContract() {
     block1:
         v0.objref<@layout_1> = obj.alloc @layout_1;
         call %runtime v0;
-        evm_stop;
+        unreachable;
 }
 
 func private %mstore(v0.objref<@layout_1>, v1.i256, v2.i256) {

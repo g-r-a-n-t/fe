@@ -189,7 +189,7 @@ func private %manual_contract_init_root_Child() {
     block1:
         v0.objref<@layout_1> = obj.alloc @layout_1;
         call %child_init v0;
-        evm_stop;
+        unreachable;
 }
 
 func private %manual_contract_init_root_Foo() {
@@ -199,7 +199,7 @@ func private %manual_contract_init_root_Foo() {
     block1:
         v0.objref<@layout_1> = obj.alloc @layout_1;
         call %init v0;
-        evm_stop;
+        unreachable;
 }
 
 func private %manual_contract_runtime_root_Child() {
@@ -209,7 +209,7 @@ func private %manual_contract_runtime_root_Child() {
     block1:
         v0.objref<@layout_1> = obj.alloc @layout_1;
         call %child_runtime v0;
-        evm_stop;
+        unreachable;
 }
 
 func private %manual_contract_runtime_root_Foo() {
@@ -219,7 +219,7 @@ func private %manual_contract_runtime_root_Foo() {
     block1:
         v0.objref<@layout_1> = obj.alloc @layout_1;
         call %runtime v0;
-        evm_stop;
+        unreachable;
 }
 
 func private %mload(v0.i256) -> i256 {

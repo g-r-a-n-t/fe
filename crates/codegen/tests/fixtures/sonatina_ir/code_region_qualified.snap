@@ -45,7 +45,7 @@ func private %manual_contract_init_root_Foo() {
     block1:
         v0.objref<@layout_1> = obj.alloc @layout_1;
         call %init v0;
-        evm_stop;
+        unreachable;
 }
 
 func private %manual_contract_runtime_root_Foo() {
@@ -55,7 +55,7 @@ func private %manual_contract_runtime_root_Foo() {
     block1:
         v0.objref<@layout_1> = obj.alloc @layout_1;
         call %runtime v0;
-        evm_stop;
+        unreachable;
 }
 
 func private %std__lib__evm__effects__impl_trait_Evm_0098__return_data_cf61(v0.i256, v1.i256) {

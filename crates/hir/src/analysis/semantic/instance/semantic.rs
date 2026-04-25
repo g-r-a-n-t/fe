@@ -751,17 +751,17 @@ impl<'db> SemanticInstance<'db> {
     }
 
     #[salsa::tracked(
-        cycle_fn=may_return_normally_cycle_recover,
-        cycle_initial=may_return_normally_cycle_initial
+        cycle_fn=known_never_returns_cycle_recover,
+        cycle_initial=known_never_returns_cycle_initial
     )]
-    pub fn may_return_normally(self, db: &'db dyn HirAnalysisDb) -> bool {
+    pub fn known_never_returns(self, db: &'db dyn HirAnalysisDb) -> bool {
         if semantic_is_nonreturning_builtin(db, self) {
-            return false;
+            return true;
         }
 
         let body = self.body(db);
         if body.blocks.is_empty() {
-            return true;
+            return false;
         }
 
         let mut pending = vec![SBlockId::from_u32(0)];
@@ -782,7 +782,7 @@ impl<'db> SemanticInstance<'db> {
                 else {
                     continue;
                 };
-                if !SemanticInstance::new(db, callee.key).may_return_normally(db) {
+                if SemanticInstance::new(db, callee.key).known_never_returns(db) {
                     terminated_in_stmt = true;
                     break;
                 }
@@ -792,7 +792,7 @@ impl<'db> SemanticInstance<'db> {
             }
 
             match &block.terminator.kind {
-                STerminatorKind::Return(_) => return true,
+                STerminatorKind::Return(_) => return false,
                 STerminatorKind::Goto(next) => pending.push(*next),
                 STerminatorKind::Branch {
                     then_bb, else_bb, ..
@@ -809,7 +809,7 @@ impl<'db> SemanticInstance<'db> {
             }
         }
 
-        false
+        true
     }
 
     #[salsa::tracked]
@@ -1914,14 +1914,14 @@ fn semantic_is_nonreturning_builtin<'db>(
     )
 }
 
-fn may_return_normally_cycle_initial<'db>(
+fn known_never_returns_cycle_initial<'db>(
     _db: &'db dyn HirAnalysisDb,
     _instance: SemanticInstance<'db>,
 ) -> bool {
-    true
+    false
 }
 
-fn may_return_normally_cycle_recover<'db>(
+fn known_never_returns_cycle_recover<'db>(
     _db: &'db dyn HirAnalysisDb,
     _value: &bool,
     _count: u32,

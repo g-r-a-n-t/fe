@@ -63,7 +63,7 @@ func private %main_root() {
     block1:
         v0.objref<@layout_2> = obj.alloc @layout_2;
         call %main v0;
-        evm_stop;
+        unreachable;
 }
 
 func private %return_data(v0.i256, v1.i256) {

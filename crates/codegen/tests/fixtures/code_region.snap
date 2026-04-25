@@ -28,15 +28,15 @@ object "Child" {
       leave
     }
     function $manual_contract_init_root_Child() {
-      let t3 := mload(0x40)
-      if iszero(t3) {
-        t3 := 0x80
+      let t2 := mload(0x40)
+      if iszero(t2) {
+        t2 := 0x80
       }
-      mstore(0x40, add(t3, 0))
-      let v0 := t3
+      mstore(0x40, add(t2, 0))
+      let v0 := t2
       let v1 := v0
       $child_init(v1)
-      stop()
+      invalid()
     }
     function $std$lib$evm$effects$impl_trait$Evm$0098$return_data_5f25(p0, p1) {
       let v3 := p0
@@ -72,15 +72,15 @@ object "Child" {
         invalid()
       }
       function $manual_contract_runtime_root_Child() {
-        let t3 := mload(0x40)
-        if iszero(t3) {
-          t3 := 0x80
+        let t2 := mload(0x40)
+        if iszero(t2) {
+          t2 := 0x80
         }
-        mstore(0x40, add(t3, 0))
-        let v0 := t3
+        mstore(0x40, add(t2, 0))
+        let v0 := t2
         let v1 := v0
         $child_runtime(v1)
-        stop()
+        invalid()
       }
       function $std$lib$evm$effects$impl_trait$Evm$0098$return_data_5f25_0(p0, p1) {
         let v3 := p0
@@ -178,15 +178,15 @@ object "Foo" {
       invalid()
     }
     function $manual_contract_init_root_Foo() {
-      let t3 := mload(0x40)
-      if iszero(t3) {
-        t3 := 0x80
+      let t2 := mload(0x40)
+      if iszero(t2) {
+        t2 := 0x80
       }
-      mstore(0x40, add(t3, 0))
-      let v0 := t3
+      mstore(0x40, add(t2, 0))
+      let v0 := t2
       let v1 := v0
       $init(v1)
-      stop()
+      invalid()
     }
     function $mload(p0) -> ret {
       let v2 := p0
@@ -233,15 +233,15 @@ object "Foo" {
         leave
       }
       function $manual_contract_init_root_Child() {
-        let t3 := mload(0x40)
-        if iszero(t3) {
-          t3 := 0x80
+        let t2 := mload(0x40)
+        if iszero(t2) {
+          t2 := 0x80
         }
-        mstore(0x40, add(t3, 0))
-        let v0 := t3
+        mstore(0x40, add(t2, 0))
+        let v0 := t2
         let v1 := v0
         $child_init(v1)
-        stop()
+        invalid()
       }
       function $std$lib$evm$effects$impl_trait$Evm$0098$return_data_5f25(p0, p1) {
         let v3 := p0
@@ -277,15 +277,15 @@ object "Foo" {
           invalid()
         }
         function $manual_contract_runtime_root_Child() {
-          let t3 := mload(0x40)
-          if iszero(t3) {
-            t3 := 0x80
+          let t2 := mload(0x40)
+          if iszero(t2) {
+            t2 := 0x80
           }
-          mstore(0x40, add(t3, 0))
-          let v0 := t3
+          mstore(0x40, add(t2, 0))
+          let v0 := t2
           let v1 := v0
           $child_runtime(v1)
-          stop()
+          invalid()
         }
         function $std$lib$evm$effects$impl_trait$Evm$0098$return_data_5f25_0(p0, p1) {
           let v3 := p0
@@ -314,15 +314,15 @@ object "Foo" {
         leave
       }
       function $manual_contract_runtime_root_Foo() {
-        let t3 := mload(0x40)
-        if iszero(t3) {
-          t3 := 0x80
+        let t2 := mload(0x40)
+        if iszero(t2) {
+          t2 := 0x80
         }
-        mstore(0x40, add(t3, 0))
-        let v0 := t3
+        mstore(0x40, add(t2, 0))
+        let v0 := t2
         let v1 := v0
         $runtime(v1)
-        stop()
+        invalid()
       }
       function $read_selector(p0) -> ret {
         let v6 := 0x00

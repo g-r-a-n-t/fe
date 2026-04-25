@@ -31,17 +31,14 @@ use hir::projection::{IndexSource, Projection};
 
 use crate::{
     db::MirDb,
-    instance::{
-        RuntimeInstance, RuntimeInstanceKey, get_or_build_runtime_instance,
-        runtime_signature_for_key,
-    },
+    instance::{RuntimeInstance, RuntimeInstanceKey, get_or_build_runtime_instance},
     resolve_runtime_place_address_class,
     runtime::{
         AddressSpaceKind, ConstScalar, IntrinsicArithBinOp, LayoutId, PlaceElem, PlaceRoot, RBlock,
         RBlockId, RExpr, RLocal, RLocalId, RStmt, RTerminator, RefKind, RefView, RuntimeBody,
-        RuntimeCarrier, RuntimeClass, RuntimeCodeRegion, RuntimeLocalLowering, RuntimeLocalRoot,
-        RuntimePlace, RuntimeProviderBinding, RuntimeProviderBindingId, RuntimeSignature,
-        ScalarClass, ScalarRepr, ScalarRole, VariantId,
+        RuntimeCarrier, RuntimeClass, RuntimeCodeRegion, RuntimeExitBehavior, RuntimeLocalLowering,
+        RuntimeLocalRoot, RuntimePlace, RuntimeProviderBinding, RuntimeProviderBindingId,
+        RuntimeSignature, ScalarClass, ScalarRepr, ScalarRole, VariantId,
         code_region::runtime_code_region_for_semantic_ref,
         package::{LowerError, runtime_instance_for_semantic},
     },
@@ -102,7 +99,7 @@ pub fn lower_to_rmir<'db>(
         &param_locals,
     )
     .run();
-    let signature = runtime_signature_for_key(db, key);
+    let signature = instance.signature(db);
     let mut emitter = RmirEmitter::new(
         db,
         instance,
@@ -2402,19 +2399,19 @@ impl<'db> RmirEmitter<'db> {
         );
         let callee = get_or_build_runtime_instance(self.db, callee_key);
         let ret_ty = semantic_return_ty(self.db, semantic);
-        let ret_class = runtime_return_class(self.db, callee_key);
-        let Some(ret_class) = ret_class else {
-            if !semantic.may_return_normally(self.db) {
-                self.set_terminator(
-                    bb,
-                    RTerminator::TerminalCall {
-                        callee,
-                        args: runtime_args.into_boxed_slice(),
-                    },
-                );
-                return self.alloc_runtime_temp(ret_ty, RuntimeCarrier::Erased);
-            }
+        let signature = callee.signature(self.db);
+        if signature.exit == RuntimeExitBehavior::NeverReturns {
+            self.set_terminator(
+                bb,
+                RTerminator::TerminalCall {
+                    callee,
+                    args: runtime_args.into_boxed_slice(),
+                },
+            );
+            return self.alloc_runtime_temp(ret_ty, RuntimeCarrier::Erased);
+        }
 
+        let Some(ret_class) = signature.ret else {
             let ret = self.alloc_runtime_temp(TyId::unit(self.db), RuntimeCarrier::Erased);
             self.push_stmt(
                 bb,
@@ -3998,6 +3995,7 @@ impl<'db> RmirEmitter<'db> {
             signature: RuntimeSignature {
                 params: Vec::new(),
                 ret: None,
+                exit: RuntimeExitBehavior::MayReturn,
             },
             semantic_locals: self.semantic_locals.clone(),
             provider_bindings: self.provider_bindings.clone(),

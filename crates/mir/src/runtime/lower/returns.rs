@@ -11,7 +11,7 @@ use rustc_hash::FxHashSet;
 use crate::{
     db::MirDb,
     instance::RuntimeInstanceKey,
-    runtime::{RuntimeCarrier, RuntimeClass},
+    runtime::{RuntimeCarrier, RuntimeClass, RuntimeExitBehavior},
 };
 
 use super::{
@@ -193,6 +193,20 @@ pub(crate) fn runtime_return_class<'db>(
     evaluate_runtime_return_class(db, summary, key.params(db), &mut |callee_key| {
         runtime_return_class(db, callee_key)
     })
+}
+
+pub(crate) fn runtime_exit_behavior<'db>(
+    db: &'db dyn MirDb,
+    key: RuntimeInstanceKey<'db>,
+) -> RuntimeExitBehavior {
+    if key
+        .semantic(db)
+        .is_some_and(|semantic| semantic.known_never_returns(db))
+    {
+        RuntimeExitBehavior::NeverReturns
+    } else {
+        RuntimeExitBehavior::MayReturn
+    }
 }
 
 fn static_runtime_return_class<'db>(
@@ -409,7 +423,7 @@ mod tests {
 
     use crate::{
         build_runtime_package,
-        runtime::{RuntimeCarrier, RuntimeClass},
+        runtime::{RuntimeCarrier, RuntimeClass, RuntimeExitBehavior},
     };
 
     use super::*;
@@ -499,6 +513,80 @@ mod tests {
             runtime_return_class(&db, key),
             legacy_return_class_for_key(&db, key),
             "static exact return class should match full-body carrier inference"
+        );
+    }
+
+    fn assert_runtime_exit_behavior(
+        source: &str,
+        case_name: &str,
+        expected: &[(&str, RuntimeExitBehavior)],
+    ) {
+        let mut db = DriverDataBase::default();
+        let file_url = Url::parse(&format!("file:///{case_name}.fe")).unwrap();
+        db.workspace()
+            .touch(&mut db, file_url.clone(), Some(source.to_string()));
+        let file = db
+            .workspace()
+            .get(&db, &file_url)
+            .expect("file should be loaded");
+        let top_mod = db.top_mod(file);
+        for &(name, exit) in expected {
+            let semantic = semantic_instance_for_named_func(&db, top_mod, name);
+            let runtime = runtime_instance_for_semantic(&db, semantic);
+            assert_eq!(runtime.signature(&db).exit, exit, "`{name}` exit behavior");
+        }
+    }
+
+    #[test]
+    fn ordinary_unit_call_may_return_normally() {
+        assert_runtime_exit_behavior(
+            r#"
+fn helper() {}
+
+fn caller() {
+    helper()
+}
+"#,
+            "ordinary_unit_call_may_return_normally",
+            &[
+                ("helper", RuntimeExitBehavior::MayReturn),
+                ("caller", RuntimeExitBehavior::MayReturn),
+            ],
+        );
+    }
+
+    #[test]
+    fn panic_wrappers_are_known_never_returning() {
+        assert_runtime_exit_behavior(
+            r#"
+fn fail() {
+    core::panic()
+}
+
+fn fail_indirect() {
+    fail()
+}
+"#,
+            "panic_wrappers_are_known_never_returning",
+            &[
+                ("fail", RuntimeExitBehavior::NeverReturns),
+                ("fail_indirect", RuntimeExitBehavior::NeverReturns),
+            ],
+        );
+    }
+
+    #[test]
+    fn mixed_panic_branch_may_return_normally() {
+        assert_runtime_exit_behavior(
+            r#"
+fn maybe(flag: bool) {
+    if flag {
+        core::panic()
+    }
+}
+"#,
+            "mixed_panic_branch_may_return_normally",
+            &[("maybe", RuntimeExitBehavior::MayReturn)],
         );
     }
 

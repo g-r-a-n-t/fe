@@ -5,8 +5,8 @@ use crate::{
     instance::RuntimeInstance,
     runtime::{
         AddressSpaceKind, Layout, RExpr, RStmt, RTerminator, RuntimeBody, RuntimeBuiltin,
-        RuntimeCarrier, RuntimeClass, RuntimeLocalRoot, RuntimeProgramView, RuntimeSignature,
-        ScalarClass, ScalarRepr, ScalarRole,
+        RuntimeCarrier, RuntimeClass, RuntimeExitBehavior, RuntimeLocalRoot, RuntimeProgramView,
+        RuntimeSignature, ScalarClass, ScalarRepr, ScalarRole,
     },
     verify::VerifyError,
 };
@@ -151,8 +151,12 @@ fn verify_call<'db>(
     body: &RuntimeBody<'db>,
     callee: RuntimeInstance<'db>,
     args: &[crate::runtime::RValueId],
+    kind: RuntimeCallKind,
 ) -> Result<(), VerifyError<'db>> {
-    let RuntimeSignature { params, .. } = program.signature(callee);
+    let RuntimeSignature { params, exit, .. } = program.signature(callee);
+    if kind == RuntimeCallKind::Terminal && exit != RuntimeExitBehavior::NeverReturns {
+        return Err(VerifyError::InvalidTerminalCall(callee));
+    }
     if params.len() != args.len() {
         return Err(VerifyError::CallArgCountMismatch(callee));
     }
@@ -167,6 +171,12 @@ fn verify_call<'db>(
     }
 
     Ok(())
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum RuntimeCallKind {
+    Normal,
+    Terminal,
 }
 
 fn verify_assign<'db>(
@@ -346,7 +356,7 @@ fn verify_assign<'db>(
         }
         RExpr::Load { place } => Some(project_place(db, program, body, place)?),
         RExpr::Call { callee, args } => {
-            verify_call(db, program, body, *callee, args)?;
+            verify_call(db, program, body, *callee, args, RuntimeCallKind::Normal)?;
             program.signature(*callee).ret.clone()
         }
         RExpr::ProviderToRaw { value } => {
@@ -856,7 +866,9 @@ fn verify_terminator<'db>(
             }
             Ok(())
         }
-        RTerminator::TerminalCall { callee, args } => verify_call(db, program, body, *callee, args),
+        RTerminator::TerminalCall { callee, args } => {
+            verify_call(db, program, body, *callee, args, RuntimeCallKind::Terminal)
+        }
         RTerminator::ReturnData { offset, len } | RTerminator::Revert { offset, len } => {
             verify_address_operand(body, *offset, AddressSpaceKind::Memory)?;
             verify_word_value(body, *len)?;

@@ -2710,7 +2710,7 @@ impl<'db> TypedBody<'db> {
             LocalBinding::Param { ty, .. } => ty,
             LocalBinding::EffectParam { site, idx, .. } => {
                 crate::core::semantic::EffectEnvView::new(site)
-                    .resolved_binding_ty(db, idx)
+                    .visible_effect_binding_ty(db, idx)
                     .unwrap_or_else(|| TyId::invalid(db, InvalidCause::Other))
             }
         }

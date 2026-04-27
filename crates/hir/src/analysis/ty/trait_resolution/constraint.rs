@@ -26,7 +26,12 @@ use crate::analysis::{
     },
 };
 
-pub(crate) fn collect_effect_constraints_for_func<'db>(
+/// Collect provider constraints induced by a function's `uses` clause.
+///
+/// Type-key effects produce `EffectRef`/`EffectRefMut` bounds from the hidden
+/// provider type to the visible effect target, while trait-key effects produce
+/// the corresponding trait bound on the hidden provider type.
+pub(crate) fn collect_func_effect_provider_constraints<'db>(
     db: &'db dyn HirAnalysisDb,
     func: crate::hir_def::Func<'db>,
 ) -> Vec<TraitInstId<'db>> {
@@ -275,7 +280,7 @@ pub(crate) fn collect_func_def_constraints<'db>(
         .iter()
         .copied()
         .collect();
-    for inst in collect_effect_constraints_for_func(db, hir_func) {
+    for inst in collect_func_effect_provider_constraints(db, hir_func) {
         predicates.insert(inst);
     }
 
@@ -459,7 +464,8 @@ mod tests {
 
     use super::*;
     use crate::analysis::ty::{
-        GoalSatisfiability, TraitSolveCx, is_goal_satisfiable, layout_holes::ty_contains_const_hole,
+        GoalSatisfiability, TraitSolveCx, corelib::resolve_lib_type_path, is_goal_satisfiable,
+        layout_holes::ty_contains_const_hole,
     };
     use crate::test_db::HirAnalysisTestDb;
 
@@ -506,6 +512,40 @@ mod tests {
     }
 
     #[test]
+    fn effect_provider_constraints_include_concrete_type_key_bounds() {
+        let mut db = HirAnalysisTestDb::default();
+        let file = db.new_stand_alone(
+            Utf8PathBuf::from("effect_provider_constraints_include_concrete_type_key_bounds.fe"),
+            r#"
+use std::evm::Evm
+
+fn f() uses (evm: mut Evm) {}
+"#,
+        );
+        let (top_mod, _) = db.top_mod(file);
+        db.assert_no_diags(top_mod);
+        let func = find_func(&db, top_mod, "f");
+        let provider_map = place_effect_provider_param_index_map(&db, func);
+        let provider_idx = provider_map[0].expect("missing provider slot for evm");
+        let provider_ty = CallableDef::Func(func).params(&db)[provider_idx];
+        let evm_ty = resolve_lib_type_path(&db, func.scope(), "std::evm::Evm")
+            .expect("missing std::evm::Evm");
+        let effect_ref_trait = resolve_core_trait(&db, func.scope(), &["EffectRef"]).unwrap();
+        let effect_ref_mut_trait =
+            resolve_core_trait(&db, func.scope(), &["EffectRefMut"]).unwrap();
+        let constraints = collect_func_effect_provider_constraints(&db, func);
+
+        assert_ne!(provider_ty, evm_ty);
+        assert!(constraints.iter().any(|inst| {
+            inst.def(&db) == effect_ref_trait && inst.args(&db).as_slice() == [provider_ty, evm_ty]
+        }));
+        assert!(constraints.iter().any(|inst| {
+            inst.def(&db) == effect_ref_mut_trait
+                && inst.args(&db).as_slice() == [provider_ty, evm_ty]
+        }));
+    }
+
+    #[test]
     fn effect_constraints_elaborate_distinct_callable_type_key_holes() {
         let mut db = HirAnalysisTestDb::default();
         let file = db.new_stand_alone(
@@ -520,7 +560,7 @@ fn f() uses (slots: Distinct) {}
         db.assert_no_diags(top_mod);
         let func = find_func(&db, top_mod, "f");
         let effect_ref_trait = resolve_core_trait(&db, func.scope(), &["EffectRef"]).unwrap();
-        let constraints = collect_effect_constraints_for_func(&db, func);
+        let constraints = collect_func_effect_provider_constraints(&db, func);
         let effect_ref = constraints
             .into_iter()
             .find(|inst| inst.def(&db) == effect_ref_trait)
@@ -550,7 +590,7 @@ fn f() uses (slots: Repeated) {}
         db.assert_no_diags(top_mod);
         let func = find_func(&db, top_mod, "f");
         let effect_ref_trait = resolve_core_trait(&db, func.scope(), &["EffectRef"]).unwrap();
-        let constraints = collect_effect_constraints_for_func(&db, func);
+        let constraints = collect_func_effect_provider_constraints(&db, func);
         let effect_ref = constraints
             .into_iter()
             .find(|inst| inst.def(&db) == effect_ref_trait)
@@ -585,7 +625,7 @@ fn f() uses (cap: Cap<Slot<4>>) {}
         db.assert_no_diags(top_mod);
         let func = find_func(&db, top_mod, "f");
         let cap_trait = find_trait(&db, top_mod, "Cap");
-        let constraints = collect_effect_constraints_for_func(&db, func);
+        let constraints = collect_func_effect_provider_constraints(&db, func);
         let cap_inst = constraints
             .into_iter()
             .find(|inst| inst.def(&db) == cap_trait)
@@ -609,7 +649,7 @@ fn f() uses (cap: Cap) {}
         db.assert_no_diags(top_mod);
         let func = find_func(&db, top_mod, "f");
         let cap_trait = find_trait(&db, top_mod, "Cap");
-        let constraints = collect_effect_constraints_for_func(&db, func);
+        let constraints = collect_func_effect_provider_constraints(&db, func);
         let cap_inst = constraints
             .into_iter()
             .find(|inst| inst.def(&db) == cap_trait)

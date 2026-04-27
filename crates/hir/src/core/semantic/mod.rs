@@ -1708,7 +1708,16 @@ impl<'db> EffectEnvView<'db> {
             .and_then(|binding| binding.clone())
     }
 
-    pub fn resolved_binding_ty(self, db: &'db dyn HirAnalysisDb, idx: usize) -> Option<TyId<'db>> {
+    /// Returns the type of the effect binding as it is visible in the body.
+    ///
+    /// For a type-key effect like `uses (evm: Evm)`, this is the visible key
+    /// type `Evm`. For a trait-key effect, the binding's value has the hidden
+    /// provider type that implements the trait key.
+    pub fn visible_effect_binding_ty(
+        self,
+        db: &'db dyn HirAnalysisDb,
+        idx: usize,
+    ) -> Option<TyId<'db>> {
         let requirement = self
             .requirements(db)
             .into_iter()
@@ -1726,6 +1735,16 @@ impl<'db> EffectEnvView<'db> {
                 .binding_ty(db)
                 .or_else(|| provider.map(|binding| binding.provider_ty)),
         }
+    }
+
+    /// Returns the hidden provider type associated with an effect binding.
+    pub fn hidden_provider_binding_ty(
+        self,
+        db: &'db dyn HirAnalysisDb,
+        idx: usize,
+    ) -> Option<TyId<'db>> {
+        self.resolved_binding(db, idx)
+            .map(|binding| binding.provider.provider_ty)
     }
 
     pub fn providers(self, db: &'db dyn HirAnalysisDb) -> Vec<ProviderBinding<'db>> {

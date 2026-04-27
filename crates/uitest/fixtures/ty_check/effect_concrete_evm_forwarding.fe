@@ -1,0 +1,31 @@
+use std::evm::{Evm, RawMem}
+
+pub trait Writable {
+    fn write_to(self, ptr: u256) uses (evm: mut Evm)
+}
+
+impl Writable for u256 {
+    fn write_to(self, ptr: u256) uses (evm: mut Evm) {
+        evm.mstore(addr: ptr, value: self)
+    }
+}
+
+pub struct Writer {
+    ptr: u256
+}
+
+impl Writer {
+    pub fn write<T: Writable>(self, value: T) -> Writer uses (evm: mut Evm) {
+        value.write_to(ptr: self.ptr)
+        self
+    }
+
+    pub fn write_u256(self, value: u256) -> Writer uses (evm: mut Evm) {
+        self.write(value: value)
+    }
+}
+
+pub fn call_writer(value: u256) uses (evm: mut Evm) {
+    let writer = Writer { ptr: 0 }
+    let _ = writer.write_u256(value: value)
+}

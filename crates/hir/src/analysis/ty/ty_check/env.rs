@@ -38,7 +38,10 @@ use crate::analysis::{
         trait_def::TraitInstId,
         trait_resolution::{
             PredicateListId,
-            constraint::{collect_constraints, collect_func_decl_constraints},
+            constraint::{
+                collect_constraints, collect_func_decl_constraints,
+                collect_func_effect_provider_constraints,
+            },
         },
         ty_contains_const_hole,
         ty_def::{InvalidCause, StringFallback, TyData, TyId, TyVarSort},
@@ -312,22 +315,8 @@ impl<'db> TyCheckEnv<'db> {
     }
 
     fn register_func_effect_bindings(&mut self, func: Func<'db>) {
-        let effect_bounds = func
-            .effect_requirements(self.db)
-            .iter()
-            .filter_map(|binding| {
-                let trait_inst = binding.key.key_trait()?;
-                self.resolved_provider_binding(binding.binding_site, binding.binding_idx as usize)
-                    .map_or(Some(trait_inst), |provider| {
-                        Some(super::super::instantiate_trait_self(
-                            self.db,
-                            trait_inst,
-                            provider.provider_ty,
-                        ))
-                    })
-            })
-            .collect::<Vec<_>>();
-        self.effect_bounds.extend(effect_bounds);
+        self.effect_bounds
+            .extend(collect_func_effect_provider_constraints(self.db, func));
         for binding in func.effect_requirements(self.db) {
             if !matches!(
                 binding.key.kind(),
@@ -429,7 +418,7 @@ impl<'db> TyCheckEnv<'db> {
         site: EffectParamSite<'db>,
         idx: usize,
     ) -> Option<TyId<'db>> {
-        EffectEnvView::new(site).resolved_binding_ty(self.db, idx)
+        EffectEnvView::new(site).visible_effect_binding_ty(self.db, idx)
     }
 
     fn register_contract_effect_bindings(&mut self, _base_assumptions: PredicateListId<'db>) {
@@ -1041,7 +1030,7 @@ impl<'db> TyChecker<'db> {
                     name: Some(resolved_binding.requirement.binding_name),
                 },
                 ty: EffectEnvView::new(EffectParamSite::Func(func))
-                    .resolved_binding_ty(self.db, idx)
+                    .visible_effect_binding_ty(self.db, idx)
                     .unwrap_or_else(|| self.env.lookup_binding_ty(&local_binding)),
                 is_mut: local_binding.is_mut(),
                 binding: Some(local_binding),
@@ -1099,7 +1088,7 @@ impl<'db> TyChecker<'db> {
         Some(ProvidedEffect {
             origin,
             ty: EffectEnvView::new(binding.binding_site)
-                .resolved_binding_ty(self.db, idx)
+                .visible_effect_binding_ty(self.db, idx)
                 .unwrap_or_else(|| self.env.lookup_binding_ty(&local_binding)),
             is_mut: binding.is_mut,
             binding: Some(local_binding),

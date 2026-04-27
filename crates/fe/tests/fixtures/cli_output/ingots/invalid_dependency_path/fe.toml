@@ -1,0 +1,6 @@
+[ingot]
+name = "invalid_dependency_path"
+version = "0.1.0"
+
+[dependencies]
+dep = "http://[::1"

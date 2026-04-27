@@ -215,41 +215,43 @@ impl<'db> Ingot<'db> {
                 graph_deps
             } else {
                 match self.config(db) {
-                    Some(config) => config
-                        .dependencies(&base_url)
-                        .into_iter()
-                        .filter_map(|dependency| {
-                            let url = match &dependency.location {
-                                DependencyLocation::Remote(remote) => db
-                                    .dependency_graph()
-                                    .local_for_remote_git(db, remote)
-                                    .unwrap_or_else(|| remote.source.clone()),
-                                DependencyLocation::Local(local) => local.url.clone(),
-                                DependencyLocation::WorkspaceCurrent => {
-                                    let name = dependency.arguments.name.clone()?;
-                                    let workspace_root = db
+                    Some(config) => {
+                        let (dependencies, _) = config.dependencies(&base_url);
+                        dependencies
+                            .into_iter()
+                            .filter_map(|dependency| {
+                                let url = match &dependency.location {
+                                    DependencyLocation::Remote(remote) => db
                                         .dependency_graph()
-                                        .workspace_root_for_member(db, &base_url)?;
-                                    let candidates = db
-                                        .dependency_graph()
-                                        .workspace_members_by_name(db, &workspace_root, &name);
-                                    let selected =
-                                        if let Some(version) = &dependency.arguments.version {
-                                            candidates.iter().find(|member| {
-                                                member.version.as_ref() == Some(version)
-                                            })
-                                        } else if candidates.len() == 1 {
-                                            candidates.first()
-                                        } else {
-                                            None
-                                        };
-                                    let member = selected?;
-                                    member.url.clone()
-                                }
-                            };
-                            Some((dependency.alias.clone(), url))
-                        })
-                        .collect(),
+                                        .local_for_remote_git(db, remote)
+                                        .unwrap_or_else(|| remote.source.clone()),
+                                    DependencyLocation::Local(local) => local.url.clone(),
+                                    DependencyLocation::WorkspaceCurrent => {
+                                        let name = dependency.arguments.name.clone()?;
+                                        let workspace_root = db
+                                            .dependency_graph()
+                                            .workspace_root_for_member(db, &base_url)?;
+                                        let candidates = db
+                                            .dependency_graph()
+                                            .workspace_members_by_name(db, &workspace_root, &name);
+                                        let selected =
+                                            if let Some(version) = &dependency.arguments.version {
+                                                candidates.iter().find(|member| {
+                                                    member.version.as_ref() == Some(version)
+                                                })
+                                            } else if candidates.len() == 1 {
+                                                candidates.first()
+                                            } else {
+                                                None
+                                            };
+                                        let member = selected?;
+                                        member.url.clone()
+                                    }
+                                };
+                                Some((dependency.alias.clone(), url))
+                            })
+                            .collect()
+                    }
                     None => vec![],
                 }
             }

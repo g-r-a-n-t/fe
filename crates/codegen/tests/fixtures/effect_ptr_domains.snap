@@ -5,35 +5,6 @@ input_file: tests/fixtures/effect_ptr_domains.fe
 ---
 object "main" {
   code {
-    function $bump$gaab0(p0) {
-      let t13 := mload(p0)
-      let v1 := t13
-      let v9 := 0x01
-      let v2 := v9
-      let t14 := add(v1, v2)
-      if lt(t14, v1) {
-        mstore(0, 0x4e487b7100000000000000000000000000000000000000000000000000000000)
-        mstore(4, 0x11)
-        revert(0, 36)
-      }
-      let v10 := t14
-      let v3 := v10
-      mstore(p0, v3)
-      let t15 := mload(add(p0, 32))
-      let v5 := t15
-      let v11 := 0x02
-      let v6 := v11
-      let t16 := add(v5, v6)
-      if lt(t16, v5) {
-        mstore(0, 0x4e487b7100000000000000000000000000000000000000000000000000000000)
-        mstore(4, 0x11)
-        revert(0, 36)
-      }
-      let v12 := t16
-      let v7 := v12
-      mstore(add(p0, 32), v7)
-      leave
-    }
     function $bump$gb2d8(p0) {
       let t13 := mload(p0)
       let v1 := t13
@@ -92,11 +63,33 @@ object "main" {
       sstore(add(p0, div(add(32, 31), 32)), v7)
       leave
     }
-    function $impl_trait$MemPtr$from_raw$gb2d8(p0) -> ret {
-      let v1 := p0
-      let v3 := v1
-      let v2 := v3
-      ret := v2
+    function $bump$gaab0(p0) {
+      let t13 := mload(p0)
+      let v1 := t13
+      let v9 := 0x01
+      let v2 := v9
+      let t14 := add(v1, v2)
+      if lt(t14, v1) {
+        mstore(0, 0x4e487b7100000000000000000000000000000000000000000000000000000000)
+        mstore(4, 0x11)
+        revert(0, 36)
+      }
+      let v10 := t14
+      let v3 := v10
+      mstore(p0, v3)
+      let t15 := mload(add(p0, 32))
+      let v5 := t15
+      let v11 := 0x02
+      let v6 := v11
+      let t16 := add(v5, v6)
+      if lt(t16, v5) {
+        mstore(0, 0x4e487b7100000000000000000000000000000000000000000000000000000000)
+        mstore(4, 0x11)
+        revert(0, 36)
+      }
+      let v12 := t16
+      let v7 := v12
+      mstore(add(p0, 32), v7)
       leave
     }
     function $impl_trait$StorPtr$from_raw$gb2d8(p0) -> ret {
@@ -104,6 +97,13 @@ object "main" {
       let v3 := v1
       let v4 := v3
       let v2 := v4
+      ret := v2
+      leave
+    }
+    function $impl_trait$MemPtr$from_raw$gb2d8(p0) -> ret {
+      let v1 := p0
+      let v3 := v1
+      let v2 := v3
       ret := v2
       leave
     }

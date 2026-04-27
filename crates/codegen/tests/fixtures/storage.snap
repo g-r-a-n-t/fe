@@ -58,7 +58,7 @@ object "Coin" {
         $mstore(v4, v2, v5)
         let v14 := 0x20
         let v7 := v14
-        $std$lib$evm$effects$impl_trait$Evm$0098$return_data_6fdc(v2, v7)
+        $std$lib$evm$effects$impl_trait$Evm$0098$return_data_2541(v2, v7)
         leave
       }
       function $abi_encode_arg0_root_stor(p0, p1) {
@@ -72,7 +72,7 @@ object "Coin" {
         $mstore_arg2_root_stor(v4, v2, v5)
         let v14 := 0x20
         let v7 := v14
-        $std$lib$evm$effects$impl_trait$Evm$0098$return_data_6fdc(v2, v7)
+        $std$lib$evm$effects$impl_trait$Evm$0098$return_data_2541(v2, v7)
         leave
       }
       function $balance_of_raw_eff0_stor(p0, p1) -> ret {
@@ -200,7 +200,7 @@ object "Coin" {
         mstore(v3, v4)
         leave
       }
-      function $std$lib$evm$effects$impl_trait$Evm$0098$return_data_6fdc(p0, p1) {
+      function $std$lib$evm$effects$impl_trait$Evm$0098$return_data_2541(p0, p1) {
         let v3 := p0
         let v4 := p1
         return(v3, v4)

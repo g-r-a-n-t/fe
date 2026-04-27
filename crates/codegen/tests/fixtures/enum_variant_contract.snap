@@ -58,7 +58,7 @@ object "EnumContract" {
         $mstore(v4, v2, v5)
         let v14 := 0x20
         let v7 := v14
-        $std$lib$evm$effects$impl_trait$Evm$0098$return_data_d650(v2, v7)
+        $std$lib$evm$effects$impl_trait$Evm$0098$return_data_44fe(v2, v7)
         leave
       }
       function $calldataload(p0) -> ret {
@@ -90,7 +90,7 @@ object "EnumContract" {
         let v4 := p1
         return(v3, v4)
       }
-      function $std$lib$evm$effects$impl_trait$Evm$0098$return_data_d650(p0, p1) {
+      function $std$lib$evm$effects$impl_trait$Evm$0098$return_data_44fe(p0, p1) {
         let v3 := p0
         let v4 := p1
         return(v3, v4)

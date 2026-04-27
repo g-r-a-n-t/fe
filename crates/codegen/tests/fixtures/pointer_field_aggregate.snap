@@ -5,7 +5,7 @@ input_file: tests/fixtures/pointer_field_aggregate.fe
 ---
 object "main" {
   code {
-    function $standalone$pointer_field_aggregate$pointer_field_aggregate$bump$gef14_0dcd(p0) {
+    function $standalone$pointer_field_aggregate$pointer_field_aggregate$bump$gef14_385f(p0) {
       let v4 := p0
       let v1 := v4
       let v5 := 0x01
@@ -22,7 +22,7 @@ object "main" {
       mstore(v1, v8)
       leave
     }
-    function $standalone$pointer_field_aggregate$pointer_field_aggregate$bump$gef14_46b5(p0) {
+    function $standalone$pointer_field_aggregate$pointer_field_aggregate$bump$gef14_385f_0(p0) {
       let v4 := p0
       let v1 := v4
       let v5 := 0x01
@@ -85,7 +85,7 @@ object "main" {
       let t27 := mload(v1)
       let v8 := t27
       let v2 := v8
-      $standalone$pointer_field_aggregate$pointer_field_aggregate$bump$gef14_46b5(v2)
+      $standalone$pointer_field_aggregate$pointer_field_aggregate$bump$gef14_385f(v2)
       let v22 := 0x0120
       let v10 := v22
       let v23 := $mem_ptr(v10)
@@ -94,7 +94,7 @@ object "main" {
       let t28 := mload(v1)
       let v13 := t28
       let v3 := v13
-      $standalone$pointer_field_aggregate$pointer_field_aggregate$bump$gef14_0dcd(v3)
+      $standalone$pointer_field_aggregate$pointer_field_aggregate$bump$gef14_385f_0(v3)
       leave
     }
     $main_root()

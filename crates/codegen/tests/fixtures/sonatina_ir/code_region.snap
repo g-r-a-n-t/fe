@@ -47,7 +47,7 @@ func private %balance(v0.objref<@layout_1>) {
         jump block1;
 
     block1:
-        call %std__lib__evm__effects__impl_trait_Evm_0098__return_data_264c 0.i256 0.i256;
+        call %std__lib__evm__effects__impl_trait_Evm_0098__return_data_2757 0.i256 0.i256;
         return;
 }
 
@@ -259,7 +259,7 @@ func private %read_selector(v0.objref<@layout_1>) -> i256 {
         return v4;
 }
 
-func private %std__lib__evm__effects__impl_trait_Evm_0098__return_data_264c(v0.i256, v1.i256) {
+func private %std__lib__evm__effects__impl_trait_Evm_0098__return_data_2757(v0.i256, v1.i256) {
     block0:
         v2.*i256 = alloca i256;
         v3.*i256 = alloca i256;
@@ -366,7 +366,7 @@ func private %transfer(v0.objref<@layout_1>) {
         jump block1;
 
     block1:
-        call %std__lib__evm__effects__impl_trait_Evm_0098__return_data_264c 0.i256 0.i256;
+        call %std__lib__evm__effects__impl_trait_Evm_0098__return_data_2757 0.i256 0.i256;
         return;
 }
 

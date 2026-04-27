@@ -58,7 +58,7 @@ object "NestedStruct" {
         let v6 := v13
         let v14 := 0x20
         let v7 := v14
-        $std$lib$evm$effects$impl_trait$Evm$0098$return_data_8ec3(v6, v7)
+        $std$lib$evm$effects$impl_trait$Evm$0098$return_data_8d10(v6, v7)
         leave
       }
       function $abi_encode_arg0_root_stor(p0, p1) {
@@ -72,7 +72,7 @@ object "NestedStruct" {
         let v6 := v13
         let v14 := 0x20
         let v7 := v14
-        $std$lib$evm$effects$impl_trait$Evm$0098$return_data_8ec3(v6, v7)
+        $std$lib$evm$effects$impl_trait$Evm$0098$return_data_8d10(v6, v7)
         leave
       }
       function $calldataload(p0) -> ret {
@@ -151,7 +151,7 @@ object "NestedStruct" {
         let v4 := p1
         return(v3, v4)
       }
-      function $std$lib$evm$effects$impl_trait$Evm$0098$return_data_8ec3(p0, p1) {
+      function $std$lib$evm$effects$impl_trait$Evm$0098$return_data_8d10(p0, p1) {
         let v3 := p0
         let v4 := p1
         return(v3, v4)

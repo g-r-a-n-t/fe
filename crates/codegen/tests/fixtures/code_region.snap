@@ -303,7 +303,7 @@ object "Foo" {
         let v1 := v4
         let v5 := 0x00
         let v2 := v5
-        $std$lib$evm$effects$impl_trait$Evm$0098$return_data_264c(v1, v2)
+        $std$lib$evm$effects$impl_trait$Evm$0098$return_data_2757(v1, v2)
         leave
       }
       function $calldataload(p0) -> ret {
@@ -337,7 +337,7 @@ object "Foo" {
         ret := v5
         leave
       }
-      function $std$lib$evm$effects$impl_trait$Evm$0098$return_data_264c(p0, p1) {
+      function $std$lib$evm$effects$impl_trait$Evm$0098$return_data_2757(p0, p1) {
         let v3 := p0
         let v4 := p1
         return(v3, v4)
@@ -377,7 +377,7 @@ object "Foo" {
         let v1 := v4
         let v5 := 0x00
         let v2 := v5
-        $std$lib$evm$effects$impl_trait$Evm$0098$return_data_264c(v1, v2)
+        $std$lib$evm$effects$impl_trait$Evm$0098$return_data_2757(v1, v2)
         leave
       }
       $manual_contract_runtime_root_Foo()

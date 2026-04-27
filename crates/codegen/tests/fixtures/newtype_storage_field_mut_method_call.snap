@@ -44,7 +44,7 @@ object "NewtypeStorageFieldMutMethodCall" {
       }
       function $abi_field_size_arg0_root_stor(p0) -> ret {
         let v1 := 0
-        let v9 := $core$lib$abi$trait$AbiSize$payload_size$ge513_arg0_root_stor_6998(p0)
+        let v9 := $core$lib$abi$trait$AbiSize$payload_size$ge513_arg0_root_stor_4e75(p0)
         let v2 := v9
         v1 := v2
         let v10 := 0
@@ -186,7 +186,7 @@ object "NewtypeStorageFieldMutMethodCall" {
           let v9 := v29
           let v3 := v9
           let v4 := p2
-          let v30 := $core$lib$abi$trait$AbiSize$payload_size$ge513_arg0_root_stor_3144(p0)
+          let v30 := $core$lib$abi$trait$AbiSize$payload_size$ge513_arg0_root_stor_4e75_0(p0)
           let v10 := v30
           let v5 := v10
           let v11 := v4
@@ -295,41 +295,6 @@ object "NewtypeStorageFieldMutMethodCall" {
         ret := v2
         leave
       }
-      function $impl$Cursor$new$g463e(p0) -> ret {
-        let v3 := 0x00
-        let v1 := v3
-        let t5 := mload(0x40)
-        if iszero(t5) {
-          t5 := 0x80
-        }
-        mstore(0x40, add(t5, 96))
-        let v4 := t5
-        mstore(v4, mload(p0))
-        mstore(add(v4, 32), mload(add(p0, 32)))
-        mstore(add(v4, 64), v1)
-        let v2 := v4
-        ret := v2
-        leave
-      }
-      function $impl$SolDecoder$new$g463e(p0) -> ret {
-        let v4 := $impl$Cursor$new$g463e(p0)
-        let v1 := v4
-        let v5 := 0x00
-        let v2 := v5
-        let t7 := mload(0x40)
-        if iszero(t7) {
-          t7 := 0x80
-        }
-        mstore(0x40, add(t7, 128))
-        let v6 := t7
-        mstore(v6, mload(v1))
-        mstore(add(v6, 32), mload(add(v1, 32)))
-        mstore(add(v6, 64), mload(add(v1, 64)))
-        mstore(add(v6, 96), v2)
-        let v3 := v6
-        ret := v3
-        leave
-      }
       function $impl$SolEncoder$new(p0) -> ret {
         let v2 := 0
         let v3 := p0
@@ -367,13 +332,48 @@ object "NewtypeStorageFieldMutMethodCall" {
         ret := v9
         leave
       }
-      function $core$lib$abi$trait$AbiSize$payload_size$ge513_arg0_root_stor_3144(p0) -> ret {
+      function $impl$SolDecoder$new$g463e(p0) -> ret {
+        let v4 := $impl$Cursor$new$g463e(p0)
+        let v1 := v4
+        let v5 := 0x00
+        let v2 := v5
+        let t7 := mload(0x40)
+        if iszero(t7) {
+          t7 := 0x80
+        }
+        mstore(0x40, add(t7, 128))
+        let v6 := t7
+        mstore(v6, mload(v1))
+        mstore(add(v6, 32), mload(add(v1, 32)))
+        mstore(add(v6, 64), mload(add(v1, 64)))
+        mstore(add(v6, 96), v2)
+        let v3 := v6
+        ret := v3
+        leave
+      }
+      function $impl$Cursor$new$g463e(p0) -> ret {
+        let v3 := 0x00
+        let v1 := v3
+        let t5 := mload(0x40)
+        if iszero(t5) {
+          t5 := 0x80
+        }
+        mstore(0x40, add(t5, 96))
+        let v4 := t5
+        mstore(v4, mload(p0))
+        mstore(add(v4, 32), mload(add(p0, 32)))
+        mstore(add(v4, 64), v1)
+        let v2 := v4
+        ret := v2
+        leave
+      }
+      function $core$lib$abi$trait$AbiSize$payload_size$ge513_arg0_root_stor_4e75(p0) -> ret {
         let v2 := 0x20
         let v1 := v2
         ret := v1
         leave
       }
-      function $core$lib$abi$trait$AbiSize$payload_size$ge513_arg0_root_stor_6998(p0) -> ret {
+      function $core$lib$abi$trait$AbiSize$payload_size$ge513_arg0_root_stor_4e75_0(p0) -> ret {
         let v2 := 0x20
         let v1 := v2
         ret := v1

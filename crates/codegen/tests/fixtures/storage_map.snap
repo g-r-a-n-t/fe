@@ -73,7 +73,7 @@ object "main" {
     }
     function $storagemap_get_word_with_salt(p0, p1) -> ret {
       let v3 := p1
-      let v6 := $storagemap_storage_slot_with_salt(p0, v3)
+      let v6 := $std$lib$evm$storage_map$storagemap_storage_slot_with_salt$ge513_3954_0(p0, v3)
       let v4 := v6
       let v2 := v4
       let v8 := sload(v2)
@@ -83,14 +83,14 @@ object "main" {
     }
     function $storagemap_set_word_with_salt(p0, p1, p2) {
       let v4 := p1
-      let v8 := $storagemap_storage_slot_with_salt(p0, v4)
+      let v8 := $std$lib$evm$storage_map$storagemap_storage_slot_with_salt$ge513_3954(p0, v4)
       let v5 := v8
       let v3 := v5
       let v6 := p2
       sstore(v3, v6)
       leave
     }
-    function $storagemap_storage_slot_with_salt(p0, p1) -> ret {
+    function $std$lib$evm$storage_map$storagemap_storage_slot_with_salt$ge513_3954(p0, p1) -> ret {
       let v13 := 0x00
       let v4 := v13
       let t24 := mload(0x40)
@@ -101,7 +101,46 @@ object "main" {
       let v15 := t24
       let v5 := v15
       let v2 := v5
-      let v16 := $write_key(v2, p0)
+      let v16 := $std$lib$evm$storage_map$impl_trait$u256$0dfe$write_key_2db6(v2, p0)
+      let v6 := v16
+      let v3 := v6
+      let t25 := add(v2, v3)
+      if lt(t25, v2) {
+        mstore(0, 0x4e487b7100000000000000000000000000000000000000000000000000000000)
+        mstore(4, 0x11)
+        revert(0, 36)
+      }
+      let v17 := t25
+      let v7 := v17
+      let v8 := p1
+      mstore(v7, v8)
+      let v20 := 0x20
+      let v10 := v20
+      let t26 := add(v3, v10)
+      if lt(t26, v3) {
+        mstore(0, 0x4e487b7100000000000000000000000000000000000000000000000000000000)
+        mstore(4, 0x11)
+        revert(0, 36)
+      }
+      let v21 := t26
+      let v11 := v21
+      let v23 := keccak256(v2, v11)
+      let v12 := v23
+      ret := v12
+      leave
+    }
+    function $std$lib$evm$storage_map$storagemap_storage_slot_with_salt$ge513_3954_0(p0, p1) -> ret {
+      let v13 := 0x00
+      let v4 := v13
+      let t24 := mload(0x40)
+      if iszero(t24) {
+        t24 := 0x80
+      }
+      mstore(0x40, add(t24, v4))
+      let v15 := t24
+      let v5 := v15
+      let v2 := v5
+      let v16 := $std$lib$evm$storage_map$impl_trait$u256$0dfe$write_key_2db6_0(v2, p0)
       let v6 := v16
       let v3 := v6
       let t25 := add(v2, v3)
@@ -133,7 +172,16 @@ object "main" {
       ret := p0
       leave
     }
-    function $write_key(p0, p1) -> ret {
+    function $std$lib$evm$storage_map$impl_trait$u256$0dfe$write_key_2db6(p0, p1) -> ret {
+      let v2 := p0
+      let v3 := p1
+      mstore(v2, v3)
+      let v8 := 0x20
+      let v5 := v8
+      ret := v5
+      leave
+    }
+    function $std$lib$evm$storage_map$impl_trait$u256$0dfe$write_key_2db6_0(p0, p1) -> ret {
       let v2 := p0
       let v3 := p1
       mstore(v2, v3)

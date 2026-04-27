@@ -376,12 +376,6 @@ pub fn build_test_runtime_package<'db>(
     top_mod: TopLevelMod<'db>,
     filter: Option<&str>,
 ) -> Result<RuntimePackage<'db>, LowerError> {
-    if !top_mod.all_contracts(db).is_empty()
-        || !discover_manual_contract_roots(db, top_mod)?.is_empty()
-    {
-        return build_contract_test_package(db, top_mod, filter);
-    }
-
     let mut roots = Vec::new();
     let mut objects = Vec::new();
     for &func in top_mod.all_funcs(db) {
@@ -422,12 +416,12 @@ pub fn build_test_runtime_package<'db>(
         roots.push(root);
         objects.push((
             sanitize_object_name(&name),
-            RuntimeSectionName::Test(name),
-            root,
+            vec![(RuntimeSectionName::Test(name), root)],
         ));
     }
 
-    let package = build_non_contract_package(db, top_mod, roots, objects, None)?;
+    let primary = (objects.len() == 1).then(|| objects[0].0.clone());
+    let package = build_sectioned_package(db, top_mod, roots, objects, primary.as_deref())?;
     verify_runtime_package(db, package)
         .map_err(|err| LowerError::Unsupported(format!("invalid runtime package: {err:?}")))?;
     Ok(package)
@@ -448,71 +442,6 @@ fn build_contract_package<'db>(
     for (name, sections, section_roots) in manual_contract_objects(db, top_mod)? {
         roots.extend(section_roots);
         objects.push((name, sections));
-    }
-
-    let primary = (objects.len() == 1).then(|| objects[0].0.clone());
-    let package = build_sectioned_package(db, top_mod, roots, objects, primary.as_deref())?;
-    verify_runtime_package(db, package)
-        .map_err(|err| LowerError::Unsupported(format!("invalid runtime package: {err:?}")))?;
-    Ok(package)
-}
-
-fn build_contract_test_package<'db>(
-    db: &'db dyn MirDb,
-    top_mod: TopLevelMod<'db>,
-    filter: Option<&str>,
-) -> Result<RuntimePackage<'db>, LowerError> {
-    let mut roots = Vec::new();
-    let mut objects = Vec::new();
-    let contracts = top_mod.all_contracts(db);
-    for &contract in contracts {
-        let (name, sections, section_roots) = contract_object_spec(db, contract)?;
-        roots.extend(section_roots);
-        objects.push((name, sections));
-    }
-    for (name, sections, section_roots) in manual_contract_objects(db, top_mod)? {
-        roots.extend(section_roots);
-        objects.push((name, sections));
-    }
-
-    for &func in top_mod.all_funcs(db) {
-        if func.top_mod(db) != top_mod {
-            continue;
-        }
-        let Some(attrs) = ItemKind::from(func).attrs(db) else {
-            continue;
-        };
-        if attrs.get_attr(db, "test").is_none() {
-            continue;
-        }
-        let name = func
-            .name(db)
-            .to_opt()
-            .map(|name| name.data(db).to_string())
-            .unwrap_or_else(|| "<anonymous>".to_string());
-        if let Some(filter) = filter
-            && !name.contains(filter)
-        {
-            continue;
-        }
-        let semantic = semantic_instance_for_root_owner(db, BodyOwner::Func(func))?;
-        let entry_effect_args =
-            entry_effect_arg_plans(db, EntryEffectContext::TestFunc { func }, semantic)?;
-        let runtime_root = runtime_instance_for_semantic(db, semantic);
-        let root = synthetic_instance(
-            db,
-            RuntimeSyntheticSpec::TestRoot {
-                name: name.clone(),
-                callee: runtime_root,
-                entry_effect_args: entry_effect_args.into_boxed_slice(),
-            },
-            Vec::new(),
-        );
-        roots.push(root);
-        objects.push((
-            sanitize_object_name(&name),
-            vec![(RuntimeSectionName::Test(name), root)],
-        ));
     }
 
     let primary = (objects.len() == 1).then(|| objects[0].0.clone());
@@ -1841,6 +1770,14 @@ pub fn runtime_instance_stable_key<'db>(
 }
 
 fn runtime_instance_sort_key<'db>(db: &'db dyn MirDb, instance: RuntimeInstance<'db>) -> String {
+    runtime_instance_sort_key_query(db, instance)
+}
+
+#[salsa::tracked]
+fn runtime_instance_sort_key_query<'db>(
+    db: &'db dyn MirDb,
+    instance: RuntimeInstance<'db>,
+) -> String {
     let key = instance.key(db);
     let source = runtime_instance_source_sort_key(db, key.source(db));
     let params = key
@@ -2125,6 +2062,11 @@ fn target_root_provider_materialization_sort_key<'db>(
 }
 
 fn layout_sort_key<'db>(db: &'db dyn MirDb, layout: LayoutId<'db>) -> String {
+    layout_sort_key_query(db, layout)
+}
+
+#[salsa::tracked]
+fn layout_sort_key_query<'db>(db: &'db dyn MirDb, layout: LayoutId<'db>) -> String {
     match layout.key(db) {
         LayoutKey::Struct(layout) => format!(
             "struct:{}:[{}]",
@@ -2386,6 +2328,134 @@ mod tests {
             RuntimeSyntheticSpec::ContractRecvAbi { plan } => plan.clone(),
             other => panic!("expected recv wrapper synthetic spec, got {other:?}"),
         }
+    }
+
+    fn with_test_runtime_package<T>(
+        file_name: &str,
+        source: &str,
+        filter: Option<&str>,
+        f: impl for<'db> FnOnce(&'db DriverDataBase, RuntimePackage<'db>) -> T,
+    ) -> T {
+        let mut db = DriverDataBase::default();
+        let file_url = Url::parse(&format!("file:///{file_name}")).unwrap();
+        let file = db
+            .workspace()
+            .touch(&mut db, file_url, Some(source.to_string()));
+        let top_mod = db.top_mod(file);
+        let package =
+            build_test_runtime_package(&db, top_mod, filter).expect("test package should build");
+        f(&db, package)
+    }
+
+    fn package_object_names(db: &DriverDataBase, package: RuntimePackage<'_>) -> Vec<String> {
+        let mut names = package
+            .objects(db)
+            .into_iter()
+            .map(|object| object.name(db).clone())
+            .collect::<Vec<_>>();
+        names.sort();
+        names
+    }
+
+    fn package_root_object_names(db: &DriverDataBase, package: RuntimePackage<'_>) -> Vec<String> {
+        let mut names = package
+            .root_objects(db)
+            .into_iter()
+            .map(|object| object.name(db).clone())
+            .collect::<Vec<_>>();
+        names.sort();
+        names
+    }
+
+    #[test]
+    fn filtered_test_package_excludes_unreferenced_contract_roots() {
+        with_test_runtime_package(
+            "filtered_test_package_excludes_unreferenced_contract_roots.fe",
+            r#"
+use std::evm::assert
+
+pub contract Unused {}
+
+#[test]
+fn selected() {
+    assert(true)
+}
+
+#[test]
+fn ignored() {
+    assert(true)
+}
+"#,
+            Some("selected"),
+            |db, package| {
+                assert_eq!(package_root_object_names(db, package), vec!["selected"]);
+                assert_eq!(package_object_names(db, package), vec!["selected"]);
+            },
+        );
+    }
+
+    #[test]
+    fn filtered_test_package_discovers_create2_contract_dependency() {
+        with_test_runtime_package(
+            "filtered_test_package_discovers_create2_contract_dependency.fe",
+            r#"
+use std::abi::sol
+use std::evm::{Evm, assert}
+
+pub msg ChildMsg {
+    #[selector = sol("get()")]
+    Get -> u256,
+}
+
+pub contract Child {
+    recv ChildMsg {
+        Get -> u256 {
+            1
+        }
+    }
+}
+
+pub contract Unused {}
+
+#[test]
+fn selected() uses (evm: mut Evm) {
+    let addr = evm.create2<Child>(value: 0, args: (), salt: 1)
+    assert(addr.inner != 0)
+}
+"#,
+            Some("selected"),
+            |db, package| {
+                let object_names = package_object_names(db, package);
+
+                assert_eq!(package_root_object_names(db, package), vec!["selected"]);
+                assert!(
+                    object_names.contains(&"Child".to_string()),
+                    "selected test package should discover create2 contract dependency: {object_names:?}"
+                );
+                assert!(
+                    !object_names.contains(&"Unused".to_string()),
+                    "selected test package should not include unreferenced contracts: {object_names:?}"
+                );
+            },
+        );
+    }
+
+    #[test]
+    fn filtered_test_package_without_matches_is_empty() {
+        with_test_runtime_package(
+            "filtered_test_package_without_matches_is_empty.fe",
+            r#"
+pub contract Unused {}
+
+#[test]
+fn selected() {}
+"#,
+            Some("missing"),
+            |db, package| {
+                assert!(package.root_objects(db).is_empty());
+                assert!(package.objects(db).is_empty());
+            },
+        );
     }
 
     #[test]

@@ -680,6 +680,9 @@ pub fn emit_test_module_sonatina(
     filter: Option<&str>,
 ) -> Result<TestModuleOutput, LowerError> {
     let package = build_test_runtime_package(db, top_mod, filter)?;
+    if package.root_objects(db).is_empty() {
+        return Ok(TestModuleOutput { tests: Vec::new() });
+    }
     let mut module = compile_runtime_package_sonatina(db, &package, crate::EVM_LAYOUT)?;
     ensure_module_sonatina_ir_valid(&module)?;
     run_sonatina_optimization_pipeline(&mut module, opt_level);

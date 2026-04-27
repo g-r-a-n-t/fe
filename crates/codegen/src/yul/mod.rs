@@ -243,6 +243,9 @@ pub fn emit_test_module_yul_with_layout(
     layout: TargetDataLayout,
 ) -> Result<TestModuleOutput, EmitModuleError> {
     let package = build_test_runtime_package(db, top_mod, filter)?;
+    if package.root_objects(db).is_empty() {
+        return Ok(TestModuleOutput { tests: Vec::new() });
+    }
     emit_test_runtime_package_yul(db, &package, layout, filter)
 }
 

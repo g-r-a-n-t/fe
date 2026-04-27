@@ -1199,12 +1199,12 @@ pub fn run_tests(
         let (suite_tx, suite_rx) = crossbeam_channel::unbounded::<SuitePlan>();
         let (single_tx, single_rx) = crossbeam_channel::unbounded::<SingleTestJob>();
         let (outcome_tx, outcome_rx) = crossbeam_channel::unbounded::<JobOutcome>();
-        let suite_worker_count = if grouped { worker_count } else { 1 };
-        let single_worker_count = if grouped {
-            0
+        let suite_worker_count = if grouped {
+            worker_count
         } else {
-            worker_count.saturating_sub(suite_worker_count)
+            worker_count.saturating_sub(1).max(1).min(suite_plans.len())
         };
+        let single_worker_count = worker_count.saturating_sub(suite_worker_count);
         let suite_in_flight_limit =
             max_in_flight_suites(grouped, suite_worker_count, single_worker_count);
         let suite_worker_cfg = SuiteWorkerConfig {

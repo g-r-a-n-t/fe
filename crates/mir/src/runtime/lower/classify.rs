@@ -523,6 +523,11 @@ impl<'a, 'db> BodyEnv<'a, 'db> {
                 ),
             },
             NExpr::CodeRegionRef { .. } => return None,
+            NExpr::ArrayRepeat { .. } => {
+                panic!(
+                    "array repeat with non-concrete length reached runtime class inference: {expr:?}"
+                )
+            }
             NExpr::GetEnumTag { value } => {
                 let enum_layout = self
                     .semantic_value_class(carriers, value.local)?
@@ -938,6 +943,11 @@ fn build_expr_static_facts<'db>(
         | NExpr::CodeRegionLen { .. } => ExprStaticFacts::DirectClass(
             scalar_class_for_ty_in_env(db, type_env, result_ty).map(RuntimeClass::Scalar),
         ),
+        NExpr::ArrayRepeat { .. } => {
+            panic!(
+                "array repeat with non-concrete length reached runtime class inference: {expr:?}"
+            )
+        }
         NExpr::GetEnumTag { .. } => return None,
         NExpr::AggregateMake { ty, fields } => {
             let direct_class =

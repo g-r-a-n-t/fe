@@ -439,19 +439,8 @@ impl<'a, 'db> SmirLowerCtxt<'a, 'db> {
                 self.emit_expr_with_origin(origin, ty, SExpr::AggregateMake { ty, fields })
             }
             Expr::ArrayRep(elem, _) => {
-                let len = self
-                    .expr_ty(expr)
-                    .array_len(self.db)
-                    .expect("array repeat lowering requires an array type");
-                let value = self.lower_expr(*elem);
-                self.emit_expr_with_origin(
-                    origin,
-                    ty,
-                    SExpr::AggregateMake {
-                        ty,
-                        fields: vec![SOperand::expr(value, *elem); len].into_boxed_slice(),
-                    },
-                )
+                let value = self.lower_expr_operand(*elem);
+                self.emit_expr_with_origin(origin, ty, SExpr::ArrayRepeat { ty, value })
             }
             Expr::RecordInit(path, fields) => self.lower_record_init(expr, *path, fields),
             Expr::Field(base, _) => {

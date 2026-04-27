@@ -2,8 +2,9 @@ use fe_hir::test_db::HirAnalysisTestDb;
 use fe_hir::{
     analysis::{
         semantic::{
-            SExpr, SStmtKind, SemanticCodeRegionRef, get_or_build_semantic_instance,
-            identity_semantic_instance_key,
+            NExpr, NSStmtKind, SExpr, SStmtKind, SemanticCodeRegionRef,
+            get_or_build_semantic_instance, identity_semantic_instance_key,
+            normalize_semantic_body,
         },
         ty::ty_check::{BodyOwner, check_func_body},
     },
@@ -494,10 +495,10 @@ fn runtime() uses (evm: mut Evm) {}"#,
 }
 
 #[test]
-fn array_repeat_lowering_preserves_array_arity() {
+fn array_repeat_lowering_keeps_repeat_expr_until_normalization() {
     let mut db = HirAnalysisTestDb::default();
     let file = db.new_stand_alone(
-        "array_repeat_lowering_preserves_array_arity.fe".into(),
+        "array_repeat_lowering_keeps_repeat_expr_until_normalization.fe".into(),
         r#"fn repeat(x: u256) -> [u256; 4] {
     return [x; 4]
 }"#,
@@ -513,19 +514,79 @@ fn array_repeat_lowering_preserves_array_arity() {
         identity_semantic_instance_key(&db, BodyOwner::Func(*func)),
     );
     let body = instance.body(&db);
-    let array_aggregate_arity = body
-        .blocks
+    body.blocks
         .iter()
         .flat_map(|block| block.stmts.iter())
         .find_map(|stmt| match &stmt.kind {
             SStmtKind::Assign {
-                expr: SExpr::AggregateMake { ty, fields },
+                expr: SExpr::ArrayRepeat { ty, .. },
                 ..
-            } if ty.is_array(&db) => Some(fields.len()),
+            } if ty.is_array(&db) => Some(()),
             SStmtKind::Assign { .. } | SStmtKind::Store { .. } => None,
         })
-        .expect("expected an array aggregate in semantic lowering");
-    assert_eq!(array_aggregate_arity, 4);
+        .expect("expected array repeat in raw semantic lowering");
+
+    let normalized = normalize_semantic_body(&db, instance).expect("normalized body");
+    let normalized_array_arity = normalized
+        .blocks
+        .iter()
+        .flat_map(|block| block.stmts.iter())
+        .find_map(|stmt| match &stmt.kind {
+            NSStmtKind::Assign {
+                expr: NExpr::AggregateMake { ty, fields },
+                ..
+            } if ty.is_array(&db) => Some(fields.len()),
+            NSStmtKind::Assign { .. } | NSStmtKind::Store { .. } => None,
+        })
+        .expect("expected concrete array repeat to normalize into aggregate make");
+    assert_eq!(normalized_array_arity, 4);
+}
+
+#[test]
+fn generic_array_repeat_with_symbolic_len_normalizes_as_repeat() {
+    let mut db = HirAnalysisTestDb::default();
+    let file = db.new_stand_alone(
+        "generic_array_repeat_with_symbolic_len_normalizes_as_repeat.fe".into(),
+        r#"fn repeat<const N: usize>() {
+    let _x: [u256; N] = [0; N]
+}"#,
+    );
+    let (top_mod, _) = db.top_mod(file);
+    db.assert_no_diags(top_mod);
+
+    let [func] = top_mod.all_funcs(&db).as_slice() else {
+        panic!("expected exactly one function");
+    };
+    let instance = get_or_build_semantic_instance(
+        &db,
+        identity_semantic_instance_key(&db, BodyOwner::Func(*func)),
+    );
+    let body = instance.body(&db);
+    body.blocks
+        .iter()
+        .flat_map(|block| block.stmts.iter())
+        .find_map(|stmt| match &stmt.kind {
+            SStmtKind::Assign {
+                expr: SExpr::ArrayRepeat { ty, .. },
+                ..
+            } if ty.is_array(&db) && ty.array_len(&db).is_none() => Some(()),
+            SStmtKind::Assign { .. } | SStmtKind::Store { .. } => None,
+        })
+        .expect("expected symbolic array repeat in raw semantic lowering");
+
+    let normalized = normalize_semantic_body(&db, instance).expect("normalized body");
+    normalized
+        .blocks
+        .iter()
+        .flat_map(|block| block.stmts.iter())
+        .find_map(|stmt| match &stmt.kind {
+            NSStmtKind::Assign {
+                expr: NExpr::ArrayRepeat { ty, .. },
+                ..
+            } if ty.is_array(&db) && ty.array_len(&db).is_none() => Some(()),
+            NSStmtKind::Assign { .. } | NSStmtKind::Store { .. } => None,
+        })
+        .expect("expected symbolic array repeat to stay unexpanded after normalization");
 }
 
 #[test]

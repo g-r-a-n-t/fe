@@ -293,6 +293,10 @@ pub enum NExpr<'db> {
         value: NOperand,
         to: TyId<'db>,
     },
+    ArrayRepeat {
+        ty: TyId<'db>,
+        value: NOperand,
+    },
     AggregateMake {
         ty: TyId<'db>,
         fields: Box<[NOperand]>,
@@ -334,6 +338,7 @@ impl<'db> NExpr<'db> {
             Self::Use(value)
             | Self::Unary { value, .. }
             | Self::Cast { value, .. }
+            | Self::ArrayRepeat { value, .. }
             | Self::GetEnumTag { value }
             | Self::IsEnumVariant { value, .. }
             | Self::ExtractEnumField { value, .. } => f(*value),
@@ -398,6 +403,7 @@ impl<'db> NExpr<'db> {
             | Self::Unary { .. }
             | Self::Binary { .. }
             | Self::Cast { .. }
+            | Self::ArrayRepeat { .. }
             | Self::AggregateMake { .. }
             | Self::EnumMake { .. }
             | Self::GetEnumTag { .. }

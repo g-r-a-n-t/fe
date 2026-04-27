@@ -363,6 +363,7 @@ impl<'db> NormalizeCtxt<'db> {
             | NExpr::Unary { .. }
             | NExpr::Binary { .. }
             | NExpr::Cast { .. }
+            | NExpr::ArrayRepeat { .. }
             | NExpr::AggregateMake { .. }
             | NExpr::EnumMake { .. }
             | NExpr::GetEnumTag { .. }
@@ -664,6 +665,17 @@ impl<'db> NormalizeCtxt<'db> {
                 value: self.normalize_operand(*value, origin),
                 to: *to,
             },
+            SExpr::ArrayRepeat { ty, value } => {
+                let value = self.normalize_operand(*value, origin);
+                if let Some(len) = ty.array_len(self.db) {
+                    NExpr::AggregateMake {
+                        ty: *ty,
+                        fields: vec![value; len].into_boxed_slice(),
+                    }
+                } else {
+                    NExpr::ArrayRepeat { ty: *ty, value }
+                }
+            }
             SExpr::AggregateMake { ty, fields } => NExpr::AggregateMake {
                 ty: *ty,
                 fields: fields

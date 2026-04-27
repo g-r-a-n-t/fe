@@ -90,7 +90,7 @@ impl<'a, 'db> SmirLowerCtxt<'a, 'db> {
                     *field,
                 ),
             ),
-            SExpr::AggregateMake { ty, .. } => {
+            SExpr::ArrayRepeat { ty, .. } | SExpr::AggregateMake { ty, .. } => {
                 let fallback = self.fallback_local_role(*ty);
                 match fallback {
                     SemanticLocalRole::PlaceCarrier { .. }
@@ -138,6 +138,7 @@ impl<'a, 'db> SmirLowerCtxt<'a, 'db> {
             )),
             SExpr::Borrow { .. }
             | SExpr::Call { .. }
+            | SExpr::ArrayRepeat { .. }
             | SExpr::AggregateMake { .. }
             | SExpr::CodeRegionRef { .. }
             | SExpr::Const(_)

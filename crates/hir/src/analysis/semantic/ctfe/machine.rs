@@ -471,6 +471,15 @@ impl<'db> CtfeMachine<'db> {
                 let fields = self.eval_value_args(frame_idx, &fields, origin)?;
                 Ok(self.make_aggregate_value(result_ty, fields))
             }
+            SExpr::ArrayRepeat { ty, value } => {
+                let Some(len) = ty.array_len(self.db) else {
+                    return Err(CtfeError::NotConstEvaluable { origin });
+                };
+                let CtfeValue::Value(value) = self.read_operand(frame_idx, value, origin)? else {
+                    return Err(CtfeError::InvalidBorrow { origin });
+                };
+                Ok(self.make_aggregate_value(result_ty, vec![value; len]))
+            }
             SExpr::EnumMake {
                 variant, fields, ..
             } => {

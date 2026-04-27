@@ -219,6 +219,9 @@ fn trait_goal_satisfied<'db>(
 
 fn expr_requires_runtime_eval_when_erased(expr: &NExpr<'_>) -> bool {
     match expr {
+        NExpr::ArrayRepeat { .. } => {
+            panic!("array repeat with non-concrete length reached runtime lowering: {expr:?}")
+        }
         NExpr::Unary {
             op: UnOp::Minus, ..
         }
@@ -570,6 +573,11 @@ impl<'db> RmirEmitter<'db> {
                     .map(|selected| selected.class),
                 NExpr::Borrow { place, .. } => cx.normalized_place_address_class(place),
                 NExpr::ReadPlace { place, .. } => cx.normalized_place_class(place),
+                NExpr::ArrayRepeat { .. } => {
+                    panic!(
+                        "array repeat with non-concrete length reached runtime lowering: {expr:?}"
+                    )
+                }
                 NExpr::Const(_)
                 | NExpr::CodeRegionRef { .. }
                 | NExpr::Unary { .. }
@@ -749,6 +757,9 @@ impl<'db> RmirEmitter<'db> {
                         expr: RExpr::Cast { value, to },
                     },
                 );
+            }
+            NExpr::ArrayRepeat { .. } => {
+                panic!("array repeat with non-concrete length reached runtime lowering: {expr:?}")
             }
             NExpr::AggregateMake { ty, fields } => self.lower_aggregate_make(bb, dst, *ty, fields),
             NExpr::EnumMake {

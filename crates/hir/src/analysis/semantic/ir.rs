@@ -367,6 +367,10 @@ pub enum SExpr<'db> {
         value: SOperand,
         to: TyId<'db>,
     },
+    ArrayRepeat {
+        ty: TyId<'db>,
+        value: SOperand,
+    },
     AggregateMake {
         ty: TyId<'db>,
         fields: Box<[SOperand]>,

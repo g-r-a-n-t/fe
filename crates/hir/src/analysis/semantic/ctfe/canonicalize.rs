@@ -253,6 +253,7 @@ fn writable_local_roots<'db>(
             | SExpr::Unary { .. }
             | SExpr::Binary { .. }
             | SExpr::Cast { .. }
+            | SExpr::ArrayRepeat { .. }
             | SExpr::AggregateMake { .. }
             | SExpr::EnumMake { .. }
             | SExpr::Field { .. }

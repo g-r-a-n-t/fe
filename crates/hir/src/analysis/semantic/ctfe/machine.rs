@@ -2,6 +2,7 @@ use cranelift_entity::EntityRef;
 use num_bigint::{BigInt, Sign};
 use num_traits::{One, ToPrimitive, Zero};
 use ruint::aliases::U256;
+use rustc_hash::FxHashMap;
 use salsa::Update;
 use std::rc::Rc;
 use tiny_keccak::{Hasher, Keccak};
@@ -46,7 +47,7 @@ pub struct CtfeConfig {
 impl Default for CtfeConfig {
     fn default() -> Self {
         Self {
-            step_limit: 10_000,
+            step_limit: 1_000_000,
             recursion_limit: 64,
         }
     }
@@ -195,11 +196,12 @@ struct CtfeMachine<'db> {
     db: &'db dyn HirAnalysisDb,
     config: CtfeConfig,
     steps: usize,
+    body_cache: FxHashMap<SemanticInstanceKey<'db>, Rc<SemanticBody<'db>>>,
     frames: Vec<CtfeFrame<'db>>,
 }
 
 struct CtfeFrame<'db> {
-    body: SemanticBody<'db>,
+    body: Rc<SemanticBody<'db>>,
     locals: Vec<CtfeSlot<'db>>,
     current: usize,
 }
@@ -692,8 +694,19 @@ impl<'db> CtfeMachine<'db> {
             db,
             config,
             steps: 0,
+            body_cache: FxHashMap::default(),
             frames: Vec::new(),
         }
+    }
+
+    fn body_for_instance(&mut self, instance: SemanticInstance<'db>) -> Rc<SemanticBody<'db>> {
+        let key = instance.key(self.db);
+        if let Some(body) = self.body_cache.get(&key) {
+            return body.clone();
+        }
+        let body = Rc::new(instance.body(self.db));
+        self.body_cache.insert(key, body.clone());
+        body
     }
 
     fn eval_root(
@@ -717,7 +730,7 @@ impl<'db> CtfeMachine<'db> {
         locals: &[Option<SemConstId<'db>>],
         origin: SemOrigin<'db>,
     ) -> Result<SemConstId<'db>, CtfeError<'db>> {
-        let body = instance.body(self.db);
+        let body = self.body_for_instance(instance);
         let mut frame_locals = vec![CtfeSlot::Uninit; body.locals.len()];
         for (idx, value) in locals.iter().copied().enumerate() {
             if let Some(value) = value
@@ -751,7 +764,7 @@ impl<'db> CtfeMachine<'db> {
             return Err(CtfeError::RecursionLimitExceeded { origin });
         }
 
-        let body = instance.body(self.db);
+        let body = self.body_for_instance(instance);
         let mut locals = vec![CtfeSlot::Uninit; body.locals.len()];
         for (idx, arg) in args.into_iter().enumerate() {
             let Some(slot) = locals.get_mut(idx) else {

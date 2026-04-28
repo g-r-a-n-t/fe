@@ -622,12 +622,6 @@ fn caller(token: Token) -> Address uses (evm: mut Evm) {
     let caller = find_func(&db, top_mod, "caller");
     let call_expr = find_method_call_expr(&db, caller);
     let typed_body = check_func_body(&db, caller).1.clone();
-    eprintln!(
-        "effect_args={:#?}",
-        typed_body
-            .call_effect_args(call_expr)
-            .expect("missing effect args")
-    );
     let callable = typed_body
         .callable_expr(call_expr)
         .expect("missing method callable");
@@ -682,21 +676,9 @@ fn caller(token: Token<0, 1>) -> Address uses (evm: mut Evm) {
     let caller = find_func(&db, top_mod, "caller");
     let call_expr = find_method_call_expr(&db, caller);
     let typed_body = check_func_body(&db, caller).1.clone();
-    eprintln!(
-        "effect_args={:#?}",
-        typed_body
-            .call_effect_args(call_expr)
-            .expect("missing effect args")
-    );
     let callable = typed_body
         .callable_expr(call_expr)
         .expect("missing method callable");
-    eprintln!(
-        "effect_args={:#?}",
-        typed_body
-            .call_effect_args(call_expr)
-            .expect("missing effect args")
-    );
     let CallableDef::Func(method) = callable.callable_def() else {
         panic!("expected inherent method callable");
     };

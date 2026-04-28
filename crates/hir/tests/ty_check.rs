@@ -79,6 +79,38 @@ fn trigger() {
     );
 }
 
+#[test]
+fn invalid_const_fn_body_diagnostics_do_not_panic_during_const_eval() {
+    let mut db = HirAnalysisTestDb::default();
+    let file = db.new_stand_alone(
+        "invalid_const_fn_body_diagnostics_do_not_panic_during_const_eval.fe".into(),
+        r#"
+const fn invalid_const() -> usize {
+    pass
+    missing_value
+}
+
+struct NeedsConst<const N: usize> {}
+
+fn trigger() {
+    let _x: NeedsConst<{ invalid_const() }>
+}
+"#,
+    );
+    let (top_mod, _) = db.top_mod(file);
+    let rendered = diagnostics_for(&db, top_mod);
+
+    assert!(rendered.contains("undefined variable `pass`"), "{rendered}");
+    assert!(
+        rendered.contains("undefined variable `missing_value`"),
+        "{rendered}"
+    );
+    assert!(
+        !rendered.contains("not supported in const eval"),
+        "{rendered}"
+    );
+}
+
 fn diagnostics_for<'db>(db: &'db HirAnalysisTestDb, top_mod: TopLevelMod<'db>) -> String {
     let mut manager = initialize_analysis_pass();
     let diags = manager.run_on_module(db, top_mod);

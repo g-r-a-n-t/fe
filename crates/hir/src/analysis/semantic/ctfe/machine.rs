@@ -23,7 +23,7 @@ use crate::{
             const_ty::{ConstTyData, ConstTyId, EvaluatedConstTy, const_ty_from_sem_const},
             corelib::{PrimitiveWrapperCallKind, core_primitive_wrapper_call_kind},
             normalize::normalize_ty,
-            ty_check::BodyOwner,
+            ty_check::{BodyOwner, check_anon_const_body, check_const_body, check_func_body},
             ty_def::{PrimTy, TyBase, TyData, TyId},
         },
     },
@@ -65,6 +65,9 @@ pub enum CtfeError<'db> {
         origin: SemOrigin<'db>,
     },
     NonConstCall {
+        origin: SemOrigin<'db>,
+    },
+    InvalidBody {
         origin: SemOrigin<'db>,
     },
     DivisionByZero {
@@ -359,6 +362,27 @@ impl<'db> CtfeMachine<'db> {
         match instance.key(self.db).owner(self.db) {
             BodyOwner::Func(func) if !func.is_const(self.db) => {
                 Err(CtfeError::NonConstCall { origin })
+            }
+            BodyOwner::Func(func)
+                if check_func_body(self.db, func)
+                    .1
+                    .has_unlowerable_invalid_path(self.db) =>
+            {
+                Err(CtfeError::InvalidBody { origin })
+            }
+            BodyOwner::Const(const_)
+                if check_const_body(self.db, const_)
+                    .1
+                    .has_unlowerable_invalid_path(self.db) =>
+            {
+                Err(CtfeError::InvalidBody { origin })
+            }
+            BodyOwner::AnonConstBody { body, expected }
+                if check_anon_const_body(self.db, body, expected)
+                    .1
+                    .has_unlowerable_invalid_path(self.db) =>
+            {
+                Err(CtfeError::InvalidBody { origin })
             }
             BodyOwner::Func(_) | BodyOwner::Const(_) | BodyOwner::AnonConstBody { .. } => Ok(()),
             BodyOwner::ContractInit { .. } | BodyOwner::ContractRecvArm { .. } => {

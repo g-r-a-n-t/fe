@@ -6,9 +6,10 @@ use fe_hir::test_db::HirAnalysisTestDb;
 use fe_hir::{
     analysis::{
         semantic::{
-            SConst, SExpr, SStmtKind, SemConstId, SemConstScalar, SemConstValue,
-            canonicalize_semantic_consts, eval_body_owner_const, get_or_build_semantic_instance,
-            identity_semantic_instance_key, reify_runtime_const_for_ty,
+            CtfeError, SConst, SExpr, SStmtKind, SemConstId, SemConstScalar, SemConstValue,
+            canonicalize_semantic_consts, eval_body_owner_const, eval_body_owner_const_with_args,
+            get_or_build_semantic_instance, identity_semantic_instance_key,
+            reify_runtime_const_for_ty,
         },
         ty::{
             diagnostics::{BodyDiag, FuncBodyDiag, TyDiagCollection, TyLowerDiag},
@@ -142,6 +143,35 @@ fn const_fn_match_has_no_const_body_diagnostic() {
             )
         )),
         "{diags:#?}"
+    );
+}
+
+#[test]
+fn invalid_const_fn_body_is_rejected_before_ctfe_lowering() {
+    let mut db = HirAnalysisTestDb::default();
+    let file = db.new_stand_alone(
+        "semantic_ctfe.fe".into(),
+        r#"
+const fn invalid_const() -> usize {
+    pass
+    missing_value
+}
+"#,
+    );
+    let (top_mod, _) = db.top_mod(file);
+    let func = top_mod
+        .all_funcs(&db)
+        .iter()
+        .find(|func| matches!(func.name(&db), Partial::Present(name) if name.data(&db) == "invalid_const"))
+        .copied()
+        .expect("missing const fn `invalid_const`");
+
+    let result =
+        eval_body_owner_const_with_args(&db, BodyOwner::Func(func), Vec::new(), Vec::new());
+
+    assert!(
+        matches!(result, Err(CtfeError::InvalidBody { .. })),
+        "expected invalid body CTFE error, got {result:?}"
     );
 }
 

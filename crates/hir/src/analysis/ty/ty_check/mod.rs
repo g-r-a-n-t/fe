@@ -2600,6 +2600,19 @@ impl<'db> TypedBody<'db> {
         self.result_ty
     }
 
+    pub(crate) fn has_unlowerable_invalid_path(&self, db: &'db dyn HirAnalysisDb) -> bool {
+        self.body.is_some_and(|body| {
+            body.exprs(db).iter().any(|(expr, expr_data)| {
+                matches!(expr_data, Partial::Present(Expr::Path(_)))
+                    && self.expr_ty(db, expr).has_invalid(db)
+                    && self.expr_binding(expr).is_none()
+                    && self.expr_const_ref(expr).is_none()
+                    && self.expr_code_region_ref(db, expr).is_none()
+                    && self.value_path_ref(expr).is_none()
+            })
+        })
+    }
+
     pub fn assumptions(&self) -> PredicateListId<'db> {
         self.assumptions
     }

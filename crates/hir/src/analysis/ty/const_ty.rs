@@ -1945,6 +1945,7 @@ pub(crate) fn invalid_cause_from_ctfe_error<'db>(
             InvalidCause::ConstEvalRecursionLimitExceeded { body, expr }
         }
         CtfeError::NonConstCall { .. } => InvalidCause::ConstEvalNonConstCall { body, expr },
+        CtfeError::InvalidBody { .. } => InvalidCause::Other,
         CtfeError::NotConstEvaluable { .. }
         | CtfeError::InvalidOperation { .. }
         | CtfeError::InvalidBorrow { .. }
@@ -1974,6 +1975,7 @@ fn root_ctfe_error<'a, 'db>(
         | CtfeError::InvalidBorrow { origin }
         | CtfeError::InvalidProviderUse { origin }
         | CtfeError::NonConstCall { origin }
+        | CtfeError::InvalidBody { origin }
         | CtfeError::DivisionByZero { origin }
         | CtfeError::ArithmeticOverflow { origin }
         | CtfeError::NegativeExponent { origin }

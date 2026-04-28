@@ -1,10 +1,9 @@
 //! Test harness utilities for compiling Fe contracts and exercising their runtimes with `revm`.
-use codegen::{Backend, SonatinaBackend, emit_module_yul};
+use codegen::{Backend, EVM_LAYOUT, SonatinaBackend, emit_module_object_yul};
 use common::InputDb;
 use driver::DriverDataBase;
-use ethers_core::abi::{AbiParser, ParseError as AbiParseError, Token};
+use ethers_core::abi::{AbiParser, ParamType, ParseError as AbiParseError, Token, decode};
 use hex::FromHex;
-use mir::layout;
 pub use revm::primitives::U256;
 use revm::{
     InspectCommitEvm,
@@ -1214,7 +1213,7 @@ impl FeContractHarness {
         if !diags.is_empty() {
             return Err(HarnessError::CompilerDiagnostics(diags.format_diags(&db)));
         }
-        let yul = emit_module_yul(&db, top_mod)?;
+        let yul = emit_module_object_yul(&db, top_mod, contract_name)?;
         let contract = compile_single_contract(
             contract_name,
             &yul,
@@ -1302,12 +1301,7 @@ pub fn compile_runtime_sonatina_from_source(source: &str) -> Result<String, Harn
     }
 
     let output = SonatinaBackend
-        .compile(
-            &db,
-            top_mod,
-            layout::EVM_LAYOUT,
-            codegen::OptLevel::default(),
-        )
+        .compile(&db, top_mod, EVM_LAYOUT, codegen::OptLevel::default())
         .map_err(|err| HarnessError::EmitSonatina(err.to_string()))?;
     let bytes = output
         .as_bytecode()
@@ -1349,6 +1343,17 @@ pub fn bytes_to_u256(bytes: &[u8]) -> Result<U256, HarnessError> {
     let mut buf = [0u8; 32];
     buf.copy_from_slice(bytes);
     Ok(U256::from_be_bytes(buf))
+}
+
+/// Decodes ABI-encoded string return data.
+pub fn bytes_to_string(bytes: &[u8]) -> Result<String, HarnessError> {
+    let mut tokens = decode(&[ParamType::String], bytes)?;
+    match tokens.pop() {
+        Some(Token::String(value)) => Ok(value),
+        _ => Err(HarnessError::Execution(
+            "expected ABI string return data".to_string(),
+        )),
+    }
 }
 
 #[cfg(test)]
@@ -2170,7 +2175,7 @@ use std::abi::sol
 
 msg FixedStringDecodeMsg {
     #[selector = sol("ok(string)")]
-    Ok { text: String<32> } -> u256,
+    Ok { text: String<31> } -> u256,
 }
 
 pub contract FixedStringDecode {
@@ -2206,17 +2211,17 @@ use std::evm::{Address, Call}
 
 msg FixedStringEchoMsg {
     #[selector = sol("echo(string)")]
-    Echo { text: Text } -> String<32>,
+    Echo { text: Text } -> String<31>,
 }
 
 msg FixedStringCallerMsg {
     #[selector = sol("forward(address,string)")]
-    Forward { target: Address, text: Text } -> String<32>,
+    Forward { target: Address, text: Text } -> String<31>,
 }
 
 pub contract FixedStringCaller uses (call: mut Call) {
     recv FixedStringCallerMsg {
-        Forward { target, text } -> String<32> uses (mut call) {
+        Forward { target, text } -> String<31> uses (mut call) {
             target.call(FixedStringEchoMsg::Echo { text })
         }
     }
@@ -2751,17 +2756,21 @@ object "Counter" {
         let name_res = instance
             .call_raw(&name_call, owner_opts)
             .expect("name() should succeed");
-        let decoded_name = decode(&[ParamType::String], &name_res.return_data)
-            .expect("name() should return ABI-encoded string");
-        assert_eq!(decoded_name, vec![Token::String("CoolCoin".to_string())]);
+        assert_eq!(
+            bytes_to_string(&name_res.return_data).unwrap(),
+            "CoolCoin",
+            "name() should return CoolCoin"
+        );
 
         let symbol_call = encode_function_call("symbol()", &[]).unwrap();
         let symbol_res = instance
             .call_raw(&symbol_call, owner_opts)
             .expect("symbol() should succeed");
-        let decoded_symbol = decode(&[ParamType::String], &symbol_res.return_data)
-            .expect("symbol() should return ABI-encoded string");
-        assert_eq!(decoded_symbol, vec![Token::String("COOL".to_string())]);
+        assert_eq!(
+            bytes_to_string(&symbol_res.return_data).unwrap(),
+            "COOL",
+            "symbol() should return COOL"
+        );
 
         let decimals_call = encode_function_call("decimals()", &[]).unwrap();
         let decimals_res = instance
@@ -3807,7 +3816,7 @@ object "Counter" {
                 &[Token::String("short-string".to_string())],
                 ExecutionOptions::default(),
             )
-            .expect("short string should decode into String<32>");
+            .expect("short string should decode into String<31>");
 
         let err = harness
             .call_function(
@@ -3815,7 +3824,7 @@ object "Counter" {
                 &[Token::String(long_string_value("fixed-string-overflow"))],
                 ExecutionOptions::default(),
             )
-            .expect_err("33+ byte string should not silently truncate into String<32>");
+            .expect_err("32+ byte string should not silently truncate into String<31>");
         assert_empty_revert(err);
 
         let mut truncated =
@@ -3857,7 +3866,7 @@ object "Counter" {
         .expect("typed calldata should encode");
         let short_result = caller
             .call_raw(&short_call, ExecutionOptions::default())
-            .expect("short return string should decode into String<32>");
+            .expect("short return string should decode into String<31>");
         let short_decoded = decode(&[ParamType::String], &short_result.return_data)
             .expect("forward(address,string) should return ABI-encoded string");
         assert_eq!(short_decoded, vec![Token::String(short_text)]);
@@ -3871,7 +3880,7 @@ object "Counter" {
         .expect("typed calldata should encode");
         let err = caller
             .call_raw(&long_call, ExecutionOptions::default())
-            .expect_err("33+ byte returndata should not silently truncate into String<32>");
+            .expect_err("32+ byte returndata should not silently truncate into String<31>");
         assert_empty_revert(err);
     }
 
@@ -4124,7 +4133,8 @@ object "Counter" {
 
         let root_file = ingot.root_file(&db).expect("ingot should have root file");
         let top_mod = db.top_mod(root_file);
-        let yul = emit_module_yul(&db, top_mod).expect("yul emission should succeed");
+        let yul =
+            emit_module_object_yul(&db, top_mod, "Parent").expect("yul emission should succeed");
         let contract = compile_single_contract("Parent", &yul, false, true)
             .expect("solc compilation should succeed");
 

@@ -5,26 +5,103 @@ input_file: crates/codegen/tests/fixtures/code_region_qualified.fe
 ---
 target = "evm-ethereum-osaka"
 
-func private %init__Evm_hef0af3106e109414__3af54274b2985741() {
+type @layout_0 = {};
+type @layout_1 = {@layout_0};
+
+func private %codecopy(v0.objref<@layout_1>, v1.i256, v2.i256, v3.i256) {
     block0:
-        v1.i256 = sym_size &runtime__Evm_hef0af3106e109414__3af54274b2985741;
-        v2.i256 = sym_addr &runtime__Evm_hef0af3106e109414__3af54274b2985741;
-        evm_code_copy 0.i256 v2 v1;
-        evm_return 0.i256 v1;
+        v4.*i256 = alloca i256;
+        v5.*i256 = alloca i256;
+        v6.*i256 = alloca i256;
+        mstore v4 v1 i256;
+        mstore v5 v2 i256;
+        mstore v6 v3 i256;
+        jump block1;
+
+    block1:
+        v7.i256 = mload v4 i256;
+        v8.i256 = mload v5 i256;
+        v9.i256 = mload v6 i256;
+        evm_code_copy v7 v8 v9;
+        return;
 }
 
-func private %runtime__Evm_hef0af3106e109414__3af54274b2985741() {
+func private %init(v0.objref<@layout_1>) {
     block0:
-        evm_return 0.i256 0.i256;
+        jump block1;
+
+    block1:
+        v1.i256 = sym_size &__Foo_runtime;
+        v2.i256 = sym_addr &__Foo_runtime;
+        call %codecopy v0 0.i256 v2 v1;
+        call %std__lib__evm__effects__impl_trait_Evm_0098__return_data_cf61 0.i256 v1;
+        unreachable;
+}
+
+func private %manual_contract_init_root_Foo() {
+    block0:
+        jump block1;
+
+    block1:
+        v0.objref<@layout_1> = obj.alloc @layout_1;
+        call %init v0;
+        evm_stop;
+}
+
+func private %manual_contract_runtime_root_Foo() {
+    block0:
+        jump block1;
+
+    block1:
+        v0.objref<@layout_1> = obj.alloc @layout_1;
+        call %runtime v0;
+        evm_stop;
+}
+
+func private %std__lib__evm__effects__impl_trait_Evm_0098__return_data_cf61(v0.i256, v1.i256) {
+    block0:
+        v2.*i256 = alloca i256;
+        v3.*i256 = alloca i256;
+        mstore v2 v0 i256;
+        mstore v3 v1 i256;
+        jump block1;
+
+    block1:
+        v4.i256 = mload v2 i256;
+        v5.i256 = mload v3 i256;
+        evm_return v4 v5;
+}
+
+func private %std__lib__evm__effects__impl_trait_Evm_0098__return_data_cf61_0(v0.i256, v1.i256) {
+    block0:
+        v2.*i256 = alloca i256;
+        v3.*i256 = alloca i256;
+        mstore v2 v0 i256;
+        mstore v3 v1 i256;
+        jump block1;
+
+    block1:
+        v4.i256 = mload v2 i256;
+        v5.i256 = mload v3 i256;
+        evm_return v4 v5;
+}
+
+func private %runtime(v0.objref<@layout_1>) {
+    block0:
+        jump block1;
+
+    block1:
+        call %std__lib__evm__effects__impl_trait_Evm_0098__return_data_cf61_0 0.i256 0.i256;
+        unreachable;
 }
 
 
 object @Foo {
     section init {
-        entry %init__Evm_hef0af3106e109414__3af54274b2985741;
-        embed .runtime as &runtime__Evm_hef0af3106e109414__3af54274b2985741;
+        entry %manual_contract_init_root_Foo;
+        embed .runtime as &__Foo_runtime;
     }
     section runtime {
-        entry %runtime__Evm_hef0af3106e109414__3af54274b2985741;
+        entry %manual_contract_runtime_root_Foo;
     }
 }

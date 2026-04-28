@@ -3,6 +3,8 @@
 //! Discovers functions marked with `#[test]` attribute, compiles them, and
 //! executes them using revm.
 
+use crate::TestEmit;
+use crate::dependency_diagnostics::DependencyIssues;
 use crate::report::{
     PanicReportGuard, ReportStaging, copy_input_into_report, create_dir_all_utf8,
     create_report_staging_root, enable_panic_report, is_verifier_error_text,
@@ -15,7 +17,8 @@ use crate::workspace_ingot::{
 use camino::Utf8PathBuf;
 use codegen::{
     ExpectedRevert, OptLevel, SonatinaTestOptions, TestMetadata, TestModuleOutput,
-    emit_test_module_sonatina, emit_test_module_yul,
+    emit_runtime_package_sonatina_ir_optimized, emit_runtime_package_yul, emit_test_ingot_sonatina,
+    emit_test_ingot_yul, emit_test_module_sonatina, emit_test_module_yul,
 };
 use colored::Colorize;
 use common::{
@@ -27,11 +30,12 @@ use contract_harness::{CallGasProfile, EvmTraceOptions, ExecutionOptions, Runtim
 use crossbeam_channel::{Receiver, Sender, TryRecvError};
 use driver::DriverDataBase;
 use hir::hir_def::{HirIngot, TopLevelMod, item::ItemKind};
-use mir::{fmt as mir_fmt, lower_module};
+use mir::{build_runtime_package, build_test_runtime_package, format_runtime_package};
 use rustc_hash::{FxHashMap, FxHashSet};
 use salsa::Setter;
 use solc_runner::compile_single_contract_with_solc;
 use std::{
+    collections::HashSet,
     fmt::Write as _,
     sync::Arc,
     time::{Duration, Instant},
@@ -44,6 +48,29 @@ pub(super) const YUL_VERIFY_RUNTIME: bool = true;
 const MAX_STREAMED_SUITE_LABEL_CHARS: usize = 20;
 const STREAMED_SUITE_LABEL_ELLIPSIS: &str = "..";
 const STREAMED_STATUS_COLUMN_WIDTH: usize = 16;
+
+#[derive(Debug, Clone, Copy, Default)]
+struct TestEmitSelection {
+    ir: bool,
+    rmir: bool,
+}
+
+impl TestEmitSelection {
+    fn from_requested(requested: &[TestEmit]) -> Self {
+        let mut selection = Self::default();
+        for emit in requested {
+            match emit {
+                TestEmit::Ir => selection.ir = true,
+                TestEmit::Rmir => selection.rmir = true,
+            }
+        }
+        selection
+    }
+
+    fn is_empty(self) -> bool {
+        !self.ir && !self.rmir
+    }
+}
 
 fn install_report_panic_hook(report: &ReportContext, filename: &str) -> PanicReportGuard {
     let dir = report.root_dir.join("errors");
@@ -638,12 +665,23 @@ struct WorkerSharedConfig {
     yul_optimize: bool,
     solc: Option<String>,
     opt_level: OptLevel,
+    emit: TestEmitSelection,
     debug: TestDebugOptions,
     report_failed_only: bool,
     aggregate_report: bool,
     call_trace: bool,
     multi: bool,
     use_recovery: bool,
+}
+
+#[derive(Clone, Copy)]
+struct RequestedSuiteArtifacts<'a> {
+    source_path: &'a Utf8PathBuf,
+    suite_key: &'a str,
+    filter: Option<&'a str>,
+    backend: &'a str,
+    opt_level: OptLevel,
+    emit: TestEmitSelection,
 }
 
 #[derive(Clone, Debug)]
@@ -1091,6 +1129,7 @@ pub fn run_tests(
     yul_optimize: bool,
     solc: Option<&str>,
     opt_level: OptLevel,
+    emit: &[TestEmit],
     debug: &TestDebugOptions,
     report_out: Option<&Utf8PathBuf>,
     report_dir: Option<&Utf8PathBuf>,
@@ -1148,6 +1187,7 @@ pub fn run_tests(
         yul_optimize,
         solc: solc.map(str::to_owned),
         opt_level,
+        emit: TestEmitSelection::from_requested(emit),
         debug: debug.clone(),
         report_failed_only,
         aggregate_report: report_root.is_some(),
@@ -1159,12 +1199,12 @@ pub fn run_tests(
         let (suite_tx, suite_rx) = crossbeam_channel::unbounded::<SuitePlan>();
         let (single_tx, single_rx) = crossbeam_channel::unbounded::<SingleTestJob>();
         let (outcome_tx, outcome_rx) = crossbeam_channel::unbounded::<JobOutcome>();
-        let suite_worker_count = if grouped { worker_count } else { 1 };
-        let single_worker_count = if grouped {
-            0
+        let suite_worker_count = if grouped {
+            worker_count
         } else {
-            worker_count.saturating_sub(suite_worker_count)
+            worker_count.saturating_sub(1).max(1).min(suite_plans.len())
         };
+        let single_worker_count = worker_count.saturating_sub(suite_worker_count);
         let suite_in_flight_limit =
             max_in_flight_suites(grouped, suite_worker_count, single_worker_count);
         let suite_worker_cfg = SuiteWorkerConfig {
@@ -1764,6 +1804,7 @@ fn prepare_suite_job(
             filter,
             shared.backend.as_str(),
             shared.opt_level,
+            shared.emit,
             &suite_debug,
             sonatina_options,
             report_ctx.as_ref(),
@@ -1778,6 +1819,7 @@ fn prepare_suite_job(
             filter,
             shared.backend.as_str(),
             shared.opt_level,
+            shared.emit,
             &suite_debug,
             sonatina_options,
             report_ctx.as_ref(),
@@ -1943,6 +1985,7 @@ fn prepare_tests_single_file(
     filter: Option<&str>,
     backend: &str,
     opt_level: OptLevel,
+    emit: TestEmitSelection,
     debug: &TestDebugOptions,
     sonatina_options: SonatinaTestOptions,
     report: Option<&ReportContext>,
@@ -2006,9 +2049,24 @@ fn prepare_tests_single_file(
     };
     let top_mod = db.top_mod(file);
 
-    let diags = db.run_on_top_mod(top_mod);
-    if !diags.is_empty() {
-        let formatted = diags.format_diags(db);
+    let hir_diags = db.run_on_top_mod(top_mod);
+    let mut has_errors = false;
+    let hir_has_errors = hir_diags.has_errors(db);
+    let mut formatted = String::new();
+    if !hir_diags.is_empty() {
+        formatted.push_str(&hir_diags.format_diags(db));
+        has_errors = true;
+    }
+    let mir_diags = if hir_has_errors {
+        Vec::new()
+    } else {
+        db.mir_diagnostics_for_top_mod(top_mod)
+    };
+    if !mir_diags.is_empty() {
+        formatted.push_str(&db.format_complete_diagnostics(&mir_diags));
+        has_errors = true;
+    }
+    if has_errors {
         let _ = writeln!(output, "Compilation errors in {file_url}");
         let _ = writeln!(output);
         let _ = writeln!(output, "{formatted}");
@@ -2035,6 +2093,50 @@ fn prepare_tests_single_file(
     }
 
     maybe_write_suite_ir(db, top_mod, backend, opt_level, report);
+    match std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+        maybe_write_requested_suite_artifacts_for_top_mod(
+            db,
+            top_mod,
+            RequestedSuiteArtifacts {
+                source_path: file_path,
+                suite_key,
+                filter,
+                backend,
+                opt_level,
+                emit,
+            },
+            output,
+        )
+    })) {
+        Ok(Ok(())) => {}
+        Ok(Err(err)) => {
+            let msg = format!("Failed to emit requested test artifacts: {err}");
+            let _ = writeln!(output, "{msg}");
+            if let Some(report) = report {
+                write_codegen_report_error(report, &msg);
+            }
+            return SuitePreparation {
+                results: suite_error_result(suite, "codegen", msg),
+                single_jobs: Vec::new(),
+                gas_comparison_cases: None,
+            };
+        }
+        Err(payload) => {
+            let msg = format!(
+                "test artifact emission panicked: {}",
+                panic_payload_to_string(payload.as_ref())
+            );
+            let _ = writeln!(output, "{msg}");
+            if let Some(report) = report {
+                write_report_error(report, "codegen_panic.txt", &msg);
+            }
+            return SuitePreparation {
+                results: suite_error_result(suite, "codegen", msg),
+                single_jobs: Vec::new(),
+                gas_comparison_cases: None,
+            };
+        }
+    }
     prepare_discovered_tests(
         db,
         top_mod,
@@ -2059,6 +2161,7 @@ fn prepare_tests_ingot(
     filter: Option<&str>,
     backend: &str,
     opt_level: OptLevel,
+    emit: TestEmitSelection,
     debug: &TestDebugOptions,
     sonatina_options: SonatinaTestOptions,
     report: Option<&ReportContext>,
@@ -2120,15 +2223,45 @@ fn prepare_tests_ingot(
         };
     };
 
-    let diags = db.run_on_ingot(ingot);
-    if !diags.is_empty() {
-        let formatted = diags.format_diags(db);
+    let hir_diags = db.run_on_ingot(ingot);
+    let mut has_errors = false;
+    let hir_has_errors = hir_diags.has_errors(db);
+    let mut formatted = String::new();
+    if !hir_diags.is_empty() {
+        formatted.push_str(&hir_diags.format_diags(db));
+        has_errors = true;
+    }
+    let mir_diags = if hir_has_errors {
+        Vec::new()
+    } else {
+        db.mir_diagnostics_for_ingot(ingot)
+    };
+    if !mir_diags.is_empty() {
+        formatted.push_str(&db.format_complete_diagnostics(&mir_diags));
+        has_errors = true;
+    }
+    if has_errors {
         let _ = writeln!(output, "{formatted}");
         if let Some(report) = report {
             write_report_error(report, "compilation_errors.txt", &formatted);
         }
         return SuitePreparation {
             results: suite_error_result(suite, "compile", "Compilation errors".to_string()),
+            single_jobs: Vec::new(),
+            gas_comparison_cases: None,
+        };
+    }
+
+    let mut seen = HashSet::from([ingot_url.clone()]);
+    let dependency_errors = DependencyIssues::collect(db, &ingot_url, &mut seen);
+    if !dependency_errors.is_empty() {
+        let formatted = dependency_errors.format(db);
+        let _ = write!(output, "{formatted}");
+        if let Some(report) = report {
+            write_report_error(report, "compilation_errors.txt", &formatted);
+        }
+        return SuitePreparation {
+            results: suite_error_result(suite, "compile", dependency_errors.message().to_string()),
             single_jobs: Vec::new(),
             gas_comparison_cases: None,
         };
@@ -2144,9 +2277,53 @@ fn prepare_tests_ingot(
     }
 
     maybe_write_suite_ir(db, root_mod, backend, opt_level, report);
-    prepare_discovered_tests(
+    match std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+        maybe_write_requested_suite_artifacts_for_ingot(
+            db,
+            ingot,
+            RequestedSuiteArtifacts {
+                source_path: dir_path,
+                suite_key,
+                filter,
+                backend,
+                opt_level,
+                emit,
+            },
+            output,
+        )
+    })) {
+        Ok(Ok(())) => {}
+        Ok(Err(err)) => {
+            let msg = format!("Failed to emit requested test artifacts: {err}");
+            let _ = writeln!(output, "{msg}");
+            if let Some(report) = report {
+                write_codegen_report_error(report, &msg);
+            }
+            return SuitePreparation {
+                results: suite_error_result(suite, "codegen", msg),
+                single_jobs: Vec::new(),
+                gas_comparison_cases: None,
+            };
+        }
+        Err(payload) => {
+            let msg = format!(
+                "test artifact emission panicked: {}",
+                panic_payload_to_string(payload.as_ref())
+            );
+            let _ = writeln!(output, "{msg}");
+            if let Some(report) = report {
+                write_report_error(report, "codegen_panic.txt", &msg);
+            }
+            return SuitePreparation {
+                results: suite_error_result(suite, "codegen", msg),
+                single_jobs: Vec::new(),
+                gas_comparison_cases: None,
+            };
+        }
+    }
+    prepare_ingot_discovered_tests(
         db,
-        root_mod,
+        ingot,
         suite,
         suite_key,
         filter,
@@ -2194,8 +2371,59 @@ fn prepare_discovered_tests(
         }
     };
 
-    let mut results = Vec::new();
+    suite_preparation_from_discovered(discovered, suite, suite_key, filter, debug, report, output)
+}
+
+#[allow(clippy::too_many_arguments)]
+fn prepare_ingot_discovered_tests(
+    db: &DriverDataBase,
+    ingot: Ingot<'_>,
+    suite: &str,
+    suite_key: &str,
+    filter: Option<&str>,
+    backend: &str,
+    opt_level: OptLevel,
+    debug: &TestDebugOptions,
+    sonatina_options: SonatinaTestOptions,
+    report: Option<&ReportContext>,
+    output: &mut String,
+) -> SuitePreparation {
+    let discovered = match discover_ingot_tests(
+        db,
+        ingot,
+        suite,
+        filter,
+        backend,
+        opt_level,
+        sonatina_options,
+        report,
+        output,
+    ) {
+        Ok(discovered) => discovered,
+        Err(results) => {
+            return SuitePreparation {
+                results,
+                single_jobs: Vec::new(),
+                gas_comparison_cases: None,
+            };
+        }
+    };
+
+    suite_preparation_from_discovered(discovered, suite, suite_key, filter, debug, report, output)
+}
+
+#[allow(clippy::too_many_arguments)]
+fn suite_preparation_from_discovered(
+    discovered: DiscoverResult,
+    suite: &str,
+    suite_key: &str,
+    filter: Option<&str>,
+    debug: &TestDebugOptions,
+    report: Option<&ReportContext>,
+    output: &mut String,
+) -> SuitePreparation {
     let report_root = report.map(|ctx| ctx.root_dir.clone());
+    let mut results = Vec::new();
     let mut single_jobs = Vec::new();
     for case in discovered.tests {
         if !test_case_matches_filter(&case, filter) {
@@ -2343,6 +2571,70 @@ fn discover_tests(
     })
 }
 
+#[allow(clippy::too_many_arguments)]
+fn discover_ingot_tests(
+    db: &DriverDataBase,
+    ingot: Ingot<'_>,
+    suite: &str,
+    filter: Option<&str>,
+    backend: &str,
+    opt_level: OptLevel,
+    sonatina_options: SonatinaTestOptions,
+    report: Option<&ReportContext>,
+    output: &mut String,
+) -> Result<DiscoverResult, Vec<TestResult>> {
+    let backend = backend.to_lowercase();
+    let emit_result = match backend.as_str() {
+        "yul" => emit_with_catch_unwind(
+            || emit_test_ingot_yul(db, ingot, filter),
+            "Yul",
+            suite,
+            report,
+            output,
+        ),
+        "sonatina" => emit_with_catch_unwind(
+            || emit_test_ingot_sonatina(db, ingot, opt_level, sonatina_options, filter),
+            "Sonatina",
+            suite,
+            report,
+            output,
+        ),
+        other => {
+            return Err(suite_error_result(
+                suite,
+                "setup",
+                format!("unknown backend `{other}` (expected 'yul' or 'sonatina')"),
+            ));
+        }
+    };
+    let module_output = emit_result?;
+
+    if module_output.tests.is_empty() {
+        return Ok(DiscoverResult {
+            tests: Vec::new(),
+            gas_comparison_cases: None,
+        });
+    }
+
+    let gas_comparison_cases = report.map(|ctx| {
+        gas::collect_ingot_gas_comparison_cases(
+            db,
+            ingot,
+            suite,
+            filter,
+            ctx,
+            backend.as_str(),
+            opt_level,
+            &module_output.tests,
+        )
+    });
+
+    Ok(DiscoverResult {
+        tests: module_output.tests,
+        gas_comparison_cases,
+    })
+}
+
 fn write_case_output(
     output: &mut String,
     case: &TestMetadata,
@@ -2429,6 +2721,154 @@ pub(super) fn test_case_matches_filter(case: &TestMetadata, filter: Option<&str>
         || case.display_name.contains(pattern)
 }
 
+fn test_emit_stem(suite_key: &str) -> String {
+    let stem = sanitize_filename(suite_key);
+    if stem.is_empty() {
+        "tests".to_string()
+    } else {
+        stem
+    }
+}
+
+fn write_test_emit_artifact(
+    out_dir: &Utf8PathBuf,
+    stem: &str,
+    ext: &str,
+    contents: &str,
+    output: &mut String,
+) -> Result<(), String> {
+    create_dir_all_utf8(out_dir)?;
+    let file_name = format!("{stem}.test.{ext}");
+    let path = out_dir.join(&file_name);
+    std::fs::write(&path, contents).map_err(|err| format!("failed to write `{path}`: {err}"))?;
+    let _ = writeln!(output, "Wrote {path}");
+    Ok(())
+}
+
+fn default_test_emit_dir(path: &Utf8PathBuf) -> Result<Utf8PathBuf, String> {
+    let canonical = path
+        .canonicalize_utf8()
+        .map_err(|err| format!("failed to canonicalize `{path}`: {err}"))?;
+    if canonical.is_file() {
+        Ok(canonical
+            .parent()
+            .expect("canonical file should have parent")
+            .join("out"))
+    } else {
+        Ok(canonical.join("out"))
+    }
+}
+
+fn emit_runtime_package_ir(
+    db: &DriverDataBase,
+    backend: &str,
+    opt_level: OptLevel,
+    package: &mir::RuntimePackage<'_>,
+) -> Result<(&'static str, String), String> {
+    match backend.to_lowercase().as_str() {
+        "sonatina" => Ok((
+            "sona",
+            emit_runtime_package_sonatina_ir_optimized(db, package, codegen::EVM_LAYOUT, opt_level)
+                .map_err(|err| err.to_string())?,
+        )),
+        "yul" => Ok((
+            "yul",
+            emit_runtime_package_yul(db, package, codegen::EVM_LAYOUT)
+                .map_err(|err| err.to_string())?,
+        )),
+        other => Err(format!(
+            "unknown backend `{other}` (expected 'yul' or 'sonatina')"
+        )),
+    }
+}
+
+fn maybe_write_requested_suite_artifacts_for_top_mod(
+    db: &DriverDataBase,
+    top_mod: TopLevelMod<'_>,
+    request: RequestedSuiteArtifacts<'_>,
+    output: &mut String,
+) -> Result<(), String> {
+    if request.emit.is_empty() {
+        return Ok(());
+    }
+
+    let package =
+        build_test_runtime_package(db, top_mod, request.filter).map_err(|err| err.to_string())?;
+    let out_dir = default_test_emit_dir(request.source_path)?;
+    let stem = test_emit_stem(request.suite_key);
+    if request.emit.ir {
+        let (ext, ir) = emit_runtime_package_ir(db, request.backend, request.opt_level, &package)?;
+        write_test_emit_artifact(&out_dir, &stem, ext, &ir, output)?;
+    }
+    if request.emit.rmir {
+        let rmir = format_runtime_package(db, &package);
+        write_test_emit_artifact(&out_dir, &stem, "rmir", &rmir, output)?;
+    }
+    Ok(())
+}
+
+fn maybe_write_requested_suite_artifacts_for_ingot(
+    db: &DriverDataBase,
+    ingot: Ingot<'_>,
+    request: RequestedSuiteArtifacts<'_>,
+    output: &mut String,
+) -> Result<(), String> {
+    if request.emit.is_empty() {
+        return Ok(());
+    }
+
+    let mut top_mods = ingot.all_modules(db).to_vec();
+    top_mods.sort_by(|left, right| left.name(db).cmp(&right.name(db)));
+
+    let mut runtime_packages = Vec::new();
+    for top_mod in top_mods {
+        if has_test_functions(db, top_mod) {
+            runtime_packages.push((
+                format!("{:?}", top_mod.name(db)),
+                build_test_runtime_package(db, top_mod, request.filter)
+                    .map_err(|err| err.to_string())?,
+            ));
+        }
+    }
+
+    if runtime_packages.is_empty() {
+        return Ok(());
+    }
+
+    let out_dir = default_test_emit_dir(request.source_path)?;
+    let stem = test_emit_stem(request.suite_key);
+    if request.emit.ir {
+        let mut ir = String::new();
+        for (idx, (module_name, package)) in runtime_packages.iter().enumerate() {
+            if idx != 0 {
+                ir.push_str("\n\n");
+            }
+            let _ = writeln!(ir, "=== {module_name} ===");
+            let (_, module_ir) =
+                emit_runtime_package_ir(db, request.backend, request.opt_level, package)?;
+            ir.push_str(&module_ir);
+        }
+        let ext = if request.backend.eq_ignore_ascii_case("yul") {
+            "yul"
+        } else {
+            "sona"
+        };
+        write_test_emit_artifact(&out_dir, &stem, ext, &ir, output)?;
+    }
+    if request.emit.rmir {
+        let mut rmir = String::new();
+        for (idx, (module_name, package)) in runtime_packages.iter().enumerate() {
+            if idx != 0 {
+                rmir.push_str("\n\n");
+            }
+            let _ = writeln!(rmir, "=== {module_name} ===");
+            rmir.push_str(&format_runtime_package(db, package));
+        }
+        write_test_emit_artifact(&out_dir, &stem, "rmir", &rmir, output)?;
+    }
+    Ok(())
+}
+
 fn maybe_write_suite_ir(
     db: &DriverDataBase,
     top_mod: TopLevelMod<'_>,
@@ -2443,13 +2883,13 @@ fn maybe_write_suite_ir(
     let artifacts_dir = report.root_dir.join("artifacts");
     let _ = create_dir_all_utf8(&artifacts_dir);
 
-    match lower_module(db, top_mod) {
-        Ok(mir) => {
-            let path = artifacts_dir.join("mir.txt");
-            let _ = std::fs::write(&path, mir_fmt::format_module(db, &mir));
+    match build_runtime_package(db, top_mod) {
+        Ok(package) => {
+            let path = artifacts_dir.join("runtime_package.txt");
+            let _ = std::fs::write(&path, format!("{package:#?}"));
         }
         Err(err) => {
-            let path = artifacts_dir.join("mir_error.txt");
+            let path = artifacts_dir.join("runtime_package_error.txt");
             let _ = std::fs::write(&path, format!("{err}"));
         }
     }

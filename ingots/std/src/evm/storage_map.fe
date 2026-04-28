@@ -30,6 +30,8 @@ impl StorageKey for Address {
 /// prevent collisions.
 pub struct StorageMap<K, V, const SALT: u256 = _> {}
 
+impl<K, V, const SALT: u256> Copy for StorageMap<K, V, SALT> {}
+
 fn storagemap_storage_slot_with_salt<K>(key: K, salt: u256) -> u256
     where K: StorageKey
 {

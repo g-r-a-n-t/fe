@@ -1,7 +1,8 @@
 use super::{
     adt_def::AdtCycleMember,
+    provider::ProviderAddressSpace,
     trait_def::TraitInstId,
-    ty_check::{ConcreteBorrowProvider, RecordLike, TraitOps},
+    ty_check::{RecordLike, TraitOps},
     ty_def::{BorrowKind, CapabilityKind, Kind, TyId},
 };
 use crate::visitor::prelude::*;
@@ -69,6 +70,12 @@ pub enum TyLowerDiag<'db> {
     TooManyGenericArgs {
         span: DynLazySpan<'db>,
         expected: usize,
+        given: usize,
+    },
+
+    StringTooLarge {
+        span: DynLazySpan<'db>,
+        max: usize,
         given: usize,
     },
 
@@ -154,6 +161,8 @@ pub enum TyLowerDiag<'db> {
     ConstEvalUnsupported(DynLazySpan<'db>),
     ConstEvalNonConstCall(DynLazySpan<'db>),
     ConstEvalDivisionByZero(DynLazySpan<'db>),
+    ConstEvalArithmeticOverflow(DynLazySpan<'db>),
+    ConstEvalNegativeExponent(DynLazySpan<'db>),
     ConstEvalStepLimitExceeded(DynLazySpan<'db>),
     ConstEvalRecursionLimitExceeded(DynLazySpan<'db>),
 
@@ -190,12 +199,15 @@ impl TyLowerDiag<'_> {
             Self::ConstEvalUnsupported(_) => 23,
             Self::ConstEvalNonConstCall(_) => 24,
             Self::ConstEvalDivisionByZero(_) => 25,
+            Self::ConstEvalArithmeticOverflow(_) => 34,
+            Self::ConstEvalNegativeExponent(_) => 35,
             Self::ConstEvalStepLimitExceeded(_) => 26,
             Self::ConstEvalRecursionLimitExceeded(_) => 27,
             Self::MixedRefSelfPrefixWithExplicitType { .. } => 28,
             Self::MixedOwnSelfPrefixWithExplicitType { .. } => 29,
             Self::InvalidMutSelfPrefixWithExplicitType { .. } => 30,
             Self::TooManyGenericArgs { .. } => 16,
+            Self::StringTooLarge { .. } => 33,
             Self::DuplicateFieldName(..) => 17,
             Self::DuplicateVariantName(..) => 18,
             Self::DuplicateGenericParamName(..) => 19,
@@ -373,8 +385,8 @@ pub enum BodyDiag<'db> {
     IncompatibleBorrowProviders {
         primary: DynLazySpan<'db>,
         previous: DynLazySpan<'db>,
-        previous_provider: ConcreteBorrowProvider,
-        current_provider: ConcreteBorrowProvider,
+        previous_provider: ProviderAddressSpace,
+        current_provider: ProviderAddressSpace,
     },
 
     TypeMustBeKnown(DynLazySpan<'db>),
@@ -636,7 +648,6 @@ pub enum BodyDiag<'db> {
     ConstFnEffectsNotAllowed(DynLazySpan<'db>),
     ConstFnWithNotAllowed(DynLazySpan<'db>),
     ConstFnLoopNotAllowed(DynLazySpan<'db>),
-    ConstFnMatchNotAllowed(DynLazySpan<'db>),
     ConstFnAssignmentNotAllowed(DynLazySpan<'db>),
     ConstFnAggregateNotAllowed(DynLazySpan<'db>),
     ConstFnMutableBindingNotAllowed(DynLazySpan<'db>),
@@ -804,7 +815,6 @@ impl<'db> BodyDiag<'db> {
             Self::ConstFnEffectsNotAllowed(_) => 55,
             Self::ConstFnWithNotAllowed(_) => 56,
             Self::ConstFnLoopNotAllowed(_) => 57,
-            Self::ConstFnMatchNotAllowed(_) => 58,
             Self::ConstFnAssignmentNotAllowed(_) => 59,
             Self::ConstFnAggregateNotAllowed(_) => 60,
             Self::ConstFnMutableBindingNotAllowed(_) => 61,

@@ -1,333 +1,282 @@
-//! Helpers for lowering MIR control-flow constructs into Yul blocks.
-
-use mir::{
-    BasicBlockId, LoopInfo, Terminator, ValueId,
-    ir::{BuiltinTerminatorKind, IntrinsicValue, SwitchTarget, SwitchValue},
-};
-use rustc_hash::{FxHashMap, FxHashSet};
-
 use crate::yul::{
-    doc::{YulDoc, render_docs},
+    doc::YulDoc,
     errors::YulError,
-    state::BlockState,
+    legalize::{YBlockId, YLocalId, YTerminator},
 };
 
-use super::function::FunctionEmitter;
+use super::function::{FunctionEmitter, YLoopInfo};
 
-/// Captures the `break`/`continue` destinations for loop lowering.
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, Debug)]
 pub(super) struct LoopEmitCtx {
-    continue_target: BasicBlockId,
-    break_target: BasicBlockId,
-    implicit_continue: Option<BasicBlockId>,
+    header: YBlockId,
+    break_target: Option<YBlockId>,
 }
 
-/// Shared mutable context passed through control-flow helpers.
-pub(super) struct BlockEmitCtx<'state, 'docs, 'stop> {
-    pub(super) loop_ctx: Option<LoopEmitCtx>,
-    pub(super) state: &'state mut BlockState,
-    pub(super) docs: &'docs mut Vec<YulDoc>,
-    pub(super) stop_blocks: &'stop [BasicBlockId],
+#[derive(Clone, Copy)]
+pub(super) struct EmitCtx<'a> {
+    loop_ctx: Option<LoopEmitCtx>,
+    stop_blocks: &'a [YBlockId],
 }
 
-impl<'state, 'docs, 'stop> BlockEmitCtx<'state, 'docs, 'stop> {
-    /// Convenience helper for cloning the block state.
-    fn cloned_state(&self) -> BlockState {
-        self.state.clone()
-    }
-}
-
-impl<'db> FunctionEmitter<'db> {
-    /// Returns true when `block` is used as loop-control target for the active loop.
-    fn is_loop_control_target(&self, loop_ctx: Option<LoopEmitCtx>, block: BasicBlockId) -> bool {
-        loop_ctx.is_some_and(|loop_ctx| {
-            block == loop_ctx.break_target
-                || block == loop_ctx.continue_target
-                || loop_ctx.implicit_continue == Some(block)
-        })
+impl<'a, 'db> FunctionEmitter<'a, 'db> {
+    pub(super) fn emit_block(&mut self, block: YBlockId) -> Result<Vec<YulDoc>, YulError> {
+        let mut path = Vec::new();
+        self.emit_block_internal(
+            block,
+            EmitCtx {
+                loop_ctx: None,
+                stop_blocks: &[],
+            },
+            &mut path,
+        )
     }
 
-    /// Emits the Yul docs for a basic block starting without any active loop context.
-    ///
-    /// * `block_id` - Entry block to render.
-    /// * `state` - Current SSA-like binding state.
-    ///
-    /// Returns the rendered statements for the block.
-    pub(super) fn emit_block(
+    pub(super) fn emit_block_internal(
         &mut self,
-        block_id: BasicBlockId,
-        state: &mut BlockState,
+        block: YBlockId,
+        ctx: EmitCtx<'_>,
+        path: &mut Vec<YBlockId>,
     ) -> Result<Vec<YulDoc>, YulError> {
-        self.emit_block_internal(block_id, None, state, &[])
-    }
-
-    /// Core implementation shared by the various block emitters.
-    ///
-    /// * `block_id` - Entry block.
-    /// * `loop_ctx` - Optional surrounding loop context.
-    /// * `state` - Current binding state.
-    /// * `stop_blocks` - Blocks to skip.
-    ///
-    /// Returns the rendered statements produced while traversing the block.
-    fn emit_block_internal(
-        &mut self,
-        block_id: BasicBlockId,
-        loop_ctx: Option<LoopEmitCtx>,
-        state: &mut BlockState,
-        stop_blocks: &[BasicBlockId],
-    ) -> Result<Vec<YulDoc>, YulError> {
-        if stop_blocks.contains(&block_id) {
+        if ctx.stop_blocks.contains(&block) {
             return Ok(Vec::new());
         }
-        let block = self
-            .mir_func
-            .body
-            .blocks
-            .get(block_id.index())
-            .ok_or_else(|| YulError::Unsupported("invalid block".into()))?;
-
-        let mut docs = self.render_statements(&block.insts, state)?;
+        if !matches!(ctx.loop_ctx, Some(LoopEmitCtx { header, .. }) if header == block)
+            && let Some(loop_info) = self.loop_info(block).cloned()
         {
-            let mut ctx = BlockEmitCtx {
-                loop_ctx,
-                state,
-                docs: &mut docs,
-                stop_blocks,
-            };
-            self.emit_block_terminator(block_id, &block.terminator, &mut ctx)?;
+            let (loop_doc, exit) = self.emit_loop(block, loop_info, ctx.stop_blocks, path)?;
+            let mut docs = vec![loop_doc];
+            if let Some(exit) = exit {
+                docs.extend(self.emit_edge(exit, ctx, path)?);
+            }
+            return Ok(docs);
         }
+        if path.contains(&block) {
+            return Err(YulError::Unsupported(format!(
+                "structured Yul emission requires a reducible CFG; block {} re-entered on the active path",
+                block.index()
+            )));
+        }
+
+        let block_data = self
+            .plan
+            .blocks
+            .get(block.index())
+            .ok_or_else(|| YulError::InvalidYulPackage(format!("missing block {}", block.index())))?
+            .clone();
+        path.push(block);
+
+        let mut docs = Vec::new();
+        for stmt in &block_data.stmts {
+            docs.extend(self.render_stmt(stmt)?);
+        }
+        docs.extend(self.emit_terminator(block, &block_data.terminator, ctx, path)?);
+        path.pop();
         Ok(docs)
     }
 
-    /// Renders the control-flow terminator for a block after its linear statements.
-    ///
-    /// * `block_id` - Current block emitting statements.
-    /// * `terminator` - MIR terminator describing the outgoing control flow.
-    /// * `ctx` - Shared mutable context spanning the block's docs and bindings.
-    fn emit_block_terminator(
+    fn emit_edge(
         &mut self,
-        block_id: BasicBlockId,
-        terminator: &Terminator<'db>,
-        ctx: &mut BlockEmitCtx<'_, '_, '_>,
-    ) -> Result<(), YulError> {
-        match terminator {
-            Terminator::Return {
-                value: Some(val), ..
-            } => {
-                self.emit_return_with_value(*val, ctx.docs, ctx.state)?;
-                ctx.docs.push(YulDoc::line("leave"));
-                Ok(())
+        target: YBlockId,
+        ctx: EmitCtx<'_>,
+        path: &mut Vec<YBlockId>,
+    ) -> Result<Vec<YulDoc>, YulError> {
+        if let Some(loop_ctx) = ctx.loop_ctx {
+            if target == loop_ctx.header {
+                return Ok(vec![YulDoc::line("continue")]);
             }
-            Terminator::Return { value: None, .. } => {
-                if self.returns_value() {
-                    ctx.docs.push(YulDoc::line("ret := 0"));
-                }
-                ctx.docs.push(YulDoc::line("leave"));
-                Ok(())
+            if loop_ctx.break_target == Some(target) {
+                return Ok(vec![YulDoc::line("break")]);
             }
-            Terminator::TerminatingCall { call, .. } => match call {
-                mir::TerminatingCall::Call(call) => {
-                    if let Some(builtin) = call.builtin_terminator {
-                        match builtin {
-                            BuiltinTerminatorKind::Abort
-                            | BuiltinTerminatorKind::AbortWithValue => {
-                                ctx.docs.push(YulDoc::line("revert(0, 0)"));
-                                return Ok(());
-                            }
-                        }
-                    }
-                    let call_expr = self.lower_call_value(call, ctx.state)?;
-                    ctx.docs.push(YulDoc::line(call_expr));
-                    Ok(())
+            if !self
+                .loop_info(loop_ctx.header)
+                .expect("active loop header should have loop info")
+                .blocks
+                .contains(&target)
+            {
+                let mut exit_stops = ctx.stop_blocks.to_vec();
+                if let Some(break_target) = loop_ctx.break_target
+                    && !exit_stops.contains(&break_target)
+                {
+                    exit_stops.push(break_target);
                 }
-                mir::TerminatingCall::Intrinsic { op, args } => {
-                    let intr = IntrinsicValue {
-                        op: *op,
-                        args: args.clone(),
-                    };
-                    if let Some(doc) = self.lower_intrinsic_stmt(&intr, ctx.state)? {
-                        ctx.docs.push(doc);
-                        Ok(())
-                    } else {
-                        Err(YulError::Unsupported(
-                            "terminating intrinsic must be statement-like".into(),
-                        ))
-                    }
+                let mut docs = self.emit_block_internal(
+                    target,
+                    EmitCtx {
+                        loop_ctx: None,
+                        stop_blocks: &exit_stops,
+                    },
+                    path,
+                )?;
+                if loop_ctx.break_target.is_some() {
+                    docs.push(YulDoc::line("break"));
                 }
-            },
-            Terminator::Branch {
+                return Ok(docs);
+            }
+        }
+        if ctx.stop_blocks.contains(&target) {
+            return Ok(Vec::new());
+        }
+        self.emit_block_internal(target, ctx, path)
+    }
+
+    fn emit_terminator(
+        &mut self,
+        block: YBlockId,
+        terminator: &YTerminator<'db>,
+        ctx: EmitCtx<'_>,
+        path: &mut Vec<YBlockId>,
+    ) -> Result<Vec<YulDoc>, YulError> {
+        Ok(match terminator {
+            YTerminator::Goto(target) => self.emit_edge(*target, ctx, path)?,
+            YTerminator::Branch {
                 cond,
                 then_bb,
                 else_bb,
-                ..
-            } => self.emit_branch_terminator(*cond, *then_bb, *else_bb, ctx),
-            Terminator::Switch {
+            } => self.emit_branch(block, *cond, *then_bb, *else_bb, ctx, path)?,
+            YTerminator::SwitchWord {
                 discr,
-                targets,
+                cases,
+                default,
+            } => self.emit_switch(
+                block,
+                self.scalar_word_expr(*discr)?,
+                cases
+                    .iter()
+                    .map(|(value, target)| (self.const_scalar_expr(value), *target))
+                    .collect(),
+                Some(*default),
+                ctx,
+                path,
+            )?,
+            YTerminator::MatchEnumTag {
+                tag,
+                cases,
                 default,
                 ..
-            } => self.emit_switch_terminator(block_id, *discr, targets, *default, ctx),
-            Terminator::Goto { target, .. } => self.emit_goto_terminator(block_id, *target, ctx),
-            Terminator::Unreachable { .. } => Ok(()),
-        }
+            } => self.emit_switch(
+                block,
+                self.scalar_word_expr(*tag)?,
+                cases
+                    .iter()
+                    .map(|(variant, target)| (variant.index.to_string(), *target))
+                    .collect(),
+                *default,
+                ctx,
+                path,
+            )?,
+            YTerminator::TerminalCall { callee, args } => {
+                let args = args
+                    .iter()
+                    .map(|arg| self.local_value(*arg))
+                    .collect::<Result<Vec<_>, _>>()?;
+                let mut docs = Vec::new();
+                for arg in &args {
+                    docs.extend(arg.setup.clone());
+                }
+                let rendered_args = args
+                    .iter()
+                    .map(|arg| arg.value.as_str())
+                    .collect::<Vec<_>>()
+                    .join(", ");
+                let callee_plan = self.index.function(*callee)?;
+                docs.push(YulDoc::line(format!(
+                    "{}({rendered_args})",
+                    super::util::prefix_yul_name(&callee_plan.symbol)
+                )));
+                docs.push(YulDoc::line("invalid()"));
+                docs
+            }
+            YTerminator::ReturnData { offset, len } => vec![YulDoc::line(format!(
+                "return({}, {})",
+                self.scalar_word_expr(*offset)?,
+                self.scalar_word_expr(*len)?
+            ))],
+            YTerminator::Revert { offset, len } => vec![YulDoc::line(format!(
+                "revert({}, {})",
+                self.scalar_word_expr(*offset)?,
+                self.scalar_word_expr(*len)?
+            ))],
+            YTerminator::SelfDestruct { beneficiary } => vec![YulDoc::line(format!(
+                "selfdestruct({})",
+                self.scalar_word_expr(*beneficiary)?
+            ))],
+            YTerminator::Trap => vec![YulDoc::line("invalid()")],
+            YTerminator::Return(Some(value)) => {
+                let value = self.local_value(*value)?;
+                let mut docs = value.setup;
+                docs.push(YulDoc::line(format!("ret := {}", value.value)));
+                docs.push(YulDoc::line("leave"));
+                docs
+            }
+            YTerminator::Return(None) => vec![YulDoc::line("leave")],
+            YTerminator::Stop => vec![YulDoc::line("stop()")],
+        })
     }
 
-    /// Emits a return terminator. When the function has no return value, this merely
-    /// evaluates the expression for side effects.
-    ///
-    /// * `value_id` - MIR value selected by the `return` terminator.
-    /// * `docs` - Doc list collecting emitted statements.
-    /// * `state` - Binding table used when lowering the return expression.
-    ///
-    /// Returns an error if the return value could not be lowered.
-    fn emit_return_with_value(
+    fn emit_branch(
         &mut self,
-        value_id: ValueId,
-        docs: &mut Vec<YulDoc>,
-        state: &mut BlockState,
-    ) -> Result<(), YulError> {
-        if !self.returns_value() {
-            return Ok(());
-        }
-        let expr = self.lower_value(value_id, state)?;
-        docs.push(YulDoc::line(format!("ret := {expr}")));
-        Ok(())
-    }
-
-    /// Lowers an `if cond -> then else` branch terminator into Yul conditionals.
-    ///
-    /// * `cond` - MIR value representing the branch predicate.
-    /// * `then_bb` / `else_bb` - Successor blocks for each branch.
-    /// * `ctx` - Shared block context containing loop metadata and bindings.
-    fn emit_branch_terminator(
-        &mut self,
-        cond: ValueId,
-        then_bb: BasicBlockId,
-        else_bb: BasicBlockId,
-        ctx: &mut BlockEmitCtx<'_, '_, '_>,
-    ) -> Result<(), YulError> {
-        let cond_expr = self.lower_value(cond, ctx.state)?;
-        let cond_temp = ctx.state.alloc_local();
-        ctx.docs
-            .push(YulDoc::line(format!("let {cond_temp} := {cond_expr}")));
-        let loop_ctx = ctx.loop_ctx;
-        let then_term = &self
-            .mir_func
-            .body
-            .blocks
-            .get(then_bb.index())
-            .ok_or_else(|| YulError::Unsupported("invalid then block".into()))?
-            .terminator;
-        let else_term = &self
-            .mir_func
-            .body
-            .blocks
-            .get(else_bb.index())
-            .ok_or_else(|| YulError::Unsupported("invalid else block".into()))?
-            .terminator;
-
-        let then_target = match then_term {
-            Terminator::Goto { target, .. } => Some(*target),
-            _ => None,
-        };
-        let else_target = match else_term {
-            Terminator::Goto { target, .. } => Some(*target),
-            _ => None,
-        };
-
-        // Common patterns:
-        // - if-without-else: then -> goto else_bb, else_bb is the join.
-        // - if/else: then -> goto join, else -> goto join.
-        let mut join = if then_target == Some(else_bb) {
-            Some(else_bb)
-        } else if else_target == Some(then_bb) {
-            Some(then_bb)
-        } else if then_target.is_some_and(|then| else_target == Some(then)) {
-            then_target
-        } else {
-            None
-        };
-        if join.is_some_and(|join| self.is_loop_control_target(loop_ctx, join)) {
-            join = None;
-        }
-        let emit_false_branch = !(join == Some(else_bb) && then_target == Some(else_bb));
-
-        let then_exits =
-            join != Some(then_bb) && matches!(then_term, Terminator::TerminatingCall { .. });
-        let else_exits =
-            join != Some(else_bb) && matches!(else_term, Terminator::TerminatingCall { .. });
-
-        let mut then_state = ctx.cloned_state();
-        let mut else_state = ctx.cloned_state();
+        block: YBlockId,
+        cond: YLocalId,
+        then_bb: YBlockId,
+        else_bb: YBlockId,
+        ctx: EmitCtx<'_>,
+        path: &mut Vec<YBlockId>,
+    ) -> Result<Vec<YulDoc>, YulError> {
+        let cond = self.scalar_word_expr(cond)?;
+        let join = self.join_candidate(block, ctx.loop_ctx, ctx.stop_blocks);
         let mut branch_stops = ctx.stop_blocks.to_vec();
         if let Some(join) = join
             && !branch_stops.contains(&join)
         {
             branch_stops.push(join);
         }
-        if emit_false_branch && (then_exits || else_exits) {
-            if then_exits {
-                let then_docs =
-                    self.emit_block_internal(then_bb, loop_ctx, &mut then_state, &branch_stops)?;
-                ctx.docs
-                    .push(YulDoc::block(format!("if {cond_temp} "), then_docs));
 
-                let fallthrough_docs =
-                    self.emit_block_internal(else_bb, loop_ctx, ctx.state, ctx.stop_blocks)?;
-                ctx.docs.extend(fallthrough_docs);
-                return Ok(());
-            }
+        let mut then_state = self.state.clone();
+        let then_docs = self.with_state(&mut then_state, |this| {
+            this.emit_edge(
+                then_bb,
+                EmitCtx {
+                    loop_ctx: ctx.loop_ctx,
+                    stop_blocks: &branch_stops,
+                },
+                path,
+            )
+        })?;
+        let mut else_state = self.state.clone();
+        let else_docs = self.with_state(&mut else_state, |this| {
+            this.emit_edge(
+                else_bb,
+                EmitCtx {
+                    loop_ctx: ctx.loop_ctx,
+                    stop_blocks: &branch_stops,
+                },
+                path,
+            )
+        })?;
 
-            let else_docs =
-                self.emit_block_internal(else_bb, loop_ctx, &mut else_state, &branch_stops)?;
-            ctx.docs
-                .push(YulDoc::block(format!("if iszero({cond_temp}) "), else_docs));
-
-            let fallthrough_docs =
-                self.emit_block_internal(then_bb, loop_ctx, ctx.state, ctx.stop_blocks)?;
-            ctx.docs.extend(fallthrough_docs);
-            return Ok(());
+        let mut docs = Vec::new();
+        if !then_docs.is_empty() {
+            docs.push(YulDoc::block(format!("if {cond} "), then_docs));
         }
-
-        let then_docs =
-            self.emit_block_internal(then_bb, loop_ctx, &mut then_state, &branch_stops)?;
-        ctx.docs
-            .push(YulDoc::block(format!("if {cond_temp} "), then_docs));
-        if emit_false_branch {
-            let else_docs =
-                self.emit_block_internal(else_bb, loop_ctx, &mut else_state, &branch_stops)?;
-            ctx.docs
-                .push(YulDoc::block(format!("if iszero({cond_temp}) "), else_docs));
+        if !else_docs.is_empty() {
+            docs.push(YulDoc::block(format!("if iszero({cond}) "), else_docs));
         }
-
-        if let Some(join) = join
-            && !ctx.stop_blocks.contains(&join)
-        {
-            let join_docs = self.emit_block_internal(join, loop_ctx, ctx.state, ctx.stop_blocks)?;
-            ctx.docs.extend(join_docs);
+        if let Some(join) = join {
+            docs.extend(self.emit_block_internal(join, ctx, path)?);
         }
-        Ok(())
+        Ok(docs)
     }
 
-    /// Emits a `switch` terminator.
-    ///
-    /// * `discr` - MIR value containing the discriminant expression.
-    /// * `targets` - All concrete switch targets.
-    /// * `default` - Default target block.
-    /// * `ctx` - Shared block context reused across successor emission.
-    fn emit_switch_terminator(
+    fn emit_switch(
         &mut self,
-        block_id: BasicBlockId,
-        discr: ValueId,
-        targets: &[SwitchTarget],
-        default: BasicBlockId,
-        ctx: &mut BlockEmitCtx<'_, '_, '_>,
-    ) -> Result<(), YulError> {
-        let discr_expr = self.lower_value(discr, ctx.state)?;
-        let mut join = self.switch_join_candidate(block_id, ctx.stop_blocks);
-        if join.is_some_and(|join| self.is_loop_control_target(ctx.loop_ctx, join)) {
-            join = None;
-        }
+        block: YBlockId,
+        discr: String,
+        cases: Vec<(String, YBlockId)>,
+        default: Option<YBlockId>,
+        ctx: EmitCtx<'_>,
+        path: &mut Vec<YBlockId>,
+    ) -> Result<Vec<YulDoc>, YulError> {
+        let join = self.join_candidate(block, ctx.loop_ctx, ctx.stop_blocks);
         let mut switch_stops = ctx.stop_blocks.to_vec();
         if let Some(join) = join
             && !switch_stops.contains(&join)
@@ -335,342 +284,85 @@ impl<'db> FunctionEmitter<'db> {
             switch_stops.push(join);
         }
 
-        ctx.docs.push(YulDoc::line(format!("switch {discr_expr}")));
-        let loop_ctx = ctx.loop_ctx;
-
-        for target in targets {
-            let mut case_state = ctx.cloned_state();
-            let literal = switch_value_literal(&target.value);
-            let case_docs =
-                self.emit_block_internal(target.block, loop_ctx, &mut case_state, &switch_stops)?;
-            ctx.docs
-                .push(YulDoc::wide_block(format!("  case {literal} "), case_docs));
+        let mut docs = vec![YulDoc::line(format!("switch {discr}"))];
+        for (literal, target) in cases {
+            let mut case_state = self.state.clone();
+            let case_docs = self.with_state(&mut case_state, |this| {
+                this.emit_edge(
+                    target,
+                    EmitCtx {
+                        loop_ctx: ctx.loop_ctx,
+                        stop_blocks: &switch_stops,
+                    },
+                    path,
+                )
+            })?;
+            docs.push(YulDoc::wide_block(format!("case {literal} "), case_docs));
         }
 
-        let mut default_state = ctx.cloned_state();
-        let default_docs =
-            self.emit_block_internal(default, loop_ctx, &mut default_state, &switch_stops)?;
-        ctx.docs
-            .push(YulDoc::wide_block("  default ", default_docs));
+        let default_docs = if let Some(default) = default {
+            let mut default_state = self.state.clone();
+            self.with_state(&mut default_state, |this| {
+                this.emit_edge(
+                    default,
+                    EmitCtx {
+                        loop_ctx: ctx.loop_ctx,
+                        stop_blocks: &switch_stops,
+                    },
+                    path,
+                )
+            })?
+        } else {
+            vec![YulDoc::line("invalid()")]
+        };
+        docs.push(YulDoc::wide_block("default ", default_docs));
 
-        if let Some(join) = join
-            && !ctx.stop_blocks.contains(&join)
-        {
-            let join_docs = self.emit_block_internal(join, loop_ctx, ctx.state, ctx.stop_blocks)?;
-            ctx.docs.extend(join_docs);
+        if let Some(join) = join {
+            docs.extend(self.emit_block_internal(join, ctx, path)?);
         }
-        Ok(())
+        Ok(docs)
     }
 
-    fn switch_join_candidate(
+    fn join_candidate(
         &self,
-        root: BasicBlockId,
-        stop_blocks: &[BasicBlockId],
-    ) -> Option<BasicBlockId> {
-        if let Some(join) = self.ipdom(root)
-            && !stop_blocks.contains(&join)
+        block: YBlockId,
+        loop_ctx: Option<LoopEmitCtx>,
+        stop_blocks: &[YBlockId],
+    ) -> Option<YBlockId> {
+        let join = self.ipdom.get(block.index()).copied().flatten()?;
+        if stop_blocks.contains(&join)
+            || matches!(loop_ctx, Some(LoopEmitCtx { header, break_target }) if join == header || break_target == Some(join))
         {
-            return Some(join);
+            None
+        } else {
+            Some(join)
         }
-
-        let mut visited: FxHashSet<BasicBlockId> = FxHashSet::default();
-        let mut stack = vec![root];
-        let mut goto_targets: FxHashMap<BasicBlockId, usize> = FxHashMap::default();
-
-        while let Some(block_id) = stack.pop() {
-            if stop_blocks.contains(&block_id) || !visited.insert(block_id) {
-                continue;
-            }
-
-            let Some(block) = self.mir_func.body.blocks.get(block_id.index()) else {
-                continue;
-            };
-
-            match &block.terminator {
-                Terminator::Goto { target, .. } => {
-                    if stop_blocks.contains(target)
-                        || self.mir_func.body.loop_headers.contains_key(target)
-                    {
-                        continue;
-                    }
-                    *goto_targets.entry(*target).or_default() += 1;
-                }
-                Terminator::Branch {
-                    then_bb, else_bb, ..
-                } => {
-                    stack.push(*then_bb);
-                    stack.push(*else_bb);
-                }
-                Terminator::Switch {
-                    targets, default, ..
-                } => {
-                    stack.extend(targets.iter().map(|target| target.block));
-                    stack.push(*default);
-                }
-                Terminator::Return { .. }
-                | Terminator::TerminatingCall { .. }
-                | Terminator::Unreachable { .. } => {}
-            }
-        }
-
-        if goto_targets.len() == 1 {
-            return goto_targets.keys().next().copied();
-        }
-
-        goto_targets
-            .into_iter()
-            .max_by_key(|(_, count)| *count)
-            .and_then(|(block, count)| (count >= 2).then_some(block))
     }
 
-    /// Handles `goto` terminators, translating loop jumps into `break`/`continue`
-    /// and recursively emitting successor blocks otherwise.
-    ///
-    /// * `block_id` - Current block index (used for implicit continues).
-    /// * `target` - Destination block selected by the `goto`.
-    /// * `ctx` - Shared context holding the current bindings and docs.
-    fn emit_goto_terminator(
-        &mut self,
-        block_id: BasicBlockId,
-        target: BasicBlockId,
-        ctx: &mut BlockEmitCtx<'_, '_, '_>,
-    ) -> Result<(), YulError> {
-        if ctx.stop_blocks.contains(&target) {
-            return Ok(());
-        }
-        if let Some(loop_ctx) = ctx.loop_ctx {
-            if target == loop_ctx.continue_target {
-                if loop_ctx.implicit_continue == Some(block_id) {
-                    return Ok(());
-                }
-                ctx.docs.push(YulDoc::line("continue"));
-                return Ok(());
-            }
-            if target == loop_ctx.break_target {
-                ctx.docs.push(YulDoc::line("break"));
-                return Ok(());
-            }
-        }
-
-        if let Some(loop_info) = self.loop_info(target) {
-            let mut loop_state = ctx.cloned_state();
-            let (loop_doc, exit_block) =
-                self.emit_loop(target, loop_info, &mut loop_state, ctx.stop_blocks)?;
-            ctx.docs.push(loop_doc);
-            let after_docs =
-                self.emit_block_internal(exit_block, ctx.loop_ctx, ctx.state, ctx.stop_blocks)?;
-            ctx.docs.extend(after_docs);
-            return Ok(());
-        }
-        let next_docs =
-            self.emit_block_internal(target, ctx.loop_ctx, ctx.state, ctx.stop_blocks)?;
-        ctx.docs.extend(next_docs);
-        Ok(())
-    }
-
-    /// Looks up metadata about the loop that starts at `header`, if it exists.
-    /// Fetches MIR loop metadata for the requested header block.
-    ///
-    /// * `header` - Loop header to query.
-    ///
-    /// Returns the associated [`LoopInfo`] when the MIR builder recorded one.
-    fn loop_info(&self, header: BasicBlockId) -> Option<LoopInfo> {
-        self.mir_func.body.loop_headers.get(&header).copied()
-    }
-
-    /// Emits a Yul `for` loop for the given header block and returns the exit block.
-    ///
-    /// * `header` - Loop header block chosen by MIR.
-    /// * `info` - Loop metadata describing body/backedge/exit blocks.
-    /// * `state` - Mutable binding state used while rendering body and exit.
-    ///
-    /// Returns the loop doc plus the block ID that execution continues at after the loop exits.
     fn emit_loop(
         &mut self,
-        header: BasicBlockId,
-        info: LoopInfo,
-        state: &mut BlockState,
-        stop_blocks: &[BasicBlockId],
-    ) -> Result<(YulDoc, BasicBlockId), YulError> {
-        fn docs_inline(docs: &[YulDoc]) -> String {
-            let mut lines = Vec::new();
-            render_docs(docs, 0, &mut lines);
-            lines
-                .into_iter()
-                .map(|line| line.trim().to_string())
-                .filter(|line| !line.is_empty())
-                .collect::<Vec<_>>()
-                .join(" ")
+        header: YBlockId,
+        loop_info: YLoopInfo,
+        stop_blocks: &[YBlockId],
+        path: &mut Vec<YBlockId>,
+    ) -> Result<(YulDoc, Option<YBlockId>), YulError> {
+        let mut loop_stops = stop_blocks.to_vec();
+        if let Some(exit) = loop_info.exit
+            && !loop_stops.contains(&exit)
+        {
+            loop_stops.push(exit);
         }
-
-        let block = self
-            .mir_func
-            .body
-            .blocks
-            .get(header.index())
-            .ok_or_else(|| YulError::Unsupported("invalid loop header".into()))?;
-        let branch_header = match block.terminator {
-            Terminator::Branch {
-                cond,
-                then_bb,
-                else_bb,
-                ..
-            } => Some((cond, then_bb, else_bb)),
-            _ => None,
-        };
-
-        // Init block:
-        // - Prefer dedicated init_block when present.
-        // - For for-like loops with explicit post blocks, fall back to header statements.
-        // - For while-like loops (no post block), keep init empty and evaluate header in-loop.
-        let header_docs = self.render_statements(&block.insts, state)?;
-        let init_block_str = if let Some(init_bb) = info.init_block {
-            let init_block_data = self
-                .mir_func
-                .body
-                .blocks
-                .get(init_bb.index())
-                .ok_or_else(|| YulError::Unsupported("invalid init block".into()))?;
-            let init_docs = self.render_statements(&init_block_data.insts, state)?;
-            let init_inline = docs_inline(&init_docs);
-            if init_inline.is_empty() {
-                "{ }".to_string()
-            } else {
-                format!("{{ {init_inline} }}")
-            }
-        } else if info.post_block.is_some() {
-            let init_inline = docs_inline(&header_docs);
-            if init_inline.is_empty() {
-                "{ }".to_string()
-            } else {
-                format!("{{ {init_inline} }}")
-            }
-        } else {
-            "{ }".to_string()
-        };
-
-        // Loops without an explicit post block are while-like. Emit them as:
-        // `for <init> 1 { } { <header>; if !cond { break }; <body> }`
-        //
-        // This keeps header/condition evaluation in one place and avoids replaying
-        // header setup inside Yul's `post` clause.
-        if info.post_block.is_none() {
-            if let Some((cond, then_bb, else_bb)) = branch_header
-                && then_bb == info.body
-                && else_bb == info.exit
-            {
-                let cond_expr = self.lower_value(cond, state)?;
-                let loop_ctx = LoopEmitCtx {
-                    continue_target: header,
-                    break_target: info.exit,
-                    implicit_continue: info.backedge,
-                };
-
-                let mut body_stops = stop_blocks.to_vec();
-                if let Some(init_bb) = info.init_block {
-                    body_stops.push(init_bb);
-                }
-                let body_docs =
-                    self.emit_block_internal(info.body, Some(loop_ctx), state, &body_stops)?;
-
-                let mut while_body_docs = header_docs;
-                while_body_docs.push(YulDoc::block(
-                    format!("if iszero({cond_expr}) "),
-                    vec![YulDoc::line("break")],
-                ));
-                while_body_docs.extend(body_docs);
-
-                let loop_doc =
-                    YulDoc::block(format!("for {init_block_str} 1 {{ }} "), while_body_docs);
-                return Ok((loop_doc, info.exit));
-            }
-
-            // Complex loop headers (e.g. decision-tree based `while let`) may start
-            // with a jump/switch CFG instead of a single branch. Emit the full loop CFG
-            // inside a Yul `for` body and rely on loop-context mapping for break/continue.
-            let loop_ctx = LoopEmitCtx {
-                continue_target: header,
-                break_target: info.exit,
-                implicit_continue: info.backedge,
-            };
-
-            let mut body_stops = stop_blocks.to_vec();
-            if let Some(init_bb) = info.init_block {
-                body_stops.push(init_bb);
-            }
-            let while_body_docs =
-                self.emit_block_internal(header, Some(loop_ctx), state, &body_stops)?;
-            let loop_doc = YulDoc::block(format!("for {init_block_str} 1 {{ }} "), while_body_docs);
-            return Ok((loop_doc, info.exit));
-        }
-
-        let Some((cond, then_bb, else_bb)) = branch_header else {
-            return Err(YulError::Unsupported(
-                "loop header missing branch terminator".into(),
-            ));
-        };
-        if then_bb != info.body || else_bb != info.exit {
-            return Err(YulError::Unsupported(
-                "loop metadata inconsistent with terminator".into(),
-            ));
-        }
-        let cond_expr = self.lower_value(cond, state)?;
-
-        // For-loops with explicit post blocks map directly to Yul `for`.
-        let post_block_str = if let Some(post_bb) = info.post_block {
-            let post_block_data = self
-                .mir_func
-                .body
-                .blocks
-                .get(post_bb.index())
-                .ok_or_else(|| YulError::Unsupported("invalid post block".into()))?;
-            let post_docs = self.render_statements(&post_block_data.insts, state)?;
-            let post_inline = docs_inline(&post_docs);
-            if post_inline.is_empty() {
-                "{ }".to_string()
-            } else {
-                format!("{{ {post_inline} }}")
-            }
-        } else {
-            unreachable!("guarded above")
-        };
-
-        // Continue target is the post block if present, otherwise the header
-        let continue_target = info.post_block.unwrap_or(header);
-        let loop_ctx = LoopEmitCtx {
-            continue_target,
-            break_target: info.exit,
-            implicit_continue: info.backedge,
-        };
-
-        // Stop at init and post blocks when emitting body (they're handled separately)
-        let mut body_stops = stop_blocks.to_vec();
-        if let Some(init_bb) = info.init_block {
-            body_stops.push(init_bb);
-        }
-        if let Some(post_bb) = info.post_block {
-            body_stops.push(post_bb);
-        }
-        let body_docs = self.emit_block_internal(info.body, Some(loop_ctx), state, &body_stops)?;
-
-        let loop_doc = YulDoc::block(
-            format!("for {init_block_str} {cond_expr} {post_block_str} "),
-            body_docs,
-        );
-        Ok((loop_doc, info.exit))
-    }
-}
-
-/// Translates MIR switch literal kinds into their Yul literal strings.
-///
-/// * `value` - Switch value representation.
-///
-/// Returns the string literal used inside the `switch`.
-fn switch_value_literal(value: &SwitchValue) -> String {
-    match value {
-        SwitchValue::Bool(true) => "1".into(),
-        SwitchValue::Bool(false) => "0".into(),
-        SwitchValue::Int(int) => int.to_string(),
-        SwitchValue::Enum(val) => val.to_string(),
+        let body_docs = self.emit_block_internal(
+            header,
+            EmitCtx {
+                loop_ctx: Some(LoopEmitCtx {
+                    header,
+                    break_target: loop_info.exit,
+                }),
+                stop_blocks: &loop_stops,
+            },
+            path,
+        )?;
+        Ok((YulDoc::block("for {} 1 {} ", body_docs), loop_info.exit))
     }
 }

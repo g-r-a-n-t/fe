@@ -1711,6 +1711,24 @@ impl DiagnosticVoucher for TyLowerDiag<'_> {
                 }
             }
 
+            Self::StringTooLarge { span, max, given } => CompleteDiagnostic {
+                severity: Severity::Error,
+                message: "string type exceeds inline capacity".to_string(),
+                sub_diagnostics: vec![SubDiagnostic {
+                    style: LabelStyle::Primary,
+                    message: format!(
+                        "`String<{given}>` exceeds the current inline limit of `String<{max}>`"
+                    ),
+                    span: span.resolve(db),
+                }],
+                notes: vec![
+                    format!(
+                        "strings currently use one word of storage: 1 length byte and {max} payload bytes"
+                    ),
+                ],
+                error_code,
+            },
+
             Self::InconsistentKindBound { span, ty, bound } => {
                 let msg = format!(
                     "`{}` is already declared with `{}` kind, but found `{}` kind here",
@@ -2085,6 +2103,22 @@ impl DiagnosticVoucher for TyLowerDiag<'_> {
                 Severity::Error,
                 "division by zero in const context",
                 "cannot divide by zero",
+                span.resolve(db),
+                error_code,
+            ),
+
+            Self::ConstEvalArithmeticOverflow(span) => primary_diag(
+                Severity::Error,
+                "arithmetic overflow in const context",
+                "checked arithmetic overflowed during const evaluation",
+                span.resolve(db),
+                error_code,
+            ),
+
+            Self::ConstEvalNegativeExponent(span) => primary_diag(
+                Severity::Error,
+                "negative exponent in const context",
+                "exponents in const evaluation must be non-negative",
                 span.resolve(db),
                 error_code,
             ),
@@ -4078,14 +4112,6 @@ impl DiagnosticVoucher for BodyDiag<'_> {
                 severity,
                 "loops are not allowed in a `const fn`",
                 "loops are not supported in const evaluation (MVP)",
-                primary.resolve(db),
-                error_code,
-            ),
-
-            BodyDiag::ConstFnMatchNotAllowed(primary) => primary_diag(
-                severity,
-                "`match` is not allowed in a `const fn`",
-                "`match` is not supported in const evaluation (MVP)",
                 primary.resolve(db),
                 error_code,
             ),

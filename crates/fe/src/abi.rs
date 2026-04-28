@@ -190,9 +190,7 @@ fn recv_arm_to_abi_entry(
     let arm = arm_view
         .arm(db)
         .ok_or_else(|| "missing recv arm during ABI generation".to_string())?;
-    let abi_info = arm_view.abi_info(db, sol_ty);
-
-    if abi_info.is_fallback {
+    if arm_view.is_fallback(db) {
         return Ok(RecvArmAbiEmission::Emit(AbiEntry {
             entry_type: "fallback".to_string(),
             name: None,
@@ -224,6 +222,7 @@ fn recv_arm_to_abi_entry(
             "skipping recv arm `{variant_name}`: ABI shape is not compiler-known for manual `MsgVariant` impls; only `msg`-generated variants are emitted"
         )));
     }
+    let abi_info = arm_view.abi_info(db, sol_ty);
     let Some(selector_signature) = abi_info.selector_signature.as_deref() else {
         return Ok(RecvArmAbiEmission::Skip(format!(
             "skipping recv arm `{variant_name}`: selector signature is unknown; \
@@ -1060,7 +1059,7 @@ fn resolve_sol_abi_ty<'db>(
     }
 }
 
-/// Derive ABI state mutability from the effective recv-arm effect set.
+/// Derive ABI state mutability from the effective recv-arm effect requirement set.
 fn derive_state_mutability(
     db: &DriverDataBase,
     arm_view: hir::semantic::RecvArmView<'_>,
@@ -1072,7 +1071,7 @@ fn derive_state_mutability(
         return "payable".to_string();
     }
 
-    let effects = arm_view.effective_effect_bindings(db);
+    let effects = arm_view.effective_effect_requirements(db);
     if effects.is_empty() {
         "pure".to_string()
     } else if effects.iter().any(|effect| effect.is_mut) {
@@ -1356,20 +1355,37 @@ struct GenericMsg<T> {
     pub value: T,
 }
 
+impl<T> core::abi::AbiSize for GenericMsg<T>
+    where T: core::abi::AbiSize
+{
+    const HEAD_SIZE: u256 = T::HEAD_SIZE
+    const IS_DYNAMIC: bool = T::IS_DYNAMIC
+
+    fn payload_size(self) -> u256 {
+        Self::HEAD_SIZE + core::abi::dynamic_payload_size(self.value)
+    }
+}
+
 impl<T> core::abi::Encode<std::abi::Sol> for GenericMsg<T>
     where T: core::abi::Encode<std::abi::Sol>
 {
+    const DIRECT_ENCODE: bool = false
+
     fn encode<E: core::abi::AbiEncoder<std::abi::Sol>>(own self, _ e: mut E) {
         let Self { value } = self
         value.encode(e)
+    }
+
+    fn encode_to_ptr(own self, _ ptr: u256) {
+        core::panic()
     }
 }
 
 impl<T> core::abi::Decode<std::abi::Sol> for GenericMsg<T>
     where T: core::abi::Decode<std::abi::Sol>
 {
-    fn decode<D: core::abi::AbiDecoder<std::abi::Sol>>(_ d: mut D) -> Self {
-        let value = T::decode(d)
+    fn decode_payload<D: core::abi::AbiDecoder<std::abi::Sol>>(_ d: mut D) -> Self {
+        let value = T::decode_payload(d)
         Self { value }
     }
 }
@@ -1425,16 +1441,22 @@ struct Weird {
 }
 
 impl core::abi::Encode<std::abi::Sol> for Weird {
+    const DIRECT_ENCODE: bool = false
+
     fn encode<E: core::abi::AbiEncoder<std::abi::Sol>>(own self, _ e: mut E) {
         self.flag.encode(e)
         self.amount.encode(e)
     }
+
+    fn encode_to_ptr(own self, _ ptr: u256) {
+        core::panic()
+    }
 }
 
 impl core::abi::Decode<std::abi::Sol> for Weird {
-    fn decode<D: core::abi::AbiDecoder<std::abi::Sol>>(_ d: mut D) -> Self {
-        let flag = bool::decode(d)
-        let amount = u64::decode(d)
+    fn decode_payload<D: core::abi::AbiDecoder<std::abi::Sol>>(_ d: mut D) -> Self {
+        let flag = bool::decode_payload(d)
+        let amount = u64::decode_payload(d)
         Self { amount, flag }
     }
 }
@@ -1471,25 +1493,36 @@ pub contract Foo {
     #[test]
     fn manual_module_msg_variants_are_skipped_with_warning() {
         let code = r#"
-use std::abi::sol
-
 mod TokenMsg {
+    use std::abi::sol
+
     pub struct Transfer {
         pub to: u64,
         pub amount: u64,
     }
 
+    impl core::abi::AbiSize for Transfer {
+        const HEAD_SIZE: u256 = 64
+        const IS_DYNAMIC: bool = false
+    }
+
     impl core::abi::Encode<std::abi::Sol> for Transfer {
+        const DIRECT_ENCODE: bool = false
+
         fn encode<E: core::abi::AbiEncoder<std::abi::Sol>>(own self, _ e: mut E) {
             self.to.encode(e)
             self.amount.encode(e)
         }
+
+        fn encode_to_ptr(own self, _ ptr: u256) {
+            core::panic()
+        }
     }
 
     impl core::abi::Decode<std::abi::Sol> for Transfer {
-        fn decode<D: core::abi::AbiDecoder<std::abi::Sol>>(_ d: mut D) -> Self {
-            let to = u64::decode(d)
-            let amount = u64::decode(d)
+        fn decode_payload<D: core::abi::AbiDecoder<std::abi::Sol>>(_ d: mut D) -> Self {
+            let to = u64::decode_payload(d)
+            let amount = u64::decode_payload(d)
             Self { to, amount }
         }
     }

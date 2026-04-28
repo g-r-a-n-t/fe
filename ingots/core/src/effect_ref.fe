@@ -1,3 +1,5 @@
+use ingot::Copy
+
 /// Effect reference traits.
 ///
 /// Fe models effects as implicit "provider" generic parameters. The `EffectRef<T>` marker traits
@@ -46,6 +48,9 @@ pub struct MemPtr<T> {
 pub struct StorPtr<T> {
     handle: u256
 }
+
+impl<T> Copy for MemPtr<T> {}
+impl<T> Copy for StorPtr<T> {}
 
 /// Marker: `Self` can satisfy a read-only effect whose domain is `Target`.
 pub trait EffectRef<Target> {}

@@ -1,5 +1,5 @@
 use crate::analysis::ty::diagnostics::BodyDiag;
-use crate::analysis::ty::effects::resolve_normalized_type_effect_key;
+use crate::analysis::ty::effects::{ResolvedEffectKey, resolve_effect_key};
 use crate::analysis::ty::trait_resolution::{
     GoalSatisfiability, PredicateListId, TraitSolveCx, is_goal_satisfiable,
 };
@@ -14,8 +14,9 @@ use common::indexmap::IndexMap;
 use diagnostics::{DefConflictError, TraitLowerDiag, TyLowerDiag};
 use rustc_hash::{FxHashMap, FxHashSet};
 use smallvec1::SmallVec;
+use trait_def::impls_for_trait_def;
 use trait_resolution::constraint::super_trait_cycle;
-use ty_def::{BorrowKind, InvalidCause, TyData, TyId, instantiate_adt_field_ty};
+use ty_def::{BorrowKind, InvalidCause, TyBase, TyData, TyId, instantiate_adt_field_ty};
 use ty_lower::lower_type_alias;
 
 use crate::analysis::name_resolution::{PathRes, resolve_path};
@@ -29,11 +30,9 @@ pub mod assoc_const;
 pub mod binder;
 pub mod canonical;
 pub(crate) mod const_check;
-pub mod const_eval;
 pub mod const_expr;
 pub mod const_ty;
 pub mod corelib;
-pub(crate) mod ctfe;
 pub mod effects;
 pub mod msg_selector;
 
@@ -46,6 +45,8 @@ pub mod method_table;
 pub mod normalize;
 pub mod pattern_analysis;
 pub mod pattern_ir;
+pub mod pattern_types;
+pub mod provider;
 pub(crate) mod scratch;
 pub mod trait_def;
 pub mod trait_lower;
@@ -59,8 +60,29 @@ pub mod visitor;
 
 pub use layout_holes::ty_contains_const_hole;
 pub use msg_selector::MsgSelectorAnalysisPass;
+pub use provider::{
+    ProviderAddressSpace, ProviderKind, ProviderSemantics, ProviderTransport,
+    RootProviderRegistration, RootProviderSiteKind, address_space_from_ty, provider_semantics,
+    registered_root_providers,
+};
 
 const DEFAULT_TARGET_TY_PATH: &[&str] = &["std", "evm", "EvmTarget"];
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct EffectHandleMetadata<'db> {
+    pub address_space: TyId<'db>,
+    pub target_ty: TyId<'db>,
+}
+
+fn ty_may_require_effect_handle_metadata<'db>(db: &'db dyn HirAnalysisDb, ty: TyId<'db>) -> bool {
+    matches!(
+        ty.base_ty(db).data(db),
+        TyData::TyParam(_)
+            | TyData::AssocTy(_)
+            | TyData::QualifiedTy(_)
+            | TyData::TyBase(TyBase::Adt(_))
+    )
+}
 
 pub fn ty_is_borrow<'db>(
     db: &'db dyn HirAnalysisDb,
@@ -92,6 +114,16 @@ pub fn ty_is_copy<'db>(
         return true;
     }
 
+    ty_is_copy_query(db, scope, ty, assumptions)
+}
+
+#[salsa::tracked]
+fn ty_is_copy_query<'db>(
+    db: &'db dyn HirAnalysisDb,
+    scope: ScopeId<'db>,
+    ty: TyId<'db>,
+    assumptions: PredicateListId<'db>,
+) -> bool {
     let Some(copy_trait) = corelib::resolve_core_trait(db, scope, &["marker", "Copy"]) else {
         return false;
     };
@@ -105,10 +137,69 @@ pub fn ty_is_copy<'db>(
         return true;
     }
     let solve_cx = TraitSolveCx::new(db, scope).with_assumptions(assumptions);
+    if !copy_goal_has_possible_impl(db, solve_cx, inst) {
+        return false;
+    }
     matches!(
         is_goal_satisfiable(db, solve_cx, inst),
         GoalSatisfiability::Satisfied(_)
     )
+}
+
+fn copy_goal_has_possible_impl<'db>(
+    db: &'db dyn HirAnalysisDb,
+    solve_cx: TraitSolveCx<'db>,
+    inst: trait_def::TraitInstId<'db>,
+) -> bool {
+    let Some(self_base) = concrete_copy_candidate_base(db, inst.self_ty(db)) else {
+        return true;
+    };
+
+    let trait_def = inst.def(db);
+    let (primary, secondary) = solve_cx.search_ingots_for_trait_inst(db, inst);
+    [Some(primary), secondary]
+        .into_iter()
+        .flatten()
+        .any(|ingot| {
+            impls_for_trait_def(db, ingot, trait_def)
+                .iter()
+                .any(|implementor| {
+                    let impl_self = implementor.skip_binder().self_ty(db);
+                    copy_impl_self_may_match(db, impl_self, self_base)
+                })
+        })
+}
+
+fn concrete_copy_candidate_base<'db>(
+    db: &'db dyn HirAnalysisDb,
+    ty: TyId<'db>,
+) -> Option<TyId<'db>> {
+    if ty.has_param(db) || ty.has_var(db) {
+        return None;
+    }
+    let base = ty.base_ty(db);
+    match base.data(db) {
+        TyData::AssocTy(_) | TyData::QualifiedTy(_) => None,
+        _ => Some(base),
+    }
+}
+
+fn copy_impl_self_may_match<'db>(
+    db: &'db dyn HirAnalysisDb,
+    impl_self: TyId<'db>,
+    target_base: TyId<'db>,
+) -> bool {
+    let impl_base = impl_self.base_ty(db);
+    if impl_base.has_param(db)
+        || impl_base.has_var(db)
+        || matches!(
+            impl_base.data(db),
+            TyData::AssocTy(_) | TyData::QualifiedTy(_)
+        )
+    {
+        return true;
+    }
+    impl_base == target_base
 }
 
 pub fn ty_is_noesc<'db>(db: &'db dyn HirAnalysisDb, ty: TyId<'db>) -> bool {
@@ -329,7 +420,12 @@ impl ModuleAnalysisPass for ContractAnalysisPass {
 
             // 2. Validate contract-level effects (`contract Foo uses (ctx: Ctx)`).
             let assumptions = PredicateListId::empty_list(db);
-            let root_effect_ty = resolve_default_root_effect_ty(db, contract.scope(), assumptions);
+            let root_effect_ty = registered_root_providers(
+                db,
+                crate::analysis::ty::ty_check::EffectParamSite::Contract(contract),
+            )
+            .first()
+            .map(|registration| registration.provider_ty);
             for (idx, effect) in contract.effects(db).data(db).iter().enumerate() {
                 let Some(key_path) = effect
                     .key_path
@@ -339,14 +435,14 @@ impl ModuleAnalysisPass for ContractAnalysisPass {
                     continue;
                 };
 
-                let resolved = resolve_path(db, key_path, contract.scope(), assumptions, false);
-                match resolved {
-                    Ok(PathRes::Trait(trait_inst)) => {
+                match resolve_effect_key(db, key_path, contract.scope(), assumptions) {
+                    ResolvedEffectKey::Trait(schema) => {
                         let Some(root_effect_ty) = root_effect_ty else {
                             continue;
                         };
 
-                        let trait_req = instantiate_trait_self(db, trait_inst, root_effect_ty);
+                        let trait_req =
+                            instantiate_trait_self(db, schema.into_trait_inst(db), root_effect_ty);
                         if matches!(
                             is_goal_satisfiable(
                                 db,
@@ -365,17 +461,13 @@ impl ModuleAnalysisPass for ContractAnalysisPass {
                             }) as _);
                         }
                     }
-                    Ok(PathRes::Ty(ty) | PathRes::TyAlias(_, ty)) => {
-                        let given = resolve_normalized_type_effect_key(
+                    ResolvedEffectKey::Type(schema) => {
+                        let given = normalize::normalize_ty(
                             db,
-                            key_path,
+                            schema.carrier,
                             contract.scope(),
                             assumptions,
-                        )
-                        .map(|ty| normalize::normalize_ty(db, ty, contract.scope(), assumptions))
-                        .unwrap_or_else(|| {
-                            normalize::normalize_ty(db, ty, contract.scope(), assumptions)
-                        });
+                        );
                         if !given.is_zero_sized(db) {
                             diags.push(Box::new(BodyDiag::ContractRootEffectTypeNotZeroSized {
                                 owner: EffectParamOwner::Contract(contract),
@@ -385,7 +477,7 @@ impl ModuleAnalysisPass for ContractAnalysisPass {
                             }) as _);
                         }
                     }
-                    Ok(_) | Err(_) => {
+                    ResolvedEffectKey::Invalid | ResolvedEffectKey::Other => {
                         diags.push(Box::new(BodyDiag::InvalidEffectKey {
                             owner: EffectParamOwner::Contract(contract),
                             key: key_path,
@@ -439,7 +531,8 @@ impl ModuleAnalysisPass for ContractAnalysisPass {
     }
 }
 
-fn resolve_default_root_effect_ty<'db>(
+#[salsa::tracked]
+pub fn resolve_default_root_effect_ty<'db>(
     db: &'db dyn HirAnalysisDb,
     scope: ScopeId<'db>,
     assumptions: PredicateListId<'db>,
@@ -462,7 +555,51 @@ fn resolve_default_root_effect_ty<'db>(
     ))
 }
 
-fn instantiate_trait_self<'db>(
+pub fn effect_handle_metadata<'db>(
+    db: &'db dyn HirAnalysisDb,
+    scope: ScopeId<'db>,
+    assumptions: PredicateListId<'db>,
+    ty: TyId<'db>,
+) -> Option<EffectHandleMetadata<'db>> {
+    let ty = ty_def::strip_derived_adt_layout_args(db, ty);
+    if ty.as_capability(db).is_some() || !ty_may_require_effect_handle_metadata(db, ty) {
+        return None;
+    }
+    let effect_handle = corelib::resolve_core_trait(db, scope, &["EffectHandle"])?;
+    let address_space_ident = IdentId::new(db, "AddressSpace".to_string());
+    let target_ident = IdentId::new(db, "Target".to_string());
+    let inst = trait_def::TraitInstId::new(db, effect_handle, vec![ty], IndexMap::new());
+    match is_goal_satisfiable(
+        db,
+        TraitSolveCx::new(db, scope).with_assumptions(assumptions),
+        inst,
+    ) {
+        GoalSatisfiability::ContainsInvalid | GoalSatisfiability::UnSat(_) => None,
+        GoalSatisfiability::Satisfied(_) | GoalSatisfiability::NeedsConfirmation(_) => {
+            let address_space = normalize::normalize_ty(
+                db,
+                inst.assoc_ty(db, address_space_ident)?,
+                scope,
+                assumptions,
+            );
+            let target_ty = normalize::normalize_ty(
+                db,
+                inst.assoc_ty(db, target_ident).unwrap_or(ty),
+                scope,
+                assumptions,
+            );
+            (!address_space.has_invalid(db)
+                && !ty_contains_const_hole(db, address_space)
+                && !target_ty.has_invalid(db))
+            .then_some(EffectHandleMetadata {
+                address_space,
+                target_ty,
+            })
+        }
+    }
+}
+
+pub(crate) fn instantiate_trait_self<'db>(
     db: &'db dyn HirAnalysisDb,
     inst: trait_def::TraitInstId<'db>,
     self_ty: TyId<'db>,
@@ -596,5 +733,87 @@ impl ModuleAnalysisPass for TypeAliasAnalysisPass {
             }
         }
         diags
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use camino::Utf8PathBuf;
+    use common::indexmap::IndexMap;
+
+    use super::{
+        PredicateListId, TraitSolveCx, adt_def::AdtRef, copy_goal_has_possible_impl,
+        corelib::resolve_core_trait, trait_def::TraitInstId, ty_def::TyId, ty_is_copy,
+    };
+    use crate::{hir_def::ItemKind, test_db::HirAnalysisTestDb};
+
+    fn named_struct_ty<'db>(
+        db: &'db HirAnalysisTestDb,
+        top_mod: crate::hir_def::TopLevelMod<'db>,
+        name: &str,
+    ) -> TyId<'db> {
+        let struct_ = top_mod
+            .children_non_nested(db)
+            .find_map(|item| match item {
+                ItemKind::Struct(struct_)
+                    if struct_
+                        .name(db)
+                        .to_opt()
+                        .is_some_and(|ident| ident.data(db) == name) =>
+                {
+                    Some(struct_)
+                }
+                _ => None,
+            })
+            .unwrap_or_else(|| panic!("missing `{name}` struct"));
+        TyId::adt(db, AdtRef::from(struct_).as_adt(db))
+    }
+
+    #[test]
+    fn copy_prefilter_rejects_concrete_noncopy_struct() {
+        let mut db = HirAnalysisTestDb::default();
+        let file = db.new_stand_alone(
+            Utf8PathBuf::from("copy_prefilter_rejects_concrete_noncopy_struct.fe"),
+            r#"
+struct Plain {
+    value: u256,
+}
+"#,
+        );
+        let (top_mod, _) = db.top_mod(file);
+        let copy_trait = resolve_core_trait(&db, top_mod.scope(), &["marker", "Copy"])
+            .expect("missing Copy trait");
+        let plain = named_struct_ty(&db, top_mod, "Plain");
+        let copy_plain = TraitInstId::new(&db, copy_trait, vec![plain], IndexMap::new());
+        let assumptions = PredicateListId::empty_list(&db);
+        let solve_cx = TraitSolveCx::new(&db, top_mod.scope()).with_assumptions(assumptions);
+
+        assert!(!copy_goal_has_possible_impl(&db, solve_cx, copy_plain));
+        assert!(!ty_is_copy(&db, top_mod.scope(), plain, assumptions));
+    }
+
+    #[test]
+    fn copy_prefilter_preserves_explicit_copy_struct() {
+        let mut db = HirAnalysisTestDb::default();
+        let file = db.new_stand_alone(
+            Utf8PathBuf::from("copy_prefilter_preserves_explicit_copy_struct.fe"),
+            r#"
+struct Explicit {
+    value: u256,
+}
+
+impl Copy for Explicit {}
+"#,
+        );
+        let (top_mod, _) = db.top_mod(file);
+        let copy_trait = resolve_core_trait(&db, top_mod.scope(), &["marker", "Copy"])
+            .expect("missing Copy trait");
+        let explicit = named_struct_ty(&db, top_mod, "Explicit");
+        let copy_explicit = TraitInstId::new(&db, copy_trait, vec![explicit], IndexMap::new());
+        let assumptions = PredicateListId::empty_list(&db);
+        let solve_cx = TraitSolveCx::new(&db, top_mod.scope()).with_assumptions(assumptions);
+
+        assert!(copy_goal_has_possible_impl(&db, solve_cx, copy_explicit));
+        assert!(ty_is_copy(&db, top_mod.scope(), explicit, assumptions));
     }
 }

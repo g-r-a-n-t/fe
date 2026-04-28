@@ -17,13 +17,14 @@ use common::{
     ingot::{Ingot, IngotKind},
 };
 use num_bigint::BigUint;
+use num_traits::ToPrimitive;
 use rustc_hash::FxHashSet;
 use salsa::Update;
 use smallvec::SmallVec;
 
 use super::{
     adt_def::{AdtDef, adt_layout_hole_plan_with_explicit_args, instantiated_adt_field_ty},
-    const_ty::{ConstTyData, ConstTyId, EvaluatedConstTy},
+    const_ty::{ConstTyData, ConstTyId, EvaluatedConstTy, TypePrintMode},
     diagnostics::{TraitConstraintDiag, TyDiagCollection},
     effects::place_effect_provider_param_index_map,
     fold::{TyFoldable, TyFolder},
@@ -44,6 +45,8 @@ use crate::analysis::{
     },
 };
 use crate::hir_def::CallableDef;
+
+pub const MAX_INLINE_STRING_BYTES: usize = 31;
 
 #[salsa::interned]
 #[derive(Debug)]
@@ -202,23 +205,31 @@ impl<'db> TyId<'db> {
 
     #[salsa::tracked(return_ref)]
     pub fn pretty_print(self, db: &'db dyn HirAnalysisDb) -> String {
+        self.pretty_print_with_mode(db, TypePrintMode::Concrete)
+    }
+
+    pub fn pretty_print_with_mode(self, db: &'db dyn HirAnalysisDb, mode: TypePrintMode) -> String {
         match self.data(db) {
             TyData::TyVar(var) => var.pretty_print(),
             TyData::TyParam(param) => param.pretty_print(db),
             TyData::AssocTy(assoc_ty) => {
                 let self_ty = assoc_ty.trait_.self_ty(db);
-                format!("{}::{}", self_ty.pretty_print(db), assoc_ty.name.data(db))
+                format!(
+                    "{}::{}",
+                    self_ty.pretty_print_with_mode(db, mode),
+                    assoc_ty.name.data(db)
+                )
             }
             TyData::QualifiedTy(trait_inst) => {
                 format!(
                     "<{} as {}>",
-                    trait_inst.self_ty(db).pretty_print(db),
+                    trait_inst.self_ty(db).pretty_print_with_mode(db, mode),
                     trait_inst.pretty_print(db, false)
                 )
             }
-            TyData::TyApp(_, _) => pretty_print_ty_app(db, self),
+            TyData::TyApp(_, _) => pretty_print_ty_app(db, self, mode),
             TyData::TyBase(base) => base.pretty_print(db),
-            TyData::ConstTy(const_ty) => const_ty.pretty_print(db),
+            TyData::ConstTy(const_ty) => const_ty.pretty_print_with_mode(db, mode),
             TyData::Never => "!".to_string(),
             TyData::Invalid(cause) => format!("invalid({})", cause.pretty_print(db)),
         }
@@ -343,7 +354,7 @@ impl<'db> TyId<'db> {
         Self::new(db, TyData::Never)
     }
 
-    pub(super) fn const_ty(db: &'db dyn HirAnalysisDb, const_ty: ConstTyId<'db>) -> Self {
+    pub(crate) fn const_ty(db: &'db dyn HirAnalysisDb, const_ty: ConstTyId<'db>) -> Self {
         Self::new(db, TyData::ConstTy(const_ty))
     }
 
@@ -421,6 +432,23 @@ impl<'db> TyId<'db> {
             self.base_ty(db).data(db),
             TyData::TyBase(TyBase::Prim(PrimTy::Array))
         )
+    }
+
+    pub fn array_len(self, db: &'db dyn HirAnalysisDb) -> Option<usize> {
+        if !self.is_array(db) {
+            return None;
+        }
+        let (_, args) = self.decompose_ty_app(db);
+        let len_ty = *args.get(1)?;
+        let TyData::ConstTy(const_ty) = len_ty.data(db) else {
+            return None;
+        };
+        match const_ty.data(db) {
+            ConstTyData::Evaluated(EvaluatedConstTy::LitInt(int_id), _) => {
+                int_id.data(db).to_usize()
+            }
+            _ => None,
+        }
     }
 
     /// Returns `true` if this type is known to have no runtime representation.
@@ -536,7 +564,7 @@ impl<'db> TyId<'db> {
         }
     }
 
-    pub(crate) fn as_scope(self, db: &'db dyn HirAnalysisDb) -> Option<ScopeId<'db>> {
+    pub fn as_scope(self, db: &'db dyn HirAnalysisDb) -> Option<ScopeId<'db>> {
         match self.base_ty(db).data(db) {
             TyData::TyParam(param) => Some(param.scope(db)),
             TyData::AssocTy(assoc_ty) => assoc_ty.scope(db),
@@ -692,6 +720,19 @@ impl<'db> TyId<'db> {
                 },
             );
         };
+
+        if lhs.base_ty(db).is_string(db)
+            && let Some(given) = string_capacity_from_const_ty(db, rhs)
+            && given > MAX_INLINE_STRING_BYTES
+        {
+            return Self::invalid(
+                db,
+                InvalidCause::StringTooLarge {
+                    max: MAX_INLINE_STRING_BYTES,
+                    given,
+                },
+            );
+        }
 
         Self::new(db, TyData::TyApp(lhs, rhs))
     }
@@ -1075,6 +1116,11 @@ pub enum InvalidCause<'db> {
         given: usize,
     },
 
+    StringTooLarge {
+        max: usize,
+        given: usize,
+    },
+
     InvalidConstParamTy,
 
     RecursiveConstParamTy,
@@ -1127,6 +1173,16 @@ pub enum InvalidCause<'db> {
         expr: ExprId,
     },
 
+    ConstEvalArithmeticOverflow {
+        body: Body<'db>,
+        expr: ExprId,
+    },
+
+    ConstEvalNegativeExponent {
+        body: Body<'db>,
+        expr: ExprId,
+    },
+
     ConstEvalStepLimitExceeded {
         body: Body<'db>,
         expr: ExprId,
@@ -1165,6 +1221,9 @@ impl InvalidCause<'_> {
                 expected.pretty_print(db),
                 given.pretty_print(db)
             ),
+            InvalidCause::StringTooLarge { max, given } => {
+                format!("StringTooLarge {{ max: {max}, given: {given} }}")
+            }
             InvalidCause::ConstTyExpected { expected } => {
                 format!("ConstTyExpected({})", expected.pretty_print(db))
             }
@@ -1200,12 +1259,26 @@ impl InvalidCause<'_> {
             InvalidCause::ConstEvalUnsupported { .. } => "ConstEvalUnsupported".into(),
             InvalidCause::ConstEvalNonConstCall { .. } => "ConstEvalNonConstCall".into(),
             InvalidCause::ConstEvalDivisionByZero { .. } => "ConstEvalDivisionByZero".into(),
+            InvalidCause::ConstEvalArithmeticOverflow { .. } => {
+                "ConstEvalArithmeticOverflow".into()
+            }
+            InvalidCause::ConstEvalNegativeExponent { .. } => "ConstEvalNegativeExponent".into(),
             InvalidCause::ConstEvalStepLimitExceeded { .. } => "ConstEvalStepLimitExceeded".into(),
             InvalidCause::ConstEvalRecursionLimitExceeded { .. } => {
                 "ConstEvalRecursionLimitExceeded".into()
             }
         }
     }
+}
+
+fn string_capacity_from_const_ty(db: &dyn HirAnalysisDb, ty: TyId<'_>) -> Option<usize> {
+    let TyData::ConstTy(const_ty) = ty.data(db) else {
+        return None;
+    };
+    let ConstTyData::Evaluated(EvaluatedConstTy::LitInt(value), _) = const_ty.data(db) else {
+        return None;
+    };
+    value.data(db).try_into().ok()
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
@@ -1774,7 +1847,7 @@ impl HasKind for TyData<'_> {
 
             TyData::ConstTy(const_ty) => const_ty.ty(db).kind(db).clone(),
 
-            TyData::Never => Kind::Any,
+            TyData::Never => Kind::Star,
 
             TyData::Invalid(_) => Kind::Any,
         }
@@ -1895,7 +1968,11 @@ where
     collector.keys
 }
 
-fn pretty_print_ty_app<'db>(db: &'db dyn HirAnalysisDb, ty: TyId<'db>) -> String {
+fn pretty_print_ty_app<'db>(
+    db: &'db dyn HirAnalysisDb,
+    ty: TyId<'db>,
+    mode: TypePrintMode,
+) -> String {
     use PrimTy::*;
     use TyBase::*;
 
@@ -1905,26 +1982,26 @@ fn pretty_print_ty_app<'db>(db: &'db dyn HirAnalysisDb, ty: TyId<'db>) -> String
             let Some(inner) = args.first() else {
                 return "mut <missing>".to_string();
             };
-            format!("mut {}", inner.pretty_print(db))
+            format!("mut {}", inner.pretty_print_with_mode(db, mode))
         }
 
         TyData::TyBase(Prim(BorrowRef)) => {
             let Some(inner) = args.first() else {
                 return "ref <missing>".to_string();
             };
-            format!("ref {}", inner.pretty_print(db))
+            format!("ref {}", inner.pretty_print_with_mode(db, mode))
         }
 
         TyData::TyBase(Prim(View)) => {
             let Some(inner) = args.first() else {
                 return "<missing>".to_string();
             };
-            inner.pretty_print(db).to_string()
+            inner.pretty_print_with_mode(db, mode)
         }
 
         TyData::TyBase(Prim(Array)) => {
-            let elem_ty = args[0].pretty_print(db);
-            let len = args[1].pretty_print(db);
+            let elem_ty = args[0].pretty_print_with_mode(db, mode);
+            let len = args[1].pretty_print_with_mode(db, mode);
             format!("[{elem_ty}; {len}]")
         }
 
@@ -1932,10 +2009,10 @@ fn pretty_print_ty_app<'db>(db: &'db dyn HirAnalysisDb, ty: TyId<'db>) -> String
             let mut args = args.iter();
             let mut s = ("(").to_string();
             if let Some(first) = args.next() {
-                s.push_str(first.pretty_print(db));
+                s.push_str(&first.pretty_print_with_mode(db, mode));
                 for arg in args {
                     s.push_str(", ");
-                    s.push_str(arg.pretty_print(db));
+                    s.push_str(&arg.pretty_print_with_mode(db, mode));
                 }
             }
             s.push(')');
@@ -1972,10 +2049,10 @@ fn pretty_print_ty_app<'db>(db: &'db dyn HirAnalysisDb, ty: TyId<'db>) -> String
             let mut args_iter = args_to_print.iter();
             if let Some(first) = args_iter.next() {
                 s.push('<');
-                s.push_str(first.pretty_print(db));
+                s.push_str(&first.pretty_print_with_mode(db, mode));
                 for arg in args_iter {
                     s.push_str(", ");
-                    s.push_str(arg.pretty_print(db));
+                    s.push_str(&arg.pretty_print_with_mode(db, mode));
                 }
                 s.push('>');
             }
@@ -1991,38 +2068,14 @@ pub(crate) fn decompose_ty_app<'db>(
     db: &'db dyn HirAnalysisDb,
     ty: TyId<'db>,
 ) -> (TyId<'db>, Vec<TyId<'db>>) {
-    struct TyAppDecomposer<'db> {
-        db: &'db dyn HirAnalysisDb,
-        base: Option<TyId<'db>>,
-        args: Vec<TyId<'db>>,
+    let mut base = ty;
+    let mut args = Vec::new();
+    while let TyData::TyApp(lhs, rhs) = base.data(db) {
+        args.push(*rhs);
+        base = *lhs;
     }
-
-    impl<'db> TyVisitor<'db> for TyAppDecomposer<'db> {
-        fn db(&self) -> &'db dyn HirAnalysisDb {
-            self.db
-        }
-
-        fn visit_ty(&mut self, ty: TyId<'db>) {
-            let db = self.db;
-
-            match ty.data(db) {
-                TyData::TyApp(lhs, rhs) => {
-                    self.visit_ty(*lhs);
-                    self.args.push(*rhs);
-                }
-                _ => self.base = Some(ty),
-            }
-        }
-    }
-
-    let mut decomposer = TyAppDecomposer {
-        db,
-        base: None,
-        args: Vec::new(),
-    };
-
-    ty.visit_with(&mut decomposer);
-    (decomposer.base.unwrap(), decomposer.args)
+    args.reverse();
+    (base, args)
 }
 
 bitflags! {

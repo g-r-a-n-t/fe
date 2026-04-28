@@ -4,8 +4,10 @@ use std::cmp::Reverse;
 
 use camino::Utf8PathBuf;
 use codegen::{
-    OptLevel, SonatinaTestOptions, TestMetadata, emit_test_module_sonatina, emit_test_module_yul,
+    OptLevel, SonatinaTestOptions, TestMetadata, emit_test_ingot_sonatina, emit_test_ingot_yul,
+    emit_test_module_sonatina, emit_test_module_yul,
 };
+use common::ingot::Ingot;
 use contract_harness::CallGasProfile;
 use driver::DriverDataBase;
 use hir::hir_def::TopLevelMod;
@@ -37,6 +39,74 @@ pub(super) fn collect_gas_comparison_cases(
     opt_level: OptLevel,
     primary_cases: &[TestMetadata],
 ) -> Vec<GasComparisonCase> {
+    collect_gas_comparison_cases_impl(
+        suite,
+        filter,
+        report,
+        primary_backend,
+        primary_cases,
+        || {
+            emit_test_module_sonatina(
+                db,
+                top_mod,
+                opt_level,
+                SonatinaTestOptions {
+                    emit_observability: true,
+                },
+                filter,
+            )
+        },
+        || emit_test_module_yul(db, top_mod, filter),
+    )
+}
+
+#[allow(clippy::too_many_arguments)]
+pub(super) fn collect_ingot_gas_comparison_cases(
+    db: &DriverDataBase,
+    ingot: Ingot<'_>,
+    suite: &str,
+    filter: Option<&str>,
+    report: &ReportContext,
+    primary_backend: &str,
+    opt_level: OptLevel,
+    primary_cases: &[TestMetadata],
+) -> Vec<GasComparisonCase> {
+    collect_gas_comparison_cases_impl(
+        suite,
+        filter,
+        report,
+        primary_backend,
+        primary_cases,
+        || {
+            emit_test_ingot_sonatina(
+                db,
+                ingot,
+                opt_level,
+                SonatinaTestOptions {
+                    emit_observability: true,
+                },
+                filter,
+            )
+        },
+        || emit_test_ingot_yul(db, ingot, filter),
+    )
+}
+
+fn collect_gas_comparison_cases_impl<EmitSonatina, EmitYul, SonatinaError, YulError>(
+    suite: &str,
+    filter: Option<&str>,
+    report: &ReportContext,
+    primary_backend: &str,
+    primary_cases: &[TestMetadata],
+    emit_sonatina: EmitSonatina,
+    emit_yul: EmitYul,
+) -> Vec<GasComparisonCase>
+where
+    EmitSonatina: FnOnce() -> Result<codegen::TestModuleOutput, SonatinaError>,
+    EmitYul: FnOnce() -> Result<codegen::TestModuleOutput, YulError>,
+    SonatinaError: std::fmt::Display,
+    YulError: std::fmt::Display,
+{
     let mut by_symbol: FxHashMap<String, GasComparisonCase> = FxHashMap::default();
     let mut setup_errors = Vec::new();
 
@@ -63,23 +133,7 @@ pub(super) fn collect_gas_comparison_cases(
 
     if primary_backend.eq_ignore_ascii_case("yul") {
         let mut emit_output = String::new();
-        match emit_with_catch_unwind(
-            || {
-                emit_test_module_sonatina(
-                    db,
-                    top_mod,
-                    opt_level,
-                    SonatinaTestOptions {
-                        emit_observability: true,
-                    },
-                    filter,
-                )
-            },
-            "Sonatina",
-            suite,
-            None,
-            &mut emit_output,
-        ) {
+        match emit_with_catch_unwind(emit_sonatina, "Sonatina", suite, None, &mut emit_output) {
             Ok(output) => {
                 for case in output
                     .tests
@@ -107,13 +161,7 @@ pub(super) fn collect_gas_comparison_cases(
         }
     } else if primary_backend.eq_ignore_ascii_case("sonatina") {
         let mut emit_output = String::new();
-        match emit_with_catch_unwind(
-            || emit_test_module_yul(db, top_mod, filter),
-            "Yul",
-            suite,
-            None,
-            &mut emit_output,
-        ) {
+        match emit_with_catch_unwind(emit_yul, "Yul", suite, None, &mut emit_output) {
             Ok(output) => {
                 for case in output
                     .tests

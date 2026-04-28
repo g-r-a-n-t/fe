@@ -6,9 +6,8 @@ use super::{
     attr::{has_named_attr, lower_attrs_without_named, named_attr_specs},
     hir_builder::HirBuilder,
     msg::{
-        build_encoded_size_body_expr, create_direct_encode_assoc_const,
-        create_encoded_size_assoc_const, create_is_dynamic_assoc_const,
-        create_needs_parent_wrapper_assoc_const,
+        build_head_size_body_expr, create_direct_encode_assoc_const, create_head_size_assoc_const,
+        create_is_dynamic_assoc_const,
     },
 };
 use crate::{
@@ -416,9 +415,8 @@ fn lower_error_abi_size_impl<'db>(
 
     builder.impl_trait_assocs_build(trait_ref, self_ty, |builder| {
         let consts = vec![
-            create_encoded_size_assoc_const(builder, field_specs),
+            create_head_size_assoc_const(builder, field_specs),
             create_is_dynamic_assoc_const(builder, field_specs),
-            create_needs_parent_wrapper_assoc_const(builder, field_specs),
         ];
         (vec![], consts)
     });
@@ -500,7 +498,7 @@ fn lower_error_encode_impl<'db>(
                         if index + 1 != field_specs.len() {
                             let next_ptr_ident = IdentId::new(db, format!("__field_ptr{index}"));
                             let current_ptr = body.ident_expr(field_ptr_ident);
-                            let field_size = build_encoded_size_body_expr(body, field_ty);
+                            let field_size = build_head_size_body_expr(body, field_ty);
                             let next_ptr = body.push_expr(Expr::Bin(
                                 current_ptr,
                                 field_size,

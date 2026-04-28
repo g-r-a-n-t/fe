@@ -13,7 +13,7 @@ use super::{
 };
 use crate::analysis::{
     HirAnalysisDb,
-    place::{Place, PlaceBase},
+    place::{Place, PlaceBase, PlaceProjection},
     ty::const_expr::{ConstExpr, ConstExprId},
     ty::const_ty::{ConstTyData, ConstTyId, EvaluatedConstTy},
 };
@@ -396,9 +396,32 @@ impl<'db> TyFoldable<'db> for Place<'db> {
         F: TyFolder<'db>,
     {
         let base = self.base.fold_with(db, folder);
-        Self {
-            base,
-            projections: self.projections,
+        let projections = self
+            .projections
+            .into_iter()
+            .map(|projection| projection.fold_with(db, folder))
+            .collect();
+        Self { base, projections }
+    }
+}
+
+impl<'db> TyFoldable<'db> for PlaceProjection<'db> {
+    fn super_fold_with<F>(self, db: &'db dyn HirAnalysisDb, folder: &mut F) -> Self
+    where
+        F: TyFolder<'db>,
+    {
+        match self {
+            PlaceProjection::Field { index, result_ty } => PlaceProjection::Field {
+                index,
+                result_ty: result_ty.fold_with(db, folder),
+            },
+            PlaceProjection::Index {
+                index_expr,
+                result_ty,
+            } => PlaceProjection::Index {
+                index_expr,
+                result_ty: result_ty.fold_with(db, folder),
+            },
         }
     }
 }
@@ -434,13 +457,14 @@ impl<'db> TyFoldable<'db> for ResolvedEffectArg<'db> {
     {
         Self {
             param_idx: self.param_idx,
+            binding_idx: self.binding_idx,
             key: self.key,
             arg: self.arg.fold_with(db, folder),
             pass_mode: self.pass_mode,
             key_kind: self.key_kind,
-            instantiated_target_ty: self
-                .instantiated_target_ty
-                .map(|ty| ty.fold_with(db, folder)),
+            instantiated_key_ty: self.instantiated_key_ty.map(|ty| ty.fold_with(db, folder)),
+            provider_target_ty: self.provider_target_ty.map(|ty| ty.fold_with(db, folder)),
+            provider: self.provider,
         }
     }
 }

@@ -6,15 +6,19 @@ use codespan_reporting::term::{
 use common::file::File;
 use common::{
     define_input_db,
-    diagnostics::{CompleteDiagnostic, Severity, cmp_complete_diagnostics},
+    diagnostics::{
+        CompleteDiagnostic, Severity, cmp_complete_diagnostics, trim_trailing_line_whitespace,
+    },
 };
-use hir::analysis::{diagnostics::DiagnosticVoucher, initialize_analysis_pass};
+use hir::analysis::{
+    analysis_pass::AnalysisPassManager, diagnostics::DiagnosticVoucher, initialize_analysis_pass,
+    semantic::SemanticBorrowAnalysisPass,
+};
 use hir::{
     Ingot,
     hir_def::{HirIngot, TopLevelMod},
     lower::{map_file_to_mod, module_tree},
 };
-use mir::{MirDiagnosticsMode, collect_mir_diagnostics};
 
 use crate::diagnostics::ToCsDiag;
 
@@ -54,30 +58,34 @@ impl DriverDataBase {
     pub fn mir_diagnostics_for_top_mod<'db>(
         &'db self,
         top_mod: TopLevelMod<'db>,
-        mode: MirDiagnosticsMode,
     ) -> Vec<CompleteDiagnostic> {
-        let mut output = collect_mir_diagnostics(self, top_mod, mode);
-        for err in output.internal_errors {
-            tracing::debug!(target: "lsp", "MIR diagnostics internal error: {err}");
-        }
-        sort_and_dedup_complete_diagnostics(&mut output.diagnostics);
-        output.diagnostics
+        let mut pass_manager = initialize_mir_diagnostics_pass();
+        let mut diagnostics: Vec<_> = pass_manager
+            .run_on_module(self, top_mod)
+            .into_iter()
+            .map(|diag| diag.to_complete(self))
+            .collect();
+        sort_and_dedup_complete_diagnostics(&mut diagnostics);
+        diagnostics
     }
 
-    pub fn mir_diagnostics_for_ingot<'db>(
-        &'db self,
-        ingot: Ingot<'db>,
-        mode: MirDiagnosticsMode,
-    ) -> Vec<CompleteDiagnostic> {
+    pub fn mir_diagnostics_for_ingot<'db>(&'db self, ingot: Ingot<'db>) -> Vec<CompleteDiagnostic> {
         // Empty ingots (e.g. deleted during incremental workspace changes)
         // have no root module to analyze.
-        let Some(root_data) = ingot.module_tree(self).root_data() else {
+        if ingot.module_tree(self).root_data().is_none() {
             return Vec::new();
         };
         if self.run_on_ingot(ingot).has_errors(self) {
             return Vec::new();
         }
-        self.mir_diagnostics_for_top_mod(root_data.top_mod, mode)
+        let mut pass_manager = initialize_mir_diagnostics_pass();
+        let mut diagnostics: Vec<_> = pass_manager
+            .run_on_module_tree(self, ingot.module_tree(self))
+            .into_iter()
+            .map(|diag| diag.to_complete(self))
+            .collect();
+        sort_and_dedup_complete_diagnostics(&mut diagnostics);
+        diagnostics
     }
 
     pub fn emit_complete_diagnostics(&self, diagnostics: &[CompleteDiagnostic]) {
@@ -95,6 +103,26 @@ impl DriverDataBase {
             .print(&buffer)
             .expect("Failed to write diagnostics to stderr");
     }
+
+    pub fn format_complete_diagnostics(&self, diagnostics: &[CompleteDiagnostic]) -> String {
+        let writer = BufferWriter::stderr(ColorChoice::Never);
+        let mut buffer = writer.buffer();
+        let config = term::Config::default();
+        let mut diagnostics = diagnostics.to_vec();
+        sort_and_dedup_complete_diagnostics(&mut diagnostics);
+
+        for diag in diagnostics {
+            term::emit(&mut buffer, &config, &CsDbWrapper(self), &diag.to_cs(self)).unwrap();
+        }
+
+        trim_trailing_line_whitespace(std::str::from_utf8(buffer.as_slice()).unwrap())
+    }
+}
+
+fn initialize_mir_diagnostics_pass() -> AnalysisPassManager {
+    let mut pass_manager = AnalysisPassManager::new();
+    pass_manager.add_module_pass("SemanticBorrow", Box::new(SemanticBorrowAnalysisPass));
+    pass_manager
 }
 
 pub struct DiagnosticsCollection<'db>(Vec<Box<dyn DiagnosticVoucher + 'db>>);
@@ -133,12 +161,12 @@ impl DiagnosticsCollection<'_> {
             term::emit(&mut buffer, &config, &CsDbWrapper(db), &diag.to_cs(db)).unwrap();
         }
 
-        std::str::from_utf8(buffer.as_slice()).unwrap().to_string()
+        trim_trailing_line_whitespace(std::str::from_utf8(buffer.as_slice()).unwrap())
     }
 
     fn finalize(&self, db: &DriverDataBase) -> Vec<CompleteDiagnostic> {
         let mut diags: Vec<_> = self.0.iter().map(|d| d.as_ref().to_complete(db)).collect();
-        sort_complete_diagnostics(&mut diags);
+        sort_and_dedup_complete_diagnostics(&mut diags);
         diags
     }
 }

@@ -6,9 +6,15 @@ input_file: tests/fixtures/const_string_literal_large.fe
 object "main" {
   code {
     function $large_string_const() -> ret {
-      ret := dataoffset("data_large_string_const_0")
+      let v1 := 0x6162636465666768696a6b6c6d6e6f707172737475767778797a6162636465
+      let v0 := and(v1, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff)
+      ret := and(v0, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff)
       leave
     }
+    function $main_root() {
+      let v0 := $large_string_const()
+      stop()
+    }
+    $main_root()
   }
-  data "data_large_string_const_0" hex"546869732069732061206c6f6e6720737472696e6720746861742065786365656473207468697274792d74776f20627974657320696e206c656e6774682121"
 }

@@ -23,9 +23,8 @@ mod TokenMsg {
     }
 
     impl core::abi::AbiSize for Transfer {
-        const ENCODED_SIZE: u256 = 64
+        const HEAD_SIZE: u256 = 64
         const IS_DYNAMIC: bool = false
-        const NEEDS_PARENT_WRAPPER: bool = false
     }
 
     impl core::abi::Encode<std::abi::Sol> for Transfer {
@@ -43,9 +42,9 @@ mod TokenMsg {
     }
 
     impl core::abi::Decode<std::abi::Sol> for Transfer {
-        fn decode<D: core::abi::AbiDecoder<std::abi::Sol>>(_ d: mut D) -> Self {
-            let to = u64::decode(d)
-            let amount = u64::decode(d)
+        fn decode_payload<D: core::abi::AbiDecoder<std::abi::Sol>>(_ d: mut D) -> Self {
+            let to = u64::decode_payload(d)
+            let amount = u64::decode_payload(d)
             Self { to, amount }
         }
     }
@@ -60,9 +59,8 @@ mod TokenMsg {
     }
 
     impl core::abi::AbiSize for Balance {
-        const ENCODED_SIZE: u256 = 32
+        const HEAD_SIZE: u256 = 32
         const IS_DYNAMIC: bool = false
-        const NEEDS_PARENT_WRAPPER: bool = false
     }
 
     impl core::abi::Encode<std::abi::Sol> for Balance {
@@ -79,8 +77,8 @@ mod TokenMsg {
     }
 
     impl core::abi::Decode<std::abi::Sol> for Balance {
-        fn decode<D: core::abi::AbiDecoder<std::abi::Sol>>(_ d: mut D) -> Self {
-            let addr = u64::decode(d)
+        fn decode_payload<D: core::abi::AbiDecoder<std::abi::Sol>>(_ d: mut D) -> Self {
+            let addr = u64::decode_payload(d)
             Self { addr }
         }
     }
@@ -99,9 +97,8 @@ struct CustomQuery {
 }
 
 impl core::abi::AbiSize for CustomQuery {
-    const ENCODED_SIZE: u256 = 32
+    const HEAD_SIZE: u256 = 32
     const IS_DYNAMIC: bool = false
-    const NEEDS_PARENT_WRAPPER: bool = false
 }
 
 impl core::abi::Encode<std::abi::Sol> for CustomQuery {
@@ -118,8 +115,8 @@ impl core::abi::Encode<std::abi::Sol> for CustomQuery {
 }
 
 impl core::abi::Decode<std::abi::Sol> for CustomQuery {
-    fn decode<D: core::abi::AbiDecoder<std::abi::Sol>>(_ d: mut D) -> Self {
-        let key = u64::decode(d)
+    fn decode_payload<D: core::abi::AbiDecoder<std::abi::Sol>>(_ d: mut D) -> Self {
+        let key = u64::decode_payload(d)
         Self { key }
     }
 }

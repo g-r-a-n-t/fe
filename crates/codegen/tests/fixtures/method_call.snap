@@ -3,22 +3,18 @@ source: crates/codegen/tests/yul.rs
 expression: output
 input_file: tests/fixtures/method_call.fe
 ---
-function $make_value() -> ret {
-  ret := 42
-  leave
-}
-function $call_method() -> ret {
-  let v0 := $foo_h6dbce71a6ea992b8_return_value()
-  ret := v0
-  leave
-}
-function $foo_h6dbce71a6ea992b8_return_value() -> ret {
-  let v0 := $foo_h6dbce71a6ea992b8_gen_value()
-  ret := v0
-  leave
-}
-function $foo_h6dbce71a6ea992b8_gen_value() -> ret {
-  let v0 := $make_value()
-  ret := v0
-  leave
+object "main" {
+  code {
+    function $main_root() {
+      let v0 := $make_value()
+      stop()
+    }
+    function $make_value() -> ret {
+      let v1 := 0x2a
+      let v0 := and(v1, 0xffffffffffffffff)
+      ret := and(v0, 0xffffffffffffffff)
+      leave
+    }
+    $main_root()
+  }
 }

@@ -44,5 +44,6 @@ pub fn foo(opt: own Option<i32>) {
         Option::None => {}
     }
     
-    Gen { t: false }.t = true
+    let mut g = Gen { t: false }
+    g.t = true
 }

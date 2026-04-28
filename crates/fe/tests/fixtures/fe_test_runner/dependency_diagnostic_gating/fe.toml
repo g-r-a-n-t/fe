@@ -1,0 +1,7 @@
+[workspace]
+name = "dependency_diagnostic_gating"
+version = "0.1.0"
+members = [
+  { path = "ingots/app", name = "app" },
+  { path = "ingots/dep", name = "dep" },
+]

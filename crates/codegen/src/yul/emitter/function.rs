@@ -1,277 +1,1031 @@
 use driver::DriverDataBase;
-use mir::layout::TargetDataLayout;
-use mir::{BasicBlockId, MirBackend, MirFunction, MirStage, Terminator, ir::MirFunctionOrigin};
+use hir::analysis::semantic::FieldIndex;
+use mir::{
+    LayoutId, ScalarClass, ScalarRepr, VariantId, array_elem_size_bytes, enum_tag_size_bytes,
+    enum_variant_field_offset_bytes, layout_size_bytes, struct_field_offset_bytes,
+};
 use rustc_hash::{FxHashMap, FxHashSet};
 
-use crate::yul::{doc::YulDoc, errors::YulError, state::BlockState};
+use crate::yul::{
+    doc::YulDoc,
+    errors::YulError,
+    legalize::{
+        YBlockId, YBuiltin, YExpr, YLocalId, YStmt, YTerminator, YulAddressSpace, YulFunctionPlan,
+        YulLocal, YulLocalRoot, YulPlace, YulPlaceElem, YulPlaceRoot, YulValueClass,
+    },
+    state::FunctionState,
+};
 
-use super::util::{function_name, prefix_yul_name};
-
-/// A data region collected during Yul emission (for data sections).
-#[derive(Debug, Clone)]
-pub(super) struct YulDataRegion {
-    pub label: String,
-    pub bytes: Vec<u8>,
+use super::{module::PackageIndex, util::prefix_yul_name};
+#[derive(Clone)]
+pub(super) struct RenderedValue<'db> {
+    pub(super) setup: Vec<YulDoc>,
+    pub(super) value: String,
+    pub(super) class: YulValueClass<'db>,
 }
 
-/// Emits Yul for a single MIR function.
-pub(super) struct FunctionEmitter<'db> {
+pub(super) struct FunctionEmitter<'a, 'db> {
     pub(super) db: &'db DriverDataBase,
-    pub(super) mir_func: &'db MirFunction<'db>,
-    /// Mapping from monomorphized function symbols to code region labels.
-    pub(super) code_regions: &'db FxHashMap<String, String>,
-    pub(super) layout: TargetDataLayout,
-    ipdom: Vec<Option<BasicBlockId>>,
-    /// Data regions collected during emission.
-    data_region_counter: u32,
-    /// Reuse labels for identical payloads so we don't emit duplicate data sections.
-    data_region_labels: FxHashMap<Vec<u8>, String>,
-    pub(super) const_region_labels: FxHashMap<mir::ir::ConstRegionId, String>,
-    pub(super) data_regions: Vec<YulDataRegion>,
+    pub(super) index: &'a PackageIndex<'a, 'db>,
+    pub(super) plan: &'a YulFunctionPlan<'db>,
+    pub(super) section_label: String,
+    pub(super) state: FunctionState,
+    pub(super) cross_block_values: Vec<bool>,
+    pub(super) ipdom: Vec<Option<YBlockId>>,
+    pub(super) loop_headers: FxHashMap<YBlockId, YLoopInfo>,
 }
 
-impl<'db> FunctionEmitter<'db> {
-    /// Constructs a new emitter for the given MIR function.
-    ///
-    /// * `db` - Driver database providing access to bodies and type info.
-    /// * `mir_func` - MIR function to lower into Yul.
-    ///
-    /// Returns the initialized emitter or [`YulError::MissingBody`] if the
-    /// function lacks a body.
-    pub(super) fn new(
+#[derive(Clone, Debug)]
+pub(super) struct YLoopInfo {
+    pub(super) exit: Option<YBlockId>,
+    pub(super) blocks: FxHashSet<YBlockId>,
+}
+
+pub(super) fn render_function_doc<'a, 'db>(
+    index: &'a PackageIndex<'a, 'db>,
+    plan: &'a YulFunctionPlan<'db>,
+    object_label: &str,
+) -> Result<YulDoc, YulError> {
+    FunctionEmitter::new(index.db, index, plan, object_label).render()
+}
+
+impl<'a, 'db> FunctionEmitter<'a, 'db> {
+    fn new(
         db: &'db DriverDataBase,
-        mir_func: &'db MirFunction<'db>,
-        code_regions: &'db FxHashMap<String, String>,
-        layout: TargetDataLayout,
-    ) -> Result<Self, YulError> {
-        mir_func
-            .body
-            .assert_stage(MirStage::BackendPrepared(MirBackend::EvmYul));
-        if let MirFunctionOrigin::Hir(func) = mir_func.origin
-            && func.body(db).is_none()
-        {
-            return Err(YulError::MissingBody(function_name(db, func)));
-        }
-        let ipdom = compute_immediate_postdominators(&mir_func.body);
-        let mut emitter = Self {
+        index: &'a PackageIndex<'a, 'db>,
+        plan: &'a YulFunctionPlan<'db>,
+        object_label: &str,
+    ) -> Self {
+        let preds = compute_predecessors(plan);
+        let ipdom = compute_immediate_postdominators(plan);
+        Self {
             db,
-            mir_func,
-            code_regions,
-            layout,
-            ipdom,
-            data_region_counter: 0,
-            data_region_labels: FxHashMap::default(),
-            const_region_labels: FxHashMap::default(),
-            data_regions: Vec::new(),
+            index,
+            plan,
+            section_label: object_label.to_string(),
+            state: FunctionState::new(plan),
+            cross_block_values: compute_cross_block_values(plan),
+            ipdom: ipdom.clone(),
+            loop_headers: compute_loop_headers(plan, &preds, &ipdom),
+        }
+    }
+
+    fn render(mut self) -> Result<YulDoc, YulError> {
+        let signature_params = self.bind_params();
+        let mut docs = self.render_prologue(&signature_params)?;
+        docs.extend(self.render_body()?);
+        let ret_suffix = self.plan.ret.as_ref().map(|_| " -> ret").unwrap_or("");
+        let params = signature_params.join(", ");
+        let caption = format!(
+            "function {}({params}){ret_suffix} ",
+            prefix_yul_name(&self.plan.symbol)
+        );
+        Ok(YulDoc::block(caption, docs))
+    }
+
+    fn bind_params(&mut self) -> Vec<String> {
+        let mut out = Vec::with_capacity(self.plan.param_locals.len());
+        for (idx, local) in self.plan.param_locals.iter().enumerate() {
+            let name = format!("p{idx}");
+            if self.state.uses_value_name(*local) {
+                self.state.assign_param_name(*local, name.clone());
+            }
+            out.push(name);
+        }
+        out
+    }
+
+    fn render_prologue(&mut self, param_inputs: &[String]) -> Result<Vec<YulDoc>, YulError> {
+        let mut docs = Vec::new();
+        for (idx, local) in self.plan.locals.iter().enumerate() {
+            let local_id = YLocalId(idx as u32);
+            let YulLocalRoot::MemorySlot { class } = &local.root else {
+                continue;
+            };
+            if self.state.uses_value_name(local_id) {
+                continue;
+            }
+            if !self.plan.param_locals.contains(&local_id) && !self.cross_block_values[idx] {
+                continue;
+            }
+            let root_name = self
+                .state
+                .root_name(local_id)
+                .ok_or_else(|| {
+                    YulError::InvalidYulPackage(format!("missing root slot for local {idx}"))
+                })?
+                .to_string();
+            self.state.mark_root_declared(local_id);
+            docs.extend(self.alloc_memory_root_slot(&root_name, class)?);
+        }
+        for (idx, local) in self.plan.locals.iter().enumerate() {
+            let local_id = YLocalId(idx as u32);
+            if self.plan.param_locals.contains(&local_id) || !self.cross_block_values[idx] {
+                continue;
+            }
+            let Some(name) = self.state.local_name(local_id).map(str::to_string) else {
+                continue;
+            };
+            let Some(class) = &local.class else {
+                continue;
+            };
+            self.state.mark_declared(local_id);
+            docs.push(YulDoc::line(format!(
+                "let {name} := {}",
+                Self::zero_for_class(class)
+            )));
+        }
+
+        for (param_idx, local) in self.plan.param_locals.iter().enumerate() {
+            let Some(class) = self.plan.locals[local.index()].class.as_ref() else {
+                continue;
+            };
+            if self.state.uses_value_name(*local) {
+                continue;
+            }
+            let input = param_inputs.get(param_idx).cloned().unwrap_or_default();
+            let value = RenderedValue {
+                setup: Vec::new(),
+                value: input,
+                class: class.clone(),
+            };
+            if matches!(
+                self.plan.locals[local.index()].root,
+                YulLocalRoot::MemorySlot { .. }
+            ) {
+                docs.extend(self.write_local_storage(*local, value)?);
+            }
+        }
+        Ok(docs)
+    }
+
+    fn render_body(&mut self) -> Result<Vec<YulDoc>, YulError> {
+        self.emit_block(YBlockId(0))
+    }
+
+    pub(super) fn with_state<T>(
+        &mut self,
+        state: &mut FunctionState,
+        f: impl FnOnce(&mut Self) -> Result<T, YulError>,
+    ) -> Result<T, YulError> {
+        let saved = std::mem::replace(&mut self.state, state.clone());
+        let result = f(self);
+        *state = std::mem::replace(&mut self.state, saved);
+        result
+    }
+
+    pub(super) fn loop_info(&self, header: YBlockId) -> Option<&YLoopInfo> {
+        self.loop_headers.get(&header)
+    }
+
+    pub(super) fn local(&self, local: YLocalId) -> Result<&YulLocal<'db>, YulError> {
+        self.plan
+            .locals
+            .get(local.index())
+            .ok_or_else(|| YulError::InvalidYulPackage(format!("missing local {}", local.index())))
+    }
+
+    pub(super) fn local_class(&self, local: YLocalId) -> Result<YulValueClass<'db>, YulError> {
+        self.local(local)?
+            .class
+            .clone()
+            .ok_or_else(|| YulError::InvalidYulPackage(format!("local {local:?} is erased")))
+    }
+
+    pub(super) fn root_slot_name(&self, local: YLocalId) -> Result<&str, YulError> {
+        self.state.root_name(local).ok_or_else(|| {
+            let local_info = self.plan.locals.get(local.index());
+            YulError::InvalidYulPackage(format!(
+                "function `{}` local {local:?} does not have a root slot (local={local_info:?})",
+                self.plan.symbol
+            ))
+        })
+    }
+
+    pub(super) fn alloc_memory_slot(
+        &self,
+        root_name: &str,
+        class: &YulValueClass<'db>,
+    ) -> Result<Vec<YulDoc>, YulError> {
+        let bytes = self.class_size_bytes(class)?;
+        Ok(self.alloc_memory_name(root_name, &bytes.to_string()))
+    }
+
+    pub(super) fn alloc_memory_root_slot(
+        &self,
+        root_name: &str,
+        class: &mir::RuntimeClass<'db>,
+    ) -> Result<Vec<YulDoc>, YulError> {
+        let bytes = self.runtime_class_size_bytes(class)?;
+        Ok(self.alloc_memory_name(root_name, &bytes.to_string()))
+    }
+
+    pub(super) fn ensure_root_slot(&mut self, local: YLocalId) -> Result<Vec<YulDoc>, YulError> {
+        if self.state.is_root_declared(local) {
+            return Ok(Vec::new());
+        }
+        let YulLocalRoot::MemorySlot { class } = &self.local(local)?.root else {
+            return Err(YulError::InvalidYulPackage(format!(
+                "local {local:?} does not have a memory root slot"
+            )));
         };
-
-        // Pre-register all const regions so expressions can load them without mutating self.
-        for (idx, region) in mir_func.body.const_regions.iter().enumerate() {
-            let id = mir::ir::ConstRegionId(idx as u32);
-            let label = emitter.register_data_region(&region.bytes);
-            emitter.const_region_labels.insert(id, label);
+        let class = class.clone();
+        let root_name = self.root_slot_name(local)?.to_string();
+        self.state.mark_root_declared(local);
+        let mut docs = self.alloc_memory_root_slot(&root_name, &class)?;
+        if matches!(self.local(local)?.class, Some(YulValueClass::Word(_)))
+            && let Some(name) = self.state.local_name(local)
+            && self.state.is_declared(local)
+        {
+            docs.push(YulDoc::line(format!("mstore({root_name}, {name})")));
         }
-
-        Ok(emitter)
+        Ok(docs)
     }
 
-    pub(super) fn ipdom(&self, block: BasicBlockId) -> Option<BasicBlockId> {
-        self.ipdom.get(block.index()).copied().flatten()
+    pub(super) fn alloc_temp_memory(&mut self, size: &str) -> (Vec<YulDoc>, String) {
+        let temp = self.state.alloc_temp();
+        (self.alloc_memory_name(&temp, size), temp)
     }
 
-    /// Registers constant aggregate data and returns a unique label for the data section.
-    ///
-    /// Labels include the function's symbol name to ensure global uniqueness
-    /// across functions within the same Yul object.
-    pub(super) fn register_data_region(&mut self, bytes: &[u8]) -> String {
-        if let Some(label) = self.data_region_labels.get(bytes) {
-            return label.clone();
-        }
-
-        let bytes = bytes.to_vec();
-        let label = format!(
-            "data_{}_{}",
-            self.mir_func.symbol_name, self.data_region_counter
-        );
-        self.data_region_counter += 1;
-        self.data_region_labels.insert(bytes.clone(), label.clone());
-        self.data_regions.push(YulDataRegion {
-            label: label.clone(),
-            bytes,
-        });
-        label
-    }
-
-    /// Produces the final Yul docs for the current MIR function.
-    pub(super) fn emit_doc(mut self) -> Result<(Vec<YulDoc>, Vec<YulDataRegion>), YulError> {
-        let func_name = prefix_yul_name(&self.mir_func.symbol_name);
-        let (param_names, mut state) = self.init_entry_state();
-        let body_docs = self.emit_block(self.mir_func.body.entry, &mut state)?;
-        let function_doc = YulDoc::block(
-            format!(
-                "{} ",
-                self.format_function_signature(&func_name, &param_names)
+    pub(super) fn alloc_memory_name(&self, name: &str, size: &str) -> Vec<YulDoc> {
+        vec![
+            YulDoc::line(format!("let {name} := mload(0x40)")),
+            YulDoc::block(
+                format!("if iszero({name}) "),
+                vec![YulDoc::line(format!("{name} := 0x80"))],
             ),
-            body_docs,
-        );
-        Ok((vec![function_doc], self.data_regions))
+            YulDoc::line(format!("mstore(0x40, add({name}, {size}))")),
+        ]
     }
 
-    /// Initializes the `BlockState` with parameter bindings.
-    ///
-    /// Returns:
-    /// - the Yul function parameter names (in signature order)
-    /// - the initial block state mapping MIR locals to those names
-    fn init_entry_state(&self) -> (Vec<String>, BlockState) {
-        let mut state = BlockState::new();
-        let mut params_out = Vec::new();
-        let mut used_names = FxHashSet::default();
-        for (idx, &local) in self.mir_func.body.param_locals.iter().enumerate() {
-            if !self.mir_func.runtime_abi.value_param_visible(idx) {
-                continue;
+    pub(super) fn class_size_bytes(&self, class: &YulValueClass<'db>) -> Result<usize, YulError> {
+        Ok(match class {
+            YulValueClass::Word(_) => self.index.package_layout().word_size_bytes,
+            YulValueClass::MemoryPtr { layout }
+            | YulValueClass::CodePtr { layout }
+            | YulValueClass::StoragePtr { layout }
+            | YulValueClass::TransientPtr { layout }
+            | YulValueClass::CalldataPtr { layout } => {
+                layout_size_bytes(self.db, *layout, self.index.package_layout())
             }
-            let raw_name = self.mir_func.body.local(local).name.clone();
-            let name = unique_yul_name(&raw_name, &mut used_names);
-            params_out.push(name.clone());
-            state.insert_local(local, name);
-        }
-        for (idx, &local) in self.mir_func.body.effect_param_locals.iter().enumerate() {
-            if !self.mir_func.runtime_abi.effect_param_visible(idx) {
-                continue;
+        })
+    }
+
+    pub(super) fn runtime_class_size_bytes(
+        &self,
+        class: &mir::RuntimeClass<'db>,
+    ) -> Result<usize, YulError> {
+        Ok(match class {
+            mir::RuntimeClass::Scalar(_)
+            | mir::RuntimeClass::Ref { .. }
+            | mir::RuntimeClass::RawAddr { .. } => self.index.package_layout().word_size_bytes,
+            mir::RuntimeClass::AggregateValue { layout } => {
+                layout_size_bytes(self.db, *layout, self.index.package_layout())
             }
-            let raw_name = self.mir_func.body.local(local).name.clone();
-            let binding = unique_yul_name(&raw_name, &mut used_names);
-            params_out.push(binding.clone());
-            state.insert_local(local, binding);
+        })
+    }
+
+    pub(super) fn class_layout(
+        &self,
+        class: &YulValueClass<'db>,
+    ) -> Result<LayoutId<'db>, YulError> {
+        match class {
+            YulValueClass::Word(_) => Err(YulError::Layout("word class has no layout".to_string())),
+            YulValueClass::MemoryPtr { layout }
+            | YulValueClass::CodePtr { layout }
+            | YulValueClass::StoragePtr { layout }
+            | YulValueClass::TransientPtr { layout }
+            | YulValueClass::CalldataPtr { layout } => Ok(*layout),
         }
-        (params_out, state)
     }
 
-    /// Returns true if the Fe function has a return type.
-    pub(super) fn returns_value(&self) -> bool {
-        self.mir_func.returns_value
+    pub(super) fn field_offset_bytes(&self, layout: LayoutId<'db>, field: FieldIndex) -> usize {
+        struct_field_offset_bytes(self.db, layout, field, self.index.package_layout())
     }
 
-    /// Formats the Fe function name and parameters into a Yul signature.
-    fn format_function_signature(&self, func_name: &str, params: &[String]) -> String {
-        let params_str = params.join(", ");
-        let ret_suffix = if self.returns_value() { " -> ret" } else { "" };
-        if params.is_empty() {
-            format!("function {func_name}(){ret_suffix}")
+    pub(super) fn variant_field_offset_bytes(
+        &self,
+        layout: LayoutId<'db>,
+        variant: VariantId<'db>,
+        field: FieldIndex,
+    ) -> usize {
+        enum_tag_size_bytes(self.db, layout, self.index.package_layout())
+            + enum_variant_field_offset_bytes(
+                self.db,
+                layout,
+                variant,
+                field,
+                self.index.package_layout(),
+            )
+    }
+
+    pub(super) fn index_stride_bytes(&self, layout: LayoutId<'db>) -> usize {
+        array_elem_size_bytes(self.db, layout, self.index.package_layout())
+    }
+
+    pub(super) fn storage_word_offset_bytes(&self, offset: usize) -> usize {
+        offset / self.index.package_layout().word_size_bytes
+    }
+
+    pub(super) fn zero_for_class(class: &YulValueClass<'db>) -> String {
+        match class {
+            YulValueClass::Word(_)
+            | YulValueClass::MemoryPtr { .. }
+            | YulValueClass::CodePtr { .. }
+            | YulValueClass::StoragePtr { .. }
+            | YulValueClass::TransientPtr { .. }
+            | YulValueClass::CalldataPtr { .. } => "0".to_string(),
+        }
+    }
+
+    pub(super) fn raw_word_mask(class: &ScalarClass<'db>) -> Option<String> {
+        match class.repr {
+            ScalarRepr::Bool => Some("0xff".to_string()),
+            ScalarRepr::Int { bits, .. } | ScalarRepr::Address { bits } if bits < 256 => {
+                Some(format!("0x{}", "ff".repeat(bits.div_ceil(8) as usize)))
+            }
+            ScalarRepr::FixedBytes { len } if len < 32 => {
+                Some(format!("0x{}", "ff".repeat(len as usize)))
+            }
+            ScalarRepr::Int { .. } | ScalarRepr::FixedBytes { .. } | ScalarRepr::Address { .. } => {
+                None
+            }
+        }
+    }
+
+    pub(super) fn scalar_word_expr(&self, local: YLocalId) -> Result<String, YulError> {
+        let class = self.local_class(local)?;
+        match &class {
+            YulValueClass::Word(word) => self.render_word_local_read(local, word),
+            _ => Err(YulError::InvalidYulPackage(format!(
+                "local {local:?} is not word-valued: {class:?}"
+            ))),
+        }
+    }
+
+    pub(super) fn local_value(&mut self, local: YLocalId) -> Result<RenderedValue<'db>, YulError> {
+        let class = self.local_class(local)?;
+        let (setup, value) = match &class {
+            YulValueClass::Word(word) => (Vec::new(), self.render_word_local_read(local, word)?),
+            YulValueClass::MemoryPtr { .. }
+            | YulValueClass::CodePtr { .. }
+            | YulValueClass::StoragePtr { .. }
+            | YulValueClass::TransientPtr { .. }
+            | YulValueClass::CalldataPtr { .. } => {
+                if let Some(name) = self.state.value_name(local) {
+                    (Vec::new(), name.to_string())
+                } else if self.state.root_name(local).is_some() {
+                    (
+                        self.ensure_root_slot(local)?,
+                        self.root_slot_name(local)?.to_string(),
+                    )
+                } else {
+                    return Err(YulError::InvalidYulPackage(format!(
+                        "local {local:?} used before declaration in `{}`",
+                        self.plan.symbol
+                    )));
+                }
+            }
+        };
+        Ok(RenderedValue {
+            setup,
+            value,
+            class,
+        })
+    }
+
+    fn render_word_local_read(
+        &self,
+        local: YLocalId,
+        word: &ScalarClass<'db>,
+    ) -> Result<String, YulError> {
+        if self.state.root_name(local).is_some() && self.state.is_root_declared(local) {
+            Ok(self.render_word_slot_load(self.root_slot_name(local)?, word))
+        } else if let Some(name) = self.state.value_name(local) {
+            Ok(self.canonicalize_scalar_expr(name.to_string(), word))
         } else {
-            format!("function {func_name}({params_str}){ret_suffix}")
+            Err(YulError::InvalidYulPackage(format!(
+                "word local {local:?} used before declaration in `{}`",
+                self.plan.symbol
+            )))
         }
+    }
+
+    fn render_word_slot_load(&self, root: &str, word: &ScalarClass<'db>) -> String {
+        self.canonicalize_scalar_expr(format!("mload({root})"), word)
+    }
+
+    pub(super) fn root_space_for_class(
+        class: &YulValueClass<'db>,
+    ) -> Result<YulAddressSpace, YulError> {
+        match class {
+            YulValueClass::MemoryPtr { .. } => Ok(YulAddressSpace::Memory),
+            YulValueClass::CodePtr { .. } => Ok(YulAddressSpace::Code),
+            YulValueClass::StoragePtr { .. } => Ok(YulAddressSpace::Storage),
+            YulValueClass::TransientPtr { .. } => Ok(YulAddressSpace::Transient),
+            YulValueClass::CalldataPtr { .. } => Ok(YulAddressSpace::Calldata),
+            YulValueClass::Word(_) => Err(YulError::Layout(
+                "word class cannot act as a place root".to_string(),
+            )),
+        }
+    }
+
+    pub(super) fn direct_word_slot_local(&self, place: &YulPlace<'db>) -> Option<YLocalId> {
+        let YulPlaceRoot::Slot(local) = place.root else {
+            return None;
+        };
+        (place.path.is_empty()
+            && matches!(place.result_class, YulValueClass::Word(_))
+            && self.state.local_name(local).is_some())
+        .then_some(local)
+    }
+
+    pub(super) fn write_local_storage(
+        &mut self,
+        local: YLocalId,
+        src: RenderedValue<'db>,
+    ) -> Result<Vec<YulDoc>, YulError> {
+        let Some(class) = self.plan.locals[local.index()].class.as_ref() else {
+            return Ok(src.setup);
+        };
+        if let Some(name) = self.state.local_name(local).map(str::to_string) {
+            let mut docs = src.setup;
+            if self.state.is_declared(local) {
+                docs.push(YulDoc::line(format!("{name} := {}", src.value)));
+            } else {
+                self.state.mark_declared(local);
+                docs.push(YulDoc::line(format!("let {name} := {}", src.value)));
+            }
+            if matches!(class, YulValueClass::Word(_))
+                && self.state.root_name(local).is_some()
+                && self.state.is_root_declared(local)
+            {
+                docs.push(YulDoc::line(format!(
+                    "mstore({}, {name})",
+                    self.root_slot_name(local)?
+                )));
+            }
+            return Ok(docs);
+        }
+        self.write_place_from_value(
+            YulPlace {
+                root: match &self.plan.locals[local.index()].root {
+                    YulLocalRoot::MemorySlot { .. } => YulPlaceRoot::Slot(local),
+                    YulLocalRoot::PtrRoot { class } => YulPlaceRoot::Ptr {
+                        local,
+                        space: Self::root_space_for_class(class)?,
+                        class: class.clone(),
+                    },
+                    YulLocalRoot::None => {
+                        return Err(YulError::InvalidYulPackage(format!(
+                            "local {local:?} has no storage root in `{}`",
+                            self.plan.symbol
+                        )));
+                    }
+                },
+                path: Box::default(),
+                storage_kind: match &self.plan.locals[local.index()].root {
+                    YulLocalRoot::MemorySlot { class } => match class {
+                        mir::RuntimeClass::AggregateValue { .. } => {
+                            crate::yul::legalize::YulStorageKind::Bytes
+                        }
+                        mir::RuntimeClass::Scalar(_)
+                        | mir::RuntimeClass::Ref { .. }
+                        | mir::RuntimeClass::RawAddr { .. } => {
+                            crate::yul::legalize::YulStorageKind::Cell
+                        }
+                    },
+                    YulLocalRoot::None | YulLocalRoot::PtrRoot { .. } => {
+                        crate::yul::legalize::YulStorageKind::Bytes
+                    }
+                },
+                packed_byte_access: false,
+                runtime_result_class: match &self.plan.locals[local.index()].root {
+                    YulLocalRoot::MemorySlot { class } => class.clone(),
+                    YulLocalRoot::None | YulLocalRoot::PtrRoot { .. } => match class {
+                        YulValueClass::Word(word) => mir::RuntimeClass::Scalar(word.clone()),
+                        YulValueClass::MemoryPtr { layout }
+                        | YulValueClass::CodePtr { layout }
+                        | YulValueClass::StoragePtr { layout }
+                        | YulValueClass::TransientPtr { layout }
+                        | YulValueClass::CalldataPtr { layout } => {
+                            mir::RuntimeClass::AggregateValue { layout: *layout }
+                        }
+                    },
+                },
+                result_class: class.clone(),
+            },
+            src,
+        )
     }
 }
 
-fn unique_yul_name(raw_name: &str, used: &mut FxHashSet<String>) -> String {
-    let base = format!("${raw_name}");
-    let mut candidate = base.clone();
-    let mut suffix = 0;
-    while used.contains(&candidate) {
-        suffix += 1;
-        candidate = format!("{base}_{suffix}");
+pub(super) fn block_successors<'db>(terminator: &YTerminator<'db>) -> Vec<YBlockId> {
+    match terminator {
+        YTerminator::Goto(target) => vec![*target],
+        YTerminator::Branch {
+            then_bb, else_bb, ..
+        } => vec![*then_bb, *else_bb],
+        YTerminator::SwitchWord { cases, default, .. } => {
+            let mut out = cases.iter().map(|(_, block)| *block).collect::<Vec<_>>();
+            out.push(*default);
+            out
+        }
+        YTerminator::MatchEnumTag { cases, default, .. } => {
+            let mut out = cases.iter().map(|(_, block)| *block).collect::<Vec<_>>();
+            if let Some(default) = default {
+                out.push(*default);
+            }
+            out
+        }
+        YTerminator::TerminalCall { .. }
+        | YTerminator::ReturnData { .. }
+        | YTerminator::Revert { .. }
+        | YTerminator::SelfDestruct { .. }
+        | YTerminator::Trap
+        | YTerminator::Return(_)
+        | YTerminator::Stop => Vec::new(),
     }
-    used.insert(candidate.clone());
-    candidate
 }
 
-fn compute_immediate_postdominators(body: &mir::MirBody<'_>) -> Vec<Option<BasicBlockId>> {
-    let blocks_len = body.blocks.len();
-    let exit = blocks_len;
-    let node_count = blocks_len + 1;
-    let words = node_count.div_ceil(64);
-    let last_mask = if node_count.is_multiple_of(64) {
-        !0u64
-    } else {
-        (1u64 << (node_count % 64)) - 1
-    };
-
-    fn set_bit(bits: &mut [u64], idx: usize) {
-        bits[idx / 64] |= 1u64 << (idx % 64);
+fn compute_predecessors<'db>(plan: &YulFunctionPlan<'db>) -> Vec<Vec<YBlockId>> {
+    let mut preds = vec![Vec::new(); plan.blocks.len()];
+    for (idx, block) in plan.blocks.iter().enumerate() {
+        for succ in block_successors(&block.terminator) {
+            preds[succ.index()].push(YBlockId(idx as u32));
+        }
     }
+    preds
+}
 
-    fn clear_bit(bits: &mut [u64], idx: usize) {
-        bits[idx / 64] &= !(1u64 << (idx % 64));
+fn compute_reachable<'db>(plan: &YulFunctionPlan<'db>) -> Vec<bool> {
+    let mut reachable = vec![false; plan.blocks.len()];
+    let mut stack = vec![YBlockId(0)];
+    while let Some(block) = stack.pop() {
+        if reachable[block.index()] {
+            continue;
+        }
+        reachable[block.index()] = true;
+        stack.extend(block_successors(&plan.blocks[block.index()].terminator));
     }
+    reachable
+}
 
-    fn has_bit(bits: &[u64], idx: usize) -> bool {
-        (bits[idx / 64] & (1u64 << (idx % 64))) != 0
-    }
-
-    fn popcount(bits: &[u64]) -> u32 {
-        bits.iter().map(|w| w.count_ones()).sum()
-    }
-
-    let mut postdom: Vec<Vec<u64>> = vec![vec![0u64; words]; node_count];
-    for (idx, p) in postdom.iter_mut().enumerate() {
-        if idx == exit {
-            set_bit(p, exit);
+fn compute_dominators<'db>(
+    plan: &YulFunctionPlan<'db>,
+    preds: &[Vec<YBlockId>],
+    reachable: &[bool],
+) -> Vec<FxHashSet<YBlockId>> {
+    let all_reachable = reachable
+        .iter()
+        .enumerate()
+        .filter_map(|(idx, is_reachable)| is_reachable.then_some(YBlockId(idx as u32)))
+        .collect::<FxHashSet<_>>();
+    let mut doms = vec![FxHashSet::default(); plan.blocks.len()];
+    for (idx, dom) in doms.iter_mut().enumerate() {
+        let block = YBlockId(idx as u32);
+        if !reachable[idx] {
+            continue;
+        }
+        if block.index() == 0 {
+            dom.insert(block);
         } else {
-            p.fill(!0u64);
-            *p.last_mut().expect("postdom bitset") &= last_mask;
+            *dom = all_reachable.clone();
         }
     }
 
     let mut changed = true;
     while changed {
         changed = false;
-        for b in 0..blocks_len {
-            let successors: Vec<usize> = match &body.blocks[b].terminator {
-                Terminator::Goto { target, .. } => vec![target.index()],
-                Terminator::Branch {
-                    then_bb, else_bb, ..
-                } => vec![then_bb.index(), else_bb.index()],
-                Terminator::Switch {
-                    targets, default, ..
-                } => {
-                    let mut s: Vec<_> = targets.iter().map(|t| t.block.index()).collect();
-                    s.push(default.index());
-                    s
-                }
-                Terminator::Return { .. }
-                | Terminator::TerminatingCall { .. }
-                | Terminator::Unreachable { .. } => vec![exit],
-            };
-
-            let mut new_bits = vec![!0u64; words];
-            new_bits[words - 1] &= last_mask;
-            for succ in successors {
-                for w in 0..words {
-                    new_bits[w] &= postdom[succ][w];
-                }
+        for (idx, _) in plan.blocks.iter().enumerate().skip(1) {
+            if !reachable[idx] {
+                continue;
             }
-            new_bits[words - 1] &= last_mask;
-            set_bit(&mut new_bits, b);
+            let block = YBlockId(idx as u32);
+            let mut new_dom = preds[idx]
+                .iter()
+                .filter(|pred| reachable[pred.index()])
+                .map(|pred| doms[pred.index()].clone())
+                .reduce(|acc, pred| acc.intersection(&pred).copied().collect())
+                .unwrap_or_default();
+            new_dom.insert(block);
+            if new_dom != doms[idx] {
+                doms[idx] = new_dom;
+                changed = true;
+            }
+        }
+    }
+    doms
+}
 
-            if new_bits != postdom[b] {
-                postdom[b] = new_bits;
+fn compute_immediate_postdominators<'db>(plan: &YulFunctionPlan<'db>) -> Vec<Option<YBlockId>> {
+    let reachable = compute_reachable(plan);
+    let reachable_blocks = reachable
+        .iter()
+        .enumerate()
+        .filter_map(|(idx, is_reachable)| is_reachable.then_some(YBlockId(idx as u32)))
+        .collect::<FxHashSet<_>>();
+    let mut postdoms = vec![FxHashSet::default(); plan.blocks.len()];
+    for (idx, postdom) in postdoms.iter_mut().enumerate() {
+        if !reachable[idx] {
+            continue;
+        }
+        let block = YBlockId(idx as u32);
+        if block_successors(&plan.blocks[idx].terminator).is_empty() {
+            postdom.insert(block);
+        } else {
+            *postdom = reachable_blocks.clone();
+        }
+    }
+
+    let mut changed = true;
+    while changed {
+        changed = false;
+        for (idx, block) in plan.blocks.iter().enumerate() {
+            if !reachable[idx] {
+                continue;
+            }
+            let block_id = YBlockId(idx as u32);
+            let succs = block_successors(&block.terminator);
+            if succs.is_empty() {
+                continue;
+            }
+            let mut new_postdom = succs
+                .into_iter()
+                .filter(|succ| reachable[succ.index()])
+                .map(|succ| postdoms[succ.index()].clone())
+                .reduce(|acc, succ| acc.intersection(&succ).copied().collect())
+                .unwrap_or_default();
+            new_postdom.insert(block_id);
+            if new_postdom != postdoms[idx] {
+                postdoms[idx] = new_postdom;
                 changed = true;
             }
         }
     }
 
-    let mut ipdom = vec![None; blocks_len];
-    for b in 0..blocks_len {
-        let mut candidates = postdom[b].clone();
-        clear_bit(&mut candidates, b);
-        clear_bit(&mut candidates, exit);
+    let mut ipdom = vec![None; plan.blocks.len()];
+    for (idx, set) in postdoms.iter().enumerate() {
+        if !reachable[idx] {
+            continue;
+        }
+        let strict = set
+            .iter()
+            .copied()
+            .filter(|candidate| candidate.index() != idx)
+            .collect::<Vec<_>>();
+        ipdom[idx] = strict.iter().copied().find(|candidate| {
+            strict
+                .iter()
+                .copied()
+                .filter(|other| other != candidate)
+                .all(|other| !postdoms[other.index()].contains(candidate))
+        });
+    }
+    ipdom
+}
 
-        let mut best = None;
-        let mut best_size = 0u32;
-        #[allow(clippy::needless_range_loop)]
-        for c in 0..blocks_len {
-            if !has_bit(&candidates, c) {
-                continue;
-            }
-            let size = popcount(&postdom[c]);
-            if size > best_size || (size == best_size && best.is_some_and(|best| c < best)) {
-                best = Some(c);
-                best_size = size;
+fn compute_loop_headers<'db>(
+    plan: &YulFunctionPlan<'db>,
+    preds: &[Vec<YBlockId>],
+    ipdom: &[Option<YBlockId>],
+) -> FxHashMap<YBlockId, YLoopInfo> {
+    let reachable = compute_reachable(plan);
+    let doms = compute_dominators(plan, preds, &reachable);
+    let mut backedges = FxHashMap::<YBlockId, Vec<YBlockId>>::default();
+
+    for (idx, block) in plan.blocks.iter().enumerate() {
+        if !reachable[idx] {
+            continue;
+        }
+        let pred = YBlockId(idx as u32);
+        for succ in block_successors(&block.terminator) {
+            if doms[pred.index()].contains(&succ) {
+                backedges.entry(succ).or_default().push(pred);
             }
         }
-        ipdom[b] = best.map(|idx| BasicBlockId(idx as u32));
     }
 
-    ipdom
+    let mut loops = FxHashMap::default();
+    for (header, latches) in backedges {
+        let mut blocks = FxHashSet::default();
+        blocks.insert(header);
+        let mut stack = Vec::new();
+        for latch in latches {
+            if blocks.insert(latch) {
+                stack.push(latch);
+            }
+        }
+        while let Some(block) = stack.pop() {
+            for pred in &preds[block.index()] {
+                if blocks.insert(*pred) && *pred != header {
+                    stack.push(*pred);
+                }
+            }
+        }
+
+        let exits = blocks
+            .iter()
+            .flat_map(|block| block_successors(&plan.blocks[block.index()].terminator))
+            .filter(|succ| !blocks.contains(succ))
+            .collect::<FxHashSet<_>>();
+        let header_exits = block_successors(&plan.blocks[header.index()].terminator)
+            .into_iter()
+            .filter(|succ| !blocks.contains(succ))
+            .collect::<FxHashSet<_>>();
+        let nonterminal_exits = exits
+            .iter()
+            .copied()
+            .filter(|succ| !block_successors(&plan.blocks[succ.index()].terminator).is_empty())
+            .collect::<FxHashSet<_>>();
+        let exit = if header_exits.len() == 1 {
+            Some(
+                header_exits
+                    .iter()
+                    .copied()
+                    .next()
+                    .expect("header_exits.len() == 1 guarantees an exit"),
+            )
+        } else if nonterminal_exits.len() == 1 {
+            Some(
+                nonterminal_exits
+                    .iter()
+                    .copied()
+                    .next()
+                    .expect("nonterminal_exits.len() == 1 guarantees an exit"),
+            )
+        } else if let Some(candidate) =
+            ipdom[header.index()].filter(|candidate| !blocks.contains(candidate))
+        {
+            Some(candidate)
+        } else if exits.len() == 1 {
+            Some(
+                exits
+                    .iter()
+                    .copied()
+                    .next()
+                    .expect("exits.len() == 1 guarantees an exit"),
+            )
+        } else if nonterminal_exits.is_empty() {
+            None
+        } else {
+            panic!(
+                "structured Yul emission requires a unique loop continuation for header {:?}, found exits {:?}",
+                header, exits
+            )
+        };
+        loops.insert(header, YLoopInfo { exit, blocks });
+    }
+
+    loops
+}
+
+fn compute_cross_block_values<'db>(plan: &YulFunctionPlan<'db>) -> Vec<bool> {
+    let mut blocks_by_local = vec![FxHashSet::default(); plan.locals.len()];
+    for (idx, block) in plan.blocks.iter().enumerate() {
+        let block_id = YBlockId(idx as u32);
+        let mut locals = FxHashSet::default();
+        collect_stmt_locals(&block.stmts, &mut locals);
+        collect_terminator_locals(&block.terminator, &mut locals);
+        for local in locals {
+            blocks_by_local[local.index()].insert(block_id);
+        }
+    }
+    blocks_by_local
+        .into_iter()
+        .map(|blocks| blocks.len() > 1)
+        .collect()
+}
+
+fn collect_stmt_locals<'db>(stmts: &[YStmt<'db>], out: &mut FxHashSet<YLocalId>) {
+    for stmt in stmts {
+        match stmt {
+            YStmt::Assign { dst, expr } => {
+                out.insert(*dst);
+                collect_expr_locals(expr, out);
+            }
+            YStmt::Call { args, .. } => out.extend(args.iter().copied()),
+            YStmt::Builtin(builtin) => collect_builtin_locals(builtin, out),
+            YStmt::Store { dst, src } | YStmt::CopyInto { dst, src } => {
+                collect_place_locals(dst, out);
+                out.insert(*src);
+            }
+            YStmt::EnumAssertVariant { value, .. } | YStmt::EnumSetTag { root: value, .. } => {
+                out.insert(*value);
+            }
+            YStmt::EnumWriteVariant { root, fields, .. } => {
+                out.insert(*root);
+                out.extend(fields.iter().copied());
+            }
+        }
+    }
+}
+
+fn collect_expr_locals<'db>(expr: &YExpr<'db>, out: &mut FxHashSet<YLocalId>) {
+    match expr {
+        YExpr::Use(local)
+        | YExpr::Unary { value: local, .. }
+        | YExpr::Cast { value: local, .. }
+        | YExpr::EnumTagOfValue { value: local }
+        | YExpr::ProviderToRaw { value: local }
+        | YExpr::EnumGetTag { root: local }
+        | YExpr::EnumAssertVariantRef { root: local, .. }
+        | YExpr::EnumIsVariant { value: local, .. }
+        | YExpr::EnumExtract { value: local, .. } => {
+            out.insert(*local);
+        }
+        YExpr::Placeholder { .. }
+        | YExpr::ConstWord(_)
+        | YExpr::ConstRef { .. }
+        | YExpr::AllocObject { .. } => {}
+        YExpr::Builtin(builtin) => collect_builtin_locals(builtin, out),
+        YExpr::Binary { lhs, rhs, .. } => {
+            out.insert(*lhs);
+            out.insert(*rhs);
+        }
+        YExpr::MaterializeToObject { src, .. }
+        | YExpr::ProviderFromRaw { raw: src, .. }
+        | YExpr::WordToRawAddr { value: src, .. } => {
+            out.insert(*src);
+        }
+        YExpr::MaterializePlaceToObject { place, .. }
+        | YExpr::AddrOf { place }
+        | YExpr::Load { place } => collect_place_locals(place, out),
+        YExpr::Call { args, .. } | YExpr::EnumMake { fields: args, .. } => {
+            out.extend(args.iter().copied());
+        }
+    }
+}
+
+fn collect_builtin_locals<'db>(builtin: &YBuiltin<'db>, out: &mut FxHashSet<YLocalId>) {
+    match builtin {
+        YBuiltin::Msize
+        | YBuiltin::CallValue
+        | YBuiltin::ReturnDataSize
+        | YBuiltin::CallDataSize
+        | YBuiltin::CodeSize
+        | YBuiltin::Address
+        | YBuiltin::Caller
+        | YBuiltin::Origin
+        | YBuiltin::GasPrice
+        | YBuiltin::CoinBase
+        | YBuiltin::Timestamp
+        | YBuiltin::Number
+        | YBuiltin::PrevRandao
+        | YBuiltin::GasLimit
+        | YBuiltin::ChainId
+        | YBuiltin::BaseFee
+        | YBuiltin::SelfBalance
+        | YBuiltin::Gas
+        | YBuiltin::CurrentCodeRegionLen
+        | YBuiltin::CodeRegionOffset { .. }
+        | YBuiltin::CodeRegionLen { .. }
+        | YBuiltin::CallDataSelector
+        | YBuiltin::MakeContractFieldRef { .. } => {}
+        YBuiltin::Mload { addr }
+        | YBuiltin::Sload { slot: addr }
+        | YBuiltin::CallDataLoad { offset: addr }
+        | YBuiltin::BlockHash { block: addr }
+        | YBuiltin::Malloc { size: addr } => {
+            out.insert(*addr);
+        }
+        YBuiltin::Mstore { addr, value }
+        | YBuiltin::Mstore8 { addr, value }
+        | YBuiltin::Sstore { slot: addr, value } => {
+            out.insert(*addr);
+            out.insert(*value);
+        }
+        YBuiltin::ReturnDataCopy { dst, offset, len }
+        | YBuiltin::CallDataCopy { dst, offset, len }
+        | YBuiltin::CodeCopy { dst, offset, len } => {
+            out.insert(*dst);
+            out.insert(*offset);
+            out.insert(*len);
+        }
+        YBuiltin::Keccak256 { offset, len } => {
+            out.insert(*offset);
+            out.insert(*len);
+        }
+        YBuiltin::AddMod { lhs, rhs, modulus } | YBuiltin::MulMod { lhs, rhs, modulus } => {
+            out.insert(*lhs);
+            out.insert(*rhs);
+            out.insert(*modulus);
+        }
+        YBuiltin::IntrinsicArith { lhs, rhs, .. } | YBuiltin::Saturating { lhs, rhs, .. } => {
+            out.insert(*lhs);
+            out.insert(*rhs);
+        }
+        YBuiltin::Call {
+            gas,
+            addr,
+            value,
+            args_offset,
+            args_len,
+            ret_offset,
+            ret_len,
+        } => {
+            out.extend([
+                *gas,
+                *addr,
+                *value,
+                *args_offset,
+                *args_len,
+                *ret_offset,
+                *ret_len,
+            ]);
+        }
+        YBuiltin::StaticCall {
+            gas,
+            addr,
+            args_offset,
+            args_len,
+            ret_offset,
+            ret_len,
+        }
+        | YBuiltin::DelegateCall {
+            gas,
+            addr,
+            args_offset,
+            args_len,
+            ret_offset,
+            ret_len,
+        } => {
+            out.extend([*gas, *addr, *args_offset, *args_len, *ret_offset, *ret_len]);
+        }
+        YBuiltin::Create { value, offset, len } => out.extend([*value, *offset, *len]),
+        YBuiltin::Create2 {
+            value,
+            offset,
+            len,
+            salt,
+        } => out.extend([*value, *offset, *len, *salt]),
+        YBuiltin::Log0 { offset, len } => out.extend([*offset, *len]),
+        YBuiltin::Log1 {
+            offset,
+            len,
+            topic0,
+        } => out.extend([*offset, *len, *topic0]),
+        YBuiltin::Log2 {
+            offset,
+            len,
+            topic0,
+            topic1,
+        } => out.extend([*offset, *len, *topic0, *topic1]),
+        YBuiltin::Log3 {
+            offset,
+            len,
+            topic0,
+            topic1,
+            topic2,
+        } => out.extend([*offset, *len, *topic0, *topic1, *topic2]),
+        YBuiltin::Log4 {
+            offset,
+            len,
+            topic0,
+            topic1,
+            topic2,
+            topic3,
+        } => out.extend([*offset, *len, *topic0, *topic1, *topic2, *topic3]),
+    }
+}
+
+fn collect_place_locals<'db>(place: &YulPlace<'db>, out: &mut FxHashSet<YLocalId>) {
+    match &place.root {
+        YulPlaceRoot::Slot(local) | YulPlaceRoot::Ptr { local, .. } => {
+            out.insert(*local);
+        }
+    }
+    for elem in place.path.iter() {
+        if let YulPlaceElem::Index {
+            index: hir::projection::IndexSource::Dynamic(index),
+            ..
+        } = elem
+        {
+            out.insert(*index);
+        }
+    }
+}
+
+fn collect_terminator_locals<'db>(terminator: &YTerminator<'db>, out: &mut FxHashSet<YLocalId>) {
+    match terminator {
+        YTerminator::Goto(_) | YTerminator::Trap | YTerminator::Stop => {}
+        YTerminator::Branch { cond, .. } => {
+            out.insert(*cond);
+        }
+        YTerminator::SwitchWord { discr, .. } | YTerminator::MatchEnumTag { tag: discr, .. } => {
+            out.insert(*discr);
+        }
+        YTerminator::TerminalCall { args, .. } => out.extend(args.iter().copied()),
+        YTerminator::ReturnData { offset, len } | YTerminator::Revert { offset, len } => {
+            out.insert(*offset);
+            out.insert(*len);
+        }
+        YTerminator::SelfDestruct { beneficiary } => {
+            out.insert(*beneficiary);
+        }
+        YTerminator::Return(Some(value)) => {
+            out.insert(*value);
+        }
+        YTerminator::Return(None) => {}
+    }
 }

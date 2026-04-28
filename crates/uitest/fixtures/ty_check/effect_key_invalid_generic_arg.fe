@@ -1,0 +1,7 @@
+struct Storage<T> {
+    value: T,
+}
+
+fn needs_invalid_effect() uses (st: Storage<u0>) {
+    ()
+}

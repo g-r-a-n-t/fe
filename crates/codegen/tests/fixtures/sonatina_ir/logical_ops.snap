@@ -7,19 +7,24 @@ target = "evm-ethereum-osaka"
 
 func private %logical_ops() -> i1 {
     block0:
-        v2.i1 = and 1.i1 0.i1;
-        return v2;
+        jump block1;
+
+    block1:
+        return 0.i1;
 }
 
-func private %__fe_sonatina_entry() {
+func private %main_root() {
     block0:
+        jump block1;
+
+    block1:
         v0.i1 = call %logical_ops;
         evm_stop;
 }
 
 
-object @Contract {
-    section runtime {
-        entry %__fe_sonatina_entry;
+object @main {
+    section main {
+        entry %main_root;
     }
 }

@@ -15,9 +15,8 @@ impl MyError {
 }
 
 impl AbiSize for MyError {
-    const ENCODED_SIZE: u256 = 32
+    const HEAD_SIZE: u256 = 32
     const IS_DYNAMIC: bool = false
-    const NEEDS_PARENT_WRAPPER: bool = false
 }
 
 impl<A: Abi> Encode<A> for MyError {
@@ -98,9 +97,8 @@ struct Inner {
 }
 
 impl AbiSize for Inner {
-    const ENCODED_SIZE: u256 = 32
+    const HEAD_SIZE: u256 = 32
     const IS_DYNAMIC: bool = false
-    const NEEDS_PARENT_WRAPPER: bool = false
 }
 
 impl<A: Abi> Encode<A> for Inner {
@@ -121,9 +119,8 @@ struct Outer {
 }
 
 impl AbiSize for Outer {
-    const ENCODED_SIZE: u256 = 64
+    const HEAD_SIZE: u256 = 64
     const IS_DYNAMIC: bool = false
-    const NEEDS_PARENT_WRAPPER: bool = false
 }
 
 impl<A: Abi> Encode<A> for Outer {

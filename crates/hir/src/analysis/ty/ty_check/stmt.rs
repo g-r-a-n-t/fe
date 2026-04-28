@@ -106,12 +106,12 @@ impl<'db> TyChecker<'db> {
             }
 
             match mode {
-                super::DestructureSourceMode::Owned => {
+                super::PatternDestructureMode::Owned => {
                     if self.pattern_binds_any(*pat) {
                         self.record_implicit_move_for_owned_expr(*expr, prop.ty);
                     }
                 }
-                super::DestructureSourceMode::Borrow(kind) => {
+                super::PatternDestructureMode::Borrow(kind) => {
                     self.retype_pattern_bindings_for_borrow(*pat, kind);
                 }
             }
@@ -214,6 +214,11 @@ impl<'db> TyChecker<'db> {
 
         // Handle invalid and unknown types
         if base.has_invalid(self.db) {
+            return (TyId::invalid(self.db, InvalidCause::Other), None);
+        }
+        if base.is_never(self.db) {
+            let diag = BodyDiag::TypeMustBeKnown(expr.span(self.body()).into());
+            self.push_diag(diag);
             return (TyId::invalid(self.db, InvalidCause::Other), None);
         }
         if base.is_ty_var(self.db) {

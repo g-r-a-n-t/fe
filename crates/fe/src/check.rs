@@ -9,10 +9,11 @@ use common::{
 use driver::DriverDataBase;
 use driver::cli_target::{CliTarget, resolve_cli_target};
 use hir::hir_def::{HirIngot, TopLevelMod};
-use mir::{MirDiagnosticsMode, fmt as mir_fmt, lower_module};
+use mir::build_runtime_package;
 use salsa::Setter;
 use url::Url;
 
+use crate::dependency_diagnostics::DependencyIssues;
 use crate::report::{
     copy_input_into_report, create_dir_all_utf8, create_report_staging_dir, enable_panic_report,
     normalize_report_out_path, tar_gz_dir, write_report_meta,
@@ -386,7 +387,7 @@ fn check_ingot_and_dependencies(
     let mir_diags = if hir_has_errors {
         Vec::new()
     } else {
-        db.mir_diagnostics_for_ingot(ingot, MirDiagnosticsMode::CompilerParity)
+        db.mir_diagnostics_for_ingot(ingot)
     };
     if !mir_diags.is_empty() {
         db.emit_complete_diagnostics(&mir_diags);
@@ -403,64 +404,15 @@ fn check_ingot_and_dependencies(
         }
     }
 
-    let mut dependency_errors = Vec::new();
-    for dependency_url in db.dependency_graph().dependency_urls(db, ingot_url) {
-        if !seen.insert(dependency_url.clone()) {
-            continue;
-        }
-        let Some(ingot) = db.workspace().containing_ingot(db, dependency_url.clone()) else {
-            continue;
-        };
-        if !ingot_has_source_files(db, ingot) {
-            eprintln!("Error: Could not find source files for ingot {dependency_url}");
-            has_errors = true;
-            continue;
-        }
-        let hir_diags = db.run_on_ingot(ingot);
-        let mir_diags = if hir_diags.has_errors(db) {
-            Vec::new()
-        } else {
-            db.mir_diagnostics_for_ingot(ingot, MirDiagnosticsMode::CompilerParity)
-        };
-        if !hir_diags.is_empty() || !mir_diags.is_empty() {
-            dependency_errors.push((dependency_url, hir_diags, mir_diags));
-        }
-    }
+    let dependency_errors = DependencyIssues::collect(db, ingot_url, seen);
 
     if !dependency_errors.is_empty() {
         has_errors = true;
-        if dependency_errors.len() == 1 {
-            eprintln!("Error: Downstream ingot has errors");
-        } else {
-            eprintln!("Error: Downstream ingots have errors");
-        }
+        let formatted = dependency_errors.format(db);
+        eprint!("{formatted}");
 
         if let Some(report) = report {
-            let mut out = String::new();
-            for (dependency_url, hir_diags, mir_diags) in &dependency_errors {
-                out.push_str(&format!("dependency: {dependency_url}\n"));
-                if !hir_diags.is_empty() {
-                    out.push_str(&hir_diags.format_diags(db));
-                }
-                if !mir_diags.is_empty() {
-                    out.push_str(&format!(
-                        "MIR diagnostics: {} emitted to stderr\n",
-                        mir_diags.len()
-                    ));
-                }
-                out.push('\n');
-            }
-            write_report_file(report, "errors/dependency_diagnostics.txt", &out);
-        }
-
-        for (dependency_url, hir_diags, mir_diags) in dependency_errors {
-            print_dependency_info(db, &dependency_url);
-            if !hir_diags.is_empty() {
-                hir_diags.emit(db);
-            }
-            if !mir_diags.is_empty() {
-                db.emit_complete_diagnostics(&mir_diags);
-            }
+            write_report_file(report, "errors/dependency_diagnostics.txt", &formatted);
         }
     }
 
@@ -530,7 +482,7 @@ fn check_single_file(
         let mir_diags = if hir_has_errors {
             Vec::new()
         } else {
-            db.mir_diagnostics_for_top_mod(top_mod, MirDiagnosticsMode::CompilerParity)
+            db.mir_diagnostics_for_top_mod(top_mod)
         };
         if !mir_diags.is_empty() {
             if !has_errors {
@@ -558,36 +510,13 @@ fn check_single_file(
     false
 }
 
-fn print_dependency_info(db: &DriverDataBase, dependency_url: &Url) {
-    eprintln!();
-
-    // Get the ingot for this dependency URL to access its config
-    if let Some(ingot) = db.workspace().containing_ingot(db, dependency_url.clone()) {
-        if let Some(config) = ingot.config(db) {
-            let name = config.metadata.name.as_deref().unwrap_or("unknown");
-            if let Some(version) = &config.metadata.version {
-                eprintln!("Dependency: {name} (version: {version})");
-            } else {
-                eprintln!("Dependency: {name}");
-            }
-        } else {
-            eprintln!("Dependency: <unknown>");
-        }
-    } else {
-        eprintln!("Dependency: <unknown>");
-    }
-
-    eprintln!("URL: {dependency_url}");
-    eprintln!();
-}
-
 fn dump_module_mir(db: &DriverDataBase, top_mod: TopLevelMod<'_>) {
-    match lower_module(db, top_mod) {
-        Ok(mir_module) => {
-            println!("=== MIR for module ===");
-            print!("{}", mir_fmt::format_module(db, &mir_module));
+    match build_runtime_package(db, top_mod) {
+        Ok(package) => {
+            println!("=== Runtime Package for module ===");
+            print!("{package:#?}");
         }
-        Err(err) => eprintln!("failed to lower MIR: {err}"),
+        Err(err) => eprintln!("failed to build runtime package: {err}"),
     }
 }
 
@@ -610,16 +539,20 @@ fn write_check_manifest(
 }
 
 fn write_check_artifacts(db: &DriverDataBase, top_mod: TopLevelMod<'_>, report: &ReportContext) {
-    match lower_module(db, top_mod) {
-        Ok(mir) => {
+    match build_runtime_package(db, top_mod) {
+        Ok(package) => {
             write_report_file(
                 report,
-                "artifacts/mir.txt",
-                &mir_fmt::format_module(db, &mir),
+                "artifacts/runtime_package.txt",
+                &format!("{package:#?}"),
             );
         }
         Err(err) => {
-            write_report_file(report, "artifacts/mir_error.txt", &format!("{err}"));
+            write_report_file(
+                report,
+                "artifacts/runtime_package_error.txt",
+                &format!("{err}"),
+            );
         }
     }
 }

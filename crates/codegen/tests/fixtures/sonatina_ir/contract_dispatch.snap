@@ -5,20 +5,35 @@ input_file: crates/codegen/tests/fixtures/contract_dispatch.fe
 ---
 target = "evm-ethereum-osaka"
 
+func private %dispatch() {
+    block0:
+        jump block1;
+
+    block1:
+        v0.i64 = call %emit_code;
+        return;
+}
+
 func private %emit_code() -> i64 {
     block0:
+        jump block1;
+
+    block1:
         return 1.i64;
 }
 
-func private %dispatch() {
+func private %manual_contract_runtime_root_MinimalDispatcher() {
     block0:
-        v0.i64 = call %emit_code;
+        jump block1;
+
+    block1:
+        call %dispatch;
         evm_stop;
 }
 
 
 object @MinimalDispatcher {
     section runtime {
-        entry %dispatch;
+        entry %manual_contract_runtime_root_MinimalDispatcher;
     }
 }

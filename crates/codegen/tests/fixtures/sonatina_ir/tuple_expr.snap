@@ -5,37 +5,34 @@ input_file: crates/codegen/tests/fixtures/tuple_expr.fe
 ---
 target = "evm-ethereum-osaka"
 
-type @__fe_obj_tuple_0 = {i64, i1};
+type @layout_0 = {i64, i1};
 
-func private %tuple_expr() -> objref<@__fe_obj_tuple_0> {
+func private %main_root() {
     block0:
-        (v2.i64, v3.i1) = uaddo 1.i64 2.i64;
-        br v3 block1 block2;
+        jump block1;
 
     block1:
-        mstore 0.i256 35408467139433450592217433187231851964531694900788300625387963629091585785856.i256 i256;
-        mstore 4.i256 17.i256 i256;
-        evm_revert 0.i256 36.i256;
-
-    block2:
-        v9.objref<@__fe_obj_tuple_0> = obj.alloc @__fe_obj_tuple_0;
-        v10.objref<i64> = obj.proj v9 0.i256;
-        obj.store v10 v2;
-        v12.i1 = is_zero 0.i1;
-        v14.objref<i1> = obj.proj v9 1.i256;
-        obj.store v14 v12;
-        return v9;
-}
-
-func private %__fe_sonatina_entry() {
-    block0:
-        v0.objref<@__fe_obj_tuple_0> = call %tuple_expr;
+        v0.@layout_0 = call %tuple_expr;
         evm_stop;
 }
 
+func private %tuple_expr() -> @layout_0 {
+    block0:
+        jump block1;
 
-object @Contract {
-    section runtime {
-        entry %__fe_sonatina_entry;
+    block1:
+        v5.objref<@layout_0> = obj.alloc @layout_0;
+        v7.objref<i64> = obj.proj v5 0.i256;
+        obj.store v7 3.i64;
+        v9.objref<i1> = obj.proj v5 1.i256;
+        obj.store v9 1.i1;
+        v10.@layout_0 = obj.load v5;
+        return v10;
+}
+
+
+object @main {
+    section main {
+        entry %main_root;
     }
 }

@@ -1,0 +1,91 @@
+mod consts;
+mod layout;
+mod package;
+mod place;
+mod runtime;
+
+use crate::{
+    instance::RuntimeInstance,
+    runtime::{ConstRegionId, LayoutId, RBlockId, RLocalId, RuntimeClass},
+};
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum VerifyError<'db> {
+    MissingRuntimeLocal(RLocalId),
+    MissingRuntimeBlock(RBlockId),
+    ErasedRuntimeValue(crate::runtime::RValueId),
+    SlotCarrierMismatch(RLocalId),
+    InvalidLayoutRefView(LayoutId<'db>),
+    InvalidConstRegion(ConstRegionId<'db>),
+    InvalidVariant(LayoutId<'db>, u16),
+    InvalidPlace(RuntimeClass<'db>),
+    InvalidVariantPlace(RuntimeClass<'db>),
+    InvalidEnumTag(LayoutId<'db>),
+    MissingEnumVariantProof(RLocalId),
+    InvalidReturnClass,
+    InvalidExprClass(RLocalId),
+    InvalidStoreClass,
+    InvalidCopyClass,
+    InvalidTerminalCall(RuntimeInstance<'db>),
+    CallArgCountMismatch(RuntimeInstance<'db>),
+    CallArgClassMismatch(RuntimeInstance<'db>, usize),
+    InvalidCodeRegion(crate::runtime::RuntimeCodeRegion<'db>),
+    InvalidPackageFunction(crate::instance::RuntimeInstance<'db>),
+    InvalidPackageObject(crate::runtime::RuntimeObject<'db>),
+    InvalidPackageSection(
+        crate::runtime::RuntimeObject<'db>,
+        crate::runtime::RuntimeSectionName,
+    ),
+    DuplicateRuntimeSymbol(String),
+}
+
+impl<'db> VerifyError<'db> {
+    pub fn local(&self) -> Option<RLocalId> {
+        match self {
+            VerifyError::MissingRuntimeLocal(local)
+            | VerifyError::SlotCarrierMismatch(local)
+            | VerifyError::MissingEnumVariantProof(local)
+            | VerifyError::InvalidExprClass(local) => Some(*local),
+            VerifyError::MissingRuntimeBlock(_)
+            | VerifyError::ErasedRuntimeValue(_)
+            | VerifyError::InvalidLayoutRefView(_)
+            | VerifyError::InvalidConstRegion(_)
+            | VerifyError::InvalidVariant(_, _)
+            | VerifyError::InvalidPlace(_)
+            | VerifyError::InvalidVariantPlace(_)
+            | VerifyError::InvalidEnumTag(_)
+            | VerifyError::InvalidStoreClass
+            | VerifyError::InvalidCopyClass
+            | VerifyError::InvalidTerminalCall(_)
+            | VerifyError::InvalidReturnClass
+            | VerifyError::CallArgCountMismatch(_)
+            | VerifyError::CallArgClassMismatch(_, _)
+            | VerifyError::InvalidCodeRegion(_)
+            | VerifyError::InvalidPackageFunction(_)
+            | VerifyError::InvalidPackageObject(_)
+            | VerifyError::InvalidPackageSection(_, _)
+            | VerifyError::DuplicateRuntimeSymbol(_) => None,
+        }
+    }
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct RuntimeVerifyFailure<'db> {
+    pub error: VerifyError<'db>,
+    pub site: RuntimeVerifySite,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum RuntimeVerifySite {
+    SignatureParam(usize),
+    LocalRoot(RLocalId),
+    LocalCarrier(RLocalId),
+    Stmt { block: RBlockId, stmt: usize },
+    Terminator { block: RBlockId },
+    Body,
+}
+
+pub use consts::verify_const_region;
+pub use package::verify_runtime_package;
+pub use place::{resolve_runtime_place, resolve_runtime_place_address_class};
+pub use runtime::{verify_runtime_body, verify_runtime_body_detailed};

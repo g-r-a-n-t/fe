@@ -1,0 +1,36 @@
+use core::functional::{Applicative, Fn, Functor}
+use core::result::Result::{self, Ok}
+
+enum AddError {
+    LeftUnavailable,
+    RightUnavailable,
+}
+
+struct MakeAdder {}
+
+struct AddRight {
+    left: u256,
+}
+
+impl Fn<u256, AddRight> for MakeAdder {
+    fn call(self, _ value: own u256) -> AddRight {
+        AddRight { left: value }
+    }
+}
+
+impl Fn<u256, u256> for AddRight {
+    fn call(self, _ right: own u256) -> u256 {
+        self.left + right
+    }
+}
+
+#[test]
+fn test_result_ap_codegen() {
+    let a: Result<AddError, u256> = Ok(20)
+    let f: Result<AddError, AddRight> = a.map(MakeAdder {})
+    let out: Result<AddError, u256> = f.ap(Ok(22))
+    match out {
+        Result::Ok(value) => assert(value == 42)
+        Result::Err(_) => assert(false)
+    }
+}

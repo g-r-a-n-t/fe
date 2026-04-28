@@ -1,6 +1,6 @@
 use crate::core::hir_def::{
-    ConstGenericArgValue, GenericArg, GenericArgListId, GenericParam, GenericParamOwner,
-    GenericParamView, IdentId, KindBound as HirKindBound, Partial, PathId,
+    CallableDef, ConstGenericArgValue, GenericArg, GenericArgListId, GenericParam,
+    GenericParamOwner, GenericParamView, IdentId, KindBound as HirKindBound, Partial, PathId,
     TypeAlias as HirTypeAlias, TypeBound, TypeId as HirTyId, TypeKind as HirTyKind, TypeMode,
     scope_graph::ScopeId,
 };
@@ -10,14 +10,14 @@ use smallvec::smallvec;
 
 use super::{
     assoc_const::AssocConstUse,
-    const_expr::{ConstExpr, ConstExprId},
     const_ty::{
         AppFrameId, CallableInputLayoutHoleOrigin, ConstTyData, ConstTyId, EvaluatedConstTy,
         HoleId, LayoutHoleArgSite, LocalFrameId, LocalFrameSite, StructuralHoleOrigin,
     },
-    effects::ResolvedEffectKey,
+    effects::{ResolvedEffectKey, TraitKeySchema},
     fold::{TyFoldable, TyFolder},
     layout_holes::{
+        callable_input_layout_bindings_by_origin,
         collect_unique_app_bound_structural_holes_in_order,
         collect_unique_layout_placeholders_in_order, layout_hole_fallback_ty,
         prepend_local_parent_to_structural_holes, rebase_owned_structural_holes_under_app,
@@ -25,7 +25,7 @@ use super::{
     },
     trait_def::TraitInstId,
     trait_resolution::{
-        PredicateListId, TraitSolveCx,
+        PredicateListId,
         constraint::{collect_constraints, collect_func_decl_constraints},
     },
     ty_def::{InvalidCause, Kind, TyData, TyId, TyParam},
@@ -172,29 +172,24 @@ fn lower_path_impl<'db>(
                             inst.assoc_type_bindings(db).clone(),
                         );
 
-                        let solve_cx = TraitSolveCx::new(db, scope).with_assumptions(assumptions);
-                        if let Some(const_ty) =
-                            super::const_ty::const_ty_from_trait_const(db, solve_cx, inst, name)
-                        {
-                            TyId::const_ty(db, const_ty)
-                        } else if let Some(expected_ty) = inst
+                        if let Some(expected_ty) = inst
                             .def(db)
                             .const_(db, name)
                             .and_then(|v| v.ty_binder(db))
                             .map(|b| b.instantiate(db, inst.args(db)))
                         {
-                            let expr = ConstExprId::new(
-                                db,
-                                ConstExpr::TraitConst(AssocConstUse::new(
-                                    scope,
-                                    assumptions,
-                                    inst,
-                                    name,
-                                )),
-                            );
-                            let const_ty =
-                                ConstTyId::new(db, ConstTyData::Abstract(expr, expected_ty));
-                            TyId::const_ty(db, const_ty)
+                            let assoc = AssocConstUse::new(scope, assumptions, inst, name);
+                            if let Some(const_ty) =
+                                super::const_ty::const_ty_or_abstract_from_assoc_const_use(
+                                    db,
+                                    assoc,
+                                    expected_ty,
+                                )
+                            {
+                                TyId::const_ty(db, const_ty)
+                            } else {
+                                TyId::invalid(db, InvalidCause::Other)
+                            }
                         } else {
                             TyId::invalid(db, InvalidCause::Other)
                         }
@@ -380,22 +375,113 @@ pub(crate) fn resolve_callable_input_effect_key<'db>(
     assumptions: PredicateListId<'db>,
 ) -> ResolvedEffectKey<'db> {
     match super::effects::resolve_effect_key(db, key_path, func.scope(), assumptions) {
-        ResolvedEffectKey::Type(ty) => ResolvedEffectKey::Type(bind_callable_input_layout_holes(
-            db,
-            ty,
-            func,
-            CallableInputLayoutHoleOrigin::Effect(effect_idx),
-        )),
-        ResolvedEffectKey::Trait(inst) => {
-            ResolvedEffectKey::Trait(bind_callable_input_layout_holes(
+        ResolvedEffectKey::Type(mut schema) => {
+            schema.carrier = bind_callable_input_layout_holes(
                 db,
-                inst,
+                schema.carrier,
                 func,
                 CallableInputLayoutHoleOrigin::Effect(effect_idx),
-            ))
+            );
+            ResolvedEffectKey::Type(schema)
         }
+        ResolvedEffectKey::Trait(schema) => {
+            let inst = bind_callable_input_layout_holes(
+                db,
+                schema.into_trait_inst(db),
+                func,
+                CallableInputLayoutHoleOrigin::Effect(effect_idx),
+            );
+            ResolvedEffectKey::Trait(TraitKeySchema::from_canonical_trait_binding(db, inst))
+        }
+        ResolvedEffectKey::Invalid => ResolvedEffectKey::Invalid,
         ResolvedEffectKey::Other => ResolvedEffectKey::Other,
     }
+}
+
+pub(crate) fn instantiate_callable_effect_layout_args<'db>(
+    db: &'db dyn HirAnalysisDb,
+    func: crate::hir_def::Func<'db>,
+    effect_idx: usize,
+    actual_key_ty: TyId<'db>,
+    subst_args: &mut [TyId<'db>],
+) {
+    let assumptions = collect_func_decl_constraints(db, func.into(), true).instantiate_identity();
+    let Some(key_path) = func
+        .effect_params(db)
+        .nth(effect_idx)
+        .and_then(|effect| effect.key_path(db))
+    else {
+        return;
+    };
+    let ResolvedEffectKey::Type(expected_key) =
+        resolve_callable_input_effect_key(db, func, effect_idx, key_path, assumptions)
+    else {
+        return;
+    };
+    let bindings = callable_input_layout_bindings_by_origin(db, CallableDef::Func(func));
+    let Some(bindings) = bindings.get(&CallableInputLayoutHoleOrigin::Effect(effect_idx)) else {
+        return;
+    };
+    let mut actual_layout_args = Vec::with_capacity(bindings.len());
+    if !collect_layout_args_in_order(
+        db,
+        expected_key.carrier,
+        actual_key_ty,
+        &mut actual_layout_args,
+    ) || actual_layout_args.len() != bindings.len()
+    {
+        return;
+    }
+
+    for ((_, implicit_arg), actual_arg) in bindings.iter().zip(actual_layout_args) {
+        let implicit_idx = match implicit_arg.data(db) {
+            TyData::TyParam(param) => Some(param.idx),
+            TyData::ConstTy(const_ty) => match const_ty.data(db) {
+                ConstTyData::TyParam(param, _) => Some(param.idx),
+                _ => None,
+            },
+            _ => None,
+        };
+        if let Some(implicit_idx) = implicit_idx
+            && let Some(slot) = subst_args.get_mut(implicit_idx)
+        {
+            *slot = actual_arg;
+        }
+    }
+}
+
+fn collect_layout_args_in_order<'db>(
+    db: &'db dyn HirAnalysisDb,
+    expected: TyId<'db>,
+    actual: TyId<'db>,
+    out: &mut Vec<TyId<'db>>,
+) -> bool {
+    if matches!(
+        expected.data(db),
+        TyData::ConstTy(const_ty) if matches!(const_ty.data(db), ConstTyData::Hole(..))
+    ) {
+        out.push(actual);
+        return true;
+    }
+
+    let (expected_base, expected_args) = expected.decompose_ty_app(db);
+    let (actual_base, actual_args) = actual.decompose_ty_app(db);
+    if expected_args.len() != actual_args.len() {
+        return false;
+    }
+    if expected_args.is_empty() {
+        return expected == actual;
+    }
+    if expected_base != actual_base {
+        return false;
+    }
+
+    expected_args
+        .iter()
+        .zip(actual_args.iter())
+        .all(|(expected_arg, actual_arg)| {
+            collect_layout_args_in_order(db, *expected_arg, *actual_arg, out)
+        })
 }
 
 pub(crate) fn callable_input_layout_hole_groups<'db>(
@@ -468,13 +554,13 @@ pub(crate) fn callable_input_layout_hole_groups<'db>(
             key_path,
             assumptions,
         ) {
-            ResolvedEffectKey::Type(key_ty) => {
-                collect_unique_layout_placeholders_in_order(db, key_ty)
+            ResolvedEffectKey::Type(schema) => {
+                collect_unique_layout_placeholders_in_order(db, schema.carrier)
             }
-            ResolvedEffectKey::Trait(trait_inst) => {
-                collect_unique_layout_placeholders_in_order(db, trait_inst)
+            ResolvedEffectKey::Trait(schema) => {
+                collect_unique_layout_placeholders_in_order(db, schema.into_trait_inst(db))
             }
-            ResolvedEffectKey::Other => continue,
+            ResolvedEffectKey::Invalid | ResolvedEffectKey::Other => continue,
         };
         if placeholders.is_empty() {
             continue;
@@ -836,31 +922,22 @@ pub(crate) fn lower_generic_arg_list<'db>(
                                 inst.assoc_type_bindings(db).clone(),
                             );
 
-                            let solve_cx =
-                                TraitSolveCx::new(db, scope).with_assumptions(assumptions);
-                            if let Some(const_ty) =
-                                super::const_ty::const_ty_from_trait_const(db, solve_cx, inst, name)
-                            {
-                                return TyId::const_ty(db, const_ty);
-                            }
                             if let Some(expected_ty) = inst
                                 .def(db)
                                 .const_(db, name)
                                 .and_then(|v| v.ty_binder(db))
                                 .map(|b| b.instantiate(db, inst.args(db)))
                             {
-                                let expr = ConstExprId::new(
-                                    db,
-                                    ConstExpr::TraitConst(AssocConstUse::new(
-                                        scope,
-                                        assumptions,
-                                        inst,
-                                        name,
-                                    )),
-                                );
-                                let const_ty =
-                                    ConstTyId::new(db, ConstTyData::Abstract(expr, expected_ty));
-                                return TyId::const_ty(db, const_ty);
+                                let assoc = AssocConstUse::new(scope, assumptions, inst, name);
+                                if let Some(const_ty) =
+                                    super::const_ty::const_ty_or_abstract_from_assoc_const_use(
+                                        db,
+                                        assoc,
+                                        expected_ty,
+                                    )
+                                {
+                                    return TyId::const_ty(db, const_ty);
+                                }
                             }
                         }
                         PathRes::Ty(ty) | PathRes::TyAlias(_, ty) => {

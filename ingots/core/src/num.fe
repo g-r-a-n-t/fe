@@ -15,6 +15,7 @@ extern {
     fn __checked_mul<T: IntWord>(_: T, _: T) -> T
     fn __checked_div<T: IntWord>(_: T, _: T) -> T
     fn __checked_rem<T: IntWord>(_: T, _: T) -> T
+    fn __checked_pow<T: IntWord>(_: T, _: T) -> T
     fn __checked_neg<T: IntWord>(_: T) -> T
 }
 
@@ -410,6 +411,20 @@ pub trait IntWord {
     fn from_word(_: u256) -> Self
 }
 
+pub trait WordValue {
+    fn to_word(self) -> u256
+}
+
+impl<T> WordValue for T
+    where T: IntWord
+{
+    fn to_word(self) -> u256 { IntWord::to_word(self) }
+}
+
+impl<const LEN: usize> WordValue for String<LEN> {
+    fn to_word(self) -> u256 { __bitcast(self) }
+}
+
 impl IntWord for u8 {
     const MASK: u256 = U8_MASK
     const SIGN_BIT: u256 = 0
@@ -639,25 +654,7 @@ pub fn sign_extend(word: u256, _ mask: u256, _ sign_bit: u256) -> u256 {
 fn pow_checked<T>(_ base: own T, _ exp: own T) -> T
     where T: IntWord, T: Mul<Output = T>
 {
-    let exp_word = exp.to_word() & T::MASK
-    if T::IS_SIGNED && (exp_word & T::SIGN_BIT != 0) {
-        panic()
-    }
-
-    let mut acc_word: u256 = 1
-    let mut base_word: u256 = base.to_word()
-    let mut exp_word = exp_word
-
-    while exp_word > 0 {
-        if (exp_word & 1) != 0 {
-            acc_word = T::from_word(acc_word).mul(T::from_word(base_word)).to_word()
-        }
-        exp_word = exp_word >> 1
-        if exp_word > 0 {
-            base_word = T::from_word(base_word).mul(T::from_word(base_word)).to_word()
-        }
-    }
-    T::from_word(acc_word)
+    __checked_pow(base, exp)
 }
 
 // u8 impls

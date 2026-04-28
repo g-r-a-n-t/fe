@@ -179,6 +179,60 @@ fn run_fe_main_in_dir(args: &[&str], cwd: &Path) -> (String, i32) {
     (out.combined(), out.exit_code)
 }
 
+#[test]
+fn test_cli_check_invalid_named_const_used_in_type_position_reports_error_instead_of_panicking() {
+    let temp = tempdir().expect("tempdir");
+    let file = temp.path().join("invalid_const_ty_use.fe");
+    fs::write(
+        &file,
+        r#"
+const N: usize = nope()
+
+fn f() {
+    let _x: [u8; N] = [0; 1]
+}
+"#,
+    )
+    .expect("write fixture");
+
+    let (output, exit_code) = run_fe_check(file.to_str().expect("fixture path utf8"));
+    assert_eq!(exit_code, 1, "expected check failure:\n{output}");
+    assert!(
+        output.contains("undefined variable `nope`"),
+        "expected undefined variable diagnostic instead of panic:\n{output}"
+    );
+    assert!(
+        !output.contains("semantic lowering missing for call-like expression"),
+        "unexpected semantic lowering panic:\n{output}"
+    );
+}
+
+#[test]
+fn test_cli_check_unresolved_record_init_path_reports_error_instead_of_panicking() {
+    let temp = tempdir().expect("tempdir");
+    let file = temp.path().join("unresolved_record_init_path.fe");
+    fs::write(
+        &file,
+        r#"
+fn trigger() {
+    let s = missing::S {}
+}
+"#,
+    )
+    .expect("write fixture");
+
+    let (output, exit_code) = run_fe_check(file.to_str().expect("fixture path utf8"));
+    assert_eq!(exit_code, 1, "expected check failure:\n{output}");
+    assert!(
+        output.contains("`missing` is not found"),
+        "expected unresolved path diagnostic instead of panic:\n{output}"
+    );
+    assert!(
+        !output.contains("record init lowering missing"),
+        "unexpected semantic lowering panic:\n{output}"
+    );
+}
+
 fn run_fe_main_in_dir_with_env(
     args: &[&str],
     cwd: &Path,
@@ -433,6 +487,39 @@ fn test_cli_build_all_contracts_fake_solc_artifacts() {
         .expect("fixture should have parent")
         .join("multi_contract_build_all_fake_solc.case");
     snap_test!(snapshot, snapshot_path.to_str().unwrap());
+}
+
+#[test]
+fn test_cli_build_sonatina_ir_respects_contract_filter() {
+    let fixture_path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("tests/fixtures/cli_output/build/multi_contract.fe");
+    let fixture_path_str = fixture_path.to_str().expect("fixture path utf8");
+
+    let temp = tempdir().expect("tempdir");
+    let out_dir = temp.path().join("out");
+    let out_dir_str = out_dir.to_string_lossy().to_string();
+
+    let (output, exit_code) = run_fe_main(&[
+        "build",
+        "--backend",
+        "sonatina",
+        "--emit",
+        "ir",
+        "--contract",
+        "Foo",
+        "--out-dir",
+        out_dir_str.as_str(),
+        fixture_path_str,
+    ]);
+    assert_eq!(exit_code, 0, "fe build failed:\n{output}");
+
+    let ir_path = out_dir.join("multi_contract.sona");
+    let ir = fs::read_to_string(&ir_path).expect("read Sonatina IR");
+    assert!(ir.contains("object @Foo"), "expected Foo object:\n{ir}");
+    assert!(
+        !ir.contains("object @Bar"),
+        "contract filter should exclude Bar object:\n{ir}"
+    );
 }
 
 #[test]
@@ -722,9 +809,8 @@ struct Weird {
 }
 
 impl core::abi::AbiSize for Weird {
-    const ENCODED_SIZE: u256 = 64
+    const HEAD_SIZE: u256 = 64
     const IS_DYNAMIC: bool = false
-    const NEEDS_PARENT_WRAPPER: bool = false
 }
 
 impl core::abi::Encode<std::abi::Sol> for Weird {
@@ -742,9 +828,9 @@ impl core::abi::Encode<std::abi::Sol> for Weird {
 }
 
 impl core::abi::Decode<std::abi::Sol> for Weird {
-    fn decode<D: core::abi::AbiDecoder<std::abi::Sol>>(_ d: mut D) -> Self {
-        let flag = bool::decode(d)
-        let amount = u64::decode(d)
+    fn decode_payload<D: core::abi::AbiDecoder<std::abi::Sol>>(_ d: mut D) -> Self {
+        let flag = bool::decode_payload(d)
+        let amount = u64::decode_payload(d)
         Self { amount, flag }
     }
 }
@@ -1010,6 +1096,109 @@ fn test_cli_build_ingot_dir_all_contracts_multi_file_fake_solc_artifacts() {
 
     let snapshot_path = fixture_dir.join("build_all_fake_solc.case");
     snap_test!(snapshot, snapshot_path.to_str().unwrap());
+}
+
+#[cfg(unix)]
+#[test]
+fn test_cli_build_ingot_root_reexported_contract_fake_solc_artifacts() {
+    let fixture_dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("tests/fixtures/cli_output/build_ingots/root_reexport_contract");
+    let fixture_dir_str = fixture_dir.to_str().expect("fixture dir utf8");
+
+    let temp = tempdir().expect("tempdir");
+    let fake_solc = write_fake_solc(&temp);
+
+    let out_dir = temp.path().join("out");
+    let out_dir_str = out_dir.to_string_lossy().to_string();
+
+    let (output, exit_code) = run_fe_main_with_env(
+        &[
+            "build",
+            "--backend",
+            "yul",
+            "--contract",
+            "KeyperSet",
+            "--out-dir",
+            out_dir_str.as_str(),
+            fixture_dir_str,
+        ],
+        &[
+            ("FE_SOLC_PATH", fake_solc.to_str().expect("fake solc utf8")),
+            ("FAKE_SOLC_CONTRACT", "KeyperSet"),
+        ],
+    );
+    assert_eq!(exit_code, 0, "fe build failed:\n{output}");
+
+    let deploy_path = out_dir.join("KeyperSet.bin");
+    let runtime_path = out_dir.join("KeyperSet.runtime.bin");
+    let deploy = fs::read_to_string(&deploy_path).expect("read KeyperSet deploy bytecode");
+    let runtime = fs::read_to_string(&runtime_path).expect("read KeyperSet runtime bytecode");
+
+    let mut snapshot = replace_path_token(&output, &out_dir, "<out>");
+    snapshot.push_str("\n\n=== ARTIFACTS ===\n");
+    snapshot.push_str(&format!("KeyperSet.bin: {}\n", deploy.trim()));
+    snapshot.push_str(&format!("KeyperSet.runtime.bin: {}\n", runtime.trim()));
+
+    let snapshot_path = fixture_dir.join("build_fake_solc.case");
+    snap_test!(snapshot, snapshot_path.to_str().unwrap());
+}
+
+#[test]
+fn test_cli_build_ingot_root_reexported_contract_sonatina_artifacts() {
+    let fixture_dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("tests/fixtures/cli_output/build_ingots/root_reexport_contract");
+    let fixture_dir_str = fixture_dir.to_str().expect("fixture dir utf8");
+
+    let temp = tempdir().expect("tempdir");
+    let out_dir = temp.path().join("out");
+    let out_dir_str = out_dir.to_string_lossy().to_string();
+
+    let (output, exit_code) = run_fe_main(&[
+        "build",
+        "--backend",
+        "sonatina",
+        "--contract",
+        "KeyperSet",
+        "--out-dir",
+        out_dir_str.as_str(),
+        fixture_dir_str,
+    ]);
+    assert_eq!(exit_code, 0, "fe build failed:\n{output}");
+    assert_hex_artifact(&out_dir.join("KeyperSet.bin"));
+    assert_hex_artifact(&out_dir.join("KeyperSet.runtime.bin"));
+}
+
+#[test]
+fn test_cli_build_ingot_sonatina_ir_respects_contract_filter() {
+    let fixture_dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("tests/fixtures/cli_output/build_ingots/multi_file");
+    let fixture_dir_str = fixture_dir.to_str().expect("fixture dir utf8");
+
+    let temp = tempdir().expect("tempdir");
+    let out_dir = temp.path().join("out");
+    let out_dir_str = out_dir.to_string_lossy().to_string();
+
+    let (output, exit_code) = run_fe_main(&[
+        "build",
+        "--backend",
+        "sonatina",
+        "--emit",
+        "ir",
+        "--contract",
+        "Foo",
+        "--out-dir",
+        out_dir_str.as_str(),
+        fixture_dir_str,
+    ]);
+    assert_eq!(exit_code, 0, "fe build failed:\n{output}");
+
+    let ir_path = out_dir.join("multi_file.sona");
+    let ir = fs::read_to_string(&ir_path).expect("read Sonatina IR");
+    assert!(ir.contains("object @Foo"), "expected Foo object:\n{ir}");
+    assert!(
+        !ir.contains("object @Bar"),
+        "contract filter should exclude Bar object:\n{ir}"
+    );
 }
 
 fn assert_hex_artifact(path: &std::path::Path) {
@@ -1585,6 +1774,30 @@ fn test_cli_test_workspace_ingot_missing_member_is_error() {
     );
 }
 
+#[test]
+fn test_cli_test_dependency_diagnostics_block_codegen() {
+    let fixture_dir = fe_test_runner_fixture_dir("dependency_diagnostic_gating");
+    let fixture_dir = fixture_dir.to_str().expect("fixture path should be utf-8");
+    let (output, exit_code) = run_fe_main(&["test", "--jobs", "1", "--ingot", "app", fixture_dir]);
+    assert_ne!(
+        exit_code, 0,
+        "expected dependency diagnostic failure:\n{output}"
+    );
+    assert!(
+        output.contains("Error: Errors in dependency"),
+        "expected dependency error:\n{output}"
+    );
+    assert!(
+        output.contains("associated const not defined in trait")
+            && output.contains("missing associated const `HEAD_SIZE`"),
+        "expected ABI trait diagnostics:\n{output}"
+    );
+    assert!(
+        !output.contains("backend panicked") && !output.contains("panicked at"),
+        "dependency diagnostics should block codegen before panic:\n{output}"
+    );
+}
+
 /// Regression test: `create2` of a contract defined in another ingot within
 /// the same workspace must compile and run correctly.
 #[test]
@@ -1622,6 +1835,124 @@ fn test_cli_test_ingot_discovers_tests_in_non_root_modules() {
     assert!(
         output.contains("1 passed"),
         "expected 1 passed test, got:\n{output}"
+    );
+}
+
+#[test]
+fn test_cli_test_ingot_reports_mir_diagnostics_in_non_root_modules() {
+    let temp = tempdir().expect("tempdir");
+    let src = temp.path().join("src");
+    fs::create_dir_all(&src).expect("create src");
+    fs::write(
+        temp.path().join("fe.toml"),
+        "[ingot]\nname = \"non_root_mir_diagnostic\"\nversion = \"0.1.0\"\n",
+    )
+    .expect("write fe.toml");
+    fs::write(src.join("lib.fe"), "pub fn root_marker() {}\n").expect("write root module");
+    fs::write(
+        src.join("helper.fe"),
+        r#"
+struct Inner {}
+
+fn bad(x: own Inner) {
+    let y = x
+    let z = x
+}
+
+#[test]
+fn test_non_root_move_conflict() {
+    bad(Inner {})
+}
+"#,
+    )
+    .expect("write helper module");
+
+    let (output, exit_code) = run_fe_main(&["test", temp.path().to_str().expect("temp utf8")]);
+    assert_ne!(exit_code, 0, "expected fe test to fail:\n{output}");
+    assert!(
+        output.contains("move conflict in `fn bad`"),
+        "expected non-root MIR diagnostic, got:\n{output}"
+    );
+    assert_eq!(
+        output.matches("move conflict in `fn bad`").count(),
+        1,
+        "expected non-root MIR diagnostic once, got:\n{output}"
+    );
+    assert!(
+        !output.contains("Failed to emit test"),
+        "expected diagnostics preflight before test emission, got:\n{output}"
+    );
+}
+
+#[test]
+fn test_cli_test_default_project_path_discovers_tests_in_non_root_modules() {
+    let fixture_dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("tests/fixtures/fe_test_runner/ingot_tests_in_non_root_module");
+
+    let (output, exit_code) = run_fe_main_in_dir(&["test"], &fixture_dir);
+    assert_eq!(exit_code, 0, "fe test failed:\n{output}");
+    assert!(
+        output.contains("PASS  [<time>] test_add"),
+        "expected test_add to be discovered, got:\n{output}"
+    );
+    assert!(
+        output.contains("1 passed"),
+        "expected 1 passed test, got:\n{output}"
+    );
+}
+
+#[test]
+fn test_cli_test_single_file_zero_sized_self_method_passes() {
+    let fixture = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("tests/fixtures/fe_test/zero_sized_self_method.fe");
+    let fixture = fixture.to_str().expect("fixture path utf8");
+
+    let (output, exit_code) = run_fe_main(&["test", fixture]);
+    assert_eq!(exit_code, 0, "fe test failed:\n{output}");
+    assert!(
+        output.contains("PASS  [<time>] test_zero_sized_self_method"),
+        "expected zero-sized self method test to pass, got:\n{output}"
+    );
+    assert!(
+        output.contains("1 passed"),
+        "expected 1 passed test, got:\n{output}"
+    );
+}
+
+#[test]
+fn test_cli_test_emit_ir_and_rmir_writes_artifacts() {
+    let temp = tempdir().expect("tempdir");
+    let fixture = temp.path().join("emit_test.fe");
+    fs::write(&fixture, "#[test]\nfn test_pass() {}\n").expect("write fixture");
+    let fixture = fixture.to_str().expect("fixture path utf8");
+
+    let (output, exit_code) =
+        run_fe_main(&["test", "--jobs", "1", "-O0", "--emit", "ir,rmir", fixture]);
+    assert_eq!(exit_code, 0, "fe test failed:\n{output}");
+
+    let out_dir = temp.path().join("out");
+    let sona_path = out_dir.join("emit_test.test.sona");
+    let rmir_path = out_dir.join("emit_test.test.rmir");
+    assert!(
+        sona_path.is_file(),
+        "missing Sonatina IR artifact:\n{output}"
+    );
+    assert!(rmir_path.is_file(), "missing rMIR artifact:\n{output}");
+
+    let sona = fs::read_to_string(&sona_path).expect("read Sonatina IR");
+    let rmir = fs::read_to_string(&rmir_path).expect("read rMIR");
+    assert!(
+        sona.contains("target = \"evm-ethereum-osaka\""),
+        "unexpected Sonatina IR:\n{sona}"
+    );
+    assert!(
+        rmir.contains("package"),
+        "unexpected rMIR package dump:\n{rmir}"
+    );
+    assert!(rmir.contains("bb0:"), "unexpected rMIR body dump:\n{rmir}");
+    assert!(
+        output.contains("Wrote "),
+        "expected artifact output, got:\n{output}"
     );
 }
 

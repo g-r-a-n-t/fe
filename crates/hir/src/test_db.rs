@@ -22,9 +22,9 @@ use crate::analysis::{
     },
 };
 use crate::{
-    SpannedHirDb,
+    Ingot, SpannedHirDb,
     hir_def::{ItemKind, TopLevelMod, scope_graph::ScopeGraph},
-    lower::{self, map_file_to_mod, scope_graph},
+    lower::{self, map_file_to_mod, module_tree, scope_graph},
     span::{DynLazySpan, LazySpan},
 };
 use camino::{Utf8Path, Utf8PathBuf};
@@ -40,9 +40,11 @@ use codespan_reporting::{
 };
 use common::{
     InputDb, define_input_db,
-    diagnostics::{LabelStyle, Severity, cmp_complete_diagnostics},
+    diagnostics::{LabelStyle, Severity, cmp_complete_diagnostics, trim_trailing_line_whitespace},
     file::File,
     indexmap::IndexMap,
+    paths::absolute_utf8,
+    stdlib::{HasBuiltinCore, HasBuiltinStd},
 };
 use derive_more::TryIntoError;
 use rustc_hash::FxHashMap;
@@ -167,22 +169,69 @@ impl<'db> cs_files::Files<'db> for CsDbWrapper<'db> {
 
 // --- End codespan helpers ---
 
+pub fn emit_diagnostics<'db, DB>(db: &'db DB, diags: &[Box<dyn DiagnosticVoucher + 'db>])
+where
+    DB: SpannedHirAnalysisDb + InputDb,
+{
+    let writer = BufferWriter::stderr(ColorChoice::Auto);
+    let mut buffer = writer.buffer();
+    let config = term::Config::default();
+
+    for diag in finalized_diags(db, diags) {
+        term::emit(&mut buffer, &config, &CsDbWrapper(db), &diag.to_cs(db)).unwrap();
+    }
+
+    writer
+        .print(&buffer)
+        .expect("Failed to write diagnostics to stderr");
+}
+
+pub fn format_diagnostics<'db, DB>(
+    db: &'db DB,
+    diags: &[Box<dyn DiagnosticVoucher + 'db>],
+) -> String
+where
+    DB: SpannedHirAnalysisDb + InputDb,
+{
+    let writer = BufferWriter::stderr(ColorChoice::Never);
+    let mut buffer = writer.buffer();
+    let config = term::Config::default();
+
+    for diag in finalized_diags(db, diags) {
+        term::emit(&mut buffer, &config, &CsDbWrapper(db), &diag.to_cs(db)).unwrap();
+    }
+
+    trim_trailing_line_whitespace(std::str::from_utf8(buffer.as_slice()).unwrap())
+}
+
+fn finalized_diags<'db, DB>(
+    db: &'db DB,
+    diags: &[Box<dyn DiagnosticVoucher + 'db>],
+) -> Vec<common::diagnostics::CompleteDiagnostic>
+where
+    DB: SpannedHirAnalysisDb + InputDb,
+{
+    let mut complete_diags: Vec<_> = diags.iter().map(|diag| diag.to_complete(db)).collect();
+    complete_diags.sort_by(cmp_complete_diagnostics);
+    complete_diags
+}
+
 define_input_db!(HirAnalysisTestDb);
 
 // https://github.com/rust-lang/rust/issues/46379
 #[allow(dead_code)]
 impl HirAnalysisTestDb {
     pub fn new_stand_alone(&mut self, file_path: Utf8PathBuf, text: &str) -> File {
-        let file_url = if file_path.is_absolute() {
-            <Url as UrlExt>::from_file_path_lossy(file_path.as_std_path())
-        } else {
-            Url::parse("file:///hir_test/")
-                .unwrap()
-                .join(file_path.as_str())
-                .expect("join synthetic standalone path")
-        };
+        let file_path =
+            absolute_utf8(file_path.as_path()).expect("resolve absolute standalone path");
         let index = self.workspace();
-        index.touch(self, file_url, Some(text.to_string()))
+        self.initialize_builtin_core();
+        self.initialize_builtin_std();
+        index.touch(
+            self,
+            <Url as UrlExt>::from_file_path_lossy(file_path.as_std_path()),
+            Some(text.to_string()),
+        )
     }
 
     pub fn top_mod(&self, input: File) -> (TopLevelMod<'_>, HirPropertyFormatter<'_>) {
@@ -196,22 +245,27 @@ impl HirAnalysisTestDb {
         let diags = manager.run_on_module(self, top_mod);
 
         if !diags.is_empty() {
-            let writer = BufferWriter::stderr(ColorChoice::Auto);
-            let mut buffer = writer.buffer();
-            let config = term::Config::default();
-
-            let mut diags: Vec<_> = diags.iter().map(|d| d.to_complete(self)).collect();
-            diags.sort_by(cmp_complete_diagnostics);
-
-            for diag in diags {
-                let cs_diag = &diag.to_cs(self);
-                term::emit(&mut buffer, &config, &CsDbWrapper(self), cs_diag).unwrap();
-            }
-
-            eprintln!("{}", std::str::from_utf8(buffer.as_slice()).unwrap());
+            eprintln!("{}", format_diagnostics(self, &diags));
 
             panic!("this module contains errors");
         }
+    }
+
+    pub fn run_on_top_mod<'db>(
+        &'db self,
+        top_mod: TopLevelMod<'db>,
+    ) -> Vec<Box<dyn DiagnosticVoucher + 'db>> {
+        let mut manager = initialize_analysis_pass();
+        manager.run_on_module(self, top_mod)
+    }
+
+    pub fn run_on_ingot<'db>(
+        &'db self,
+        ingot: Ingot<'db>,
+    ) -> Vec<Box<dyn DiagnosticVoucher + 'db>> {
+        let mut manager = initialize_analysis_pass();
+        let tree = module_tree(self, ingot);
+        manager.run_on_module_tree(self, tree)
     }
 
     fn register_file<'db>(
@@ -279,7 +333,7 @@ impl<'db> HirPropertyFormatter<'db> {
             }
         }
 
-        std::str::from_utf8(buffer.as_slice()).unwrap().to_string()
+        trim_trailing_line_whitespace(std::str::from_utf8(buffer.as_slice()).unwrap())
     }
 
     fn property_to_diag(

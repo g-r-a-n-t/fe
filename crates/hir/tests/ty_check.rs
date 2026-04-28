@@ -1,9 +1,13 @@
 use std::path::Path;
 
 use dir_test::{Fixture, dir_test};
-use fe_hir::analysis::ty::ty_check::{check_contract_recv_arm_body, check_func_body};
+use fe_hir::analysis::ty::{
+    ty_check::{check_contract_recv_arm_body, check_func_body},
+    ty_def::{Kind, TyId},
+};
+use fe_hir::hir_def::TopLevelMod;
 use fe_hir::span::LazySpan;
-use fe_hir::test_db::HirAnalysisTestDb;
+use fe_hir::test_db::{HirAnalysisTestDb, format_diagnostics, initialize_analysis_pass};
 use test_utils::snap_test;
 
 #[dir_test(
@@ -39,6 +43,78 @@ fn ty_check_standalone(fixture: Fixture<&str>) {
 
     let res = prop_formatter.finish(&db);
     snap_test!(res, fixture.path());
+}
+
+#[test]
+fn never_type_is_not_type_applicable() {
+    let db = HirAnalysisTestDb::default();
+    let never = TyId::never(&db);
+
+    assert!(matches!(never.kind(&db), Kind::Star));
+    assert!(never.applicable_ty(&db).is_none());
+}
+
+#[test]
+fn never_for_iterator_reports_type_must_be_known() {
+    let mut db = HirAnalysisTestDb::default();
+    let file = db.new_stand_alone(
+        "never_for_iterator_reports_type_must_be_known.fe".into(),
+        r#"
+extern {
+    fn revert() -> !
+}
+
+fn trigger() {
+    for x in revert() {}
+}
+"#,
+    );
+    let (top_mod, _) = db.top_mod(file);
+    let rendered = diagnostics_for(&db, top_mod);
+
+    assert!(rendered.contains("type must be known"), "{rendered}");
+    assert!(
+        !rendered.contains("`Seq` needs to be implemented for `!`"),
+        "{rendered}"
+    );
+}
+
+#[test]
+fn invalid_const_fn_body_diagnostics_do_not_panic_during_const_eval() {
+    let mut db = HirAnalysisTestDb::default();
+    let file = db.new_stand_alone(
+        "invalid_const_fn_body_diagnostics_do_not_panic_during_const_eval.fe".into(),
+        r#"
+const fn invalid_const() -> usize {
+    pass
+    missing_value
+}
+
+struct NeedsConst<const N: usize> {}
+
+fn trigger() {
+    let _x: NeedsConst<{ invalid_const() }>
+}
+"#,
+    );
+    let (top_mod, _) = db.top_mod(file);
+    let rendered = diagnostics_for(&db, top_mod);
+
+    assert!(rendered.contains("undefined variable `pass`"), "{rendered}");
+    assert!(
+        rendered.contains("undefined variable `missing_value`"),
+        "{rendered}"
+    );
+    assert!(
+        !rendered.contains("not supported in const eval"),
+        "{rendered}"
+    );
+}
+
+fn diagnostics_for<'db>(db: &'db HirAnalysisTestDb, top_mod: TopLevelMod<'db>) -> String {
+    let mut manager = initialize_analysis_pass();
+    let diags = manager.run_on_module(db, top_mod);
+    format_diagnostics(db, &diags)
 }
 
 fn collect_body_props<'db>(

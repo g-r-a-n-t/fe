@@ -1,0 +1,10 @@
+enum E {
+    A,
+}
+
+fn trigger(e: E) -> u8 {
+    match e {
+        E::Missing => 1
+        _ => 0
+    }
+}

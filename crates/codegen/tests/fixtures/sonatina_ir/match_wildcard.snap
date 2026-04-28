@@ -5,52 +5,115 @@ input_file: crates/codegen/tests/fixtures/match_wildcard.fe
 ---
 target = "evm-ethereum-osaka"
 
-func private %match_with_wildcard(v0.i256) -> i8 {
+type @layout_0 = {i8, i8, i8};
+type @layout_1 = enum {
+    #Red,
+    #Green,
+    #Blue,
+};
+
+func private %main() -> @layout_0 {
     block0:
-        jump block4;
+        jump block1;
 
     block1:
-        jump block2;
+        v0.@layout_1 = enum.make @layout_1 #Red;
+        v1.objref<@layout_1> = obj.alloc @layout_1;
+        v2.enumtag(@layout_1) = enum.tag v0;
+        br_table v2 block3 (0.enumtag(@layout_1) block4) (1.enumtag(@layout_1) block5) (2.enumtag(@layout_1) block6);
 
     block2:
-        v4.i8 = phi (1.i8 block1) (0.i8 block3);
-        return v4;
+        v6.i8 = call %match_with_wildcard v1;
+        v8.i8 = call %wildcard_not_last 1.i8;
+        v9.@layout_1 = enum.make @layout_1 #Green;
+        v10.objref<@layout_1> = obj.alloc @layout_1;
+        v11.enumtag(@layout_1) = enum.tag v9;
+        br_table v11 block8 (0.enumtag(@layout_1) block9) (1.enumtag(@layout_1) block10) (2.enumtag(@layout_1) block11);
+
+    block3:
+        unreachable;
+
+    block4:
+        enum.set_tag v1 #Red;
+        jump block2;
+
+    block5:
+        enum.set_tag v1 #Green;
+        jump block2;
+
+    block6:
+        enum.set_tag v1 #Blue;
+        jump block2;
+
+    block7:
+        v12.i8 = call %multiple_before_wildcard v10;
+        v13.objref<@layout_0> = obj.alloc @layout_0;
+        v16.objref<i8> = obj.proj v13 0.i256;
+        obj.store v16 v6;
+        v19.objref<i8> = obj.proj v13 1.i256;
+        obj.store v19 v8;
+        v21.objref<i8> = obj.proj v13 2.i256;
+        obj.store v21 v12;
+        v22.@layout_0 = obj.load v13;
+        return v22;
+
+    block8:
+        unreachable;
+
+    block9:
+        enum.set_tag v10 #Red;
+        jump block7;
+
+    block10:
+        enum.set_tag v10 #Green;
+        jump block7;
+
+    block11:
+        enum.set_tag v10 #Blue;
+        jump block7;
+}
+
+func private %main_root() {
+    block0:
+        jump block1;
+
+    block1:
+        v0.@layout_0 = call %main;
+        evm_stop;
+}
+
+func private %match_with_wildcard(v0.objref<@layout_1>) -> i8 {
+    block0:
+        jump block1;
+
+    block1:
+        v2.@layout_1 = obj.load v0;
+        v3.enumtag(@layout_1) = enum.tag v2;
+        br_table v3 block4 (0.enumtag(@layout_1) block3);
+
+    block2:
+        v5.i8 = phi (1.i8 block3) (0.i8 block4);
+        return v5;
 
     block3:
         jump block2;
 
     block4:
-        br_table v0 block3 (0.i256 block1);
+        jump block2;
 }
 
-func private %wildcard_not_last(v0.i8) -> i8 {
+func private %multiple_before_wildcard(v0.objref<@layout_1>) -> i8 {
     block0:
-        jump block4;
+        jump block1;
 
     block1:
-        jump block2;
+        v2.@layout_1 = obj.load v0;
+        v3.enumtag(@layout_1) = enum.tag v2;
+        br_table v3 block5 (0.enumtag(@layout_1) block3) (1.enumtag(@layout_1) block4);
 
     block2:
-        v4.i8 = phi (10.i8 block1) (99.i8 block3);
-        return v4;
-
-    block3:
-        jump block2;
-
-    block4:
-        br_table v0 block3 (0.i8 block1);
-}
-
-func private %multiple_before_wildcard(v0.i256) -> i8 {
-    block0:
-        jump block5;
-
-    block1:
-        jump block2;
-
-    block2:
-        v4.i8 = phi (1.i8 block1) (2.i8 block3) (3.i8 block4);
-        return v4;
+        v6.i8 = phi (1.i8 block3) (2.i8 block4) (3.i8 block5);
+        return v6;
 
     block3:
         jump block2;
@@ -59,18 +122,37 @@ func private %multiple_before_wildcard(v0.i256) -> i8 {
         jump block2;
 
     block5:
-        br_table v0 block4 (0.i256 block1) (1.i256 block3);
+        jump block2;
 }
 
-func private %__fe_sonatina_entry() {
+func private %wildcard_not_last(v0.i8) -> i8 {
     block0:
-        v1.i8 = call %match_with_wildcard 0.i256;
-        evm_stop;
+        v1.*i8 = alloca i8;
+        mstore v1 v0 i8;
+        jump block1;
+
+    block1:
+        v2.i8 = mload v1 i8;
+        v4.i1 = eq v2 0.i8;
+        br v4 block3 block5;
+
+    block2:
+        v5.i8 = phi (10.i8 block3) (99.i8 block4);
+        return v5;
+
+    block3:
+        jump block2;
+
+    block4:
+        jump block2;
+
+    block5:
+        jump block4;
 }
 
 
-object @Contract {
-    section runtime {
-        entry %__fe_sonatina_entry;
+object @main {
+    section main {
+        entry %main_root;
     }
 }

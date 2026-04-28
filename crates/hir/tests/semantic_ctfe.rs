@@ -176,6 +176,46 @@ const fn invalid_const() -> usize {
 }
 
 #[test]
+fn invalid_call_like_const_fn_body_is_rejected_before_ctfe_lowering() {
+    let mut db = HirAnalysisTestDb::default();
+    let file = db.new_stand_alone(
+        "semantic_ctfe.fe".into(),
+        r#"
+const fn value(_x: u8) -> u256 {
+    1
+}
+
+const fn invalid_call_like_expr() -> u256 {
+    value(1) (2)
+}
+"#,
+    );
+    let (top_mod, _) = db.top_mod(file);
+    let func = top_mod
+        .all_funcs(&db)
+        .iter()
+        .find(|func| matches!(func.name(&db), Partial::Present(name) if name.data(&db) == "invalid_call_like_expr"))
+        .copied()
+        .expect("missing const fn `invalid_call_like_expr`");
+    let (diags, _) = check_func_body(&db, func).clone();
+
+    assert!(
+        diags
+            .iter()
+            .any(|diag| matches!(diag, FuncBodyDiag::Body(BodyDiag::NotCallable(..)))),
+        "expected not-callable body diagnostic, got {diags:#?}"
+    );
+
+    let result =
+        eval_body_owner_const_with_args(&db, BodyOwner::Func(func), Vec::new(), Vec::new());
+
+    assert!(
+        matches!(result, Err(CtfeError::InvalidBody { .. })),
+        "expected invalid body CTFE error, got {result:?}"
+    );
+}
+
+#[test]
 fn type_alias_len_reports_nested_const_eval_error() {
     let mut db = HirAnalysisTestDb::default();
     let file = db.new_stand_alone(

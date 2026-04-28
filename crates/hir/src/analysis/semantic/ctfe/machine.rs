@@ -363,28 +363,30 @@ impl<'db> CtfeMachine<'db> {
             BodyOwner::Func(func) if !func.is_const(self.db) => {
                 Err(CtfeError::NonConstCall { origin })
             }
-            BodyOwner::Func(func)
-                if check_func_body(self.db, func)
-                    .1
-                    .has_unlowerable_invalid_path(self.db) =>
-            {
-                Err(CtfeError::InvalidBody { origin })
+            BodyOwner::Func(func) => {
+                let (diags, typed_body) = check_func_body(self.db, func);
+                if !diags.is_empty() && typed_body.has_smir_lowering_blocker(self.db) {
+                    Err(CtfeError::InvalidBody { origin })
+                } else {
+                    Ok(())
+                }
             }
-            BodyOwner::Const(const_)
-                if check_const_body(self.db, const_)
-                    .1
-                    .has_unlowerable_invalid_path(self.db) =>
-            {
-                Err(CtfeError::InvalidBody { origin })
+            BodyOwner::Const(const_) => {
+                let (diags, typed_body) = check_const_body(self.db, const_);
+                if !diags.is_empty() && typed_body.has_smir_lowering_blocker(self.db) {
+                    Err(CtfeError::InvalidBody { origin })
+                } else {
+                    Ok(())
+                }
             }
-            BodyOwner::AnonConstBody { body, expected }
-                if check_anon_const_body(self.db, body, expected)
-                    .1
-                    .has_unlowerable_invalid_path(self.db) =>
-            {
-                Err(CtfeError::InvalidBody { origin })
+            BodyOwner::AnonConstBody { body, expected } => {
+                let (diags, typed_body) = check_anon_const_body(self.db, body, expected);
+                if !diags.is_empty() && typed_body.has_smir_lowering_blocker(self.db) {
+                    Err(CtfeError::InvalidBody { origin })
+                } else {
+                    Ok(())
+                }
             }
-            BodyOwner::Func(_) | BodyOwner::Const(_) | BodyOwner::AnonConstBody { .. } => Ok(()),
             BodyOwner::ContractInit { .. } | BodyOwner::ContractRecvArm { .. } => {
                 Err(CtfeError::NotConstEvaluable { origin })
             }

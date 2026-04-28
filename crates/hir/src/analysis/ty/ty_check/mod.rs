@@ -26,7 +26,7 @@ use crate::{
     hir_def::{
         Body, Const, Contract, ContractRecvArm, Expr, ExprId, Func, GenericParam,
         GenericParamOwner, ItemKind, LitKind, ManualContractRootAttr, Partial, Pat, PatId, PathId,
-        StmtId, StringId, TypeBound, TypeId as HirTyId, WhereClauseOwner,
+        Stmt, StmtId, StringId, TypeBound, TypeId as HirTyId, WhereClauseOwner,
     },
     span::{
         DynLazySpan, expr::LazyExprSpan, pat::LazyPatSpan, path::LazyPathSpan, types::LazyTySpan,
@@ -2600,17 +2600,70 @@ impl<'db> TypedBody<'db> {
         self.result_ty
     }
 
-    pub(crate) fn has_unlowerable_invalid_path(&self, db: &'db dyn HirAnalysisDb) -> bool {
-        self.body.is_some_and(|body| {
-            body.exprs(db).iter().any(|(expr, expr_data)| {
-                matches!(expr_data, Partial::Present(Expr::Path(_)))
-                    && self.expr_ty(db, expr).has_invalid(db)
+    pub(crate) fn has_smir_lowering_blocker(&self, db: &'db dyn HirAnalysisDb) -> bool {
+        let Some(body) = self.body else {
+            return false;
+        };
+
+        body.exprs(db)
+            .iter()
+            .any(|(expr, expr_data)| self.expr_has_smir_lowering_blocker(db, expr, expr_data))
+            || body
+                .stmts(db)
+                .iter()
+                .any(|(stmt, stmt_data)| self.stmt_has_smir_lowering_blocker(stmt, stmt_data))
+            || body
+                .conds(db)
+                .iter()
+                .any(|(_, cond_data)| matches!(cond_data, Partial::Absent))
+    }
+
+    fn expr_has_smir_lowering_blocker(
+        &self,
+        db: &'db dyn HirAnalysisDb,
+        expr: ExprId,
+        expr_data: &Partial<Expr<'db>>,
+    ) -> bool {
+        let Partial::Present(expr_data) = expr_data else {
+            return true;
+        };
+        let expr_ty = self.expr_ty(db, expr);
+
+        match expr_data {
+            Expr::Path(_) => {
+                expr_ty.has_invalid(db)
                     && self.expr_binding(expr).is_none()
                     && self.expr_const_ref(expr).is_none()
                     && self.expr_code_region_ref(db, expr).is_none()
                     && self.value_path_ref(expr).is_none()
-            })
-        })
+            }
+            Expr::Call(..) | Expr::MethodCall(..) => {
+                expr_ty.has_invalid(db) && self.semantic_expr_lowering(expr).is_none()
+            }
+            Expr::RecordInit(..) => {
+                expr_ty.has_invalid(db) && self.record_init_lowering(expr).is_none()
+            }
+            Expr::Un(inner, crate::hir_def::expr::UnOp::Mut | crate::hir_def::expr::UnOp::Ref) => {
+                expr_ty.has_invalid(db) && self.expr_place(*inner).is_none()
+            }
+            Expr::Assign(dst, _) => self.expr_place(*dst).is_none(),
+            Expr::AugAssign(dst, _, _) => {
+                self.semantic_expr_lowering(expr).is_none() && self.expr_place(*dst).is_none()
+            }
+            Expr::Match(_, Partial::Absent) => true,
+            Expr::Match(_, Partial::Present(arms)) => arms
+                .iter()
+                .any(|arm| !self.pattern_status(arm.pat).is_ready()),
+            _ => false,
+        }
+    }
+
+    fn stmt_has_smir_lowering_blocker(&self, stmt: StmtId, stmt_data: &Partial<Stmt<'db>>) -> bool {
+        match stmt_data {
+            Partial::Present(Stmt::For(..)) => self.for_loop_seq(stmt).is_none(),
+            Partial::Present(_) => false,
+            Partial::Absent => true,
+        }
     }
 
     pub fn assumptions(&self) -> PredicateListId<'db> {

@@ -11,6 +11,10 @@ pub struct Gen<T> {
     t: T,
 }
 
+pub struct Counter {
+    value: u256,
+}
+
 pub enum Option<T> {
     Some(T),
     None
@@ -27,6 +31,10 @@ fn foo<T>(x: i32, mut y: own u32, opt: Option<T>, opt2: Option<i32>) {
     
     let mut g = Gen { t: false }
     g.t = 1
+
+    Gen { t: false }.t = true
+
+    Counter { value: 1 }.value += 1
     
     1 = 1
     

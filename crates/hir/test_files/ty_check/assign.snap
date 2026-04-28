@@ -1,5 +1,6 @@
 ---
 source: crates/hir/tests/ty_check.rs
+assertion_line: 45
 expression: res
 input_file: test_files/ty_check/assign.fe
 ---
@@ -57,8 +58,8 @@ note:
 27 │ │     let y = 2
 28 │ │
    · │
-47 │ │     Gen { t: false }.t = true
-48 │ │ }
+48 │ │     g.t = true
+49 │ │ }
    │ ╰─^ ()
 
 note:
@@ -358,31 +359,43 @@ note:
    │                         ^^ ()
 
 note:
-   ┌─ assign.fe:47:5
+   ┌─ assign.fe:47:9
    │
-47 │     Gen { t: false }.t = true
-   │     ^^^^^^^^^^^^^^^^ Gen<bool>
+47 │     let mut g = Gen { t: false }
+   │         ^^^^^ Gen<bool>
 
 note:
-   ┌─ assign.fe:47:5
+   ┌─ assign.fe:47:17
    │
-47 │     Gen { t: false }.t = true
-   │     ^^^^^^^^^^^^^^^^^^ bool
-
-note:
-   ┌─ assign.fe:47:5
-   │
-47 │     Gen { t: false }.t = true
-   │     ^^^^^^^^^^^^^^^^^^^^^^^^^ ()
-
-note:
-   ┌─ assign.fe:47:14
-   │
-47 │     Gen { t: false }.t = true
-   │              ^^^^^ bool
+47 │     let mut g = Gen { t: false }
+   │                 ^^^^^^^^^^^^^^^^ Gen<bool>
 
 note:
    ┌─ assign.fe:47:26
    │
-47 │     Gen { t: false }.t = true
-   │                          ^^^^ bool
+47 │     let mut g = Gen { t: false }
+   │                          ^^^^^ bool
+
+note:
+   ┌─ assign.fe:48:5
+   │
+48 │     g.t = true
+   │     ^ Gen<bool>
+
+note:
+   ┌─ assign.fe:48:5
+   │
+48 │     g.t = true
+   │     ^^^ bool
+
+note:
+   ┌─ assign.fe:48:5
+   │
+48 │     g.t = true
+   │     ^^^^^^^^^^ ()
+
+note:
+   ┌─ assign.fe:48:11
+   │
+48 │     g.t = true
+   │           ^^^^ bool

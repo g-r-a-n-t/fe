@@ -1,0 +1,7 @@
+struct Box {
+    value: bool,
+}
+
+fn trigger() {
+    Box { value: false }.value = true
+}

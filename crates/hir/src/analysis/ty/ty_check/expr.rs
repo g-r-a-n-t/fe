@@ -161,6 +161,13 @@ enum EffectArgStyle {
     Value,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum AssignLhsStatus {
+    Assignable,
+    Immutable,
+    NonAssignable,
+}
+
 #[derive(Debug, Clone, Default)]
 pub(super) struct EffectCommitPlan<'db> {
     key_match: Option<KeyMatchCommit<'db>>,
@@ -3996,10 +4003,11 @@ impl<'db> TyChecker<'db> {
         }
         rhs_prop.ty = self.unify_ty(Typeable::Expr(*rhs, rhs_prop.clone()), rhs_prop.ty, lhs_ty);
 
-        self.check_assign_lhs(*lhs, &typed_lhs);
+        let lhs_status = self.check_assign_lhs(*lhs, &typed_lhs);
         self.record_implicit_move_for_owned_expr(*rhs, rhs_prop.ty);
 
-        if typed_lhs.ty.as_capability(self.db).is_some()
+        if lhs_status == AssignLhsStatus::Assignable
+            && typed_lhs.ty.as_capability(self.db).is_some()
             && let Some(place) = self.env.expr_place(*lhs)
             && place.projections.is_empty()
         {
@@ -4031,7 +4039,9 @@ impl<'db> TyChecker<'db> {
         if lhs_ty.has_invalid(self.db) {
             return unit;
         }
-        self.check_assign_lhs(*lhs, &typed_lhs);
+        if self.check_assign_lhs(*lhs, &typed_lhs) == AssignLhsStatus::NonAssignable {
+            return unit;
+        }
 
         // Avoid 'type must be known' diagnostics for unknown integer ty
         if lhs_place_ty.is_integral_var(self.db) {
@@ -4274,12 +4284,14 @@ impl<'db> TyChecker<'db> {
         self.unify_ty(Typeable::Expr(expr, prop), actual, expected);
     }
 
-    fn check_assign_lhs(&mut self, lhs: ExprId, typed_lhs: &ExprProp<'db>) {
-        if !self.is_assignable_expr(lhs) {
-            let diag = BodyDiag::NonAssignableExpr(lhs.span(self.body()).into());
-            self.push_diag(diag);
+    fn check_assign_lhs(&mut self, lhs: ExprId, typed_lhs: &ExprProp<'db>) -> AssignLhsStatus {
+        if !self.is_assignable_expr(lhs) || self.env.expr_place(lhs).is_none() {
+            if !typed_lhs.ty.has_invalid(self.db) {
+                let diag = BodyDiag::NonAssignableExpr(lhs.span(self.body()).into());
+                self.push_diag(diag);
+            }
 
-            return;
+            return AssignLhsStatus::NonAssignable;
         }
 
         if !typed_lhs.is_mut {
@@ -4302,7 +4314,10 @@ impl<'db> TyChecker<'db> {
             };
 
             self.push_diag(diag);
+            return AssignLhsStatus::Immutable;
         }
+
+        AssignLhsStatus::Assignable
     }
 
     fn check_expr_in_new_scope(&mut self, expr: ExprId, expected: TyId<'db>) -> ExprProp<'db> {

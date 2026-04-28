@@ -7,7 +7,7 @@ use either::Either;
 
 use super::{ConstRef, RecordLike, TyChecker, env::LocalBinding, path::RecordInitChecker};
 use crate::analysis::{
-    name_resolution::{PathRes, ResolvedVariant},
+    name_resolution::{ExpectedPathKind, PathRes, ResolvedVariant},
     semantic::{
         SemConstScalar, SemConstValue, SemOrigin, eval_const_ref,
         instance::resolve_semantic_const_ref,
@@ -538,10 +538,17 @@ impl<'db> TyChecker<'db> {
                 PatternAnalysisStatus::Invalid,
             ),
 
-            Err(_) => (
-                TyId::invalid(self.db, InvalidCause::Other),
-                PatternAnalysisStatus::Invalid,
-            ),
+            Err(err) => {
+                if let Some(diag) =
+                    err.into_diag(self.db, *path, span.clone().path(), ExpectedPathKind::Pat)
+                {
+                    self.push_diag(diag);
+                }
+                (
+                    TyId::invalid(self.db, InvalidCause::Other),
+                    PatternAnalysisStatus::Invalid,
+                )
+            }
         };
 
         self.finish_pat_check(pat, expected, actual, analysis)
@@ -697,7 +704,15 @@ impl<'db> TyChecker<'db> {
                     TupleVariantResolution::Invalid
                 }
             },
-            Err(_) => TupleVariantResolution::UnresolvedPath,
+            Err(err) => {
+                if !path.is_bare_ident(self.db)
+                    && let Some(diag) =
+                        err.into_diag(self.db, path, span.clone().path(), ExpectedPathKind::Pat)
+                {
+                    self.push_diag(diag);
+                }
+                TupleVariantResolution::UnresolvedPath
+            }
         }
     }
 
@@ -924,7 +939,7 @@ impl<'db> TyChecker<'db> {
                     )
                 }
             },
-            Err(_) => {
+            Err(err) => {
                 // Check if expected type is a struct from a desugared msg module
                 // that matches the pattern path
                 if let Some(adt_def) = expected.adt_def(self.db)
@@ -943,6 +958,12 @@ impl<'db> TyChecker<'db> {
                     }
                 }
 
+                if !path.is_bare_ident(self.db)
+                    && let Some(diag) =
+                        err.into_diag(self.db, *path, span.clone().path(), ExpectedPathKind::Pat)
+                {
+                    self.push_diag(diag);
+                }
                 (
                     TyId::invalid(self.db, InvalidCause::Other),
                     PatternAnalysisStatus::Invalid,

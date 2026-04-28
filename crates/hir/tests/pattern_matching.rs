@@ -152,3 +152,53 @@ fn stress_pattern_tests(fixture: Fixture<&str>) {
         snap_test!(diagnostic_output, fixture.path());
     }
 }
+
+#[test]
+fn invalid_pattern_constructor_paths_emit_hir_diagnostics() {
+    let mut db = HirAnalysisTestDb::default();
+    let file = db.new_stand_alone(
+        "invalid_pattern_constructor_paths_emit_hir_diagnostics.fe".into(),
+        r#"
+enum E {
+    A,
+    B(u8),
+    C { x: u8 },
+}
+
+fn invalid_path_pattern(e: E) -> u8 {
+    match e {
+        E::Missing => 0
+        _ => 1
+    }
+}
+
+fn invalid_tuple_pattern(e: E) -> u8 {
+    match e {
+        E::MissingTuple(0) => 0
+        _ => 1
+    }
+}
+
+fn invalid_record_pattern(e: E) -> u8 {
+    match e {
+        E::MissingRecord { x } => 0
+        _ => 1
+    }
+}
+"#,
+    );
+    let (top_mod, _) = db.top_mod(file);
+    let mut manager = initialize_analysis_pass();
+    let diags = manager.run_on_module(&db, top_mod);
+    let rendered = format_diagnostics(&db, &diags);
+
+    assert!(rendered.contains("`Missing` is not found"), "{rendered}");
+    assert!(
+        rendered.contains("`MissingTuple` is not found"),
+        "{rendered}"
+    );
+    assert!(
+        rendered.contains("`MissingRecord` is not found"),
+        "{rendered}"
+    );
+}

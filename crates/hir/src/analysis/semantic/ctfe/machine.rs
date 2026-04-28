@@ -835,8 +835,31 @@ impl<'db> CtfeMachine<'db> {
             "size_of" => self.eval_intrinsic_size_of(instance, result_ty, args, origin),
             "__as_bytes" => self.eval_intrinsic_as_bytes(result_ty, args, origin),
             "__keccak256" => self.eval_intrinsic_keccak(result_ty, args, origin),
+            "__bitcast" => self.eval_intrinsic_bitcast(result_ty, args, origin),
             _ => Err(CtfeError::NotConstEvaluable { origin }),
         }
+    }
+
+    fn eval_intrinsic_bitcast(
+        &self,
+        result_ty: TyId<'db>,
+        args: &[SemConstId<'db>],
+        origin: SemOrigin<'db>,
+    ) -> Result<SemConstId<'db>, CtfeError<'db>> {
+        let [value] = args else {
+            return Err(CtfeError::NotConstEvaluable { origin });
+        };
+        let SemConstValue::Scalar {
+            value: SemConstScalar::Int { value },
+            ..
+        } = value.value(self.db)
+        else {
+            return Err(CtfeError::NotConstEvaluable { origin });
+        };
+        if int_ty_shape(self.db, result_ty).is_none() {
+            return Err(CtfeError::NotConstEvaluable { origin });
+        }
+        Ok(int_const(self.db, result_ty, value.clone()))
     }
 
     fn eval_intrinsic_size_of(

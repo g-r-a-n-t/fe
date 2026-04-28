@@ -1847,7 +1847,7 @@ impl HasKind for TyData<'_> {
 
             TyData::ConstTy(const_ty) => const_ty.ty(db).kind(db).clone(),
 
-            TyData::Never => Kind::Any,
+            TyData::Never => Kind::Star,
 
             TyData::Invalid(_) => Kind::Any,
         }

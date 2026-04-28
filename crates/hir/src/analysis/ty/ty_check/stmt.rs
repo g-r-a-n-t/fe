@@ -216,6 +216,11 @@ impl<'db> TyChecker<'db> {
         if base.has_invalid(self.db) {
             return (TyId::invalid(self.db, InvalidCause::Other), None);
         }
+        if base.is_never(self.db) {
+            let diag = BodyDiag::TypeMustBeKnown(expr.span(self.body()).into());
+            self.push_diag(diag);
+            return (TyId::invalid(self.db, InvalidCause::Other), None);
+        }
         if base.is_ty_var(self.db) {
             let diag = BodyDiag::TypeMustBeKnown(expr.span(self.body()).into());
             self.push_diag(diag);

@@ -246,7 +246,7 @@ pub(crate) fn impls_for_ty_with_constraints<'db>(
 
     let env = ingot_trait_env(db, ingot);
     let solve_cx = TraitSolveCx::new(db, ingot.root_mod(db).scope()).with_assumptions(assumptions);
-    if ty.has_invalid(db) {
+    if ty.has_invalid(db) || ty.base_ty(db).is_never(db) {
         return vec![];
     }
 
@@ -316,7 +316,7 @@ pub(crate) fn impls_for_ty<'db>(
     let ty = ty.extract_identity(&mut table);
 
     let env = ingot_trait_env(db, ingot);
-    if ty.has_invalid(db) {
+    if ty.has_invalid(db) || ty.base_ty(db).is_never(db) {
         return vec![];
     }
 

@@ -20,7 +20,7 @@ func private %abi_encode(v0.i256, v1.objref<@layout_1>) {
         v5.i256 = mload v2 i256;
         call %mstore v1 0.i256 v5;
         call %std__lib__evm__effects__impl_trait_Evm_0098__return_data_f771 0.i256 32.i256;
-        return;
+        unreachable;
 }
 
 func private %impl_Square__area(v0.objref<@layout_2>) -> i256 {
@@ -128,30 +128,30 @@ func private %dispatch(v0.objref<@layout_1>) {
         jump block4;
 
     block4:
-        v41.i1 = eq v4 2066295049.i256;
-        br v41 block5 block6;
+        v40.i1 = eq v4 2066295049.i256;
+        br v40 block5 block6;
 
     block5:
-        v42.i256 = call %calldataload 4.i256;
-        v43.objref<@layout_2> = obj.alloc @layout_2;
-        v44.objref<i256> = obj.proj v43 0.i256;
-        obj.store v44 v42;
-        v45.@layout_2 = obj.load v43;
-        v46.objref<@layout_2> = obj.alloc @layout_2;
-        v47.objref<i256> = obj.proj v46 0.i256;
-        v48.i256 = extract_value v45 0.i256;
-        obj.store v47 v48;
-        v49.objref<i256> = obj.proj v46 0.i256;
-        v50.i256 = obj.load v49;
-        (v52.i256, v53.i1) = uaddo v50 3.i256;
-        br v53 block8 block11;
+        v41.i256 = call %calldataload 4.i256;
+        v42.objref<@layout_2> = obj.alloc @layout_2;
+        v43.objref<i256> = obj.proj v42 0.i256;
+        obj.store v43 v41;
+        v44.@layout_2 = obj.load v42;
+        v45.objref<@layout_2> = obj.alloc @layout_2;
+        v46.objref<i256> = obj.proj v45 0.i256;
+        v47.i256 = extract_value v44 0.i256;
+        obj.store v46 v47;
+        v48.objref<i256> = obj.proj v45 0.i256;
+        v49.i256 = obj.load v48;
+        (v51.i256, v52.i1) = uaddo v49 3.i256;
+        br v52 block8 block11;
 
     block6:
         jump block7;
 
     block7:
         call %std__lib__evm__effects__impl_trait_Evm_0098__return_data_b16a_0 0.i256 0.i256;
-        return;
+        unreachable;
 
     block8:
         mstore 0.i256 35408467139433450592217433187231851964531694900788300625387963629091585785856.i256 i256;
@@ -171,14 +171,14 @@ func private %dispatch(v0.objref<@layout_1>) {
         obj.store v35 v32;
         v36.i256 = call %impl_Point__area v16;
         call %abi_encode v36 v0;
-        jump block4;
+        unreachable;
 
     block11:
-        v55.objref<i256> = obj.proj v46 0.i256;
-        obj.store v55 v52;
-        v56.i256 = call %impl_Square__area v46;
-        call %abi_encode v56 v0;
-        jump block7;
+        v54.objref<i256> = obj.proj v45 0.i256;
+        obj.store v54 v51;
+        v55.i256 = call %impl_Square__area v45;
+        call %abi_encode v55 v0;
+        unreachable;
 }
 
 func private %init(v0.objref<@layout_1>) {
@@ -190,7 +190,7 @@ func private %init(v0.objref<@layout_1>) {
         v2.i256 = sym_addr &__ShapeDispatcher_runtime;
         call %codecopy v0 0.i256 v2 v1;
         call %std__lib__evm__effects__impl_trait_Evm_0098__return_data_b16a 0.i256 v1;
-        return;
+        unreachable;
 }
 
 func private %manual_contract_init_root_ShapeDispatcher() {

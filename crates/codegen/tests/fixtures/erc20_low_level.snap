@@ -79,7 +79,7 @@ object "Erc20Contract" {
       let v22 := 0x00
       let v12 := v22
       $std$lib$evm$effects$impl_trait$Evm$0098$return_data_0402(v12, v2)
-      leave
+      invalid()
     }
     function $manual_contract_init_root_Erc20Contract() {
       let t3 := mload(0x40)
@@ -123,10 +123,13 @@ object "Erc20Contract" {
         let v16 := 0x00
         let v8 := v16
         $std$lib$evm$effects$impl_trait$Evm$0098$revert_7c32(v7, v8)
+        invalid()
       }
-      let v11 := p1
-      sstore(add(p0, div(add(32, 31), 32)), v11)
-      leave
+      if iszero(iszero(iszero(v6))) {
+        let v11 := p1
+        sstore(add(p0, div(add(32, 31), 32)), v11)
+        leave
+      }
     }
     function $std$lib$evm$effects$trait$RawStorage$stor_ptr$g3730_6bd4(p0) -> ret {
       let v2 := p0
@@ -173,7 +176,7 @@ object "Erc20Contract" {
         let v32 := 0x60
         let v16 := v32
         $std$lib$evm$effects$impl_trait$Evm$0098$return_data_a822(v15, v16)
-        leave
+        invalid()
       }
       function $abi_encode_u256(p0, p1) {
         let v9 := p1
@@ -187,7 +190,7 @@ object "Erc20Contract" {
         let v14 := 0x20
         let v7 := v14
         $std$lib$evm$effects$impl_trait$Evm$0098$return_data_a822(v6, v7)
-        leave
+        invalid()
       }
       function $allowance_eff0_stor(p0, p1, p2) -> ret {
         let v4 := p0
@@ -473,35 +476,38 @@ object "Erc20Contract" {
           let v31 := 0x00
           let v12 := v31
           $std$lib$evm$effects$impl_trait$Evm$0098$revert_7c32_1(v11, v12)
+          invalid()
         }
-        let v15 := p1
-        let v34 := $standalone$erc20_low_level$erc20_low_level$impl$Erc20$16d9$balance_of$g35d6_6d6f_1(p0, v15)
-        let v16 := v34
-        let v6 := v16
-        let v18 := p1
-        let v19 := p2
-        let t41 := add(v6, v19)
-        if lt(t41, v6) {
-          mstore(0, 0x4e487b7100000000000000000000000000000000000000000000000000000000)
-          mstore(4, 0x11)
-          revert(0, 36)
+        if iszero(iszero(iszero(v10))) {
+          let v15 := p1
+          let v34 := $standalone$erc20_low_level$erc20_low_level$impl$Erc20$16d9$balance_of$g35d6_6d6f_1(p0, v15)
+          let v16 := v34
+          let v6 := v16
+          let v18 := p1
+          let v19 := p2
+          let t41 := add(v6, v19)
+          if lt(t41, v6) {
+            mstore(0, 0x4e487b7100000000000000000000000000000000000000000000000000000000)
+            mstore(4, 0x11)
+            revert(0, 36)
+          }
+          let v35 := t41
+          let v20 := v35
+          $std$lib$evm$storage_map$impl$StorageMap$9f54$set$g2163_a4c9_1(v18, v20)
+          let t42 := sload(p0)
+          let v22 := t42
+          let v23 := p2
+          let t43 := add(v22, v23)
+          if lt(t43, v22) {
+            mstore(0, 0x4e487b7100000000000000000000000000000000000000000000000000000000)
+            mstore(4, 0x11)
+            revert(0, 36)
+          }
+          let v38 := t43
+          let v24 := v38
+          sstore(p0, v24)
+          leave
         }
-        let v35 := t41
-        let v20 := v35
-        $std$lib$evm$storage_map$impl$StorageMap$9f54$set$g2163_a4c9_1(v18, v20)
-        let t42 := sload(p0)
-        let v22 := t42
-        let v23 := p2
-        let t43 := add(v22, v23)
-        if lt(t43, v22) {
-          mstore(0, 0x4e487b7100000000000000000000000000000000000000000000000000000000)
-          mstore(4, 0x11)
-          revert(0, 36)
-        }
-        let v38 := t43
-        let v24 := v38
-        sstore(p0, v24)
-        leave
       }
       function $mint_eff0_stor(p0, p1, p2, p3, p4) -> ret {
         let v10 := p2
@@ -583,6 +589,7 @@ object "Erc20Contract" {
           let v105 := $balance_of_eff0_stor(v3, v1)
           let v43 := v105
           $abi_encode_u256(v43, p0)
+          invalid()
         }
         if iszero(iszero(iszero(v23))) {
           let v167 := 0xdd62ed3e
@@ -604,6 +611,7 @@ object "Erc20Contract" {
             let v114 := $allowance_eff0_stor(v4, v5, v1)
             let v51 := v114
             $abi_encode_u256(v51, p0)
+            invalid()
           }
           if iszero(iszero(iszero(v25))) {
             let v168 := 0x06fdde03
@@ -615,6 +623,7 @@ object "Erc20Contract" {
               let v118 := 0x07
               let v54 := v118
               $abi_encode_string(v53, v54, p0)
+              invalid()
             }
             if iszero(iszero(iszero(v27))) {
               let v169 := 0x95d89b41
@@ -626,6 +635,7 @@ object "Erc20Contract" {
                 let v122 := 0x03
                 let v57 := v122
                 $abi_encode_string(v56, v57, p0)
+                invalid()
               }
               if iszero(iszero(iszero(v29))) {
                 let v170 := 0x313ce567
@@ -635,6 +645,7 @@ object "Erc20Contract" {
                   let v125 := 0x12
                   let v59 := v125
                   $abi_encode_u256(v59, p0)
+                  invalid()
                 }
                 if iszero(iszero(iszero(v31))) {
                   let v171 := 0xa9059cbb
@@ -655,6 +666,7 @@ object "Erc20Contract" {
                     let v133 := $transfer_eff0_stor(v6, v7, v1, p0, p0)
                     let v66 := v133
                     $abi_encode_u256(v66, p0)
+                    invalid()
                   }
                   if iszero(iszero(iszero(v33))) {
                     let v172 := 0x095ea7b3
@@ -675,6 +687,7 @@ object "Erc20Contract" {
                       let v141 := $approve_eff0_stor(v8, v9, v1, p0)
                       let v73 := v141
                       $abi_encode_u256(v73, p0)
+                      invalid()
                     }
                     if iszero(iszero(iszero(v35))) {
                       let v173 := 0x23b872dd
@@ -701,6 +714,7 @@ object "Erc20Contract" {
                         let v152 := $transfer_from_eff0_stor(v10, v11, v12, v1, p0, p0)
                         let v83 := v152
                         $abi_encode_u256(v83, p0)
+                        invalid()
                       }
                       if iszero(iszero(iszero(v37))) {
                         let v174 := 0x40c10f19
@@ -721,6 +735,7 @@ object "Erc20Contract" {
                           let v160 := $mint_eff0_stor(v13, v14, v1, p0, p0)
                           let v90 := v160
                           $abi_encode_u256(v90, p0)
+                          invalid()
                         }
                         if iszero(iszero(iszero(v39))) {
                           let v163 := 0x00
@@ -728,6 +743,7 @@ object "Erc20Contract" {
                           let v164 := 0x00
                           let v93 := v164
                           $std$lib$evm$effects$impl_trait$Evm$0098$revert_61f0(v92, v93)
+                          invalid()
                         }
                       }
                     }
@@ -737,7 +753,6 @@ object "Erc20Contract" {
             }
           }
         }
-        leave
       }
       function $std$lib$evm$storage_map$impl$StorageMap$9f54$set$ga15b_5b22(p0, p1) {
         let r1 := mload(0x40)
@@ -1261,34 +1276,37 @@ object "Erc20Contract" {
           let v30 := 0x00
           let v12 := v30
           $std$lib$evm$effects$impl_trait$Evm$0098$revert_7c32_0(v11, v12)
+          invalid()
         }
-        let v15 := p2
-        let v33 := $standalone$erc20_low_level$erc20_low_level$impl$Erc20$16d9$balance_of$g35d6_6d6f(p0, v15)
-        let v16 := v33
-        let v6 := v16
-        let v18 := p1
-        let v19 := p3
-        let t40 := sub(v5, v19)
-        if gt(v19, v5) {
-          mstore(0, 0x4e487b7100000000000000000000000000000000000000000000000000000000)
-          mstore(4, 0x11)
-          revert(0, 36)
+        if iszero(iszero(iszero(v10))) {
+          let v15 := p2
+          let v33 := $standalone$erc20_low_level$erc20_low_level$impl$Erc20$16d9$balance_of$g35d6_6d6f(p0, v15)
+          let v16 := v33
+          let v6 := v16
+          let v18 := p1
+          let v19 := p3
+          let t40 := sub(v5, v19)
+          if gt(v19, v5) {
+            mstore(0, 0x4e487b7100000000000000000000000000000000000000000000000000000000)
+            mstore(4, 0x11)
+            revert(0, 36)
+          }
+          let v34 := t40
+          let v20 := v34
+          $std$lib$evm$storage_map$impl$StorageMap$9f54$set$g2163_a4c9(v18, v20)
+          let v23 := p2
+          let v24 := p3
+          let t41 := add(v6, v24)
+          if lt(t41, v6) {
+            mstore(0, 0x4e487b7100000000000000000000000000000000000000000000000000000000)
+            mstore(4, 0x11)
+            revert(0, 36)
+          }
+          let v37 := t41
+          let v25 := v37
+          $std$lib$evm$storage_map$impl$StorageMap$9f54$set$g2163_a4c9(v23, v25)
+          leave
         }
-        let v34 := t40
-        let v20 := v34
-        $std$lib$evm$storage_map$impl$StorageMap$9f54$set$g2163_a4c9(v18, v20)
-        let v23 := p2
-        let v24 := p3
-        let t41 := add(v6, v24)
-        if lt(t41, v6) {
-          mstore(0, 0x4e487b7100000000000000000000000000000000000000000000000000000000)
-          mstore(4, 0x11)
-          revert(0, 36)
-        }
-        let v37 := t41
-        let v25 := v37
-        $std$lib$evm$storage_map$impl$StorageMap$9f54$set$g2163_a4c9(v23, v25)
-        leave
       }
       function $standalone$erc20_low_level$erc20_low_level$impl$Erc20$16d9$transfer$g0f37_4c1a_0(p0, p1, p2, p3, p4) {
         let v5 := 0
@@ -1304,34 +1322,37 @@ object "Erc20Contract" {
           let v30 := 0x00
           let v12 := v30
           $std$lib$evm$effects$impl_trait$Evm$0098$revert_7c32_2(v11, v12)
+          invalid()
         }
-        let v15 := p2
-        let v33 := $standalone$erc20_low_level$erc20_low_level$impl$Erc20$16d9$balance_of$g35d6_6d6f_0(p0, v15)
-        let v16 := v33
-        let v6 := v16
-        let v18 := p1
-        let v19 := p3
-        let t40 := sub(v5, v19)
-        if gt(v19, v5) {
-          mstore(0, 0x4e487b7100000000000000000000000000000000000000000000000000000000)
-          mstore(4, 0x11)
-          revert(0, 36)
+        if iszero(iszero(iszero(v10))) {
+          let v15 := p2
+          let v33 := $standalone$erc20_low_level$erc20_low_level$impl$Erc20$16d9$balance_of$g35d6_6d6f_0(p0, v15)
+          let v16 := v33
+          let v6 := v16
+          let v18 := p1
+          let v19 := p3
+          let t40 := sub(v5, v19)
+          if gt(v19, v5) {
+            mstore(0, 0x4e487b7100000000000000000000000000000000000000000000000000000000)
+            mstore(4, 0x11)
+            revert(0, 36)
+          }
+          let v34 := t40
+          let v20 := v34
+          $std$lib$evm$storage_map$impl$StorageMap$9f54$set$g2163_a4c9_0(v18, v20)
+          let v23 := p2
+          let v24 := p3
+          let t41 := add(v6, v24)
+          if lt(t41, v6) {
+            mstore(0, 0x4e487b7100000000000000000000000000000000000000000000000000000000)
+            mstore(4, 0x11)
+            revert(0, 36)
+          }
+          let v37 := t41
+          let v25 := v37
+          $std$lib$evm$storage_map$impl$StorageMap$9f54$set$g2163_a4c9_0(v23, v25)
+          leave
         }
-        let v34 := t40
-        let v20 := v34
-        $std$lib$evm$storage_map$impl$StorageMap$9f54$set$g2163_a4c9_0(v18, v20)
-        let v23 := p2
-        let v24 := p3
-        let t41 := add(v6, v24)
-        if lt(t41, v6) {
-          mstore(0, 0x4e487b7100000000000000000000000000000000000000000000000000000000)
-          mstore(4, 0x11)
-          revert(0, 36)
-        }
-        let v37 := t41
-        let v25 := v37
-        $std$lib$evm$storage_map$impl$StorageMap$9f54$set$g2163_a4c9_0(v23, v25)
-        leave
       }
       function $transfer_eff0_stor(p0, p1, p2, p3, p4) -> ret {
         let v11 := p2
@@ -1376,32 +1397,35 @@ object "Erc20Contract" {
           let v31 := 0x00
           let v14 := v31
           $std$lib$evm$effects$impl_trait$Evm$0098$revert_7c32_1(v13, v14)
+          invalid()
         }
-        let v17 := p1
-        let v18 := p2
-        let v19 := p3
-        $standalone$erc20_low_level$erc20_low_level$impl$Erc20$16d9$transfer$g0f37_4c1a_0(p0, v17, v18, v19, p5)
-        let v22 := p1
-        let t40 := mload(0x40)
-        if iszero(t40) {
-          t40 := 0x80
+        if iszero(iszero(iszero(v12))) {
+          let v17 := p1
+          let v18 := p2
+          let v19 := p3
+          $standalone$erc20_low_level$erc20_low_level$impl$Erc20$16d9$transfer$g0f37_4c1a_0(p0, v17, v18, v19, p5)
+          let v22 := p1
+          let t40 := mload(0x40)
+          if iszero(t40) {
+            t40 := 0x80
+          }
+          mstore(0x40, add(t40, 64))
+          let v36 := t40
+          mstore(v36, v22)
+          mstore(add(v36, 32), v6)
+          let v23 := v36
+          let v24 := p3
+          let t41 := sub(v7, v24)
+          if gt(v24, v7) {
+            mstore(0, 0x4e487b7100000000000000000000000000000000000000000000000000000000)
+            mstore(4, 0x11)
+            revert(0, 36)
+          }
+          let v37 := t41
+          let v25 := v37
+          $std$lib$evm$storage_map$impl$StorageMap$9f54$set$ga15b_5b22(v23, v25)
+          leave
         }
-        mstore(0x40, add(t40, 64))
-        let v36 := t40
-        mstore(v36, v22)
-        mstore(add(v36, 32), v6)
-        let v23 := v36
-        let v24 := p3
-        let t41 := sub(v7, v24)
-        if gt(v24, v7) {
-          mstore(0, 0x4e487b7100000000000000000000000000000000000000000000000000000000)
-          mstore(4, 0x11)
-          revert(0, 36)
-        }
-        let v37 := t41
-        let v25 := v37
-        $std$lib$evm$storage_map$impl$StorageMap$9f54$set$ga15b_5b22(v23, v25)
-        leave
       }
       function $std$lib$evm$storage_map$impl_trait$Address$4d4e$write_key_0b7a(p0, p1) -> ret {
         let r1 := mload(0x40)

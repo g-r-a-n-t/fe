@@ -25,7 +25,7 @@ object "ShapeDispatcher" {
       let v14 := 0x00
       let v8 := v14
       $std$lib$evm$effects$impl_trait$Evm$0098$return_data_b16a(v8, v1)
-      leave
+      invalid()
     }
     function $manual_contract_init_root_ShapeDispatcher() {
       let t3 := mload(0x40)
@@ -59,7 +59,7 @@ object "ShapeDispatcher" {
         let v14 := 0x20
         let v7 := v14
         $std$lib$evm$effects$impl_trait$Evm$0098$return_data_f771(v2, v7)
-        leave
+        invalid()
       }
       function $impl$Square$area(p0) -> ret {
         let t5 := mload(p0)
@@ -166,50 +166,56 @@ object "ShapeDispatcher" {
           let v29 := v64
           let v5 := v29
           $abi_encode(v5, p0)
+          invalid()
         }
-        let v67 := 0x7b292909
-        let v33 := v67
-        let v68 := iszero(iszero(eq(v1, v33)))
-        let v34 := iszero(iszero(v68))
-        if iszero(iszero(v34)) {
-          let v69 := 0x04
-          let v35 := v69
-          let v70 := $calldataload(v35)
-          let v36 := v70
-          let v6 := v36
-          let v37 := v6
-          let t87 := mload(0x40)
-          if iszero(t87) {
-            t87 := 0x80
+        if iszero(iszero(iszero(v15))) {
+          let v67 := 0x7b292909
+          let v33 := v67
+          let v68 := iszero(iszero(eq(v1, v33)))
+          let v34 := iszero(iszero(v68))
+          if iszero(iszero(v34)) {
+            let v69 := 0x04
+            let v35 := v69
+            let v70 := $calldataload(v35)
+            let v36 := v70
+            let v6 := v36
+            let v37 := v6
+            let t87 := mload(0x40)
+            if iszero(t87) {
+              t87 := 0x80
+            }
+            mstore(0x40, add(t87, 32))
+            mstore(t87, v37)
+            let v72 := t87
+            let v7 := v72
+            let t88 := mload(v7)
+            let v38 := t88
+            let v73 := 0x03
+            let v39 := v73
+            let t89 := add(v38, v39)
+            if lt(t89, v38) {
+              mstore(0, 0x4e487b7100000000000000000000000000000000000000000000000000000000)
+              mstore(4, 0x11)
+              revert(0, 36)
+            }
+            let v74 := t89
+            let v40 := v74
+            mstore(v7, v40)
+            let v75 := $impl$Square$area(v7)
+            let v42 := v75
+            let v8 := v42
+            $abi_encode(v8, p0)
+            invalid()
           }
-          mstore(0x40, add(t87, 32))
-          mstore(t87, v37)
-          let v72 := t87
-          let v7 := v72
-          let t88 := mload(v7)
-          let v38 := t88
-          let v73 := 0x03
-          let v39 := v73
-          let t89 := add(v38, v39)
-          if lt(t89, v38) {
-            mstore(0, 0x4e487b7100000000000000000000000000000000000000000000000000000000)
-            mstore(4, 0x11)
-            revert(0, 36)
+          if iszero(iszero(iszero(v34))) {
+            let v78 := 0x00
+            let v45 := v78
+            let v79 := 0x00
+            let v46 := v79
+            $std$lib$evm$effects$impl_trait$Evm$0098$return_data_b16a_0(v45, v46)
+            invalid()
           }
-          let v74 := t89
-          let v40 := v74
-          mstore(v7, v40)
-          let v75 := $impl$Square$area(v7)
-          let v42 := v75
-          let v8 := v42
-          $abi_encode(v8, p0)
         }
-        let v78 := 0x00
-        let v45 := v78
-        let v79 := 0x00
-        let v46 := v79
-        $std$lib$evm$effects$impl_trait$Evm$0098$return_data_b16a_0(v45, v46)
-        leave
       }
       function $manual_contract_runtime_root_ShapeDispatcher() {
         let t3 := mload(0x40)

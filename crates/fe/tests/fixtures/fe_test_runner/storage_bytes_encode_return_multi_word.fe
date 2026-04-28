@@ -1,0 +1,94 @@
+use core::abi::Bytes
+use std::evm::{Evm, StorageBytes, assert, mem}
+
+type Blobs = StorageBytes<u256, 0, 1>
+
+msg BlobMsg {
+    #[selector = 0x01]
+    Set { data: Bytes },
+    #[selector = 0x02]
+    Get -> Bytes,
+}
+
+pub contract Blob {
+    recv BlobMsg {
+        Set { data } {
+            let blobs: Blobs = Blobs::new()
+            blobs.store_view(key: 0, view: data.view())
+        }
+
+        Get -> Bytes {
+            let blobs: Blobs = Blobs::new()
+            blobs.encode_return(key: 0)
+        }
+    }
+}
+
+fn one_word_payload() -> Bytes
+uses (evm: mut Evm)
+{
+    let payload_len: u256 = 32
+    let payload_size: u256 = 64
+    let data_ptr = mem::alloc(payload_size)
+
+    evm.mstore(addr: data_ptr, value: payload_len)
+    evm.mstore(
+        addr: data_ptr + 32,
+        value: 0x1111111111111111111111111111111111111111111111111111111111111111,
+    )
+
+    Bytes { data: data_ptr, len: payload_len, size: payload_size }
+}
+
+fn two_word_payload() -> Bytes
+uses (evm: mut Evm)
+{
+    let payload_len: u256 = 33
+    let payload_size: u256 = 96
+    let data_ptr = mem::alloc(payload_size)
+
+    evm.mstore(addr: data_ptr, value: payload_len)
+    evm.mstore(
+        addr: data_ptr + 32,
+        value: 0x1111111111111111111111111111111111111111111111111111111111111111,
+    )
+    evm.mstore(
+        addr: data_ptr + 64,
+        value: 0x2200000000000000000000000000000000000000000000000000000000000000,
+    )
+
+    Bytes { data: data_ptr, len: payload_len, size: payload_size }
+}
+
+#[test]
+fn test_storage_bytes_encode_return_one_word_control()
+uses (evm: mut Evm)
+{
+    let blob = evm.create2<Blob>(value: 0, args: (), salt: 0)
+    assert(blob.inner != 0)
+
+    let payload = one_word_payload()
+    evm.call(addr: blob, gas: 1000000, value: 0, message: BlobMsg::Set { data: payload })
+
+    let returned: Bytes = evm.call(addr: blob, gas: 1000000, value: 0, message: BlobMsg::Get {})
+    assert(returned.len() == 32)
+    assert(returned.byte_at(0) == 0x11)
+    assert(returned.byte_at(31) == 0x11)
+}
+
+#[test]
+fn test_storage_bytes_encode_return_two_words_repro()
+uses (evm: mut Evm)
+{
+    let blob = evm.create2<Blob>(value: 0, args: (), salt: 0)
+    assert(blob.inner != 0)
+
+    let payload = two_word_payload()
+    evm.call(addr: blob, gas: 1000000, value: 0, message: BlobMsg::Set { data: payload })
+
+    let returned: Bytes = evm.call(addr: blob, gas: 1000000, value: 0, message: BlobMsg::Get {})
+    assert(returned.len() == 33)
+    assert(returned.byte_at(0) == 0x11)
+    assert(returned.byte_at(31) == 0x11)
+    assert(returned.byte_at(32) == 0x22)
+}

@@ -622,21 +622,47 @@ fn maybe(flag: bool) {
     }
 
     #[test]
-    fn semantic_panic_wrapper_call_lowers_as_normal_call() {
+    fn semantic_nonreturning_wrapper_calls_lower_as_terminal_calls() {
         let mut db = DriverDataBase::default();
         let file_url =
-            Url::parse("file:///semantic_panic_wrapper_call_lowers_as_normal_call.fe").unwrap();
+            Url::parse("file:///semantic_nonreturning_wrapper_calls_lower_as_terminal_calls.fe")
+                .unwrap();
         db.workspace().touch(
             &mut db,
             file_url.clone(),
             Some(
                 r#"
-fn fail() {
+struct Pair {
+    a: u256,
+    b: u256,
+}
+
+fn fail() -> ! {
     core::panic()
 }
 
-fn caller() {
+fn fail_declared_u256() -> u256 {
+    core::panic()
+}
+
+fn fail_declared_pair() -> Pair {
+    core::panic()
+}
+
+fn caller_unit() {
     fail()
+}
+
+fn caller_u256_from_never() -> u256 {
+    fail()
+}
+
+fn caller_u256_from_declared_u256() -> u256 {
+    fail_declared_u256()
+}
+
+fn caller_pair_from_declared_pair() -> Pair {
+    fail_declared_pair()
 }
 "#
                 .to_string(),
@@ -647,29 +673,36 @@ fn caller() {
             .get(&db, &file_url)
             .expect("file should be loaded");
         let top_mod = db.top_mod(file);
-        let caller = semantic_instance_for_named_func(&db, top_mod, "caller");
-        let body = runtime_instance_for_semantic(&db, caller).body(&db);
+        for caller_name in [
+            "caller_unit",
+            "caller_u256_from_never",
+            "caller_u256_from_declared_u256",
+            "caller_pair_from_declared_pair",
+        ] {
+            let caller = semantic_instance_for_named_func(&db, top_mod, caller_name);
+            let body = runtime_instance_for_semantic(&db, caller).body(&db);
 
-        assert!(
-            body.blocks.iter().any(|block| {
-                block.stmts.iter().any(|stmt| {
-                    matches!(
-                        stmt,
-                        RStmt::Assign {
-                            expr: RExpr::Call { .. },
-                            ..
-                        }
-                    )
-                })
-            }),
-            "semantic nonreturning wrapper calls should stay ordinary calls:\n{body:#?}"
-        );
-        assert!(
-            body.blocks
-                .iter()
-                .all(|block| !matches!(block.terminator, RTerminator::TerminalCall { .. })),
-            "ordinary semantic calls should not be terminalized by exit analysis:\n{body:#?}"
-        );
+            assert!(
+                body.blocks
+                    .iter()
+                    .any(|block| matches!(block.terminator, RTerminator::TerminalCall { .. })),
+                "`{caller_name}` should terminal-call its nonreturning callee:\n{body:#?}"
+            );
+            assert!(
+                body.blocks.iter().all(|block| {
+                    block.stmts.iter().all(|stmt| {
+                        !matches!(
+                            stmt,
+                            RStmt::Assign {
+                                expr: RExpr::Call { .. },
+                                ..
+                            }
+                        )
+                    })
+                }),
+                "`{caller_name}` should not lower its nonreturning callee as a normal call:\n{body:#?}"
+            );
+        }
     }
 
     #[test]

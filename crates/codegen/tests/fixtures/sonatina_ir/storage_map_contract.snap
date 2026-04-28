@@ -20,7 +20,7 @@ func private %abi_encode(v0.i256, v1.objref<@layout_1>) {
         v5.i256 = mload v2 i256;
         call %mstore v1 0.i256 v5;
         call %std__lib__evm__effects__impl_trait_Evm_0098__return_data_c635 0.i256 32.i256;
-        return;
+        unreachable;
 }
 
 func private %calldataload(v0.i256) -> i256 {
@@ -158,7 +158,7 @@ func private %init(v0.objref<@layout_1>) {
         v2.i256 = sym_addr &__BalanceMap_runtime;
         call %codecopy v0 0.i256 v2 v1;
         call %std__lib__evm__effects__impl_trait_Evm_0098__return_data_ad81_0 0.i256 v1;
-        return;
+        unreachable;
 }
 
 func private %manual_contract_init_root_BalanceMap() {
@@ -266,77 +266,74 @@ func private %runtime(v0.objref<@layout_1>) {
         v6.i256 = call %calldataload 0.i256;
         v8.i256 = shr 224.i256 v6;
         v10.i1 = eq v8 2630350600.i256;
-        br v10 block3 block9;
+        br v10 block2 block8;
 
     block2:
-        return;
-
-    block3:
         v12.i256 = call %calldataload 4.i256;
         v13.@layout_3 = obj.load v1;
         v14.objref<@layout_3> = obj.alloc @layout_3;
         v15.i256 = call %get_balance v12 v14;
         call %abi_encode v15 v0;
-        jump block2;
+        unreachable;
+
+    block3:
+        v17.i256 = call %calldataload 4.i256;
+        v19.i256 = call %calldataload 36.i256;
+        v20.@layout_3 = obj.load v1;
+        v21.objref<@layout_3> = obj.alloc @layout_3;
+        call %set_balance v17 v19 v21;
+        call %abi_encode 0.i256 v0;
+        unreachable;
 
     block4:
-        v18.i256 = call %calldataload 4.i256;
-        v20.i256 = call %calldataload 36.i256;
-        v21.@layout_3 = obj.load v1;
-        v22.objref<@layout_3> = obj.alloc @layout_3;
-        call %set_balance v18 v20 v22;
-        call %abi_encode 0.i256 v0;
-        jump block2;
+        v24.i256 = call %calldataload 4.i256;
+        v25.i256 = call %calldataload 36.i256;
+        v27.i256 = call %calldataload 68.i256;
+        v28.@layout_3 = obj.load v1;
+        v29.objref<@layout_3> = obj.alloc @layout_3;
+        v30.i256 = call %transfer v24 v25 v27 v29;
+        call %abi_encode v30 v0;
+        unreachable;
 
     block5:
-        v26.i256 = call %calldataload 4.i256;
-        v27.i256 = call %calldataload 36.i256;
-        v29.i256 = call %calldataload 68.i256;
-        v30.@layout_3 = obj.load v1;
-        v31.objref<@layout_3> = obj.alloc @layout_3;
-        v32.i256 = call %transfer v26 v27 v29 v31;
-        call %abi_encode v32 v0;
-        jump block2;
+        v32.i256 = call %calldataload 4.i256;
+        v33.@layout_2 = obj.load v2;
+        v34.objref<@layout_2> = obj.alloc @layout_2;
+        v35.i256 = call %get_allowance v32 v34;
+        call %abi_encode v35 v0;
+        unreachable;
 
     block6:
-        v35.i256 = call %calldataload 4.i256;
-        v36.@layout_2 = obj.load v2;
-        v37.objref<@layout_2> = obj.alloc @layout_2;
-        v38.i256 = call %get_allowance v35 v37;
-        call %abi_encode v38 v0;
-        jump block2;
+        v37.i256 = call %calldataload 4.i256;
+        v38.i256 = call %calldataload 36.i256;
+        v39.@layout_2 = obj.load v2;
+        v40.objref<@layout_2> = obj.alloc @layout_2;
+        call %set_allowance v37 v38 v40;
+        call %abi_encode 0.i256 v0;
+        unreachable;
 
     block7:
-        v41.i256 = call %calldataload 4.i256;
-        v42.i256 = call %calldataload 36.i256;
-        v43.@layout_2 = obj.load v2;
-        v44.objref<@layout_2> = obj.alloc @layout_2;
-        call %set_allowance v41 v42 v44;
-        call %abi_encode 0.i256 v0;
-        jump block2;
+        call %std__lib__evm__effects__impl_trait_Evm_0098__return_data_ad81 0.i256 0.i256;
+        unreachable;
 
     block8:
-        call %std__lib__evm__effects__impl_trait_Evm_0098__return_data_ad81 0.i256 0.i256;
-        jump block2;
+        v45.i1 = eq v8 1246470123.i256;
+        br v45 block3 block9;
 
     block9:
-        v51.i1 = eq v8 1246470123.i256;
-        br v51 block4 block10;
+        v48.i1 = eq v8 2430412327.i256;
+        br v48 block4 block10;
 
     block10:
-        v54.i1 = eq v8 2430412327.i256;
-        br v54 block5 block11;
+        v51.i1 = eq v8 3378517838.i256;
+        br v51 block5 block11;
 
     block11:
-        v57.i1 = eq v8 3378517838.i256;
-        br v57 block6 block12;
+        v54.i1 = eq v8 197806145.i256;
+        br v54 block6 block12;
 
     block12:
-        v60.i1 = eq v8 197806145.i256;
-        br v60 block7 block13;
-
-    block13:
-        jump block8;
+        jump block7;
 }
 
 func private %set__g7fdf(v0.i256, v1.i256) {

@@ -16,6 +16,7 @@ object "main" {
           let v12 := 0x00
           let v4 := v12
           $return_data(v3, v4)
+          invalid()
       }
       case 1 {
           let v15 := 0x00
@@ -23,11 +24,11 @@ object "main" {
           let v16 := 0x00
           let v7 := v16
           $return_data(v6, v7)
+          invalid()
       }
       default {
           invalid()
       }
-      leave
     }
     function $main(p0) {
       let t7 := mload(0x40)
@@ -40,7 +41,7 @@ object "main" {
       let v1 := v3
       let v5 := v1
       $f(v5, p0)
-      leave
+      invalid()
     }
     function $main_root() {
       let t3 := mload(0x40)

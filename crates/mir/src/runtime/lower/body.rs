@@ -36,9 +36,10 @@ use crate::{
     runtime::{
         AddressSpaceKind, ConstScalar, IntrinsicArithBinOp, LayoutId, PlaceElem, PlaceRoot, RBlock,
         RBlockId, RExpr, RLocal, RLocalId, RStmt, RTerminator, RefKind, RefView, RuntimeBody,
-        RuntimeCarrier, RuntimeClass, RuntimeCodeRegion, RuntimeInterfaceSignature,
-        RuntimeLocalLowering, RuntimeLocalRoot, RuntimePlace, RuntimeProviderBinding,
-        RuntimeProviderBindingId, ScalarClass, ScalarRepr, ScalarRole, VariantId,
+        RuntimeCarrier, RuntimeClass, RuntimeCodeRegion, RuntimeExitBehavior,
+        RuntimeInterfaceSignature, RuntimeLocalLowering, RuntimeLocalRoot, RuntimePlace,
+        RuntimeProviderBinding, RuntimeProviderBindingId, ScalarClass, ScalarRepr, ScalarRole,
+        VariantId,
         code_region::runtime_code_region_for_semantic_ref,
         package::{LowerError, runtime_instance_for_semantic},
     },
@@ -2409,6 +2410,16 @@ impl<'db> RmirEmitter<'db> {
             runtime_classes,
         );
         let callee = get_or_build_runtime_instance(self.db, callee_key);
+        if callee.exit_behavior(self.db) == RuntimeExitBehavior::NeverReturns {
+            self.set_terminator(
+                bb,
+                RTerminator::TerminalCall {
+                    callee,
+                    args: runtime_args.into_boxed_slice(),
+                },
+            );
+            return self.alloc_runtime_temp(TyId::unit(self.db), RuntimeCarrier::Erased);
+        }
         let ret_ty = semantic_return_ty(self.db, semantic);
 
         let Some(ret_class) = runtime_return_class(self.db, callee_key) else {

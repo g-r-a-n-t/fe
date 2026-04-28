@@ -761,7 +761,7 @@ func private %std__lib__evm__effects__assert_d98e(v0.i1) {
         obj.store v6 1.i256;
         v7.@layout_3 = obj.load v4;
         call %std__lib__evm__effects__revert_error__geb2e_c430 v7;
-        jump block4;
+        unreachable;
 
     block3:
         jump block4;
@@ -784,7 +784,7 @@ func private %std__lib__evm__effects__assert_d98e_0(v0.i1) {
         obj.store v6 1.i256;
         v7.@layout_3 = obj.load v4;
         call %std__lib__evm__effects__revert_error__geb2e_c430_0 v7;
-        jump block4;
+        unreachable;
 
     block3:
         jump block4;
@@ -807,7 +807,7 @@ func private %std__lib__evm__effects__assert_d98e_1(v0.i1) {
         obj.store v6 1.i256;
         v7.@layout_3 = obj.load v4;
         call %std__lib__evm__effects__revert_error__geb2e_c430_1 v7;
-        jump block4;
+        unreachable;
 
     block3:
         jump block4;

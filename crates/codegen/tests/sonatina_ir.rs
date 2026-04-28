@@ -311,6 +311,48 @@ fn main() -> u256 {
     );
 }
 
+#[test]
+fn semantic_never_returning_recv_returns_emit_sonatina_ir() {
+    let output = with_top_mod_for_source(
+        "semantic_never_returning_recv_returns_emit_sonatina_ir.fe",
+        r#"
+use core::abi::Bytes
+
+msg Msg {
+    #[selector = 0x01]
+    GetBytes -> Bytes,
+    #[selector = 0x02]
+    GetScalar -> u256,
+}
+
+fn abort() -> ! {
+    core::panic()
+}
+
+pub contract C {
+    recv Msg {
+        GetBytes -> Bytes {
+            abort()
+        }
+
+        GetScalar -> u256 {
+            abort()
+        }
+    }
+}
+"#,
+        |db, top_mod| {
+            emit_module_sonatina_ir(db, top_mod)
+                .expect("semantic never-returning recv arms should emit Sonatina IR")
+        },
+    );
+
+    assert!(
+        output.contains("object @C") && output.contains("evm_invalid"),
+        "never-returning recv arms should lower to real terminating IR:\n{output}"
+    );
+}
+
 // NOTE: `dir_test` discovers fixtures at compile time; new fixture files will be picked up on a
 // clean build (e.g. CI) or whenever this test target is recompiled.
 //

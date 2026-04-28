@@ -1,0 +1,16 @@
+---
+source: crates/fe/tests/cli_output.rs
+expression: output
+input_file: tests/fixtures/fe_test_runner/storage_bytes_encode_return_multi_word.fe
+---
+=== STDOUT ===
+PASS  [<time>] test_storage_bytes_encode_return_one_word_control
+FAIL  [<time>] test_storage_bytes_encode_return_two_words_repro
+    Test reverted: 0x
+
+test result: FAILED. 1 passed; 1 failed
+
+failures:
+    test_storage_bytes_encode_return_two_words_repro
+
+=== EXIT CODE: 1 ===

@@ -25,7 +25,7 @@ object "Coin" {
       let v14 := 0x00
       let v8 := v14
       $std$lib$evm$effects$impl_trait$Evm$0098$return_data_e8fc(v8, v1)
-      leave
+      invalid()
     }
     function $manual_contract_init_root_Coin() {
       let t3 := mload(0x40)
@@ -59,7 +59,7 @@ object "Coin" {
         let v14 := 0x20
         let v7 := v14
         $std$lib$evm$effects$impl_trait$Evm$0098$return_data_2541(v2, v7)
-        leave
+        invalid()
       }
       function $abi_encode_arg0_root_stor(p0, p1) {
         let v9 := 0x00
@@ -73,7 +73,7 @@ object "Coin" {
         let v14 := 0x20
         let v7 := v14
         $std$lib$evm$effects$impl_trait$Evm$0098$return_data_2541(v2, v7)
-        leave
+        invalid()
       }
       function $balance_of_raw_eff0_stor(p0, p1) -> ret {
         let v3 := 0
@@ -266,6 +266,7 @@ object "Coin" {
           }
           let v6 := v35
           $abi_encode(v6, p0)
+          invalid()
         }
         if iszero(iszero(iszero(v24))) {
           let v92 := 0x6c65aae5
@@ -281,6 +282,7 @@ object "Coin" {
             let v43 := v77
             let v8 := v43
             $abi_encode_arg0_root_stor(v8, p0)
+            invalid()
           }
           if iszero(iszero(iszero(v26))) {
             let v93 := 0x0cf79e0a
@@ -316,6 +318,7 @@ object "Coin" {
               let v54 := v100
               let v12 := v54
               $abi_encode(v12, p0)
+              invalid()
             }
             if iszero(iszero(iszero(v28))) {
               let v94 := 0x3940e9ee
@@ -326,6 +329,7 @@ object "Coin" {
                 let v56 := v85
                 let v13 := v56
                 $abi_encode_arg0_root_stor(v13, p0)
+                invalid()
               }
               if iszero(iszero(iszero(v30))) {
                 let v88 := 0x00
@@ -333,11 +337,11 @@ object "Coin" {
                 let v89 := 0x00
                 let v59 := v89
                 $std$lib$evm$effects$impl_trait$Evm$0098$return_data_e8fc_0(v58, v59)
+                invalid()
               }
             }
           }
         }
-        leave
       }
       function $stor_ptr$g2c78(p0) -> ret {
         let v2 := p0

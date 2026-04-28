@@ -942,6 +942,44 @@ pub fn main() uses (evm: Evm) {
 }
 
 #[test]
+fn semantic_never_returning_recv_returns_emit_yul() {
+    let yul = emit_inline_yul(
+        "file:///semantic_never_returning_recv_returns_emit_yul.fe",
+        r#"
+use core::abi::Bytes
+
+msg Msg {
+    #[selector = 0x01]
+    GetBytes -> Bytes,
+    #[selector = 0x02]
+    GetScalar -> u256,
+}
+
+fn abort() -> ! {
+    core::panic()
+}
+
+pub contract C {
+    recv Msg {
+        GetBytes -> Bytes {
+            abort()
+        }
+
+        GetScalar -> u256 {
+            abort()
+        }
+    }
+}
+"#,
+    );
+
+    assert!(
+        yul.contains("object \"C\"") && yul.contains("invalid()"),
+        "never-returning recv arms should lower to real terminating Yul:\n{yul}"
+    );
+}
+
+#[test]
 fn scalar_collapsible_field_loads_materialize_words_in_yul() {
     let yul = emit_inline_yul(
         "file:///scalar_collapsible_field_loads_materialize_words_in_yul.fe",

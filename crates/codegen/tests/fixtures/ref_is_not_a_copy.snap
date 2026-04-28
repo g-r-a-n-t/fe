@@ -21,8 +21,11 @@ object "main" {
         let v10 := v9
         let v4 := v10
         $revert_error(v4)
+        invalid()
       }
-      leave
+      if iszero(iszero(iszero(v2))) {
+        leave
+      }
     }
     function $std$lib$abi$sol$impl_trait$SolEncoder$19ce$base_28e3(p0) -> ret {
       let t2 := mload(p0)

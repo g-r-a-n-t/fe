@@ -18,7 +18,7 @@ object "Child" {
       let v14 := 0x00
       let v8 := v14
       $std$lib$evm$effects$impl_trait$Evm$0098$return_data_5f25(v8, v1)
-      leave
+      invalid()
     }
     function $std$lib$evm$effects$impl_trait$Evm$0098$codecopy_48e9(p0, p1, p2, p3) {
       let v4 := p1
@@ -69,7 +69,7 @@ object "Child" {
         let v16 := 0x04
         let v7 := v16
         $std$lib$evm$effects$impl_trait$Evm$0098$return_data_5f25_0(v6, v7)
-        leave
+        invalid()
       }
       function $manual_contract_runtime_root_Child() {
         let t3 := mload(0x40)
@@ -175,7 +175,7 @@ object "Foo" {
       let v19 := v31
       $std$lib$evm$effects$impl_trait$Evm$0098$codecopy_48e9_0(v19, v6, v5, v4)
       $std$lib$evm$effects$impl_trait$Evm$0098$return_data_5f25_1(v6, v4)
-      leave
+      invalid()
     }
     function $manual_contract_init_root_Foo() {
       let t3 := mload(0x40)
@@ -223,7 +223,7 @@ object "Foo" {
         let v14 := 0x00
         let v8 := v14
         $std$lib$evm$effects$impl_trait$Evm$0098$return_data_5f25(v8, v1)
-        leave
+        invalid()
       }
       function $std$lib$evm$effects$impl_trait$Evm$0098$codecopy_48e9(p0, p1, p2, p3) {
         let v4 := p1
@@ -274,7 +274,7 @@ object "Foo" {
           let v16 := 0x04
           let v7 := v16
           $std$lib$evm$effects$impl_trait$Evm$0098$return_data_5f25_0(v6, v7)
-          leave
+          invalid()
         }
         function $manual_contract_runtime_root_Child() {
           let t3 := mload(0x40)
@@ -304,7 +304,7 @@ object "Foo" {
         let v5 := 0x00
         let v2 := v5
         $std$lib$evm$effects$impl_trait$Evm$0098$return_data_2757(v1, v2)
-        leave
+        invalid()
       }
       function $calldataload(p0) -> ret {
         let v2 := p0
@@ -356,6 +356,7 @@ object "Foo" {
         let v4 := iszero(iszero(eq(v1, v3)))
         if iszero(iszero(v4)) {
           $transfer(p0)
+          invalid()
         }
         if iszero(iszero(iszero(v4))) {
           let v23 := 0x23456789
@@ -363,14 +364,17 @@ object "Foo" {
           let v6 := iszero(iszero(eq(v1, v5)))
           if iszero(iszero(v6)) {
             $balance(p0)
+            invalid()
+          }
+          if iszero(iszero(iszero(v6))) {
+            let v15 := 0x00
+            let v10 := v15
+            let v16 := 0x00
+            let v11 := v16
+            $std$lib$evm$effects$impl_trait$Evm$0098$return_data_5f25_2(v10, v11)
+            invalid()
           }
         }
-        let v15 := 0x00
-        let v10 := v15
-        let v16 := 0x00
-        let v11 := v16
-        $std$lib$evm$effects$impl_trait$Evm$0098$return_data_5f25_2(v10, v11)
-        leave
       }
       function $transfer(p0) {
         let v4 := 0x00
@@ -378,7 +382,7 @@ object "Foo" {
         let v5 := 0x00
         let v2 := v5
         $std$lib$evm$effects$impl_trait$Evm$0098$return_data_2757(v1, v2)
-        leave
+        invalid()
       }
       $manual_contract_runtime_root_Foo()
     }

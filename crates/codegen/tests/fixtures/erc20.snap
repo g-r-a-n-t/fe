@@ -65,8 +65,11 @@ object "CoolCoin" {
         let v10 := v9
         let v4 := v10
         $std$lib$evm$effects$revert_error$geb2e_c430(v4)
+        invalid()
       }
-      leave
+      if iszero(iszero(iszero(v2))) {
+        leave
+      }
     }
     function $std$lib$abi$sol$impl_trait$SolEncoder$19ce$base_009f(p0) -> ret {
       let t2 := mload(p0)
@@ -2262,8 +2265,11 @@ object "CoolCoin" {
           let v10 := v9
           let v4 := v10
           $std$lib$evm$effects$revert_error$geb2e_c430_0(v4)
+          invalid()
         }
-        leave
+        if iszero(iszero(iszero(v2))) {
+          leave
+        }
       }
       function $std$lib$evm$effects$assert_d98e(p0) {
         let v7 := iszero(iszero(iszero(iszero(iszero(p0)))))
@@ -2275,8 +2281,11 @@ object "CoolCoin" {
           let v10 := v9
           let v4 := v10
           $std$lib$evm$effects$revert_error$geb2e_c430(v4)
+          invalid()
         }
-        leave
+        if iszero(iszero(iszero(v2))) {
+          leave
+        }
       }
       function $std$lib$evm$effects$assert_d98e_1(p0) {
         let v7 := iszero(iszero(iszero(iszero(iszero(p0)))))
@@ -2288,8 +2297,11 @@ object "CoolCoin" {
           let v10 := v9
           let v4 := v10
           $std$lib$evm$effects$revert_error$geb2e_c430_1(v4)
+          invalid()
         }
-        leave
+        if iszero(iszero(iszero(v2))) {
+          leave
+        }
       }
       function $std$lib$abi$sol$impl_trait$SolEncoder$19ce$base_009f(p0) -> ret {
         let t2 := mload(p0)

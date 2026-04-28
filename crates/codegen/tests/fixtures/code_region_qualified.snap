@@ -25,7 +25,7 @@ object "Foo" {
       let v14 := 0x00
       let v8 := v14
       $std$lib$evm$effects$impl_trait$Evm$0098$return_data_cf61(v8, v1)
-      leave
+      invalid()
     }
     function $manual_contract_init_root_Foo() {
       let t3 := mload(0x40)
@@ -69,7 +69,7 @@ object "Foo" {
         let v5 := 0x00
         let v2 := v5
         $std$lib$evm$effects$impl_trait$Evm$0098$return_data_cf61_0(v1, v2)
-        leave
+        invalid()
       }
       $manual_contract_runtime_root_Foo()
     }

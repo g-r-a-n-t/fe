@@ -455,11 +455,20 @@ impl<'db> CtfeConstValue<'db> {
         db: &'db dyn HirAnalysisDb,
         deferred_origin: Option<SemOrigin<'db>>,
     ) -> Self {
-        self.deferred_origin = self
-            .contains_type_level(db)
-            .then_some(())
-            .and(deferred_origin);
+        self.set_deferred_origin(db, deferred_origin);
         self
+    }
+
+    fn set_deferred_origin(
+        &mut self,
+        db: &'db dyn HirAnalysisDb,
+        deferred_origin: Option<SemOrigin<'db>>,
+    ) {
+        self.deferred_origin = if deferred_origin.is_some() && self.contains_type_level(db) {
+            deferred_origin
+        } else {
+            None
+        };
     }
 
     fn error_origin(&self, origin: SemOrigin<'db>) -> SemOrigin<'db> {
@@ -1588,16 +1597,28 @@ impl<'db> CtfeMachine<'db> {
         value: CtfeConstValue<'db>,
         origin: SemOrigin<'db>,
     ) -> Result<(), CtfeError<'db>> {
-        let root = match self.frames[place.frame].locals.get(place.root.index()) {
-            Some(CtfeSlot::Init(CtfeValue::Value(value))) => value.clone(),
-            _ => return Err(CtfeError::InvalidBorrow { origin }),
+        let mut root = {
+            let slot = self
+                .frames
+                .get_mut(place.frame)
+                .and_then(|frame| frame.locals.get_mut(place.root.index()))
+                .ok_or(CtfeError::InvalidBorrow { origin })?;
+            match std::mem::replace(slot, CtfeSlot::Uninit) {
+                CtfeSlot::Init(CtfeValue::Value(value)) => value,
+                other => {
+                    *slot = other;
+                    return Err(CtfeError::InvalidBorrow { origin });
+                }
+            }
         };
         let deferred_origin = value.deferred_origin.or(root.deferred_origin);
-        let updated = self.store_const_value(root, &place.path, value, origin)?;
-        self.frames[place.frame].locals[place.root.index()] = CtfeSlot::Init(CtfeValue::Value(
-            self.value_with_origin(updated, deferred_origin),
-        ));
-        Ok(())
+        let result = self.store_const_value_in_place(&mut root, &place.path, value, origin);
+        if result.is_ok() {
+            root.set_deferred_origin(self.db, root.deferred_origin.or(deferred_origin));
+        }
+        self.frames[place.frame].locals[place.root.index()] =
+            CtfeSlot::Init(CtfeValue::Value(root));
+        result
     }
 
     fn project_field(
@@ -2309,72 +2330,78 @@ impl<'db> CtfeMachine<'db> {
         }
     }
 
-    fn store_const_value(
+    fn expand_interned_in_place(&self, value: &mut CtfeConstValue<'db>) {
+        let interned = match &value.kind {
+            CtfeConstKind::Interned(interned)
+                if !matches!(interned.value(self.db), SemConstValue::TypeLevel { .. }) =>
+            {
+                *interned
+            }
+            _ => return,
+        };
+        *value = CtfeConstValue::expand_sem_const_shallow(self.db, interned)
+            .with_deferred_origin(self.db, value.deferred_origin);
+    }
+
+    fn store_const_value_in_place(
         &self,
-        root: CtfeConstValue<'db>,
+        root: &mut CtfeConstValue<'db>,
         path: &[CtfePathElem],
         new_value: CtfeConstValue<'db>,
         origin: SemOrigin<'db>,
-    ) -> Result<CtfeConstValue<'db>, CtfeError<'db>> {
-        let root = self.expand_interned(root);
+    ) -> Result<(), CtfeError<'db>> {
+        self.expand_interned_in_place(root);
         let Some((head, tail)) = path.split_first() else {
-            return Ok(new_value);
+            *root = new_value;
+            return Ok(());
         };
         let root_origin = root.error_origin(origin);
         let root_deferred_origin = root.deferred_origin;
-        let update_field = |slot: &mut CtfeConstValue<'db>, this: &Self| {
-            let updated = this.store_const_value(slot.clone(), tail, new_value.clone(), origin)?;
-            let deferred_origin = updated.deferred_origin.or(root_deferred_origin);
-            *slot = updated;
-            Ok(deferred_origin)
-        };
-        match root.kind {
-            CtfeConstKind::Tuple { ty, elems } => {
+        let deferred_origin = match &mut root.kind {
+            CtfeConstKind::Tuple { elems, .. } => {
                 let CtfePathElem::Field(field) = head else {
                     return Err(CtfeError::InvalidOperation {
                         origin: root_origin,
                         message: "tuple store requires field projection".into(),
                     });
                 };
-                let mut elems = elems.to_vec();
-                let Some(slot) = elems.get_mut(field.0 as usize) else {
-                    return Err(CtfeError::OutOfBounds { origin });
-                };
-                let deferred_origin = update_field(slot, self)?;
-                Ok(self.value_with_origin(CtfeConstValue::tuple(ty, elems), deferred_origin))
+                let elems = Rc::make_mut(elems);
+                let slot = elems
+                    .get_mut(field.0 as usize)
+                    .ok_or(CtfeError::OutOfBounds { origin })?;
+                self.store_const_value_in_place(slot, tail, new_value, origin)?;
+                slot.deferred_origin.or(root_deferred_origin)
             }
-            CtfeConstKind::Struct { ty, fields } => {
+            CtfeConstKind::Struct { fields, .. } => {
                 let CtfePathElem::Field(field) = head else {
                     return Err(CtfeError::InvalidOperation {
                         origin: root_origin,
                         message: "struct store requires field projection".into(),
                     });
                 };
-                let mut fields = fields.to_vec();
-                let Some(slot) = fields.get_mut(field.0 as usize) else {
-                    return Err(CtfeError::OutOfBounds { origin });
-                };
-                let deferred_origin = update_field(slot, self)?;
-                Ok(self.value_with_origin(CtfeConstValue::struct_(ty, fields), deferred_origin))
+                let fields = Rc::make_mut(fields);
+                let slot = fields
+                    .get_mut(field.0 as usize)
+                    .ok_or(CtfeError::OutOfBounds { origin })?;
+                self.store_const_value_in_place(slot, tail, new_value, origin)?;
+                slot.deferred_origin.or(root_deferred_origin)
             }
-            CtfeConstKind::Array { ty, elems } => {
+            CtfeConstKind::Array { elems, .. } => {
                 let CtfePathElem::Index(index) = head else {
                     return Err(CtfeError::InvalidOperation {
                         origin: root_origin,
                         message: "array store requires index projection".into(),
                     });
                 };
-                let mut elems = elems.to_vec();
-                let Some(slot) = elems.get_mut(*index) else {
-                    return Err(CtfeError::OutOfBounds { origin });
-                };
-                let deferred_origin = update_field(slot, self)?;
-                Ok(self.value_with_origin(CtfeConstValue::array(ty, elems), deferred_origin))
+                let elems = Rc::make_mut(elems);
+                let slot = elems
+                    .get_mut(*index)
+                    .ok_or(CtfeError::OutOfBounds { origin })?;
+                self.store_const_value_in_place(slot, tail, new_value, origin)?;
+                slot.deferred_origin.or(root_deferred_origin)
             }
             CtfeConstKind::Enum {
-                ty,
-                variant,
-                fields,
+                variant, fields, ..
             } => {
                 let CtfePathElem::VariantField {
                     variant: expected,
@@ -2386,24 +2413,27 @@ impl<'db> CtfeMachine<'db> {
                         message: "enum store requires variant field projection".into(),
                     });
                 };
-                if variant != *expected {
+                if *variant != *expected {
                     return Err(CtfeError::VariantMismatch {
                         origin: root_origin,
                     });
                 }
-                let mut fields = fields.to_vec();
-                let Some(slot) = fields.get_mut(field.0 as usize) else {
-                    return Err(CtfeError::OutOfBounds { origin });
-                };
-                let deferred_origin = update_field(slot, self)?;
-                Ok(self
-                    .value_with_origin(CtfeConstValue::enum_(ty, variant, fields), deferred_origin))
+                let fields = Rc::make_mut(fields);
+                let slot = fields
+                    .get_mut(field.0 as usize)
+                    .ok_or(CtfeError::OutOfBounds { origin })?;
+                self.store_const_value_in_place(slot, tail, new_value, origin)?;
+                slot.deferred_origin.or(root_deferred_origin)
             }
-            _ => Err(CtfeError::InvalidOperation {
-                origin: root_origin,
-                message: "invalid CTFE store target".into(),
-            }),
-        }
+            _ => {
+                return Err(CtfeError::InvalidOperation {
+                    origin: root_origin,
+                    message: "invalid CTFE store target".into(),
+                });
+            }
+        };
+        root.set_deferred_origin(self.db, deferred_origin);
+        Ok(())
     }
 
     fn bump(&mut self, origin: SemOrigin<'db>) -> Result<(), CtfeError<'db>> {

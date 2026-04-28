@@ -20,12 +20,12 @@ fn assert_precompile_ok(_ ok: u256, _ expected_ret_len: u256) {
 // ---------------------------------------------------------------------------
 
 /// Modular addition: `(a + b) % m` with 512-bit intermediate precision.
-pub fn addmod(_ a: u256, _ b: u256, _ m: u256) -> u256 {
+pub const fn addmod(_ a: u256, _ b: u256, _ m: u256) -> u256 {
     ops::addmod(a, b, m)
 }
 
 /// Modular multiplication: `(a * b) % m` with 512-bit intermediate precision.
-pub fn mulmod(_ a: u256, _ b: u256, _ m: u256) -> u256 {
+pub const fn mulmod(_ a: u256, _ b: u256, _ m: u256) -> u256 {
     ops::mulmod(a, b, m)
 }
 

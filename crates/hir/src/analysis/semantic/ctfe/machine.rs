@@ -21,7 +21,10 @@ use crate::{
         ty::{
             const_expr::{ConstExpr, ConstExprId},
             const_ty::{ConstTyData, ConstTyId, EvaluatedConstTy, const_ty_from_sem_const},
-            corelib::{PrimitiveWrapperCallKind, ctfe_primitive_call_kind},
+            corelib::{
+                PrimitiveWrapperCallKind, RuntimeBuiltinFuncKind, ctfe_primitive_call_kind,
+                runtime_builtin_func_kind,
+            },
             normalize::normalize_ty,
             ty_check::{BodyOwner, check_anon_const_body, check_const_body, check_func_body},
             ty_def::{PrimTy, TyBase, TyData, TyId},
@@ -99,6 +102,12 @@ pub enum CtfeError<'db> {
         callee: SemanticInstance<'db>,
         source: Box<CtfeError<'db>>,
     },
+}
+
+#[derive(Clone, Copy)]
+enum EvmModularArithmetic {
+    Add,
+    Mul,
 }
 
 #[salsa::tracked]
@@ -827,6 +836,26 @@ impl<'db> CtfeMachine<'db> {
         args: &[SemConstId<'db>],
         origin: SemOrigin<'db>,
     ) -> Result<SemConstId<'db>, CtfeError<'db>> {
+        match runtime_builtin_func_kind(self.db, func) {
+            Some(RuntimeBuiltinFuncKind::AddMod) => {
+                return self.eval_evm_modular_arithmetic(
+                    result_ty,
+                    args,
+                    EvmModularArithmetic::Add,
+                    origin,
+                );
+            }
+            Some(RuntimeBuiltinFuncKind::MulMod) => {
+                return self.eval_evm_modular_arithmetic(
+                    result_ty,
+                    args,
+                    EvmModularArithmetic::Mul,
+                    origin,
+                );
+            }
+            _ => {}
+        }
+
         let Some(name) = func.name(self.db).to_opt() else {
             return Err(CtfeError::NotConstEvaluable { origin });
         };
@@ -838,6 +867,50 @@ impl<'db> CtfeMachine<'db> {
             "__bitcast" => self.eval_intrinsic_bitcast(result_ty, args, origin),
             _ => Err(CtfeError::NotConstEvaluable { origin }),
         }
+    }
+
+    fn eval_evm_modular_arithmetic(
+        &self,
+        result_ty: TyId<'db>,
+        args: &[SemConstId<'db>],
+        op: EvmModularArithmetic,
+        origin: SemOrigin<'db>,
+    ) -> Result<SemConstId<'db>, CtfeError<'db>> {
+        if result_ty != TyId::u256(self.db) {
+            return Err(CtfeError::NotConstEvaluable { origin });
+        }
+        let [lhs, rhs, modulus] = args else {
+            return Err(CtfeError::NotConstEvaluable { origin });
+        };
+        let lhs = self.expect_u256_const(*lhs, origin)?;
+        let rhs = self.expect_u256_const(*rhs, origin)?;
+        let modulus = self.expect_u256_const(*modulus, origin)?;
+        if modulus.is_zero() {
+            return Ok(int_const(self.db, result_ty, BigInt::zero()));
+        }
+        let value = match op {
+            EvmModularArithmetic::Add => lhs + rhs,
+            EvmModularArithmetic::Mul => lhs * rhs,
+        } % modulus;
+        Ok(int_const(self.db, result_ty, value))
+    }
+
+    fn expect_u256_const(
+        &self,
+        value: SemConstId<'db>,
+        origin: SemOrigin<'db>,
+    ) -> Result<BigInt, CtfeError<'db>> {
+        let SemConstValue::Scalar {
+            ty,
+            value: SemConstScalar::Int { value },
+        } = value.value(self.db)
+        else {
+            return Err(CtfeError::NotConstEvaluable { origin });
+        };
+        if ty != TyId::u256(self.db) {
+            return Err(CtfeError::NotConstEvaluable { origin });
+        }
+        Ok(normalize_int_to_shape(value.clone(), 256, false))
     }
 
     fn eval_intrinsic_bitcast(

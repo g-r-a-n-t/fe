@@ -10,7 +10,7 @@ use crate::{
                 EffectForwarder, EffectPatternKey, EffectQuery, EffectQueryMode,
                 EffectRequirementDecl, EffectRequirementKey, ForwardedEffectKey, ForwardedTraitKey,
                 ForwardedTypeKey, PatternSlot, PatternSlots, StoredEffectKey, StoredTraitKey,
-                StoredTypeKey, TraitKeySchema, TraitPatternKey, TypePatternKey, WitnessTransport,
+                StoredTypeKey, TraitPatternKey, TypePatternKey, WitnessTransport,
                 effect_family_for_trait, effect_family_for_type, instantiate_trait_effect_key,
                 instantiate_type_effect_key,
                 match_::{instantiate_trait_pattern_in, instantiate_type_pattern_in},
@@ -78,7 +78,7 @@ pub fn build_effect_query_for_call<'db>(
         EffectRequirementKey::Trait(schema) => {
             let key = instantiate_trait_effect_key(
                 tc.db,
-                trait_schema_to_inst(tc.db, schema.clone()),
+                schema.clone().into_trait_inst(tc.db),
                 callable.generic_args(),
                 true,
                 None,
@@ -118,7 +118,7 @@ pub fn build_pattern_from_requirement_decl<'db>(
         EffectRequirementKey::Trait(schema) => {
             let key = normalize_effect_identity_trait(
                 db,
-                trait_schema_to_inst(db, schema.clone()),
+                schema.clone().into_trait_inst(db),
                 scope,
                 assumptions,
                 None,
@@ -163,9 +163,9 @@ fn build_conservative_invalid_type_key_barrier_pattern_in_scope<'db>(
     key_path: PathId<'db>,
 ) -> Option<EffectPatternKey<'db>> {
     let ty = match resolve_effect_key(db, key_path, scope, assumptions) {
-        super::ResolvedEffectKey::Type(ty) => Some(ty),
+        super::ResolvedEffectKey::Type(schema) => Some(schema.carrier),
         super::ResolvedEffectKey::Trait(_) => None,
-        super::ResolvedEffectKey::Other => {
+        super::ResolvedEffectKey::Invalid | super::ResolvedEffectKey::Other => {
             match resolve_path(db, key_path, scope, assumptions, false).ok()? {
                 PathRes::Ty(ty) | PathRes::TyAlias(_, ty) => Some(ty),
                 _ => None,
@@ -327,13 +327,13 @@ pub fn build_barrier_pattern_for_key_in_scope<'db>(
     key_path: PathId<'db>,
 ) -> Option<EffectPatternKey<'db>> {
     match resolve_effect_key(db, key_path, scope, assumptions) {
-        super::ResolvedEffectKey::Type(ty) => Some(EffectPatternKey::Type(
-            build_type_barrier_pattern_key(db, scope, assumptions, ty),
+        super::ResolvedEffectKey::Type(schema) => Some(EffectPatternKey::Type(
+            build_type_barrier_pattern_key(db, scope, assumptions, schema.carrier),
         )),
-        super::ResolvedEffectKey::Trait(trait_inst) => Some(EffectPatternKey::Trait(
-            build_trait_barrier_pattern_key(db, scope, assumptions, trait_inst),
+        super::ResolvedEffectKey::Trait(schema) => Some(EffectPatternKey::Trait(
+            build_trait_barrier_pattern_key(db, scope, assumptions, schema.into_trait_inst(db)),
         )),
-        super::ResolvedEffectKey::Other => {
+        super::ResolvedEffectKey::Invalid | super::ResolvedEffectKey::Other => {
             match resolve_path(db, key_path, scope, assumptions, false).ok()? {
                 crate::analysis::name_resolution::PathRes::Ty(ty)
                 | crate::analysis::name_resolution::PathRes::TyAlias(_, ty) => {
@@ -607,6 +607,9 @@ pub fn seed_forwarder_from_requirement<'db, P: Copy>(
             )
         }
     };
+    if !key.is_well_formed(tc.db) {
+        return None;
+    }
     Some(EffectForwarder {
         key,
         provider,
@@ -853,15 +856,4 @@ pub(crate) fn contains_projection_or_invalid_query_state<'db>(
         }
     }
     finder.found
-}
-
-pub fn trait_schema_to_inst<'db>(
-    db: &'db dyn HirAnalysisDb,
-    schema: TraitKeySchema<'db>,
-) -> TraitInstId<'db> {
-    let self_ty = TyId::invalid(db, InvalidCause::Other);
-    let mut args = vec![self_ty];
-    args.extend(schema.args_no_self);
-    let assoc: IndexMap<_, _> = schema.assoc_bindings.into_iter().collect();
-    TraitInstId::new(db, schema.def, args, assoc)
 }

@@ -27,7 +27,7 @@ pub use model::{
     effect_family_for_trait, effect_family_for_type, forwarded_trait_key_is_well_formed,
     forwarded_type_key_is_well_formed, stored_trait_key_is_rigid, stored_type_key_is_rigid,
     stored_value_contains_implicit_layout_params, stored_value_contains_out_of_scope_params,
-    stored_value_is_storage_rigid,
+    stored_value_is_storage_rigid, trait_key_schema_is_well_formed, type_key_schema_is_well_formed,
 };
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -37,10 +37,11 @@ pub enum EffectKeyKind {
     Other,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub(crate) enum ResolvedEffectKey<'db> {
-    Type(TyId<'db>),
-    Trait(TraitInstId<'db>),
+    Type(TypeKeySchema<'db>),
+    Trait(TraitKeySchema<'db>),
+    Invalid,
     Other,
 }
 
@@ -61,11 +62,14 @@ pub struct CanonicalEffectIdentity<'db> {
 }
 
 impl<'db> ResolvedEffectKey<'db> {
-    pub(crate) fn into_parts(self) -> (EffectKeyKind, Option<TyId<'db>>, Option<TraitInstId<'db>>) {
+    pub(crate) fn into_parts(
+        self,
+        db: &'db dyn HirAnalysisDb,
+    ) -> (EffectKeyKind, Option<TyId<'db>>, Option<TraitInstId<'db>>) {
         match self {
-            Self::Type(ty) => (EffectKeyKind::Type, Some(ty), None),
-            Self::Trait(trait_inst) => (EffectKeyKind::Trait, None, Some(trait_inst)),
-            Self::Other => (EffectKeyKind::Other, None, None),
+            Self::Type(schema) => (EffectKeyKind::Type, Some(schema.carrier), None),
+            Self::Trait(schema) => (EffectKeyKind::Trait, None, Some(schema.into_trait_inst(db))),
+            Self::Invalid | Self::Other => (EffectKeyKind::Other, None, None),
         }
     }
 }
@@ -152,37 +156,39 @@ pub fn place_effect_provider_param_index_map<'db>(
         .clone()
 }
 
-/// Resolves a type effect key path and applies effect-key normalization.
-///
-/// Normalization currently means existentializing omitted trailing const args only
-/// when the omitted const parameter defaults to a layout hole (`_`).
-pub fn resolve_normalized_type_effect_key<'db>(
-    db: &'db dyn HirAnalysisDb,
-    key_path: PathId<'db>,
-    scope: ScopeId<'db>,
-    assumptions: PredicateListId<'db>,
-) -> Option<TyId<'db>> {
-    match crate::analysis::name_resolution::resolve_path(db, key_path, scope, assumptions, false) {
-        Ok(PathRes::Ty(ty)) if ty.is_star_kind(db) => Some(
-            existentialize_omitted_const_args_in_effect_key(db, key_path, ty),
-        ),
-        Ok(PathRes::TyAlias(_, ty)) if ty.is_star_kind(db) => Some(ty),
-        _ => None,
-    }
-}
-
 pub(crate) fn resolve_effect_key<'db>(
     db: &'db dyn HirAnalysisDb,
     key_path: PathId<'db>,
     scope: ScopeId<'db>,
     assumptions: PredicateListId<'db>,
 ) -> ResolvedEffectKey<'db> {
-    if let Some(ty) = resolve_normalized_type_effect_key(db, key_path, scope, assumptions) {
-        return ResolvedEffectKey::Type(ty);
-    }
-
     match crate::analysis::name_resolution::resolve_path(db, key_path, scope, assumptions, false) {
-        Ok(PathRes::Trait(trait_inst)) => ResolvedEffectKey::Trait(trait_inst),
+        Ok(PathRes::Ty(ty)) if ty.is_star_kind(db) => {
+            let schema = TypeKeySchema {
+                carrier: existentialize_omitted_const_args_in_effect_key(db, key_path, ty),
+            };
+            if type_key_schema_is_well_formed(db, schema) {
+                ResolvedEffectKey::Type(schema)
+            } else {
+                ResolvedEffectKey::Invalid
+            }
+        }
+        Ok(PathRes::TyAlias(_, ty)) if ty.is_star_kind(db) => {
+            let schema = TypeKeySchema { carrier: ty };
+            if type_key_schema_is_well_formed(db, schema) {
+                ResolvedEffectKey::Type(schema)
+            } else {
+                ResolvedEffectKey::Invalid
+            }
+        }
+        Ok(PathRes::Trait(trait_inst)) => {
+            let schema = TraitKeySchema::from_canonical_trait_binding(db, trait_inst);
+            if trait_key_schema_is_well_formed(db, &schema) {
+                ResolvedEffectKey::Trait(schema)
+            } else {
+                ResolvedEffectKey::Invalid
+            }
+        }
         _ => ResolvedEffectKey::Other,
     }
 }

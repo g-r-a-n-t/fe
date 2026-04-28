@@ -2,19 +2,20 @@ use crate::{
     analysis::{
         HirAnalysisDb,
         ty::{
-            const_ty::ConstTyData,
+            const_ty::{ConstTyData, ConstTyId},
             layout_holes::{
                 LayoutPlaceholderPolicy, collect_unique_layout_placeholders_in_order_with_policy,
                 layout_hole_fallback_ty,
             },
             trait_def::TraitInstId,
-            ty_def::{TyData, TyId},
-            visitor::{TyVisitable, TyVisitor, walk_ty},
+            ty_def::{InvalidCause, TyData, TyId},
+            visitor::{TyVisitable, TyVisitor, walk_const_ty, walk_ty},
         },
     },
     hir_def::{IdentId, PathId, Trait, scope_graph::ScopeId},
     span::DynLazySpan,
 };
+use common::indexmap::IndexMap;
 use smallvec1::SmallVec;
 
 use crate::core::semantic::{
@@ -242,6 +243,15 @@ impl<'db> TraitKeySchema<'db> {
             assoc_bindings,
         }
     }
+
+    pub fn into_trait_inst(self, db: &'db dyn HirAnalysisDb) -> TraitInstId<'db> {
+        let self_ty = TyId::invalid(db, InvalidCause::Other);
+        let args = std::iter::once(self_ty)
+            .chain(self.args_no_self)
+            .collect::<Vec<_>>();
+        let assoc = self.assoc_bindings.into_iter().collect::<IndexMap<_, _>>();
+        TraitInstId::new(db, self.def, args, assoc)
+    }
 }
 
 impl<'db> PatternSlots<'db> {
@@ -332,6 +342,13 @@ impl<'db> ForwardedEffectKey<'db> {
             Self::Trait(key) => key.family,
         }
     }
+
+    pub fn is_well_formed(&self, db: &'db dyn HirAnalysisDb) -> bool {
+        match self {
+            Self::Type(key) => forwarded_type_key_is_well_formed(db, *key),
+            Self::Trait(key) => forwarded_trait_key_is_well_formed(db, key.clone()),
+        }
+    }
 }
 
 pub fn effect_family_for_type<'db>(db: &'db dyn HirAnalysisDb, ty: TyId<'db>) -> EffectFamily<'db> {
@@ -360,6 +377,27 @@ pub fn stored_trait_key_is_rigid<'db>(
             .all(|(_, ty)| stored_value_is_storage_rigid(db, *ty))
 }
 
+pub fn type_key_schema_is_well_formed<'db>(
+    db: &'db dyn HirAnalysisDb,
+    key: TypeKeySchema<'db>,
+) -> bool {
+    schema_value_is_well_formed(db, key.carrier)
+}
+
+pub fn trait_key_schema_is_well_formed<'db>(
+    db: &'db dyn HirAnalysisDb,
+    key: &TraitKeySchema<'db>,
+) -> bool {
+    key.args_no_self
+        .iter()
+        .copied()
+        .all(|ty| schema_value_is_well_formed(db, ty))
+        && key
+            .assoc_bindings
+            .iter()
+            .all(|(_, ty)| schema_value_is_well_formed(db, *ty))
+}
+
 pub fn forwarded_type_key_is_well_formed<'db>(
     db: &'db dyn HirAnalysisDb,
     key: ForwardedTypeKey<'db>,
@@ -385,24 +423,35 @@ pub fn stored_value_is_storage_rigid<'db>(
     db: &'db dyn HirAnalysisDb,
     value: impl TyVisitable<'db>,
 ) -> bool {
-    value_is_well_formed_with(db, value, false)
+    value_is_well_formed_with(db, value, false, false, false)
+}
+
+fn schema_value_is_well_formed<'db>(
+    db: &'db dyn HirAnalysisDb,
+    value: impl TyVisitable<'db>,
+) -> bool {
+    value_is_well_formed_with(db, value, true, true, true)
 }
 
 fn forwarded_value_is_well_formed<'db>(
     db: &'db dyn HirAnalysisDb,
     value: impl TyVisitable<'db>,
 ) -> bool {
-    value_is_well_formed_with(db, value, true)
+    value_is_well_formed_with(db, value, true, false, true)
 }
 
 fn value_is_well_formed_with<'db>(
     db: &'db dyn HirAnalysisDb,
     value: impl TyVisitable<'db>,
     allow_ty_vars: bool,
+    allow_layout_holes: bool,
+    allow_untyped_const_exprs: bool,
 ) -> bool {
     struct Finder<'db> {
         db: &'db dyn HirAnalysisDb,
         allow_ty_vars: bool,
+        allow_layout_holes: bool,
+        allow_untyped_const_exprs: bool,
         invalid: bool,
     }
 
@@ -425,29 +474,41 @@ fn value_is_well_formed_with<'db>(
             if self.invalid {
                 return;
             }
-            if matches!(
-                ty.invalid_cause(self.db),
-                Some(crate::analysis::ty::ty_def::InvalidCause::ConstTyExpected { .. })
-            ) {
-                return;
-            }
-            if matches!(ty.data(self.db), TyData::Invalid(_)) {
-                self.invalid = true;
-                return;
-            }
-            if let TyData::ConstTy(const_ty) = ty.data(self.db)
-                && matches!(const_ty.data(self.db), ConstTyData::Hole(..))
-            {
+            if let Some(cause) = ty.invalid_cause(self.db) {
+                // Generic const-fn calls can be non-evaluable until effect-key
+                // substitution gives them concrete const args.
+                if matches!(cause, InvalidCause::ConstTyExpected { .. })
+                    || (self.allow_untyped_const_exprs
+                        && matches!(cause, InvalidCause::ConstEvalNonConstCall { .. }))
+                {
+                    return;
+                }
                 self.invalid = true;
                 return;
             }
             walk_ty(self, ty);
+        }
+
+        fn visit_const_ty(&mut self, const_ty: &ConstTyId<'db>) {
+            match const_ty.data(self.db) {
+                ConstTyData::Hole(..) if !self.allow_layout_holes => self.invalid = true,
+                ConstTyData::UnEvaluated {
+                    ty: None,
+                    generic_args,
+                    ..
+                } if self.allow_untyped_const_exprs => {
+                    generic_args.visit_with(self);
+                }
+                _ => walk_const_ty(self, const_ty),
+            }
         }
     }
 
     let mut finder = Finder {
         db,
         allow_ty_vars,
+        allow_layout_holes,
+        allow_untyped_const_exprs,
         invalid: false,
     };
     value.visit_with(&mut finder);

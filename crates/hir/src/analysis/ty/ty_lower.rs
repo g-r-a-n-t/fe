@@ -14,7 +14,7 @@ use super::{
         AppFrameId, CallableInputLayoutHoleOrigin, ConstTyData, ConstTyId, EvaluatedConstTy,
         HoleId, LayoutHoleArgSite, LocalFrameId, LocalFrameSite, StructuralHoleOrigin,
     },
-    effects::ResolvedEffectKey,
+    effects::{ResolvedEffectKey, TraitKeySchema},
     fold::{TyFoldable, TyFolder},
     layout_holes::{
         callable_input_layout_bindings_by_origin,
@@ -375,20 +375,25 @@ pub(crate) fn resolve_callable_input_effect_key<'db>(
     assumptions: PredicateListId<'db>,
 ) -> ResolvedEffectKey<'db> {
     match super::effects::resolve_effect_key(db, key_path, func.scope(), assumptions) {
-        ResolvedEffectKey::Type(ty) => ResolvedEffectKey::Type(bind_callable_input_layout_holes(
-            db,
-            ty,
-            func,
-            CallableInputLayoutHoleOrigin::Effect(effect_idx),
-        )),
-        ResolvedEffectKey::Trait(inst) => {
-            ResolvedEffectKey::Trait(bind_callable_input_layout_holes(
+        ResolvedEffectKey::Type(mut schema) => {
+            schema.carrier = bind_callable_input_layout_holes(
                 db,
-                inst,
+                schema.carrier,
                 func,
                 CallableInputLayoutHoleOrigin::Effect(effect_idx),
-            ))
+            );
+            ResolvedEffectKey::Type(schema)
         }
+        ResolvedEffectKey::Trait(schema) => {
+            let inst = bind_callable_input_layout_holes(
+                db,
+                schema.into_trait_inst(db),
+                func,
+                CallableInputLayoutHoleOrigin::Effect(effect_idx),
+            );
+            ResolvedEffectKey::Trait(TraitKeySchema::from_canonical_trait_binding(db, inst))
+        }
+        ResolvedEffectKey::Invalid => ResolvedEffectKey::Invalid,
         ResolvedEffectKey::Other => ResolvedEffectKey::Other,
     }
 }
@@ -408,7 +413,7 @@ pub(crate) fn instantiate_callable_effect_layout_args<'db>(
     else {
         return;
     };
-    let ResolvedEffectKey::Type(expected_key_ty) =
+    let ResolvedEffectKey::Type(expected_key) =
         resolve_callable_input_effect_key(db, func, effect_idx, key_path, assumptions)
     else {
         return;
@@ -418,8 +423,12 @@ pub(crate) fn instantiate_callable_effect_layout_args<'db>(
         return;
     };
     let mut actual_layout_args = Vec::with_capacity(bindings.len());
-    if !collect_layout_args_in_order(db, expected_key_ty, actual_key_ty, &mut actual_layout_args)
-        || actual_layout_args.len() != bindings.len()
+    if !collect_layout_args_in_order(
+        db,
+        expected_key.carrier,
+        actual_key_ty,
+        &mut actual_layout_args,
+    ) || actual_layout_args.len() != bindings.len()
     {
         return;
     }
@@ -545,13 +554,13 @@ pub(crate) fn callable_input_layout_hole_groups<'db>(
             key_path,
             assumptions,
         ) {
-            ResolvedEffectKey::Type(key_ty) => {
-                collect_unique_layout_placeholders_in_order(db, key_ty)
+            ResolvedEffectKey::Type(schema) => {
+                collect_unique_layout_placeholders_in_order(db, schema.carrier)
             }
-            ResolvedEffectKey::Trait(trait_inst) => {
-                collect_unique_layout_placeholders_in_order(db, trait_inst)
+            ResolvedEffectKey::Trait(schema) => {
+                collect_unique_layout_placeholders_in_order(db, schema.into_trait_inst(db))
             }
-            ResolvedEffectKey::Other => continue,
+            ResolvedEffectKey::Invalid | ResolvedEffectKey::Other => continue,
         };
         if placeholders.is_empty() {
             continue;

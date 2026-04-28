@@ -1,5 +1,5 @@
 use crate::analysis::ty::diagnostics::BodyDiag;
-use crate::analysis::ty::effects::resolve_normalized_type_effect_key;
+use crate::analysis::ty::effects::{ResolvedEffectKey, resolve_effect_key};
 use crate::analysis::ty::trait_resolution::{
     GoalSatisfiability, PredicateListId, TraitSolveCx, is_goal_satisfiable,
 };
@@ -435,14 +435,14 @@ impl ModuleAnalysisPass for ContractAnalysisPass {
                     continue;
                 };
 
-                let resolved = resolve_path(db, key_path, contract.scope(), assumptions, false);
-                match resolved {
-                    Ok(PathRes::Trait(trait_inst)) => {
+                match resolve_effect_key(db, key_path, contract.scope(), assumptions) {
+                    ResolvedEffectKey::Trait(schema) => {
                         let Some(root_effect_ty) = root_effect_ty else {
                             continue;
                         };
 
-                        let trait_req = instantiate_trait_self(db, trait_inst, root_effect_ty);
+                        let trait_req =
+                            instantiate_trait_self(db, schema.into_trait_inst(db), root_effect_ty);
                         if matches!(
                             is_goal_satisfiable(
                                 db,
@@ -461,17 +461,13 @@ impl ModuleAnalysisPass for ContractAnalysisPass {
                             }) as _);
                         }
                     }
-                    Ok(PathRes::Ty(ty) | PathRes::TyAlias(_, ty)) => {
-                        let given = resolve_normalized_type_effect_key(
+                    ResolvedEffectKey::Type(schema) => {
+                        let given = normalize::normalize_ty(
                             db,
-                            key_path,
+                            schema.carrier,
                             contract.scope(),
                             assumptions,
-                        )
-                        .map(|ty| normalize::normalize_ty(db, ty, contract.scope(), assumptions))
-                        .unwrap_or_else(|| {
-                            normalize::normalize_ty(db, ty, contract.scope(), assumptions)
-                        });
+                        );
                         if !given.is_zero_sized(db) {
                             diags.push(Box::new(BodyDiag::ContractRootEffectTypeNotZeroSized {
                                 owner: EffectParamOwner::Contract(contract),
@@ -481,7 +477,7 @@ impl ModuleAnalysisPass for ContractAnalysisPass {
                             }) as _);
                         }
                     }
-                    Ok(_) | Err(_) => {
+                    ResolvedEffectKey::Invalid | ResolvedEffectKey::Other => {
                         diags.push(Box::new(BodyDiag::InvalidEffectKey {
                             owner: EffectParamOwner::Contract(contract),
                             key: key_path,

@@ -351,7 +351,7 @@ fn func_effect_requirements_canonical<'db>(
                 .unwrap_or_else(|| IdentId::new(db, "_effect".to_string()));
             let (key_kind, key_ty, key_trait) =
                 resolve_callable_input_effect_key(db, func, idx, key_path, assumptions)
-                    .into_parts();
+                    .into_parts(db);
             let effect_layout_args = layout_args.get(&CallableInputLayoutHoleOrigin::Effect(idx));
             let key_ty = key_ty.map(|ty| {
                 if !ty_contains_const_hole(db, ty) {
@@ -511,7 +511,7 @@ fn contract_effect_requirements_canonical<'db>(
                 .or_else(|| key_path.ident(db).to_opt())
                 .unwrap_or_else(|| IdentId::new(db, "_effect".to_string()));
             let (key_kind, key_ty, key_trait) =
-                resolve_effect_key(db, key_path, contract.scope(), assumptions).into_parts();
+                resolve_effect_key(db, key_path, contract.scope(), assumptions).into_parts(db);
             let (key_ty, key_trait) =
                 canonicalize_contract_effect_key(db, site, idx as u32, key_ty, key_trait);
             Some(EffectRequirement {
@@ -2406,7 +2406,7 @@ fn contract_scoped_effect_requirements_canonical<'db>(
                 None
             };
             let (key_kind, key_ty, key_trait) = forwarded_key.as_ref().map_or_else(
-                || resolve_effect_key(db, key_path, contract.scope(), assumptions).into_parts(),
+                || resolve_effect_key(db, key_path, contract.scope(), assumptions).into_parts(db),
                 |key| (key.kind(), key.key_ty(), key.key_trait()),
             );
             let (key_ty, key_trait) = forwarded_key.as_ref().map_or_else(

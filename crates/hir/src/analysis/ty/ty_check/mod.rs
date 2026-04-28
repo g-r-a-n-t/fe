@@ -15,7 +15,7 @@ pub use self::contract::{
     resolve_variant_in_msg,
 };
 pub use self::path::RecordLike;
-use crate::analysis::name_resolution::{ResolvedVariant, resolve_path};
+use crate::analysis::name_resolution::ResolvedVariant;
 pub use crate::analysis::ty::ProviderAddressSpace;
 use crate::analysis::ty::corelib::resolve_lib_type_path;
 use crate::analysis::ty::fold::TyFoldable;
@@ -59,7 +59,7 @@ use super::{
         BodyDiag, CallConstraintDiagInfo, FuncBodyDiag, TraitConstraintDiag, TyDiagCollection,
         TyLowerDiag,
     },
-    effects::{EffectKeyKind, resolve_normalized_type_effect_key},
+    effects::{EffectKeyKind, ResolvedEffectKey, resolve_effect_key},
     trait_def::TraitInstId,
     trait_resolution::{
         CanonicalGoalQuery, GoalSatisfiability, PredicateListId, TraitSolveCx,
@@ -70,7 +70,7 @@ use super::{
         BorrowKind, CapabilityKind, InvalidCause, Kind, MAX_INLINE_STRING_BYTES, StringFallback,
         TyId, TyVarSort,
     },
-    ty_lower::lower_hir_ty,
+    ty_lower::{lower_hir_ty, resolve_callable_input_effect_key},
     unify::{InferenceKey, Snapshot, UnificationError, UnificationTable},
 };
 use crate::analysis::semantic::SemanticCodeRegionRef;
@@ -408,15 +408,16 @@ impl<'db> TyChecker<'db> {
                 continue;
             };
 
-            if resolve_path(
-                self.db,
-                key_path,
-                func.scope(),
-                self.env.assumptions(),
-                false,
-            )
-            .is_err()
-            {
+            if !matches!(
+                resolve_callable_input_effect_key(
+                    self.db,
+                    func,
+                    idx,
+                    key_path,
+                    self.env.assumptions(),
+                ),
+                ResolvedEffectKey::Type(_) | ResolvedEffectKey::Trait(_)
+            ) {
                 self.push_diag(BodyDiag::InvalidEffectKey {
                     owner: EffectParamOwner::Func(func),
                     key: key_path,
@@ -477,20 +478,16 @@ impl<'db> TyChecker<'db> {
 
             // Labeled effects are always type/trait keyed: `name: Type`.
             if effect.name.is_some() {
-                let resolved = resolve_path(
-                    self.db,
-                    key_path,
-                    contract.scope(),
-                    self.env.assumptions(),
-                    false,
-                );
-                match resolved {
-                    Ok(PathRes::Trait(trait_inst)) => {
+                match resolve_effect_key(self.db, key_path, contract.scope(), assumptions) {
+                    ResolvedEffectKey::Trait(schema) => {
                         let Some(root_effect_ty) = root_effect_ty else {
                             continue;
                         };
-                        let trait_req =
-                            super::instantiate_trait_self(self.db, trait_inst, root_effect_ty);
+                        let trait_req = super::instantiate_trait_self(
+                            self.db,
+                            schema.into_trait_inst(self.db),
+                            root_effect_ty,
+                        );
                         if matches!(
                             is_goal_satisfiable(
                                 self.db,
@@ -507,17 +504,9 @@ impl<'db> TyChecker<'db> {
                             });
                         }
                     }
-                    Ok(PathRes::Ty(ty) | PathRes::TyAlias(_, ty)) => {
-                        let given = resolve_normalized_type_effect_key(
-                            self.db,
-                            key_path,
-                            contract.scope(),
-                            assumptions,
-                        )
-                        .map(|ty| normalize_ty(self.db, ty, contract.scope(), assumptions))
-                        .unwrap_or_else(|| {
-                            normalize_ty(self.db, ty, contract.scope(), assumptions)
-                        });
+                    ResolvedEffectKey::Type(schema) => {
+                        let given =
+                            normalize_ty(self.db, schema.carrier, contract.scope(), assumptions);
                         if !given.is_zero_sized(self.db) {
                             self.push_diag(BodyDiag::ContractRootEffectTypeNotZeroSized {
                                 owner,
@@ -527,11 +516,13 @@ impl<'db> TyChecker<'db> {
                             });
                         }
                     }
-                    Ok(_) | Err(_) => self.push_diag(BodyDiag::InvalidEffectKey {
-                        owner,
-                        key: key_path,
-                        idx,
-                    }),
+                    ResolvedEffectKey::Invalid | ResolvedEffectKey::Other => {
+                        self.push_diag(BodyDiag::InvalidEffectKey {
+                            owner,
+                            key: key_path,
+                            idx,
+                        });
+                    }
                 }
                 continue;
             }
@@ -553,7 +544,6 @@ impl<'db> TyChecker<'db> {
             }
         }
     }
-
     fn finish(self) -> (Vec<FuncBodyDiag<'db>>, TypedBody<'db>) {
         TyCheckerFinalizer::new(self).finish()
     }

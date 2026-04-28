@@ -637,6 +637,10 @@ struct Pair {
     b: u256,
 }
 
+extern {
+    fn todo() -> !
+}
+
 fn fail() -> ! {
     core::panic()
 }
@@ -664,6 +668,10 @@ fn caller_u256_from_declared_u256() -> u256 {
 fn caller_pair_from_declared_pair() -> Pair {
     fail_declared_pair()
 }
+
+fn caller_u256_from_extern_never() -> u256 {
+    todo()
+}
 "#
                 .to_string(),
             ),
@@ -678,6 +686,7 @@ fn caller_pair_from_declared_pair() -> Pair {
             "caller_u256_from_never",
             "caller_u256_from_declared_u256",
             "caller_pair_from_declared_pair",
+            "caller_u256_from_extern_never",
         ] {
             let caller = semantic_instance_for_named_func(&db, top_mod, caller_name);
             let body = runtime_instance_for_semantic(&db, caller).body(&db);

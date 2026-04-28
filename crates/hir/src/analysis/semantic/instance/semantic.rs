@@ -755,7 +755,7 @@ impl<'db> SemanticInstance<'db> {
         cycle_initial=known_never_returns_cycle_initial
     )]
     pub fn known_never_returns(self, db: &'db dyn HirAnalysisDb) -> bool {
-        if semantic_is_nonreturning_builtin(db, self) {
+        if self.is_intrinsically_never_returning(db) {
             return true;
         }
 
@@ -782,7 +782,10 @@ impl<'db> SemanticInstance<'db> {
                 else {
                     continue;
                 };
-                if semantic_call_is_known_never_returning(db, SemanticInstance::new(db, callee.key))
+                let callee = SemanticInstance::new(db, callee.key);
+                if callee.is_intrinsically_never_returning(db)
+                    || (callee.contains_direct_intrinsic_never_returning_call(db)
+                        && callee.known_never_returns(db))
                 {
                     terminated_in_stmt = true;
                     break;
@@ -827,6 +830,48 @@ impl<'db> SemanticInstance<'db> {
 impl<'db> SemanticInstance<'db> {
     fn normalization_scope(self, db: &'db dyn HirAnalysisDb) -> ScopeId<'db> {
         self.key(db).owner(db).scope()
+    }
+
+    fn is_intrinsically_never_returning(self, db: &'db dyn HirAnalysisDb) -> bool {
+        self.is_nonreturning_builtin(db) || self.normalized_result_ty(db).is_never(db)
+    }
+
+    fn is_nonreturning_builtin(self, db: &'db dyn HirAnalysisDb) -> bool {
+        let BodyOwner::Func(func) = self.key(db).owner(db) else {
+            return false;
+        };
+        matches!(
+            runtime_builtin_func_kind(db, func),
+            Some(
+                RuntimeBuiltinFuncKind::ReturnData
+                    | RuntimeBuiltinFuncKind::Revert
+                    | RuntimeBuiltinFuncKind::SelfDestruct
+                    | RuntimeBuiltinFuncKind::Stop
+                    | RuntimeBuiltinFuncKind::Panic
+                    | RuntimeBuiltinFuncKind::PanicWithValue
+                    | RuntimeBuiltinFuncKind::Todo
+            )
+        )
+    }
+
+    fn contains_direct_intrinsic_never_returning_call(self, db: &'db dyn HirAnalysisDb) -> bool {
+        if self.is_intrinsically_never_returning(db) {
+            return true;
+        }
+
+        self.body(db).blocks.iter().any(|block| {
+            block.stmts.iter().any(|stmt| {
+                if let SStmtKind::Assign {
+                    expr: SExpr::Call { callee, .. },
+                    ..
+                } = &stmt.kind
+                {
+                    SemanticInstance::new(db, callee.key).is_intrinsically_never_returning(db)
+                } else {
+                    false
+                }
+            })
+        })
     }
 }
 
@@ -1892,60 +1937,6 @@ impl<'db> crate::analysis::ty::fold::TyFolder<'db> for CheckedInstantiateFolder<
             _ => ty.super_fold_with(db, self),
         }
     }
-}
-
-fn semantic_is_nonreturning_builtin<'db>(
-    db: &'db dyn HirAnalysisDb,
-    instance: SemanticInstance<'db>,
-) -> bool {
-    let BodyOwner::Func(func) = instance.key(db).owner(db) else {
-        return false;
-    };
-    matches!(
-        runtime_builtin_func_kind(db, func),
-        Some(
-            RuntimeBuiltinFuncKind::ReturnData
-                | RuntimeBuiltinFuncKind::Revert
-                | RuntimeBuiltinFuncKind::SelfDestruct
-                | RuntimeBuiltinFuncKind::Stop
-                | RuntimeBuiltinFuncKind::Panic
-                | RuntimeBuiltinFuncKind::PanicWithValue
-                | RuntimeBuiltinFuncKind::Todo
-        )
-    )
-}
-
-fn semantic_call_is_known_never_returning<'db>(
-    db: &'db dyn HirAnalysisDb,
-    callee: SemanticInstance<'db>,
-) -> bool {
-    semantic_is_nonreturning_builtin(db, callee)
-        || (semantic_contains_direct_nonreturning_call(db, callee)
-            && callee.known_never_returns(db))
-}
-
-#[salsa::tracked]
-fn semantic_contains_direct_nonreturning_call<'db>(
-    db: &'db dyn HirAnalysisDb,
-    instance: SemanticInstance<'db>,
-) -> bool {
-    if semantic_is_nonreturning_builtin(db, instance) {
-        return true;
-    }
-
-    instance.body(db).blocks.iter().any(|block| {
-        block.stmts.iter().any(|stmt| {
-            if let SStmtKind::Assign {
-                expr: SExpr::Call { callee, .. },
-                ..
-            } = &stmt.kind
-            {
-                semantic_is_nonreturning_builtin(db, SemanticInstance::new(db, callee.key))
-            } else {
-                false
-            }
-        })
-    })
 }
 
 fn known_never_returns_cycle_initial<'db>(

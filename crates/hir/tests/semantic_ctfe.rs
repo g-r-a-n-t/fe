@@ -19,6 +19,7 @@ use fe_hir::{
     hir_def::{ItemKind, Partial},
     span::LazySpan,
 };
+use num_bigint::BigInt;
 
 #[test]
 fn canonicalize_folds_const_calls_into_nested_aggregate_consts() {
@@ -110,6 +111,91 @@ fn semantic_ctfe_evaluates_as_bytes_const_fns() {
 }
 
 #[test]
+fn semantic_ctfe_evaluates_mutation_and_while_control_flow() {
+    let mut db = HirAnalysisTestDb::default();
+    let file = db.new_stand_alone(
+        "semantic_ctfe_mut_loop.fe".into(),
+        r#"
+enum Maybe {
+    Some(usize),
+    None,
+}
+
+struct Pair {
+    a: usize,
+    b: usize,
+}
+
+const fn mutate_fields() -> usize {
+    let mut pair = Pair { a: 1, b: 2 }
+    pair.a += 4
+    pair.b += pair.a
+    pair.b
+}
+
+const fn sum_while() -> usize {
+    let mut i: usize = 0
+    let mut sum: usize = 0
+    while i < 6 {
+        i += 1
+        if i == 2 {
+            continue
+        }
+        sum += i
+        if sum > 7 {
+            break
+        }
+    }
+    sum
+}
+
+const fn while_let_payload() -> usize {
+    let mut maybe = Maybe::Some(5)
+    let mut total: usize = 0
+    while let Maybe::Some(value) = maybe {
+        total += value
+        maybe = Maybe::None
+    }
+    total
+}
+
+const fn match_payload() -> usize {
+    match Maybe::Some(3) {
+        Maybe::Some(value) => value + mutate_fields()
+        Maybe::None => 0
+    }
+}
+"#,
+    );
+    let (top_mod, _) = db.top_mod(file);
+
+    for (name, expected) in [
+        ("mutate_fields", 7u8),
+        ("sum_while", 8),
+        ("while_let_payload", 5),
+        ("match_payload", 10),
+    ] {
+        let func = top_mod
+            .all_funcs(&db)
+            .iter()
+            .find(
+                |func| matches!(func.name(&db), Partial::Present(found) if found.data(&db) == name),
+            )
+            .copied()
+            .unwrap_or_else(|| panic!("missing const fn `{name}`"));
+        let (diags, _) = check_func_body(&db, func).clone();
+        assert!(
+            diags.is_empty(),
+            "unexpected diagnostics for `{name}`: {diags:#?}"
+        );
+
+        let value = eval_body_owner_const(&db, BodyOwner::Func(func), Vec::new())
+            .unwrap_or_else(|err| panic!("semantic CTFE failed for `{name}`: {err:?}"));
+        assert_int_const(&db, value, expected);
+    }
+}
+
+#[test]
 fn const_fn_match_has_no_const_body_diagnostic() {
     let mut db = HirAnalysisTestDb::default();
     let file = db.new_stand_alone(
@@ -134,10 +220,6 @@ fn const_fn_match_has_no_const_body_diagnostic() {
             FuncBodyDiag::Body(
                 BodyDiag::ConstFnEffectsNotAllowed(_)
                     | BodyDiag::ConstFnWithNotAllowed(_)
-                    | BodyDiag::ConstFnLoopNotAllowed(_)
-                    | BodyDiag::ConstFnAssignmentNotAllowed(_)
-                    | BodyDiag::ConstFnAggregateNotAllowed(_)
-                    | BodyDiag::ConstFnMutableBindingNotAllowed(_)
                     | BodyDiag::ConstFnNonConstCall { .. }
                     | BodyDiag::ConstFnEffectfulCall { .. }
             )
@@ -244,6 +326,17 @@ fn type_alias_len_reports_nested_const_eval_error() {
         &text[resolved.range.start().into()..resolved.range.end().into()],
         "intrinsic::__as_bytes(Mixed::B)"
     );
+}
+
+fn assert_int_const(db: &HirAnalysisTestDb, value: SemConstId<'_>, expected: u8) {
+    let SemConstValue::Scalar {
+        value: SemConstScalar::Int { value },
+        ..
+    } = value.value(db)
+    else {
+        panic!("expected integer const, got {:?}", value.value(db));
+    };
+    assert_eq!(value, BigInt::from(expected));
 }
 
 fn owner_name(db: &HirAnalysisTestDb, owner: BodyOwner<'_>) -> String {
@@ -700,4 +793,51 @@ fn negated_min_i8_compares_equal() -> bool {
         !saw_const_false,
         "negated minimum integer literal should not stay abstract and fold to false"
     );
+}
+
+#[test]
+fn semantic_ctfe_evaluates_array_index_writes() {
+    let mut db = HirAnalysisTestDb::default();
+    let file = db.new_stand_alone(
+        "semantic_ctfe.fe".into(),
+        r#"
+const fn rewrite() -> [u256; 4] {
+    let mut values: [u256; 4] = [1, 2, 3, 4]
+    let idx: usize = 2
+    values[idx] = 9
+    values[3] = values[0] + values[1] + values[2]
+    values
+}
+"#,
+    );
+    let (top_mod, _) = db.top_mod(file);
+    let func = top_mod
+        .all_funcs(&db)
+        .iter()
+        .find(
+            |func| matches!(func.name(&db), Partial::Present(name) if name.data(&db) == "rewrite"),
+        )
+        .copied()
+        .expect("missing const fn `rewrite`");
+
+    let (diags, _) = check_func_body(&db, func).clone();
+    assert!(diags.is_empty(), "unexpected diagnostics: {diags:#?}");
+
+    let value = eval_body_owner_const(&db, BodyOwner::Func(func), Vec::new())
+        .unwrap_or_else(|err| panic!("semantic CTFE failed: {err:?}"));
+
+    let SemConstValue::Array { elems, .. } = value.value(&db) else {
+        panic!("expected array const, got {:?}", value.value(&db));
+    };
+    let values = elems
+        .iter()
+        .map(|elem| match elem.value(&db) {
+            SemConstValue::Scalar {
+                value: SemConstScalar::Int { value },
+                ..
+            } => value.to_string(),
+            other => panic!("expected int elem, got {other:?}"),
+        })
+        .collect::<Vec<_>>();
+    assert_eq!(values, ["1", "2", "9", "12"]);
 }

@@ -1,10 +1,13 @@
 use crate::analysis::HirAnalysisDb;
-use crate::analysis::ty::adt_def::AdtRef;
+use crate::analysis::ty::corelib::ctfe_primitive_call_kind;
 use crate::analysis::ty::diagnostics::{BodyDiag, FuncBodyDiag};
-use crate::analysis::ty::ty_check::TypedBody;
+use crate::analysis::ty::trait_def::resolve_trait_method_instance;
+use crate::analysis::ty::trait_resolution::TraitSolveCx;
+use crate::analysis::ty::ty_check::{Callable, TypedBody};
 use crate::hir_def::{
     Body, CallableDef, Cond, CondId, Expr, ExprId, Func, Partial, Pat, Stmt, StmtId,
 };
+use crate::span::DynLazySpan;
 
 pub(crate) fn check_const_fn_body<'db>(
     db: &'db dyn HirAnalysisDb,
@@ -44,27 +47,49 @@ impl<'db> ConstFnChecker<'db, '_> {
         self.diags.push(diag.into());
     }
 
-    fn check_call_target(&mut self, expr: ExprId) {
-        let Some(callable) = self.typed_body.callable_expr(expr) else {
+    fn check_callable(&mut self, primary: DynLazySpan<'db>, callable: &Callable<'db>) {
+        let Some(callee) = self.callable_func(callable) else {
             return;
         };
-        let CallableDef::Func(callee) = callable.callable_def else {
-            self.push(BodyDiag::ConstFnAggregateNotAllowed(
-                expr.span(self.body).into(),
-            ));
+        if ctfe_primitive_call_kind(self.db, callee, callable.ret_ty(self.db)).is_some() {
             return;
-        };
+        }
 
         if !callee.is_const(self.db) {
             self.push(BodyDiag::ConstFnNonConstCall {
-                primary: expr.span(self.body).into(),
-                callee: callable.callable_def,
+                primary,
+                callee: callable.callable_def(),
             });
         } else if callee.has_effects(self.db) {
             self.push(BodyDiag::ConstFnEffectfulCall {
-                primary: expr.span(self.body).into(),
-                callee: callable.callable_def,
+                primary,
+                callee: callable.callable_def(),
             });
+        }
+    }
+
+    fn callable_func(&self, callable: &Callable<'db>) -> Option<Func<'db>> {
+        let CallableDef::Func(func) = callable.callable_def() else {
+            return None;
+        };
+        if let Some(inst) = callable.trait_inst()
+            && let Some(name) = func.name(self.db).to_opt()
+            && let Some((impl_func, _)) = resolve_trait_method_instance(
+                self.db,
+                TraitSolveCx::new(self.db, self.body.scope())
+                    .with_assumptions(self.typed_body.assumptions()),
+                inst,
+                name,
+            )
+        {
+            return Some(impl_func);
+        }
+        Some(func)
+    }
+
+    fn check_call_target(&mut self, expr: ExprId) {
+        if let Some(callable) = self.typed_body.callable_expr(expr) {
+            self.check_callable(expr.span(self.body).into(), callable);
         }
     }
 
@@ -80,9 +105,21 @@ impl<'db> ConstFnChecker<'db, '_> {
                     self.check_expr(*init);
                 }
             }
-            Stmt::For(..) | Stmt::While(..) | Stmt::Continue | Stmt::Break => {
-                self.push(BodyDiag::ConstFnLoopNotAllowed(stmt.span(self.body).into()));
+            Stmt::For(pat, iter, body, _) => {
+                self.check_let_pat(*pat);
+                self.check_expr(*iter);
+                if let Some(seq) = self.typed_body.for_loop_seq(stmt) {
+                    let span: DynLazySpan<'db> = stmt.span(self.body).into();
+                    self.check_callable(span.clone(), &seq.len_callable);
+                    self.check_callable(span, &seq.get_callable);
+                }
+                self.check_expr(*body);
             }
+            Stmt::While(cond, body) => {
+                self.check_cond(*cond);
+                self.check_expr(*body);
+            }
+            Stmt::Continue | Stmt::Break => {}
             Stmt::Return(expr) => {
                 if let Some(expr) = expr {
                     self.check_expr(*expr);
@@ -99,36 +136,17 @@ impl<'db> ConstFnChecker<'db, '_> {
 
         match pat_data {
             Pat::WildCard | Pat::Rest => {}
-            Pat::Path(_, is_mut) => {
-                if *is_mut {
-                    self.push(BodyDiag::ConstFnMutableBindingNotAllowed(
-                        pat.span(self.body).into(),
-                    ));
-                }
-
-                if self.typed_body.pat_binding(pat).is_none() {
-                    self.push(BodyDiag::ConstFnAggregateNotAllowed(
-                        pat.span(self.body).into(),
-                    ));
-                }
+            Pat::Lit(_) | Pat::Path(_, _) => {}
+            Pat::Tuple(elems) | Pat::PathTuple(_, elems) => {
+                elems.iter().for_each(|elem| self.check_let_pat(*elem));
             }
-            Pat::Tuple(elems) => elems.iter().for_each(|elem| self.check_let_pat(*elem)),
-            Pat::Record(_, fields) => {
-                let ty = self.typed_body.pat_ty(self.db, pat);
-                if !matches!(ty.adt_ref(self.db), Some(AdtRef::Struct(_))) {
-                    self.push(BodyDiag::ConstFnAggregateNotAllowed(
-                        pat.span(self.body).into(),
-                    ));
-                    return;
-                }
-
-                fields
-                    .iter()
-                    .for_each(|field| self.check_let_pat(field.pat));
+            Pat::Record(_, fields) => fields
+                .iter()
+                .for_each(|field| self.check_let_pat(field.pat)),
+            Pat::Or(lhs, rhs) => {
+                self.check_let_pat(*lhs);
+                self.check_let_pat(*rhs);
             }
-            _ => self.push(BodyDiag::ConstFnAggregateNotAllowed(
-                pat.span(self.body).into(),
-            )),
         }
     }
 
@@ -150,12 +168,15 @@ impl<'db> ConstFnChecker<'db, '_> {
             Expr::Bin(lhs, rhs, _) => {
                 self.check_expr(*lhs);
                 self.check_expr(*rhs);
+                self.check_call_target(expr);
             }
 
-            Expr::Un(inner, _)
-            | Expr::Field(inner, _)
-            | Expr::ArrayRep(inner, _)
-            | Expr::Cast(inner, _) => {
+            Expr::Un(inner, _) => {
+                self.check_expr(*inner);
+                self.check_call_target(expr);
+            }
+
+            Expr::Field(inner, _) | Expr::ArrayRep(inner, _) | Expr::Cast(inner, _) => {
                 self.check_expr(*inner);
             }
 
@@ -187,9 +208,7 @@ impl<'db> ConstFnChecker<'db, '_> {
             Expr::Assign(lhs, rhs) | Expr::AugAssign(lhs, rhs, _) => {
                 self.check_expr(*lhs);
                 self.check_expr(*rhs);
-                self.push(BodyDiag::ConstFnAssignmentNotAllowed(
-                    expr.span(self.body).into(),
-                ));
+                self.check_call_target(expr);
             }
             Expr::With(_bindings, _body) => {
                 self.push(BodyDiag::ConstFnWithNotAllowed(expr.span(self.body).into()));
@@ -229,46 +248,17 @@ impl<'db> ConstFnChecker<'db, '_> {
 
         match pat_data {
             Pat::WildCard | Pat::Rest => {}
-            Pat::Lit(Partial::Present(
-                crate::hir_def::LitKind::Int(_)
-                | crate::hir_def::LitKind::Bool(_)
-                | crate::hir_def::LitKind::String(_),
-            )) => {}
-            Pat::Lit(Partial::Absent) => {}
-            Pat::Path(_, is_mut) => {
-                if *is_mut {
-                    self.push(BodyDiag::ConstFnMutableBindingNotAllowed(
-                        pat.span(self.body).into(),
-                    ));
-                }
-
-                if self.typed_body.pat_binding(pat).is_none() {
-                    self.push(BodyDiag::ConstFnAggregateNotAllowed(
-                        pat.span(self.body).into(),
-                    ));
-                }
+            Pat::Lit(_) | Pat::Path(_, _) => {}
+            Pat::Tuple(elems) | Pat::PathTuple(_, elems) => {
+                elems.iter().for_each(|elem| self.check_match_pat(*elem));
             }
-            Pat::Tuple(elems) => elems.iter().for_each(|elem| self.check_match_pat(*elem)),
-            Pat::Record(_, fields) => {
-                let ty = self.typed_body.pat_ty(self.db, pat);
-                if !matches!(ty.adt_ref(self.db), Some(AdtRef::Struct(_))) {
-                    self.push(BodyDiag::ConstFnAggregateNotAllowed(
-                        pat.span(self.body).into(),
-                    ));
-                    return;
-                }
-
-                fields
-                    .iter()
-                    .for_each(|field| self.check_match_pat(field.pat));
-            }
+            Pat::Record(_, fields) => fields
+                .iter()
+                .for_each(|field| self.check_match_pat(field.pat)),
             Pat::Or(lhs, rhs) => {
                 self.check_match_pat(*lhs);
                 self.check_match_pat(*rhs);
             }
-            _ => self.push(BodyDiag::ConstFnAggregateNotAllowed(
-                pat.span(self.body).into(),
-            )),
         }
     }
 }

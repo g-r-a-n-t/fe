@@ -207,6 +207,32 @@ fn f() {
     );
 }
 
+#[test]
+fn test_cli_check_unresolved_record_init_path_reports_error_instead_of_panicking() {
+    let temp = tempdir().expect("tempdir");
+    let file = temp.path().join("unresolved_record_init_path.fe");
+    fs::write(
+        &file,
+        r#"
+fn trigger() {
+    let s = missing::S {}
+}
+"#,
+    )
+    .expect("write fixture");
+
+    let (output, exit_code) = run_fe_check(file.to_str().expect("fixture path utf8"));
+    assert_eq!(exit_code, 1, "expected check failure:\n{output}");
+    assert!(
+        output.contains("`missing` is not found"),
+        "expected unresolved path diagnostic instead of panic:\n{output}"
+    );
+    assert!(
+        !output.contains("record init lowering missing"),
+        "unexpected semantic lowering panic:\n{output}"
+    );
+}
+
 fn run_fe_main_in_dir_with_env(
     args: &[&str],
     cwd: &Path,

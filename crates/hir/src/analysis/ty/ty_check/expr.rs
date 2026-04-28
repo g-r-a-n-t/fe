@@ -3479,8 +3479,17 @@ impl<'db> TyChecker<'db> {
             return ExprProp::invalid(self.db);
         };
 
-        let Ok(reso) = self.resolve_path(*path, true, span.clone().path()) else {
-            return ExprProp::invalid(self.db);
+        let path_span = span.clone().path();
+        let reso = match self.resolve_path(*path, true, path_span.clone()) {
+            Ok(reso) => reso,
+            Err(err) => {
+                if let Some(diag) =
+                    err.into_diag(self.db, *path, path_span, ExpectedPathKind::Record)
+                {
+                    self.push_diag(diag);
+                }
+                return ExprProp::invalid(self.db);
+            }
         };
 
         match reso {

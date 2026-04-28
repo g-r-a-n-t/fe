@@ -1,5 +1,6 @@
 use std::path::Path;
 
+use common::diagnostics::{CompleteDiagnostic, cmp_complete_diagnostics};
 use dir_test::{Fixture, dir_test};
 use fe_hir::analysis::ty::{
     ty_check::{check_contract_recv_arm_body, check_func_body},
@@ -7,7 +8,7 @@ use fe_hir::analysis::ty::{
 };
 use fe_hir::hir_def::TopLevelMod;
 use fe_hir::span::LazySpan;
-use fe_hir::test_db::{HirAnalysisTestDb, format_diagnostics, initialize_analysis_pass};
+use fe_hir::test_db::{HirAnalysisTestDb, initialize_analysis_pass};
 use test_utils::snap_test;
 
 #[dir_test(
@@ -70,12 +71,19 @@ fn trigger() {
 "#,
     );
     let (top_mod, _) = db.top_mod(file);
-    let rendered = diagnostics_for(&db, top_mod);
+    let diags = diagnostics_for(&db, top_mod);
 
-    assert!(rendered.contains("type must be known"), "{rendered}");
     assert!(
-        !rendered.contains("`Seq` needs to be implemented for `!`"),
-        "{rendered}"
+        diags
+            .iter()
+            .any(|diag| diag.message == "type must be known"),
+        "{diags:#?}"
+    );
+    assert!(
+        !diags
+            .iter()
+            .any(|diag| diag.message == "`Seq` needs to be implemented for !"),
+        "{diags:#?}"
     );
 }
 
@@ -98,23 +106,42 @@ fn trigger() {
 "#,
     );
     let (top_mod, _) = db.top_mod(file);
-    let rendered = diagnostics_for(&db, top_mod);
+    let diags = diagnostics_for(&db, top_mod);
 
-    assert!(rendered.contains("undefined variable `pass`"), "{rendered}");
     assert!(
-        rendered.contains("undefined variable `missing_value`"),
-        "{rendered}"
+        diagnostics_contain(&diags, "undefined variable `pass`"),
+        "{diags:#?}"
     );
     assert!(
-        !rendered.contains("not supported in const eval"),
-        "{rendered}"
+        diagnostics_contain(&diags, "undefined variable `missing_value`"),
+        "{diags:#?}"
     );
+    assert!(!diagnostics_contain(&diags, "const eval"), "{diags:#?}");
 }
 
-fn diagnostics_for<'db>(db: &'db HirAnalysisTestDb, top_mod: TopLevelMod<'db>) -> String {
+fn diagnostics_for<'db>(
+    db: &'db HirAnalysisTestDb,
+    top_mod: TopLevelMod<'db>,
+) -> Vec<CompleteDiagnostic> {
     let mut manager = initialize_analysis_pass();
-    let diags = manager.run_on_module(db, top_mod);
-    format_diagnostics(db, &diags)
+    let mut diags: Vec<_> = manager
+        .run_on_module(db, top_mod)
+        .into_iter()
+        .map(|diag| diag.to_complete(db))
+        .collect();
+    diags.sort_by(cmp_complete_diagnostics);
+    diags
+}
+
+fn diagnostics_contain(diags: &[CompleteDiagnostic], needle: &str) -> bool {
+    diags.iter().any(|diag| {
+        diag.message.contains(needle)
+            || diag
+                .sub_diagnostics
+                .iter()
+                .any(|sub_diag| sub_diag.message.contains(needle))
+            || diag.notes.iter().any(|note| note.contains(needle))
+    })
 }
 
 fn collect_body_props<'db>(

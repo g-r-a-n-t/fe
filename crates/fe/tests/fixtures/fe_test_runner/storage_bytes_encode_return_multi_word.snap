@@ -5,12 +5,8 @@ input_file: tests/fixtures/fe_test_runner/storage_bytes_encode_return_multi_word
 ---
 === STDOUT ===
 PASS  [<time>] test_storage_bytes_encode_return_one_word_control
-FAIL  [<time>] test_storage_bytes_encode_return_two_words_repro
-    Test reverted: 0x
+PASS  [<time>] test_storage_bytes_encode_return_two_words_repro
 
-test result: FAILED. 1 passed; 1 failed
+test result: ok. 2 passed; 0 failed
 
-failures:
-    test_storage_bytes_encode_return_two_words_repro
-
-=== EXIT CODE: 1 ===
+=== EXIT CODE: 0 ===

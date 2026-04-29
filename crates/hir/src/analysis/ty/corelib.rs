@@ -331,6 +331,7 @@ pub fn core_primitive_wrapper_call_kind<'db>(
     })
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct CoreRangeTypes<'db> {
     pub range: TyId<'db>,
     pub known: TyId<'db>,

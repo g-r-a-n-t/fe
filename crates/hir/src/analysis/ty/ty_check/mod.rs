@@ -145,10 +145,14 @@ pub fn check_static_assert<'db>(
         Ok(value) => match static_assert_bool_value(db, value) {
             Some(true) => {}
             Some(false) => {
-                let mut diags = Vec::new();
-                let comparison = assert_.comparison(db).and_then(|comparison| {
-                    static_assert_comparison_values(db, condition, typed_body, comparison)
-                });
+                let mut diags = body_diags.clone();
+                let comparison = if body_diags.is_empty() {
+                    assert_.comparison(db).and_then(|comparison| {
+                        static_assert_comparison_values(db, condition, typed_body, comparison)
+                    })
+                } else {
+                    None
+                };
                 diags.push(
                     BodyDiag::StaticAssertFailed {
                         primary: condition.span().into(),
@@ -857,6 +861,21 @@ impl<'db> TyChecker<'db> {
         unique
     }
 
+    fn dedup_equivalent_pending_method_candidates(
+        &self,
+        candidates: Vec<env::PendingMethodCandidate<'db>>,
+    ) -> Vec<env::PendingMethodCandidate<'db>> {
+        let db = self.db;
+        let mut seen = FxHashSet::default();
+        let mut unique = Vec::new();
+        for candidate in candidates {
+            if seen.insert(Canonical::new(db, candidate.inst)) {
+                unique.push(candidate);
+            }
+        }
+        unique
+    }
+
     fn call_constraint_diag_info(
         &self,
         callable_def: CallableDef<'db>,
@@ -1233,24 +1252,33 @@ impl<'db> TyChecker<'db> {
                          receiver: ExprId,
                          generic_args: crate::hir_def::GenericArgListId<'db>,
                          call_args: &[crate::hir_def::CallArg<'db>],
-                         inst: TraitInstId<'db>| {
+                         candidate: env::PendingMethodCandidate<'db>| {
             let snap = this.snapshot_state();
 
             let result = (|| {
+                let inst = candidate.inst;
                 let recv_ty = {
                     let mut prober = env::Prober::new(&mut this.table, scope);
                     pending.recv_ty.fold_with(db, &mut prober)
                 };
 
                 let inst_self = this.table.instantiate_to_term(inst.self_ty(db));
-                if this.table.unify(inst_self, recv_ty).is_err() {
+                let recv_ty = if this.table.unify(inst_self, recv_ty).is_ok() {
+                    recv_ty
+                } else {
                     let recv_inner = recv_ty.as_capability(db).map(|(_, inner)| inner)?;
                     this.table.unify(inst_self, recv_inner).ok()?;
-                }
+                    recv_inner
+                };
 
-                let trait_method = *inst.def(db).method_defs(db).get(&pending.method_name)?;
-                let func_ty =
-                    instantiate_trait_method(db, trait_method, &mut this.table, recv_ty, inst);
+                let func_ty = try_instantiate_trait_method(
+                    db,
+                    candidate.method,
+                    &mut this.table,
+                    recv_ty,
+                    inst,
+                )
+                .ok()?;
                 let func_ty = this.table.instantiate_to_term(func_ty);
                 let mut callable =
                     Callable::new(db, func_ty, receiver.span(body).into(), Some(inst)).ok()?;
@@ -1359,7 +1387,7 @@ impl<'db> TyChecker<'db> {
                             .candidates
                             .iter()
                             .copied()
-                            .filter(|&inst| {
+                            .filter(|&candidate| {
                                 is_viable(
                                     self,
                                     &pending,
@@ -1367,15 +1395,16 @@ impl<'db> TyChecker<'db> {
                                     receiver,
                                     generic_args,
                                     call_args,
-                                    inst,
+                                    candidate,
                                 )
                             })
                             .collect();
-                        let viable = self.dedup_equivalent_trait_insts(viable);
+                        let viable = self.dedup_equivalent_pending_method_candidates(viable);
 
-                        if let [inst] = viable.as_slice() {
+                        if let [candidate] = viable.as_slice() {
                             if self.env.callable_expr(pending.expr).is_none() {
                                 let call_span = pending.expr.span(body).into_method_call_expr();
+                                let inst = candidate.inst;
 
                                 let receiver_prop = self
                                     .env
@@ -1386,22 +1415,17 @@ impl<'db> TyChecker<'db> {
                                     pending.recv_ty.fold_with(db, &mut prober)
                                 };
 
-                                let trait_method = *inst
-                                    .def(db)
-                                    .method_defs(db)
-                                    .get(&pending.method_name)
-                                    .unwrap();
                                 let func_ty = self.instantiate_trait_method_to_term(
-                                    trait_method,
+                                    candidate.method,
                                     recv_ty,
-                                    *inst,
+                                    inst,
                                 );
 
                                 let mut callable = match Callable::new(
                                     db,
                                     func_ty,
                                     receiver.span(body).into(),
-                                    Some(*inst),
+                                    Some(inst),
                                 ) {
                                     Ok(callable) => callable,
                                     Err(diag) => {
@@ -1410,6 +1434,14 @@ impl<'db> TyChecker<'db> {
                                         continue;
                                     }
                                 };
+
+                                if candidate.needs_confirmation {
+                                    self.env.register_trait_obligation(env::TraitObligation {
+                                        goal: inst,
+                                        origin: env::TraitObligationOrigin::GenericConfirmation,
+                                        span: call_span.clone().into(),
+                                    });
+                                }
 
                                 if !callable.unify_generic_args(
                                     self,
@@ -1512,7 +1544,7 @@ impl<'db> TyChecker<'db> {
                         .candidates
                         .iter()
                         .copied()
-                        .filter(|&inst| {
+                        .filter(|&candidate| {
                             is_viable(
                                 self,
                                 &pending,
@@ -1520,16 +1552,16 @@ impl<'db> TyChecker<'db> {
                                 receiver,
                                 generic_args,
                                 call_args,
-                                inst,
+                                candidate,
                             )
                         })
                         .collect();
-                    let viable = self.dedup_equivalent_trait_insts(viable);
+                    let viable = self.dedup_equivalent_pending_method_candidates(viable);
                     if viable.len() > 1 {
                         self.push_diag(BodyDiag::AmbiguousTrait {
                             primary: pending.span.clone(),
                             method_name: pending.method_name,
-                            traits: viable.into_iter().collect(),
+                            traits: viable.into_iter().map(|candidate| candidate.inst).collect(),
                         });
                     }
                 }
@@ -3886,13 +3918,13 @@ impl Typeable<'_> {
     }
 }
 
-fn instantiate_trait_method<'db>(
+fn try_instantiate_trait_method<'db>(
     db: &'db dyn HirAnalysisDb,
     method: Func<'db>,
     table: &mut UnificationTable<'db>,
     receiver_ty: TyId<'db>,
     inst: TraitInstId<'db>,
-) -> TyId<'db> {
+) -> Result<TyId<'db>, UnificationError> {
     let ty = TyId::foldl(
         db,
         TyId::func(db, method.as_callable(db).unwrap()),
@@ -3900,12 +3932,23 @@ fn instantiate_trait_method<'db>(
     );
 
     let inst_self = table.instantiate_to_term(inst.self_ty(db));
-    table.unify(inst_self, receiver_ty).unwrap();
+    table.unify(inst_self, receiver_ty)?;
 
     // Apply associated type substitutions from the trait instance
     use crate::analysis::ty::fold::{AssocTySubst, TyFoldable};
     let mut subst = AssocTySubst::new(inst);
-    ty.fold_with(db, &mut subst)
+    Ok(ty.fold_with(db, &mut subst))
+}
+
+fn instantiate_trait_method<'db>(
+    db: &'db dyn HirAnalysisDb,
+    method: Func<'db>,
+    table: &mut UnificationTable<'db>,
+    receiver_ty: TyId<'db>,
+    inst: TraitInstId<'db>,
+) -> TyId<'db> {
+    try_instantiate_trait_method(db, method, table, receiver_ty, inst)
+        .expect("selected trait method candidate receiver should unify")
 }
 
 /// Instantiate a trait-associated function type (no receiver), e.g. `T::make`.

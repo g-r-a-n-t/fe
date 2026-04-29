@@ -168,6 +168,40 @@ fn transparent_wrapper_get_loads_base_handle_before_inner_get() {
 }
 
 #[test]
+fn code_backed_copy_receiver_field_reads_do_not_store_into_code() {
+    let yul = emit_inline_test_yul(
+        "file:///code_backed_copy_receiver_field_reads_do_not_store_into_code.fe",
+        r#"
+use std::evm::effects::assert
+
+pub struct Pair {
+    pub a: u256,
+    pub b: u256,
+}
+
+impl Copy for Pair {}
+
+impl Pair {
+    pub fn check(self, _ x: u256) -> bool {
+        x == self.a
+    }
+}
+
+#[test]
+fn test_const_struct_receiver() {
+    let pair = Pair { a: 1, b: 2 }
+    assert(pair.check(1))
+}
+"#,
+    );
+    let check = function_body(&yul, "function $check_arg0_root_code(");
+    assert!(
+        check.contains("ret :="),
+        "code-backed receiver field-read helper should emit successfully:\n{check}"
+    );
+}
+
+#[test]
 fn const_backed_constructor_args_stay_code_backed_until_abi_encoding() {
     let yul = emit_inline_test_yul(
         "file:///const_backed_constructor_args_stay_code_backed_until_abi_encoding.fe",

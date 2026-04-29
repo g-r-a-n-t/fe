@@ -91,34 +91,31 @@ object "main" {
     }
     function $len(p0) -> ret {
       let v1 := 0
-      let t15 := mload(add(p0, 32))
-      let v2 := t15
-      let t16 := mload(p0)
-      let v9 := t16
-      mstore(p0, v9)
-      let t17 := mload(p0)
-      let v10 := t17
-      let v11 := iszero(iszero(lt(v2, v10)))
-      let v4 := iszero(iszero(v11))
+      let t14 := mload(add(p0, 32))
+      let v2 := t14
+      let t15 := mload(p0)
+      let v9 := t15
+      let v10 := iszero(iszero(lt(v2, v9)))
+      let v4 := iszero(iszero(v10))
       if iszero(iszero(v4)) {
+        let v11 := 0x00
+        let v5 := v11
         let v12 := 0x00
-        let v5 := v12
-        let v13 := 0x00
-        v1 := v13
+        v1 := v12
       }
       if iszero(iszero(iszero(v4))) {
-        let t18 := mload(add(p0, 32))
-        let v6 := t18
-        let t19 := mload(p0)
-        let v7 := t19
-        let t20 := sub(v6, v7)
+        let t16 := mload(add(p0, 32))
+        let v6 := t16
+        let t17 := mload(p0)
+        let v7 := t17
+        let t18 := sub(v6, v7)
         if gt(v7, v6) {
           mstore(0, 0x4e487b7100000000000000000000000000000000000000000000000000000000)
           mstore(4, 0x11)
           revert(0, 36)
         }
-        let v14 := t20
-        let v8 := v14
+        let v13 := t18
+        let v8 := v13
         v1 := v8
       }
       ret := v1

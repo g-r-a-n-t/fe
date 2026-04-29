@@ -1,0 +1,28 @@
+use core::ops::Add
+use std::evm::effects::assert
+
+struct Counter {
+    value: usize,
+}
+
+impl Copy for Counter {}
+
+impl Add for Counter {
+    const fn add(own self, _ other: own Counter) -> Counter {
+        Counter { value: self.value + other.value + 1 }
+    }
+}
+
+const fn combine(lhs: Counter, rhs: Counter) -> Counter {
+    lhs + rhs
+}
+
+const COMBINED: Counter = combine(lhs: Counter { value: 2 }, rhs: Counter { value: 3 })
+const COMBINED_VALUE: usize = COMBINED.value
+type CombinedWitness = [u8; COMBINED_VALUE]
+
+#[test]
+fn const_user_op_impl() {
+    let _witness: CombinedWitness = [0; 6]
+    assert(COMBINED.value == 6)
+}

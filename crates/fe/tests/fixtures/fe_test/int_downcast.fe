@@ -1,6 +1,43 @@
 use core::num::IntDowncast
 use core::option::Option
 
+const fn const_checked_downcast() -> Option<u8> {
+    let x: u256 = 200
+    x.downcast()
+}
+
+const fn const_truncated_downcast() -> u8 {
+    let x: u256 = 256
+    x.downcast_truncate()
+}
+
+const fn const_saturated_downcast() -> u8 {
+    let x: u256 = 300
+    x.downcast_saturate()
+}
+
+const fn const_unchecked_downcast() -> u8 {
+    let x: u256 = 200
+    x.downcast_unchecked()
+}
+
+const fn const_negative_truncated_downcast() -> u8 {
+    let x: i256 = -1
+    x.downcast_truncate()
+}
+
+const fn const_negative_saturated_downcast() -> u8 {
+    let x: i256 = -1
+    x.downcast_saturate()
+}
+
+const CHECKED_DOWNCAST: Option<u8> = const_checked_downcast()
+const TRUNCATED_DOWNCAST: u8 = const_truncated_downcast()
+const SATURATED_DOWNCAST: u8 = const_saturated_downcast()
+const UNCHECKED_DOWNCAST: u8 = const_unchecked_downcast()
+const NEGATIVE_TRUNCATED_DOWNCAST: u8 = const_negative_truncated_downcast()
+const NEGATIVE_SATURATED_DOWNCAST: u8 = const_negative_saturated_downcast()
+
 #[test]
 fn test_int_downcast() uses (evm: mut Evm) {
     let x: u256 = 256
@@ -26,4 +63,17 @@ fn test_int_downcast() uses (evm: mut Evm) {
 
     let s2: u8 = neg.downcast_saturate()
     assert(s2 == 0)
+}
+
+#[test]
+fn test_const_int_downcast() uses (evm: mut Evm) {
+    match CHECKED_DOWNCAST {
+        Option::Some(value) => assert(value == 200)
+        Option::None => assert(false)
+    }
+    assert(TRUNCATED_DOWNCAST == 0)
+    assert(SATURATED_DOWNCAST == 255)
+    assert(UNCHECKED_DOWNCAST == 200)
+    assert(NEGATIVE_TRUNCATED_DOWNCAST == 255)
+    assert(NEGATIVE_SATURATED_DOWNCAST == 0)
 }

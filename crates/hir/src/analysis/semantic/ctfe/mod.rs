@@ -1,6 +1,5 @@
 mod canonicalize;
 mod machine;
-mod ops;
 
 pub(crate) use canonicalize::canonicalize_provisional_semantic_consts_from_body;
 pub use canonicalize::canonicalize_semantic_consts;

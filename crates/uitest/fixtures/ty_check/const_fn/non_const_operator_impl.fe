@@ -1,0 +1,23 @@
+use core::ops::Add
+
+struct RuntimeCounter {
+    value: usize,
+}
+
+impl Copy for RuntimeCounter {}
+
+impl Add for RuntimeCounter {
+    fn add(own self, _ other: own RuntimeCounter) -> RuntimeCounter {
+        RuntimeCounter { value: self.value + other.value }
+    }
+}
+
+const fn concrete_bad() -> RuntimeCounter {
+    (RuntimeCounter { value: 1 }) + (RuntimeCounter { value: 2 })
+}
+
+const fn generic_bad<T>(lhs: T, rhs: T) -> T
+    where T: Add<Output = T>
+{
+    lhs + rhs
+}

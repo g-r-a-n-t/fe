@@ -1,7 +1,10 @@
 use cranelift_entity::EntityRef;
-use num_bigint::BigInt;
+use num_bigint::{BigInt, BigUint, Sign};
 use num_traits::{One, ToPrimitive, Zero};
+use ruint::aliases::U256;
+use rustc_hash::FxHashMap;
 use salsa::Update;
+use std::rc::Rc;
 use tiny_keccak::{Hasher, Keccak};
 
 use crate::{
@@ -16,23 +19,24 @@ use crate::{
             STerminatorKind, SemConstId, SemConstScalar, SemConstValue, SemOrigin, SemanticBody,
             SemanticConstRef, VariantIndex, array_const, bool_const, bytes_const, enum_const,
             int_const, int_ty_shape, normalize_int_to_shape, runtime_size_bytes, sem_const_eq,
-            sem_const_from_ty, struct_const, tuple_const, unit_const,
+            sem_const_from_ty, sem_const_ty, struct_const, tuple_const, unit_const,
         },
         ty::{
             const_expr::{ConstExpr, ConstExprId},
             const_ty::{ConstTyData, ConstTyId, EvaluatedConstTy, const_ty_from_sem_const},
-            corelib::{PrimitiveWrapperCallKind, core_primitive_wrapper_call_kind},
+            corelib::{
+                PrimitiveWrapperCallKind, RuntimeBuiltinFuncKind, core_primitive_wrapper_call_kind,
+                runtime_builtin_func_kind,
+            },
             normalize::normalize_ty,
             ty_check::{BodyOwner, check_anon_const_body, check_const_body, check_func_body},
             ty_def::{PrimTy, TyBase, TyData, TyId},
         },
     },
     core::hir_def::expr::LogicalBinOp,
-    hir_def::{ArithBinOp, BinOp, CompBinOp, Func, UnOp, attr::ArithmeticMode},
+    hir_def::{ArithBinOp, BinOp, CompBinOp, UnOp, attr::ArithmeticMode},
     projection::{IndexSource, Projection},
 };
-
-use super::ops::{project_const, store_const};
 
 #[derive(Clone, Debug, PartialEq, Eq, Hash, Update)]
 pub struct CtfeConfig {
@@ -43,7 +47,7 @@ pub struct CtfeConfig {
 impl Default for CtfeConfig {
     fn default() -> Self {
         Self {
-            step_limit: 10_000,
+            step_limit: 1_000_000,
             recursion_limit: 64,
         }
     }
@@ -99,6 +103,32 @@ pub enum CtfeError<'db> {
         callee: SemanticInstance<'db>,
         source: Box<CtfeError<'db>>,
     },
+}
+
+#[derive(Clone, Copy)]
+enum EvmModularArithmetic {
+    Add,
+    Mul,
+}
+
+#[derive(Clone, Copy)]
+enum NumericExternIntrinsic {
+    CheckedBinary(ArithBinOp),
+    WrappingBinary(ArithBinOp),
+    SaturatingBinary(SaturatingArithmetic),
+    Comparison(CompBinOp),
+    BoolBinary(ArithBinOp),
+    CheckedNeg,
+    WrappingNeg,
+    BitNot,
+    BoolNot,
+}
+
+#[derive(Clone, Copy)]
+enum SaturatingArithmetic {
+    Add,
+    Sub,
+    Mul,
 }
 
 #[salsa::tracked]
@@ -161,7 +191,9 @@ pub fn eval_body_owner_const_with_args<'db>(
     let mut machine = CtfeMachine::new(db, CtfeConfig::default());
     machine.eval_root(
         instance,
-        args.into_iter().map(CtfeValue::concrete).collect(),
+        args.into_iter()
+            .map(|arg| CtfeValue::concrete(db, arg))
+            .collect(),
         SemOrigin::Body(owner),
     )
 }
@@ -184,11 +216,13 @@ struct CtfeMachine<'db> {
     db: &'db dyn HirAnalysisDb,
     config: CtfeConfig,
     steps: usize,
+    instance_cache: FxHashMap<SemanticInstanceKey<'db>, SemanticInstance<'db>>,
+    body_cache: FxHashMap<SemanticInstanceKey<'db>, Rc<SemanticBody<'db>>>,
     frames: Vec<CtfeFrame<'db>>,
 }
 
 struct CtfeFrame<'db> {
-    body: SemanticBody<'db>,
+    body: Rc<SemanticBody<'db>>,
     locals: Vec<CtfeSlot<'db>>,
     current: usize,
 }
@@ -207,40 +241,607 @@ enum CtfeValue<'db> {
 
 #[derive(Clone)]
 struct CtfeConstValue<'db> {
-    value: SemConstId<'db>,
+    kind: CtfeConstKind<'db>,
     deferred_origin: Option<SemOrigin<'db>>,
 }
 
+#[derive(Clone)]
+enum CtfeConstKind<'db> {
+    Interned(SemConstId<'db>),
+    Unit,
+    Bool(bool),
+    Int {
+        ty: TyId<'db>,
+        value: CtfeInt,
+    },
+    Bytes {
+        ty: TyId<'db>,
+        bytes: Rc<[u8]>,
+    },
+    Tuple {
+        ty: TyId<'db>,
+        elems: Rc<[CtfeConstValue<'db>]>,
+    },
+    Struct {
+        ty: TyId<'db>,
+        fields: Rc<[CtfeConstValue<'db>]>,
+    },
+    Array {
+        ty: TyId<'db>,
+        elems: Rc<[CtfeConstValue<'db>]>,
+    },
+    Enum {
+        ty: TyId<'db>,
+        variant: VariantIndex,
+        fields: Rc<[CtfeConstValue<'db>]>,
+    },
+}
+
+#[derive(Clone)]
+enum CtfeInt {
+    Word { bits: u16, signed: bool, word: U256 },
+    Big(BigInt),
+}
+
 impl<'db> CtfeConstValue<'db> {
-    fn concrete(value: SemConstId<'db>) -> Self {
+    fn unit() -> Self {
         Self {
-            value,
+            kind: CtfeConstKind::Unit,
+            deferred_origin: None,
+        }
+    }
+
+    fn bool(value: bool) -> Self {
+        Self {
+            kind: CtfeConstKind::Bool(value),
+            deferred_origin: None,
+        }
+    }
+
+    fn int(db: &'db dyn HirAnalysisDb, ty: TyId<'db>, value: BigInt) -> Self {
+        Self {
+            kind: CtfeConstKind::Int {
+                ty,
+                value: CtfeInt::from_bigint(db, ty, value),
+            },
+            deferred_origin: None,
+        }
+    }
+
+    fn int_word(db: &'db dyn HirAnalysisDb, ty: TyId<'db>, word: U256) -> Self {
+        let value = match int_ty_shape(db, ty) {
+            Some((bits, signed)) => CtfeInt::from_word(bits, signed, word),
+            None => CtfeInt::Big(bigint_from_u256(word)),
+        };
+        Self {
+            kind: CtfeConstKind::Int { ty, value },
+            deferred_origin: None,
+        }
+    }
+
+    fn bytes(ty: TyId<'db>, bytes: Vec<u8>) -> Self {
+        Self {
+            kind: CtfeConstKind::Bytes {
+                ty,
+                bytes: bytes.into(),
+            },
+            deferred_origin: None,
+        }
+    }
+
+    fn tuple(ty: TyId<'db>, elems: Vec<CtfeConstValue<'db>>) -> Self {
+        Self {
+            kind: CtfeConstKind::Tuple {
+                ty,
+                elems: elems.into(),
+            },
+            deferred_origin: None,
+        }
+    }
+
+    fn struct_(ty: TyId<'db>, fields: Vec<CtfeConstValue<'db>>) -> Self {
+        Self {
+            kind: CtfeConstKind::Struct {
+                ty,
+                fields: fields.into(),
+            },
+            deferred_origin: None,
+        }
+    }
+
+    fn array(ty: TyId<'db>, elems: Vec<CtfeConstValue<'db>>) -> Self {
+        Self {
+            kind: CtfeConstKind::Array {
+                ty,
+                elems: elems.into(),
+            },
+            deferred_origin: None,
+        }
+    }
+
+    fn enum_(ty: TyId<'db>, variant: VariantIndex, fields: Vec<CtfeConstValue<'db>>) -> Self {
+        Self {
+            kind: CtfeConstKind::Enum {
+                ty,
+                variant,
+                fields: fields.into(),
+            },
+            deferred_origin: None,
+        }
+    }
+
+    fn concrete(db: &'db dyn HirAnalysisDb, value: SemConstId<'db>) -> Self {
+        let kind = match value.value(db) {
+            SemConstValue::Unit => CtfeConstKind::Unit,
+            SemConstValue::Scalar {
+                value: SemConstScalar::Bool(value),
+                ..
+            } => CtfeConstKind::Bool(value),
+            SemConstValue::Scalar {
+                ty,
+                value: SemConstScalar::Int { value },
+            } => CtfeConstKind::Int {
+                ty,
+                value: CtfeInt::from_bigint(db, ty, value.clone()),
+            },
+            SemConstValue::Scalar {
+                ty,
+                value: SemConstScalar::Bytes(bytes),
+            } => CtfeConstKind::Bytes {
+                ty,
+                bytes: Rc::from(bytes.as_slice()),
+            },
+            SemConstValue::TypeLevel { .. }
+            | SemConstValue::Tuple { .. }
+            | SemConstValue::Struct { .. }
+            | SemConstValue::Array { .. }
+            | SemConstValue::Enum { .. } => CtfeConstKind::Interned(value),
+        };
+        Self {
+            kind,
+            deferred_origin: None,
+        }
+    }
+
+    fn expand_sem_const_shallow(db: &'db dyn HirAnalysisDb, value: SemConstId<'db>) -> Self {
+        let kind = match value.value(db) {
+            SemConstValue::Unit => CtfeConstKind::Unit,
+            SemConstValue::Scalar {
+                value: SemConstScalar::Bool(value),
+                ..
+            } => CtfeConstKind::Bool(value),
+            SemConstValue::Scalar {
+                ty,
+                value: SemConstScalar::Int { value },
+            } => CtfeConstKind::Int {
+                ty,
+                value: CtfeInt::from_bigint(db, ty, value.clone()),
+            },
+            SemConstValue::Scalar {
+                ty,
+                value: SemConstScalar::Bytes(bytes),
+            } => CtfeConstKind::Bytes {
+                ty,
+                bytes: Rc::from(bytes.as_slice()),
+            },
+            SemConstValue::TypeLevel { .. } => CtfeConstKind::Interned(value),
+            SemConstValue::Tuple { ty, elems } => CtfeConstKind::Tuple {
+                ty,
+                elems: elems
+                    .iter()
+                    .copied()
+                    .map(|elem| Self::concrete(db, elem))
+                    .collect::<Vec<_>>()
+                    .into(),
+            },
+            SemConstValue::Struct { ty, fields } => CtfeConstKind::Struct {
+                ty,
+                fields: fields
+                    .iter()
+                    .copied()
+                    .map(|field| Self::concrete(db, field))
+                    .collect::<Vec<_>>()
+                    .into(),
+            },
+            SemConstValue::Array { ty, elems } => CtfeConstKind::Array {
+                ty,
+                elems: elems
+                    .iter()
+                    .copied()
+                    .map(|elem| Self::concrete(db, elem))
+                    .collect::<Vec<_>>()
+                    .into(),
+            },
+            SemConstValue::Enum {
+                ty,
+                variant,
+                fields,
+            } => CtfeConstKind::Enum {
+                ty,
+                variant,
+                fields: fields
+                    .iter()
+                    .copied()
+                    .map(|field| Self::concrete(db, field))
+                    .collect::<Vec<_>>()
+                    .into(),
+            },
+        };
+        Self {
+            kind,
             deferred_origin: None,
         }
     }
 
     fn with_deferred_origin(
-        value: SemConstId<'db>,
+        mut self,
+        db: &'db dyn HirAnalysisDb,
         deferred_origin: Option<SemOrigin<'db>>,
     ) -> Self {
-        Self {
-            value,
-            deferred_origin,
-        }
+        self.set_deferred_origin(db, deferred_origin);
+        self
+    }
+
+    fn set_deferred_origin(
+        &mut self,
+        db: &'db dyn HirAnalysisDb,
+        deferred_origin: Option<SemOrigin<'db>>,
+    ) {
+        self.deferred_origin = if deferred_origin.is_some() && self.contains_type_level(db) {
+            deferred_origin
+        } else {
+            None
+        };
     }
 
     fn error_origin(&self, origin: SemOrigin<'db>) -> SemOrigin<'db> {
         self.deferred_origin.unwrap_or(origin)
     }
+
+    fn materialize(&self, db: &'db dyn HirAnalysisDb) -> SemConstId<'db> {
+        match &self.kind {
+            CtfeConstKind::Interned(value) => *value,
+            CtfeConstKind::Unit => unit_const(db),
+            CtfeConstKind::Bool(value) => bool_const(db, *value),
+            CtfeConstKind::Int { ty, value } => int_const(db, *ty, value.to_bigint()),
+            CtfeConstKind::Bytes { ty, bytes } => bytes_const(db, *ty, bytes.to_vec()),
+            CtfeConstKind::Tuple { ty, elems } => tuple_const(
+                db,
+                *ty,
+                elems
+                    .iter()
+                    .map(|elem| elem.materialize(db))
+                    .collect::<Vec<_>>()
+                    .into_boxed_slice(),
+            ),
+            CtfeConstKind::Struct { ty, fields } => struct_const(
+                db,
+                *ty,
+                fields
+                    .iter()
+                    .map(|field| field.materialize(db))
+                    .collect::<Vec<_>>()
+                    .into_boxed_slice(),
+            ),
+            CtfeConstKind::Array { ty, elems } => array_const(
+                db,
+                *ty,
+                elems
+                    .iter()
+                    .map(|elem| elem.materialize(db))
+                    .collect::<Vec<_>>()
+                    .into_boxed_slice(),
+            ),
+            CtfeConstKind::Enum {
+                ty,
+                variant,
+                fields,
+            } => enum_const(
+                db,
+                *ty,
+                *variant,
+                fields
+                    .iter()
+                    .map(|field| field.materialize(db))
+                    .collect::<Vec<_>>()
+                    .into_boxed_slice(),
+            ),
+        }
+    }
+
+    fn ty(&self, db: &'db dyn HirAnalysisDb) -> TyId<'db> {
+        match &self.kind {
+            CtfeConstKind::Interned(value) => sem_const_ty(db, *value),
+            CtfeConstKind::Unit => TyId::unit(db),
+            CtfeConstKind::Bool(_) => TyId::bool(db),
+            CtfeConstKind::Int { ty, .. }
+            | CtfeConstKind::Bytes { ty, .. }
+            | CtfeConstKind::Tuple { ty, .. }
+            | CtfeConstKind::Struct { ty, .. }
+            | CtfeConstKind::Array { ty, .. }
+            | CtfeConstKind::Enum { ty, .. } => *ty,
+        }
+    }
+
+    fn is_scalar(&self, db: &'db dyn HirAnalysisDb) -> bool {
+        match &self.kind {
+            CtfeConstKind::Bool(_) | CtfeConstKind::Int { .. } | CtfeConstKind::Bytes { .. } => {
+                true
+            }
+            CtfeConstKind::Interned(value) => {
+                matches!(value.value(db), SemConstValue::Scalar { .. })
+            }
+            CtfeConstKind::Unit
+            | CtfeConstKind::Tuple { .. }
+            | CtfeConstKind::Struct { .. }
+            | CtfeConstKind::Array { .. }
+            | CtfeConstKind::Enum { .. } => false,
+        }
+    }
+
+    fn contains_type_level(&self, db: &'db dyn HirAnalysisDb) -> bool {
+        match &self.kind {
+            CtfeConstKind::Interned(value) => sem_const_contains_type_level(db, *value),
+            CtfeConstKind::Tuple { elems, .. } | CtfeConstKind::Array { elems, .. } => {
+                elems.iter().any(|elem| elem.contains_type_level(db))
+            }
+            CtfeConstKind::Struct { fields, .. } | CtfeConstKind::Enum { fields, .. } => {
+                fields.iter().any(|field| field.contains_type_level(db))
+            }
+            CtfeConstKind::Unit
+            | CtfeConstKind::Bool(_)
+            | CtfeConstKind::Int { .. }
+            | CtfeConstKind::Bytes { .. } => false,
+        }
+    }
+}
+
+impl CtfeInt {
+    fn from_bigint<'db>(db: &'db dyn HirAnalysisDb, ty: TyId<'db>, value: BigInt) -> Self {
+        let Some((bits, signed)) = int_ty_shape(db, ty) else {
+            return Self::Big(value);
+        };
+        let value = normalize_int_to_shape(value, bits, false);
+        Self::Word {
+            bits,
+            signed,
+            word: u256_from_bigint(&value),
+        }
+    }
+
+    fn from_word(bits: u16, signed: bool, word: U256) -> Self {
+        let word = if bits == 0 {
+            U256::ZERO
+        } else if bits < 256 {
+            word & ((U256::from(1u8) << usize::from(bits)) - U256::from(1u8))
+        } else {
+            word
+        };
+        Self::Word { bits, signed, word }
+    }
+
+    fn to_bigint(&self) -> BigInt {
+        match self {
+            CtfeInt::Word { bits, signed, word } => {
+                let unsigned = bigint_from_u256(*word);
+                if *signed && *bits > 0 {
+                    let sign_bit = BigInt::one() << usize::from(bits - 1);
+                    if unsigned >= sign_bit {
+                        return unsigned - (BigInt::one() << usize::from(*bits));
+                    }
+                }
+                unsigned
+            }
+            CtfeInt::Big(value) => value.clone(),
+        }
+    }
+
+    fn to_u256(&self) -> U256 {
+        match self {
+            CtfeInt::Word { word, .. } => *word,
+            CtfeInt::Big(value) => {
+                u256_from_bigint(&normalize_int_to_shape(value.clone(), 256, false))
+            }
+        }
+    }
+}
+
+fn u256_from_bigint(value: &BigInt) -> U256 {
+    let (_, bytes) = value.to_bytes_be();
+    let mut out = [0u8; 32];
+    let bytes = if bytes.len() > out.len() {
+        &bytes[bytes.len() - out.len()..]
+    } else {
+        &bytes
+    };
+    let offset = out.len() - bytes.len();
+    out[offset..].copy_from_slice(bytes);
+    U256::from_be_bytes(out)
+}
+
+fn biguint_from_u256(value: U256) -> BigUint {
+    BigUint::from_bytes_be(&value.to_be_bytes::<32>())
+}
+
+fn bigint_from_u256(value: U256) -> BigInt {
+    BigInt::from_bytes_be(Sign::Plus, &value.to_be_bytes::<32>())
+}
+
+fn signed_word_is_negative(bits: u16, word: U256) -> bool {
+    bits > 0 && word.bit(usize::from(bits - 1))
+}
+
+fn sign_extend_word(bits: u16, word: U256) -> U256 {
+    if bits == 0 || bits == 256 || !signed_word_is_negative(bits, word) {
+        word
+    } else {
+        word | (U256::MAX << usize::from(bits))
+    }
+}
+
+fn wrapping_shift_word(bits: u16, signed: bool, lhs: U256, rhs: U256, left: bool) -> U256 {
+    if rhs >= U256::from(256u16) {
+        if left || !signed || !signed_word_is_negative(bits, lhs) {
+            U256::ZERO
+        } else {
+            U256::MAX
+        }
+    } else if left {
+        lhs.wrapping_shl(rhs.wrapping_to::<usize>())
+    } else if signed {
+        sign_extend_word(bits, lhs).arithmetic_shr(rhs.wrapping_to::<usize>())
+    } else {
+        lhs.wrapping_shr(rhs.wrapping_to::<usize>())
+    }
+}
+
+fn expect_binary_args<'a, 'db>(
+    args: &'a [CtfeConstValue<'db>],
+    origin: SemOrigin<'db>,
+) -> Result<(&'a CtfeConstValue<'db>, &'a CtfeConstValue<'db>), CtfeError<'db>> {
+    let [lhs, rhs] = args else {
+        return Err(CtfeError::NotConstEvaluable { origin });
+    };
+    Ok((lhs, rhs))
+}
+
+fn checked_result<'db>(
+    value: BigInt,
+    machine: &CtfeMachine<'db>,
+    result_ty: TyId<'db>,
+    origin: SemOrigin<'db>,
+) -> Result<BigInt, CtfeError<'db>> {
+    if !machine.int_in_range(result_ty, &value) {
+        return Err(CtfeError::ArithmeticOverflow { origin });
+    }
+    Ok(value)
+}
+
+fn int_bounds(bits: u16, signed: bool) -> (BigInt, BigInt) {
+    if signed {
+        let half = BigInt::one() << (usize::from(bits) - 1);
+        (-half.clone(), half - BigInt::one())
+    } else {
+        (
+            BigInt::zero(),
+            (BigInt::one() << usize::from(bits)) - BigInt::one(),
+        )
+    }
+}
+
+fn numeric_extern_intrinsic(name: &str) -> Option<NumericExternIntrinsic> {
+    Some(match name {
+        "__checked_add" => NumericExternIntrinsic::CheckedBinary(ArithBinOp::Add),
+        "__checked_sub" => NumericExternIntrinsic::CheckedBinary(ArithBinOp::Sub),
+        "__checked_mul" => NumericExternIntrinsic::CheckedBinary(ArithBinOp::Mul),
+        "__checked_div" => NumericExternIntrinsic::CheckedBinary(ArithBinOp::Div),
+        "__checked_rem" => NumericExternIntrinsic::CheckedBinary(ArithBinOp::Rem),
+        "__checked_pow" => NumericExternIntrinsic::CheckedBinary(ArithBinOp::Pow),
+        "__checked_neg" => NumericExternIntrinsic::CheckedNeg,
+        "__saturating_add" => NumericExternIntrinsic::SaturatingBinary(SaturatingArithmetic::Add),
+        "__saturating_sub" => NumericExternIntrinsic::SaturatingBinary(SaturatingArithmetic::Sub),
+        "__saturating_mul" => NumericExternIntrinsic::SaturatingBinary(SaturatingArithmetic::Mul),
+        "__not_bool" => NumericExternIntrinsic::BoolNot,
+        "__bitand_bool" => NumericExternIntrinsic::BoolBinary(ArithBinOp::BitAnd),
+        "__bitor_bool" => NumericExternIntrinsic::BoolBinary(ArithBinOp::BitOr),
+        "__bitxor_bool" => NumericExternIntrinsic::BoolBinary(ArithBinOp::BitXor),
+        "__eq_bool" => NumericExternIntrinsic::Comparison(CompBinOp::Eq),
+        "__ne_bool" => NumericExternIntrinsic::Comparison(CompBinOp::NotEq),
+        _ => {
+            let suffix = |prefix| {
+                name.strip_prefix(prefix)
+                    .filter(|suffix| has_integer_numeric_suffix(suffix))
+            };
+            if suffix("__add_").is_some() {
+                NumericExternIntrinsic::WrappingBinary(ArithBinOp::Add)
+            } else if suffix("__sub_").is_some() {
+                NumericExternIntrinsic::WrappingBinary(ArithBinOp::Sub)
+            } else if suffix("__mul_").is_some() {
+                NumericExternIntrinsic::WrappingBinary(ArithBinOp::Mul)
+            } else if suffix("__div_").is_some() {
+                NumericExternIntrinsic::WrappingBinary(ArithBinOp::Div)
+            } else if suffix("__rem_").is_some() {
+                NumericExternIntrinsic::WrappingBinary(ArithBinOp::Rem)
+            } else if suffix("__pow_").is_some() {
+                NumericExternIntrinsic::WrappingBinary(ArithBinOp::Pow)
+            } else if suffix("__shl_").is_some() {
+                NumericExternIntrinsic::WrappingBinary(ArithBinOp::LShift)
+            } else if suffix("__shr_").is_some() {
+                NumericExternIntrinsic::WrappingBinary(ArithBinOp::RShift)
+            } else if suffix("__bitand_").is_some() {
+                NumericExternIntrinsic::WrappingBinary(ArithBinOp::BitAnd)
+            } else if suffix("__bitor_").is_some() {
+                NumericExternIntrinsic::WrappingBinary(ArithBinOp::BitOr)
+            } else if suffix("__bitxor_").is_some() {
+                NumericExternIntrinsic::WrappingBinary(ArithBinOp::BitXor)
+            } else if suffix("__eq_").is_some() {
+                NumericExternIntrinsic::Comparison(CompBinOp::Eq)
+            } else if suffix("__ne_").is_some() {
+                NumericExternIntrinsic::Comparison(CompBinOp::NotEq)
+            } else if suffix("__lt_").is_some() {
+                NumericExternIntrinsic::Comparison(CompBinOp::Lt)
+            } else if suffix("__le_").is_some() {
+                NumericExternIntrinsic::Comparison(CompBinOp::LtEq)
+            } else if suffix("__gt_").is_some() {
+                NumericExternIntrinsic::Comparison(CompBinOp::Gt)
+            } else if suffix("__ge_").is_some() {
+                NumericExternIntrinsic::Comparison(CompBinOp::GtEq)
+            } else if suffix("__neg_").is_some() {
+                NumericExternIntrinsic::WrappingNeg
+            } else if suffix("__bitnot_").is_some() {
+                NumericExternIntrinsic::BitNot
+            } else {
+                return None;
+            }
+        }
+    })
+}
+
+fn has_integer_numeric_suffix(suffix: &str) -> bool {
+    matches!(
+        suffix,
+        "u8" | "u16"
+            | "u32"
+            | "u64"
+            | "u128"
+            | "u256"
+            | "usize"
+            | "i8"
+            | "i16"
+            | "i32"
+            | "i64"
+            | "i128"
+            | "i256"
+            | "isize"
+    )
+}
+
+fn sem_const_contains_type_level<'db>(db: &'db dyn HirAnalysisDb, value: SemConstId<'db>) -> bool {
+    match value.value(db) {
+        SemConstValue::TypeLevel { .. } => true,
+        SemConstValue::Tuple { elems, .. } | SemConstValue::Array { elems, .. } => elems
+            .iter()
+            .copied()
+            .any(|elem| sem_const_contains_type_level(db, elem)),
+        SemConstValue::Struct { fields, .. } | SemConstValue::Enum { fields, .. } => fields
+            .iter()
+            .copied()
+            .any(|field| sem_const_contains_type_level(db, field)),
+        SemConstValue::Unit | SemConstValue::Scalar { .. } => false,
+    }
 }
 
 impl<'db> CtfeValue<'db> {
-    fn concrete(value: SemConstId<'db>) -> Self {
-        Self::Value(CtfeConstValue::concrete(value))
+    fn concrete(db: &'db dyn HirAnalysisDb, value: SemConstId<'db>) -> Self {
+        Self::Value(CtfeConstValue::concrete(db, value))
     }
 
-    fn deferred(value: SemConstId<'db>, origin: SemOrigin<'db>) -> Self {
-        Self::Value(CtfeConstValue::with_deferred_origin(value, Some(origin)))
+    fn deferred(
+        db: &'db dyn HirAnalysisDb,
+        value: SemConstId<'db>,
+        origin: SemOrigin<'db>,
+    ) -> Self {
+        Self::Value(CtfeConstValue::concrete(db, value).with_deferred_origin(db, Some(origin)))
     }
 }
 
@@ -261,20 +862,35 @@ pub(super) enum CtfePathElem {
     Index(usize),
 }
 
-#[derive(Clone, Copy)]
-enum CtfePrimitiveCall {
-    Unary(UnOp),
-    Binary(BinOp),
-}
-
 impl<'db> CtfeMachine<'db> {
     fn new(db: &'db dyn HirAnalysisDb, config: CtfeConfig) -> Self {
         Self {
             db,
             config,
             steps: 0,
+            instance_cache: FxHashMap::default(),
+            body_cache: FxHashMap::default(),
             frames: Vec::new(),
         }
+    }
+
+    fn instance_for_key(&mut self, key: SemanticInstanceKey<'db>) -> SemanticInstance<'db> {
+        if let Some(instance) = self.instance_cache.get(&key).copied() {
+            return instance;
+        }
+        let instance = SemanticInstance::new(self.db, key);
+        self.instance_cache.insert(key, instance);
+        instance
+    }
+
+    fn body_for_instance(&mut self, instance: SemanticInstance<'db>) -> Rc<SemanticBody<'db>> {
+        let key = instance.key(self.db);
+        if let Some(body) = self.body_cache.get(&key) {
+            return body.clone();
+        }
+        let body = Rc::new(instance.body(self.db));
+        self.body_cache.insert(key, body.clone());
+        body
     }
 
     fn eval_root(
@@ -287,7 +903,7 @@ impl<'db> CtfeMachine<'db> {
         let CtfeValue::Value(value) = value else {
             return Err(CtfeError::InvalidBorrow { origin });
         };
-        Ok(value.value)
+        Ok(value.materialize(self.db))
     }
 
     fn eval_expr_with_locals(
@@ -298,13 +914,13 @@ impl<'db> CtfeMachine<'db> {
         locals: &[Option<SemConstId<'db>>],
         origin: SemOrigin<'db>,
     ) -> Result<SemConstId<'db>, CtfeError<'db>> {
-        let body = instance.body(self.db);
+        let body = self.body_for_instance(instance);
         let mut frame_locals = vec![CtfeSlot::Uninit; body.locals.len()];
         for (idx, value) in locals.iter().copied().enumerate() {
             if let Some(value) = value
                 && let Some(slot) = frame_locals.get_mut(idx)
             {
-                *slot = CtfeSlot::Init(CtfeValue::concrete(value));
+                *slot = CtfeSlot::Init(CtfeValue::concrete(self.db, value));
             }
         }
         let frame_idx = self.frames.len();
@@ -314,7 +930,7 @@ impl<'db> CtfeMachine<'db> {
             current: 0,
         });
         let result = match self.eval_expr(frame_idx, result_ty, expr, origin)? {
-            CtfeValue::Value(value) => Ok(value.value),
+            CtfeValue::Value(value) => Ok(value.materialize(self.db)),
             CtfeValue::Ref(_) => Err(CtfeError::InvalidBorrow { origin }),
         };
         self.frames.pop();
@@ -332,7 +948,7 @@ impl<'db> CtfeMachine<'db> {
             return Err(CtfeError::RecursionLimitExceeded { origin });
         }
 
-        let body = instance.body(self.db);
+        let body = self.body_for_instance(instance);
         let mut locals = vec![CtfeSlot::Uninit; body.locals.len()];
         for (idx, arg) in args.into_iter().enumerate() {
             let Some(slot) = locals.get_mut(idx) else {
@@ -434,7 +1050,7 @@ impl<'db> CtfeMachine<'db> {
                     return self.read_operand(frame_idx, value, term_origin);
                 }
                 STerminatorKind::Return(None) => {
-                    return Ok(CtfeValue::concrete(unit_const(self.db)));
+                    return Ok(CtfeValue::Value(CtfeConstValue::unit()));
                 }
             }
         }
@@ -472,9 +1088,9 @@ impl<'db> CtfeMachine<'db> {
                 self.read_operand(frame_idx, value, origin)
             }
             SExpr::CodeRegionRef { .. } => Err(CtfeError::NotConstEvaluable { origin }),
-            SExpr::Const(SConst::Value(value)) => Ok(CtfeValue::concrete(value)),
+            SExpr::Const(SConst::Value(value)) => Ok(CtfeValue::concrete(self.db, value)),
             SExpr::Const(SConst::Ref(cref)) => eval_const_ref(self.db, cref)
-                .map(CtfeValue::concrete)
+                .map(|value| CtfeValue::concrete(self.db, value))
                 .map_err(|err| CtfeError::CalleeError {
                     origin: cref.origin(self.db),
                     callee: SemanticInstance::new(self.db, cref.instance(self.db)),
@@ -510,15 +1126,8 @@ impl<'db> CtfeMachine<'db> {
                 variant, fields, ..
             } => {
                 let fields = self.eval_value_args(frame_idx, &fields, origin)?;
-                Ok(CtfeValue::concrete(enum_const(
-                    self.db,
-                    result_ty,
-                    variant,
-                    fields
-                        .into_iter()
-                        .map(|field| field.value)
-                        .collect::<Vec<_>>()
-                        .into_boxed_slice(),
+                Ok(CtfeValue::Value(CtfeConstValue::enum_(
+                    result_ty, variant, fields,
                 )))
             }
             SExpr::ReadPlace { place } => {
@@ -562,7 +1171,7 @@ impl<'db> CtfeMachine<'db> {
             SExpr::GetEnumTag { value } => {
                 let value = self.load_value(frame_idx, value, origin)?;
                 let variant = self.load_enum_variant(value, origin)?;
-                Ok(CtfeValue::concrete(int_const(
+                Ok(CtfeValue::Value(CtfeConstValue::int(
                     self.db,
                     result_ty,
                     BigInt::from(variant.0),
@@ -571,7 +1180,7 @@ impl<'db> CtfeMachine<'db> {
             SExpr::IsEnumVariant { value, variant } => {
                 let value = self.load_value(frame_idx, value, origin)?;
                 let actual = self.load_enum_variant(value, origin)?;
-                Ok(CtfeValue::concrete(bool_const(self.db, actual == variant)))
+                Ok(CtfeValue::Value(CtfeConstValue::bool(actual == variant)))
             }
             SExpr::ExtractEnumField {
                 value,
@@ -595,11 +1204,11 @@ impl<'db> CtfeMachine<'db> {
                     .eval_args(frame_idx, &args, origin)?
                     .into_iter()
                     .collect::<Vec<_>>();
-                let instance = SemanticInstance::new(self.db, callee.key);
-                if let Some(value) =
-                    self.try_eval_primitive_call(frame_idx, instance, result_ty, &args, origin)?
-                {
-                    return Ok(CtfeValue::concrete(value));
+                let instance = self.instance_for_key(callee.key);
+                if let Some(value) = self.try_eval_core_primitive_wrapper_call(
+                    frame_idx, instance, result_ty, &args, origin,
+                )? {
+                    return Ok(CtfeValue::Value(value));
                 }
                 if let BodyOwner::Func(func) = instance.key(self.db).owner(self.db)
                     && func.is_extern(self.db)
@@ -608,39 +1217,47 @@ impl<'db> CtfeMachine<'db> {
                         return Err(CtfeError::NonConstCall { origin });
                     }
                     let deferred_origin = self.first_deferred_origin(&args).unwrap_or(origin);
-                    let value_args = self.materialize_args(args, origin)?;
+                    let value_args = self.value_args(args, origin)?;
                     return match self.eval_extern_const_fn(
+                        frame_idx,
                         instance,
                         func,
                         result_ty,
                         &value_args,
                         origin,
                     ) {
-                        Ok(value) => Ok(CtfeValue::concrete(value)),
-                        Err(CtfeError::NotConstEvaluable { .. }) => Ok(CtfeValue::deferred(
-                            self.abstract_const_call(
-                                ConstExpr::ExternConstFnCall {
-                                    func,
-                                    generic_args: instance
-                                        .key(self.db)
-                                        .subst(self.db)
-                                        .generic_args(self.db)
-                                        .clone(),
-                                    args: value_args
-                                        .iter()
-                                        .copied()
-                                        .map(|arg| {
-                                            TyId::const_ty(
-                                                self.db,
-                                                const_ty_from_sem_const(self.db, arg),
-                                            )
-                                        })
-                                        .collect(),
-                                },
-                                result_ty,
-                            ),
-                            deferred_origin,
-                        )),
+                        Ok(value) => Ok(CtfeValue::Value(value)),
+                        Err(CtfeError::NotConstEvaluable { .. }) => {
+                            let materialized_args = value_args
+                                .iter()
+                                .map(|arg| arg.materialize(self.db))
+                                .collect::<Vec<_>>();
+                            Ok(CtfeValue::deferred(
+                                self.db,
+                                self.abstract_const_call(
+                                    ConstExpr::ExternConstFnCall {
+                                        func,
+                                        generic_args: instance
+                                            .key(self.db)
+                                            .subst(self.db)
+                                            .generic_args(self.db)
+                                            .clone(),
+                                        args: materialized_args
+                                            .iter()
+                                            .copied()
+                                            .map(|arg| {
+                                                TyId::const_ty(
+                                                    self.db,
+                                                    const_ty_from_sem_const(self.db, arg),
+                                                )
+                                            })
+                                            .collect(),
+                                    },
+                                    result_ty,
+                                ),
+                                deferred_origin,
+                            ))
+                        }
                         Err(err) => Err(err),
                     };
                 }
@@ -659,6 +1276,7 @@ impl<'db> CtfeMachine<'db> {
                         let deferred_origin = self.first_deferred_origin(&args).unwrap_or(origin);
                         let value_args = self.materialize_args(args, origin)?;
                         Ok(CtfeValue::deferred(
+                            self.db,
                             self.abstract_const_call(
                                 ConstExpr::UserConstFnCall {
                                     func,
@@ -701,153 +1319,105 @@ impl<'db> CtfeMachine<'db> {
         }
     }
 
-    fn try_eval_primitive_call(
-        &self,
+    fn try_eval_core_primitive_wrapper_call(
+        &mut self,
         frame_idx: usize,
         instance: SemanticInstance<'db>,
         result_ty: TyId<'db>,
         args: &[CtfeValue<'db>],
         origin: SemOrigin<'db>,
-    ) -> Result<Option<SemConstId<'db>>, CtfeError<'db>> {
+    ) -> Result<Option<CtfeConstValue<'db>>, CtfeError<'db>> {
         let BodyOwner::Func(func) = instance.key(self.db).owner(self.db) else {
             return Ok(None);
         };
-        let Some(call) = self.primitive_call_kind(func, result_ty) else {
+        let Some(call) = core_primitive_wrapper_call_kind(self.db, func, result_ty) else {
             return Ok(None);
         };
-        let value_args = self.materialize_args(args.to_vec(), origin)?;
-        if !value_args
-            .iter()
-            .all(|arg| matches!(arg.value(self.db), SemConstValue::Scalar { .. }))
-        {
+        if let PrimitiveWrapperCallKind::Assign(op) = call {
+            return self.try_eval_core_primitive_assign(frame_idx, op, args, origin);
+        }
+
+        let value_args = self.value_args(args.to_vec(), origin)?;
+        if !value_args.iter().all(|arg| arg.is_scalar(self.db)) {
             return Ok(None);
         }
 
         let value = match call {
-            CtfePrimitiveCall::Unary(op) => {
+            PrimitiveWrapperCallKind::Unary(op) => {
                 let [value] = value_args.as_slice() else {
                     return Ok(None);
                 };
-                let CtfeValue::Value(value) = self.eval_unary(
-                    frame_idx,
-                    result_ty,
-                    op,
-                    CtfeConstValue::concrete(*value),
-                    origin,
-                )?
+                let CtfeValue::Value(value) =
+                    self.eval_unary(frame_idx, result_ty, op, value.clone(), origin)?
                 else {
                     return Err(CtfeError::InvalidBorrow { origin });
                 };
                 value
             }
-            CtfePrimitiveCall::Binary(op) => {
+            PrimitiveWrapperCallKind::Binary(op) => {
                 let [lhs, rhs] = value_args.as_slice() else {
                     return Ok(None);
                 };
-                let CtfeValue::Value(value) = self.eval_binary(
-                    frame_idx,
-                    result_ty,
-                    op,
-                    CtfeConstValue::concrete(*lhs),
-                    CtfeConstValue::concrete(*rhs),
-                    origin,
-                )?
+                let CtfeValue::Value(value) =
+                    self.eval_binary(frame_idx, result_ty, op, lhs.clone(), rhs.clone(), origin)?
                 else {
                     return Err(CtfeError::InvalidBorrow { origin });
                 };
                 value
             }
+            PrimitiveWrapperCallKind::Assign(_) => unreachable!(),
         };
-        Ok(Some(value.value))
+        Ok(Some(value))
     }
 
-    fn primitive_call_kind(
+    fn try_eval_core_primitive_assign(
+        &mut self,
+        frame_idx: usize,
+        op: BinOp,
+        args: &[CtfeValue<'db>],
+        origin: SemOrigin<'db>,
+    ) -> Result<Option<CtfeConstValue<'db>>, CtfeError<'db>> {
+        let [dst, rhs] = args else {
+            return Ok(None);
+        };
+        let CtfeValue::Ref(dst_ref) = dst else {
+            return Ok(None);
+        };
+        let lhs = self.load_ref_value(dst_ref, origin)?;
+        let rhs = match rhs {
+            CtfeValue::Value(value) => value.clone(),
+            CtfeValue::Ref(r#ref) => self.load_ref_value(r#ref, origin)?,
+        };
+        if !lhs.is_scalar(self.db) || !rhs.is_scalar(self.db) {
+            return Ok(None);
+        }
+        let ty = lhs.ty(self.db);
+        let CtfeValue::Value(value) = self.eval_binary(frame_idx, ty, op, lhs, rhs, origin)? else {
+            return Err(CtfeError::InvalidBorrow { origin });
+        };
+        self.store_place(
+            ResolvedPlace {
+                frame: dst_ref.frame,
+                root: dst_ref.root,
+                path: dst_ref.path.clone().into_vec(),
+            },
+            value,
+            origin,
+        )?;
+        Ok(Some(CtfeConstValue::unit()))
+    }
+
+    fn value_args(
         &self,
-        func: Func<'db>,
-        result_ty: TyId<'db>,
-    ) -> Option<CtfePrimitiveCall> {
-        if func.is_extern(self.db) {
-            return self.extern_primitive_call_kind(func);
-        }
-        self.core_ops_wrapper_call_kind(func, result_ty)
-    }
-
-    fn extern_primitive_call_kind(&self, func: Func<'db>) -> Option<CtfePrimitiveCall> {
-        fn has_numeric_suffix(name: &str) -> bool {
-            matches!(
-                name,
-                "u8" | "u16"
-                    | "u32"
-                    | "u64"
-                    | "u128"
-                    | "u256"
-                    | "usize"
-                    | "i8"
-                    | "i16"
-                    | "i32"
-                    | "i64"
-                    | "i128"
-                    | "i256"
-                    | "isize"
-            )
-        }
-
-        let name = func.name(self.db).to_opt()?.data(self.db);
-        Some(match name.as_str() {
-            "__checked_add" => CtfePrimitiveCall::Binary(BinOp::Arith(ArithBinOp::Add)),
-            "__checked_sub" => CtfePrimitiveCall::Binary(BinOp::Arith(ArithBinOp::Sub)),
-            "__checked_mul" => CtfePrimitiveCall::Binary(BinOp::Arith(ArithBinOp::Mul)),
-            "__checked_div" => CtfePrimitiveCall::Binary(BinOp::Arith(ArithBinOp::Div)),
-            "__checked_rem" => CtfePrimitiveCall::Binary(BinOp::Arith(ArithBinOp::Rem)),
-            "__checked_pow" => CtfePrimitiveCall::Binary(BinOp::Arith(ArithBinOp::Pow)),
-            "__checked_neg" => CtfePrimitiveCall::Unary(UnOp::Minus),
-            "__not_bool" => CtfePrimitiveCall::Unary(UnOp::Not),
-            _ => {
-                let suffix = |prefix| {
-                    name.strip_prefix(prefix)
-                        .filter(|suffix| has_numeric_suffix(suffix))
-                };
-                if suffix("__shl_").is_some() {
-                    CtfePrimitiveCall::Binary(BinOp::Arith(ArithBinOp::LShift))
-                } else if suffix("__shr_").is_some() {
-                    CtfePrimitiveCall::Binary(BinOp::Arith(ArithBinOp::RShift))
-                } else if suffix("__bitand_").is_some() || name == "__bitand_bool" {
-                    CtfePrimitiveCall::Binary(BinOp::Arith(ArithBinOp::BitAnd))
-                } else if suffix("__bitor_").is_some() || name == "__bitor_bool" {
-                    CtfePrimitiveCall::Binary(BinOp::Arith(ArithBinOp::BitOr))
-                } else if suffix("__bitxor_").is_some() || name == "__bitxor_bool" {
-                    CtfePrimitiveCall::Binary(BinOp::Arith(ArithBinOp::BitXor))
-                } else if suffix("__eq_").is_some() || name == "__eq_bool" {
-                    CtfePrimitiveCall::Binary(BinOp::Comp(CompBinOp::Eq))
-                } else if suffix("__ne_").is_some() || name == "__ne_bool" {
-                    CtfePrimitiveCall::Binary(BinOp::Comp(CompBinOp::NotEq))
-                } else if suffix("__lt_").is_some() {
-                    CtfePrimitiveCall::Binary(BinOp::Comp(CompBinOp::Lt))
-                } else if suffix("__le_").is_some() {
-                    CtfePrimitiveCall::Binary(BinOp::Comp(CompBinOp::LtEq))
-                } else if suffix("__gt_").is_some() {
-                    CtfePrimitiveCall::Binary(BinOp::Comp(CompBinOp::Gt))
-                } else if suffix("__ge_").is_some() {
-                    CtfePrimitiveCall::Binary(BinOp::Comp(CompBinOp::GtEq))
-                } else if suffix("__bitnot_").is_some() {
-                    CtfePrimitiveCall::Unary(UnOp::BitNot)
-                } else {
-                    return None;
-                }
-            }
-        })
-    }
-
-    fn core_ops_wrapper_call_kind(
-        &self,
-        func: Func<'db>,
-        result_ty: TyId<'db>,
-    ) -> Option<CtfePrimitiveCall> {
-        match core_primitive_wrapper_call_kind(self.db, func, result_ty)? {
-            PrimitiveWrapperCallKind::Unary(op) => Some(CtfePrimitiveCall::Unary(op)),
-            PrimitiveWrapperCallKind::Binary(op) => Some(CtfePrimitiveCall::Binary(op)),
-            PrimitiveWrapperCallKind::Assign(_) => None,
-        }
+        args: Vec<CtfeValue<'db>>,
+        origin: SemOrigin<'db>,
+    ) -> Result<Vec<CtfeConstValue<'db>>, CtfeError<'db>> {
+        args.into_iter()
+            .map(|arg| match arg {
+                CtfeValue::Value(value) => Ok(value),
+                CtfeValue::Ref(r#ref) => self.load_ref_value(&r#ref, origin),
+            })
+            .collect()
     }
 
     fn materialize_args(
@@ -857,7 +1427,7 @@ impl<'db> CtfeMachine<'db> {
     ) -> Result<Vec<SemConstId<'db>>, CtfeError<'db>> {
         args.into_iter()
             .map(|arg| match arg {
-                CtfeValue::Value(value) => Ok(value.value),
+                CtfeValue::Value(value) => Ok(value.materialize(self.db)),
                 CtfeValue::Ref(r#ref) => self.load_ref(&r#ref, origin),
             })
             .collect()
@@ -872,12 +1442,33 @@ impl<'db> CtfeMachine<'db> {
 
     fn eval_extern_const_fn(
         &self,
+        frame_idx: usize,
         instance: SemanticInstance<'db>,
         func: crate::hir_def::Func<'db>,
         result_ty: TyId<'db>,
-        args: &[SemConstId<'db>],
+        args: &[CtfeConstValue<'db>],
         origin: SemOrigin<'db>,
-    ) -> Result<SemConstId<'db>, CtfeError<'db>> {
+    ) -> Result<CtfeConstValue<'db>, CtfeError<'db>> {
+        match runtime_builtin_func_kind(self.db, func) {
+            Some(RuntimeBuiltinFuncKind::AddMod) => {
+                return self.eval_evm_modular_arithmetic(
+                    result_ty,
+                    args,
+                    EvmModularArithmetic::Add,
+                    origin,
+                );
+            }
+            Some(RuntimeBuiltinFuncKind::MulMod) => {
+                return self.eval_evm_modular_arithmetic(
+                    result_ty,
+                    args,
+                    EvmModularArithmetic::Mul,
+                    origin,
+                );
+            }
+            _ => {}
+        }
+
         let Some(name) = func.name(self.db).to_opt() else {
             return Err(CtfeError::NotConstEvaluable { origin });
         };
@@ -886,17 +1477,443 @@ impl<'db> CtfeMachine<'db> {
             "size_of" => self.eval_intrinsic_size_of(instance, result_ty, args, origin),
             "__as_bytes" => self.eval_intrinsic_as_bytes(result_ty, args, origin),
             "__keccak256" => self.eval_intrinsic_keccak(result_ty, args, origin),
+            "__bitcast" => self.eval_intrinsic_bitcast(result_ty, args, origin),
+            name => self.eval_numeric_extern_intrinsic(frame_idx, name, result_ty, args, origin),
+        }
+    }
+
+    fn eval_numeric_extern_intrinsic(
+        &self,
+        frame_idx: usize,
+        name: &str,
+        result_ty: TyId<'db>,
+        args: &[CtfeConstValue<'db>],
+        origin: SemOrigin<'db>,
+    ) -> Result<CtfeConstValue<'db>, CtfeError<'db>> {
+        let Some(kind) = numeric_extern_intrinsic(name) else {
+            return Err(CtfeError::NotConstEvaluable { origin });
+        };
+
+        match kind {
+            NumericExternIntrinsic::CheckedBinary(op) => {
+                let (lhs, rhs) = expect_binary_args(args, origin)?;
+                if self.is_type_level(lhs) || self.is_type_level(rhs) {
+                    let CtfeValue::Value(value) = self.eval_binary(
+                        frame_idx,
+                        result_ty,
+                        BinOp::Arith(op),
+                        lhs.clone(),
+                        rhs.clone(),
+                        origin,
+                    )?
+                    else {
+                        return Err(CtfeError::InvalidBorrow { origin });
+                    };
+                    return Ok(value);
+                }
+                self.eval_checked_numeric_binary(
+                    frame_idx,
+                    result_ty,
+                    op,
+                    lhs.clone(),
+                    rhs.clone(),
+                    origin,
+                )
+            }
+            NumericExternIntrinsic::WrappingBinary(op) => {
+                let (lhs, rhs) = expect_binary_args(args, origin)?;
+                if self.is_type_level(lhs) || self.is_type_level(rhs) {
+                    let CtfeValue::Value(value) = self.eval_binary(
+                        frame_idx,
+                        result_ty,
+                        BinOp::Arith(op),
+                        lhs.clone(),
+                        rhs.clone(),
+                        origin,
+                    )?
+                    else {
+                        return Err(CtfeError::InvalidBorrow { origin });
+                    };
+                    return Ok(value);
+                }
+                self.eval_wrapping_numeric_binary(
+                    frame_idx,
+                    result_ty,
+                    op,
+                    lhs.clone(),
+                    rhs.clone(),
+                    origin,
+                )
+            }
+            NumericExternIntrinsic::SaturatingBinary(op) => {
+                let (lhs, rhs) = expect_binary_args(args, origin)?;
+                if self.is_type_level(lhs) || self.is_type_level(rhs) {
+                    return Err(CtfeError::NotConstEvaluable { origin });
+                }
+                self.eval_saturating_numeric_binary(
+                    frame_idx,
+                    result_ty,
+                    op,
+                    lhs.clone(),
+                    rhs.clone(),
+                    origin,
+                )
+            }
+            NumericExternIntrinsic::Comparison(op) => {
+                let (lhs, rhs) = expect_binary_args(args, origin)?;
+                if self.is_type_level(lhs) || self.is_type_level(rhs) {
+                    return Err(CtfeError::NotConstEvaluable { origin });
+                }
+                let CtfeValue::Value(value) =
+                    self.eval_compare(frame_idx, op, lhs.clone(), rhs.clone(), origin)?
+                else {
+                    return Err(CtfeError::InvalidBorrow { origin });
+                };
+                Ok(value)
+            }
+            NumericExternIntrinsic::BoolBinary(op) => {
+                let (lhs, rhs) = expect_binary_args(args, origin)?;
+                if self.is_type_level(lhs) || self.is_type_level(rhs) {
+                    return Err(CtfeError::NotConstEvaluable { origin });
+                }
+                let lhs = self.expect_bool(frame_idx, lhs.clone(), origin)?;
+                let rhs = self.expect_bool(frame_idx, rhs.clone(), origin)?;
+                let value = match op {
+                    ArithBinOp::BitAnd => lhs & rhs,
+                    ArithBinOp::BitOr => lhs | rhs,
+                    ArithBinOp::BitXor => lhs ^ rhs,
+                    _ => return Err(CtfeError::NotConstEvaluable { origin }),
+                };
+                Ok(CtfeConstValue::bool(value))
+            }
+            NumericExternIntrinsic::CheckedNeg => {
+                let [value] = args else {
+                    return Err(CtfeError::NotConstEvaluable { origin });
+                };
+                if self.is_type_level(value) {
+                    let CtfeValue::Value(value) =
+                        self.eval_unary(frame_idx, result_ty, UnOp::Minus, value.clone(), origin)?
+                    else {
+                        return Err(CtfeError::InvalidBorrow { origin });
+                    };
+                    return Ok(value);
+                }
+                let value = -self.expect_int(frame_idx, value.clone(), origin)?;
+                if !self.int_in_range(result_ty, &value) {
+                    return Err(CtfeError::ArithmeticOverflow { origin });
+                }
+                Ok(CtfeConstValue::int(self.db, result_ty, value))
+            }
+            NumericExternIntrinsic::WrappingNeg => {
+                let [value] = args else {
+                    return Err(CtfeError::NotConstEvaluable { origin });
+                };
+                if self.is_type_level(value) {
+                    let CtfeValue::Value(value) =
+                        self.eval_unary(frame_idx, result_ty, UnOp::Minus, value.clone(), origin)?
+                    else {
+                        return Err(CtfeError::InvalidBorrow { origin });
+                    };
+                    return Ok(value);
+                }
+                if let Some(word) = self.expect_matching_int_word(value, result_ty, origin)? {
+                    return Ok(CtfeConstValue::int_word(
+                        self.db,
+                        result_ty,
+                        word.wrapping_neg(),
+                    ));
+                }
+                Ok(CtfeConstValue::int(
+                    self.db,
+                    result_ty,
+                    -self.expect_int(frame_idx, value.clone(), origin)?,
+                ))
+            }
+            NumericExternIntrinsic::BitNot => {
+                let [value] = args else {
+                    return Err(CtfeError::NotConstEvaluable { origin });
+                };
+                if self.is_type_level(value) {
+                    return Err(CtfeError::NotConstEvaluable { origin });
+                }
+                if let Some(word) = self.expect_matching_int_word(value, result_ty, origin)? {
+                    return Ok(CtfeConstValue::int_word(self.db, result_ty, word.not()));
+                }
+                let value = self.expect_int(frame_idx, value.clone(), origin)?;
+                Ok(CtfeConstValue::int(
+                    self.db,
+                    result_ty,
+                    -value - BigInt::one(),
+                ))
+            }
+            NumericExternIntrinsic::BoolNot => {
+                let [value] = args else {
+                    return Err(CtfeError::NotConstEvaluable { origin });
+                };
+                if self.is_type_level(value) {
+                    return Err(CtfeError::NotConstEvaluable { origin });
+                }
+                Ok(CtfeConstValue::bool(!self.expect_bool(
+                    frame_idx,
+                    value.clone(),
+                    origin,
+                )?))
+            }
+        }
+    }
+
+    fn eval_checked_numeric_binary(
+        &self,
+        frame_idx: usize,
+        result_ty: TyId<'db>,
+        op: ArithBinOp,
+        lhs: CtfeConstValue<'db>,
+        rhs: CtfeConstValue<'db>,
+        origin: SemOrigin<'db>,
+    ) -> Result<CtfeConstValue<'db>, CtfeError<'db>> {
+        let lhs = self.expect_int(frame_idx, lhs, origin)?;
+        let rhs = self.expect_int(frame_idx, rhs, origin)?;
+        let value = match op {
+            ArithBinOp::Add => checked_result(lhs + rhs, self, result_ty, origin)?,
+            ArithBinOp::Sub => checked_result(lhs - rhs, self, result_ty, origin)?,
+            ArithBinOp::Mul => checked_result(lhs * rhs, self, result_ty, origin)?,
+            ArithBinOp::Div => {
+                if rhs.is_zero() {
+                    return Err(CtfeError::DivisionByZero { origin });
+                }
+                if self.signed_div_overflows(result_ty, &lhs, &rhs) {
+                    return Err(CtfeError::ArithmeticOverflow { origin });
+                }
+                lhs / rhs
+            }
+            ArithBinOp::Rem => {
+                if rhs.is_zero() {
+                    return Err(CtfeError::DivisionByZero { origin });
+                }
+                lhs % rhs
+            }
+            ArithBinOp::Pow => self.checked_pow(result_ty, lhs, rhs, origin)?,
+            ArithBinOp::Range
+            | ArithBinOp::LShift
+            | ArithBinOp::RShift
+            | ArithBinOp::BitAnd
+            | ArithBinOp::BitOr
+            | ArithBinOp::BitXor => {
+                return Err(CtfeError::NotConstEvaluable { origin });
+            }
+        };
+        Ok(CtfeConstValue::int(self.db, result_ty, value))
+    }
+
+    fn eval_wrapping_numeric_binary(
+        &self,
+        frame_idx: usize,
+        result_ty: TyId<'db>,
+        op: ArithBinOp,
+        lhs: CtfeConstValue<'db>,
+        rhs: CtfeConstValue<'db>,
+        origin: SemOrigin<'db>,
+    ) -> Result<CtfeConstValue<'db>, CtfeError<'db>> {
+        if let Some(value) =
+            self.eval_wrapping_numeric_binary_word(result_ty, op, &lhs, &rhs, origin)?
+        {
+            return Ok(value);
+        }
+        let lhs = self.expect_int(frame_idx, lhs, origin)?;
+        let rhs = self.expect_int(frame_idx, rhs, origin)?;
+        let value = match op {
+            ArithBinOp::Add => lhs + rhs,
+            ArithBinOp::Sub => lhs - rhs,
+            ArithBinOp::Mul => lhs * rhs,
+            ArithBinOp::Div => {
+                if rhs.is_zero() {
+                    BigInt::zero()
+                } else {
+                    lhs / rhs
+                }
+            }
+            ArithBinOp::Rem => {
+                if rhs.is_zero() {
+                    BigInt::zero()
+                } else {
+                    lhs % rhs
+                }
+            }
+            ArithBinOp::Pow => self.wrapping_pow(result_ty, &lhs, &rhs, origin)?,
+            ArithBinOp::LShift => self.wrapping_shift(result_ty, lhs, rhs, true, origin)?,
+            ArithBinOp::RShift => self.wrapping_shift(result_ty, lhs, rhs, false, origin)?,
+            ArithBinOp::BitAnd => self.bitwise(result_ty, lhs, rhs, |lhs, rhs| lhs & rhs)?,
+            ArithBinOp::BitOr => self.bitwise(result_ty, lhs, rhs, |lhs, rhs| lhs | rhs)?,
+            ArithBinOp::BitXor => self.bitwise(result_ty, lhs, rhs, |lhs, rhs| lhs ^ rhs)?,
+            ArithBinOp::Range => return Err(CtfeError::NotConstEvaluable { origin }),
+        };
+        Ok(CtfeConstValue::int(self.db, result_ty, value))
+    }
+
+    fn eval_wrapping_numeric_binary_word(
+        &self,
+        result_ty: TyId<'db>,
+        op: ArithBinOp,
+        lhs: &CtfeConstValue<'db>,
+        rhs: &CtfeConstValue<'db>,
+        origin: SemOrigin<'db>,
+    ) -> Result<Option<CtfeConstValue<'db>>, CtfeError<'db>> {
+        let Some((bits, signed)) = int_ty_shape(self.db, result_ty) else {
+            return Ok(None);
+        };
+        let Some(lhs) = self.expect_matching_int_word(lhs, result_ty, origin)? else {
+            return Ok(None);
+        };
+        let Some(rhs) = self.expect_matching_int_word(rhs, result_ty, origin)? else {
+            return Ok(None);
+        };
+        let value = match op {
+            ArithBinOp::Add => lhs.wrapping_add(rhs),
+            ArithBinOp::Sub => lhs.wrapping_sub(rhs),
+            ArithBinOp::Mul => lhs.wrapping_mul(rhs),
+            ArithBinOp::Div if !signed => {
+                if rhs.is_zero() {
+                    U256::ZERO
+                } else {
+                    lhs.wrapping_div(rhs)
+                }
+            }
+            ArithBinOp::Rem if !signed => {
+                if rhs.is_zero() {
+                    U256::ZERO
+                } else {
+                    lhs.wrapping_rem(rhs)
+                }
+            }
+            ArithBinOp::Pow => lhs.wrapping_pow(rhs),
+            ArithBinOp::LShift => wrapping_shift_word(bits, signed, lhs, rhs, true),
+            ArithBinOp::RShift => wrapping_shift_word(bits, signed, lhs, rhs, false),
+            ArithBinOp::BitAnd => lhs & rhs,
+            ArithBinOp::BitOr => lhs | rhs,
+            ArithBinOp::BitXor => lhs ^ rhs,
+            ArithBinOp::Div | ArithBinOp::Rem => return Ok(None),
+            ArithBinOp::Range => return Err(CtfeError::NotConstEvaluable { origin }),
+        };
+        Ok(Some(CtfeConstValue::int_word(self.db, result_ty, value)))
+    }
+
+    fn eval_saturating_numeric_binary(
+        &self,
+        frame_idx: usize,
+        result_ty: TyId<'db>,
+        op: SaturatingArithmetic,
+        lhs: CtfeConstValue<'db>,
+        rhs: CtfeConstValue<'db>,
+        origin: SemOrigin<'db>,
+    ) -> Result<CtfeConstValue<'db>, CtfeError<'db>> {
+        let lhs = self.expect_int(frame_idx, lhs, origin)?;
+        let rhs = self.expect_int(frame_idx, rhs, origin)?;
+        let value = match op {
+            SaturatingArithmetic::Add => lhs + rhs,
+            SaturatingArithmetic::Sub => lhs - rhs,
+            SaturatingArithmetic::Mul => lhs * rhs,
+        };
+        let Some((bits, signed)) = int_ty_shape(self.db, result_ty) else {
+            return Err(CtfeError::NotConstEvaluable { origin });
+        };
+        let (min, max) = int_bounds(bits, signed);
+        Ok(CtfeConstValue::int(
+            self.db,
+            result_ty,
+            value.clamp(min, max),
+        ))
+    }
+
+    fn eval_evm_modular_arithmetic(
+        &self,
+        result_ty: TyId<'db>,
+        args: &[CtfeConstValue<'db>],
+        op: EvmModularArithmetic,
+        origin: SemOrigin<'db>,
+    ) -> Result<CtfeConstValue<'db>, CtfeError<'db>> {
+        if result_ty != TyId::u256(self.db) {
+            return Err(CtfeError::NotConstEvaluable { origin });
+        }
+        let [lhs, rhs, modulus] = args else {
+            return Err(CtfeError::NotConstEvaluable { origin });
+        };
+        let lhs = self.expect_u256_const(lhs, origin)?;
+        let rhs = self.expect_u256_const(rhs, origin)?;
+        let modulus = self.expect_u256_const(modulus, origin)?;
+        if modulus.is_zero() {
+            return Ok(CtfeConstValue::int_word(self.db, result_ty, U256::ZERO));
+        }
+        let value = match op {
+            EvmModularArithmetic::Add => lhs.add_mod(rhs, modulus),
+            EvmModularArithmetic::Mul => lhs.mul_mod(rhs, modulus),
+        };
+        Ok(CtfeConstValue::int_word(self.db, result_ty, value))
+    }
+
+    fn expect_u256_const(
+        &self,
+        value: &CtfeConstValue<'db>,
+        origin: SemOrigin<'db>,
+    ) -> Result<U256, CtfeError<'db>> {
+        if value.ty(self.db) != TyId::u256(self.db) {
+            return Err(CtfeError::NotConstEvaluable { origin });
+        }
+        match &value.kind {
+            CtfeConstKind::Int { value, .. } => Ok(value.to_u256()),
+            CtfeConstKind::Interned(value) => {
+                let SemConstValue::Scalar {
+                    value: SemConstScalar::Int { value },
+                    ..
+                } = value.value(self.db)
+                else {
+                    return Err(CtfeError::NotConstEvaluable { origin });
+                };
+                Ok(u256_from_bigint(&normalize_int_to_shape(
+                    value.clone(),
+                    256,
+                    false,
+                )))
+            }
             _ => Err(CtfeError::NotConstEvaluable { origin }),
         }
+    }
+
+    fn eval_intrinsic_bitcast(
+        &self,
+        result_ty: TyId<'db>,
+        args: &[CtfeConstValue<'db>],
+        origin: SemOrigin<'db>,
+    ) -> Result<CtfeConstValue<'db>, CtfeError<'db>> {
+        let [value] = args else {
+            return Err(CtfeError::NotConstEvaluable { origin });
+        };
+        if int_ty_shape(self.db, result_ty).is_none() {
+            return Err(CtfeError::NotConstEvaluable { origin });
+        }
+        let value = match &value.kind {
+            CtfeConstKind::Int { value, .. } => value.to_bigint(),
+            CtfeConstKind::Interned(value) => {
+                let SemConstValue::Scalar {
+                    value: SemConstScalar::Int { value },
+                    ..
+                } = value.value(self.db)
+                else {
+                    return Err(CtfeError::NotConstEvaluable { origin });
+                };
+                value.clone()
+            }
+            _ => return Err(CtfeError::NotConstEvaluable { origin }),
+        };
+        Ok(CtfeConstValue::int(self.db, result_ty, value))
     }
 
     fn eval_intrinsic_size_of(
         &self,
         instance: SemanticInstance<'db>,
         result_ty: TyId<'db>,
-        args: &[SemConstId<'db>],
+        args: &[CtfeConstValue<'db>],
         origin: SemOrigin<'db>,
-    ) -> Result<SemConstId<'db>, CtfeError<'db>> {
+    ) -> Result<CtfeConstValue<'db>, CtfeError<'db>> {
         if !args.is_empty() {
             return Err(CtfeError::NotConstEvaluable { origin });
         }
@@ -917,7 +1934,7 @@ impl<'db> CtfeMachine<'db> {
         );
         let size =
             runtime_size_bytes(self.db, ty).ok_or(CtfeError::NotConstEvaluable { origin })?;
-        Ok(int_const(self.db, result_ty, BigInt::from(size)))
+        Ok(CtfeConstValue::int(self.db, result_ty, BigInt::from(size)))
     }
 
     fn abstract_const_call(&self, expr: ConstExpr<'db>, result_ty: TyId<'db>) -> SemConstId<'db> {
@@ -937,42 +1954,42 @@ impl<'db> CtfeMachine<'db> {
     fn eval_intrinsic_as_bytes(
         &self,
         result_ty: TyId<'db>,
-        args: &[SemConstId<'db>],
+        args: &[CtfeConstValue<'db>],
         origin: SemOrigin<'db>,
-    ) -> Result<SemConstId<'db>, CtfeError<'db>> {
+    ) -> Result<CtfeConstValue<'db>, CtfeError<'db>> {
         if !is_u8_array_ty(self.db, result_ty) {
             return Err(CtfeError::NotConstEvaluable { origin });
         }
         let [value] = args else {
             return Err(CtfeError::NotConstEvaluable { origin });
         };
-        let bytes = self.const_as_bytes(*value, origin)?;
+        let bytes = self.const_as_bytes(value, origin)?;
         if let Some(len) = array_len(self.db, result_ty)
             && bytes.len() != len
         {
             return Err(CtfeError::NotConstEvaluable { origin });
         }
-        Ok(bytes_const(self.db, result_ty, bytes))
+        Ok(CtfeConstValue::bytes(result_ty, bytes))
     }
 
     fn eval_intrinsic_keccak(
         &self,
         result_ty: TyId<'db>,
-        args: &[SemConstId<'db>],
+        args: &[CtfeConstValue<'db>],
         origin: SemOrigin<'db>,
-    ) -> Result<SemConstId<'db>, CtfeError<'db>> {
+    ) -> Result<CtfeConstValue<'db>, CtfeError<'db>> {
         let [value] = args else {
             return Err(CtfeError::NotConstEvaluable { origin });
         };
-        let bytes = self.const_as_bytes(*value, origin)?;
+        let bytes = self.const_as_bytes(value, origin)?;
         let mut hasher = Keccak::v256();
         hasher.update(&bytes);
         let mut out = [0u8; 32];
         hasher.finalize(&mut out);
-        Ok(int_const(
+        Ok(CtfeConstValue::int_word(
             self.db,
             result_ty,
-            BigInt::from_bytes_be(num_bigint::Sign::Plus, &out),
+            U256::from_be_bytes(out),
         ))
     }
 
@@ -1098,7 +2115,7 @@ impl<'db> CtfeMachine<'db> {
         r#ref: &CtfeRef,
         origin: SemOrigin<'db>,
     ) -> Result<SemConstId<'db>, CtfeError<'db>> {
-        Ok(self.load_ref_value(r#ref, origin)?.value)
+        Ok(self.load_ref_value(r#ref, origin)?.materialize(self.db))
     }
 
     fn load_ref_value(
@@ -1121,15 +2138,28 @@ impl<'db> CtfeMachine<'db> {
         value: CtfeConstValue<'db>,
         origin: SemOrigin<'db>,
     ) -> Result<(), CtfeError<'db>> {
-        let root = match self.frames[place.frame].locals.get(place.root.index()) {
-            Some(CtfeSlot::Init(CtfeValue::Value(value))) => value.clone(),
-            _ => return Err(CtfeError::InvalidBorrow { origin }),
+        let mut root = {
+            let slot = self
+                .frames
+                .get_mut(place.frame)
+                .and_then(|frame| frame.locals.get_mut(place.root.index()))
+                .ok_or(CtfeError::InvalidBorrow { origin })?;
+            match std::mem::replace(slot, CtfeSlot::Uninit) {
+                CtfeSlot::Init(CtfeValue::Value(value)) => value,
+                other => {
+                    *slot = other;
+                    return Err(CtfeError::InvalidBorrow { origin });
+                }
+            }
         };
-        let updated = store_const(self.db, root.value, &place.path, value.value, origin)?;
-        self.frames[place.frame].locals[place.root.index()] = CtfeSlot::Init(CtfeValue::Value(
-            self.value_with_origin(updated, value.deferred_origin.or(root.deferred_origin)),
-        ));
-        Ok(())
+        let deferred_origin = value.deferred_origin.or(root.deferred_origin);
+        let result = self.store_const_value_in_place(&mut root, &place.path, value, origin);
+        if result.is_ok() {
+            root.set_deferred_origin(self.db, root.deferred_origin.or(deferred_origin));
+        }
+        self.frames[place.frame].locals[place.root.index()] =
+            CtfeSlot::Init(CtfeValue::Value(root));
+        result
     }
 
     fn project_field(
@@ -1157,25 +2187,26 @@ impl<'db> CtfeMachine<'db> {
         field: FieldIndex,
         origin: SemOrigin<'db>,
     ) -> Result<CtfeConstValue<'db>, CtfeError<'db>> {
-        let SemConstValue::Enum {
+        let value = self.expand_interned(value);
+        let CtfeConstKind::Enum {
             variant: actual,
             fields,
             ..
-        } = value.value.value(self.db)
+        } = &value.kind
         else {
             return Err(CtfeError::VariantMismatch {
                 origin: value.error_origin(origin),
             });
         };
-        if actual != variant {
+        if *actual != variant {
             return Err(CtfeError::VariantMismatch {
                 origin: value.error_origin(origin),
             });
         }
         fields
             .get(field.0 as usize)
-            .copied()
-            .map(CtfeConstValue::concrete)
+            .cloned()
+            .map(|field| self.value_with_origin(field, value.deferred_origin))
             .ok_or(CtfeError::OutOfBounds {
                 origin: value.error_origin(origin),
             })
@@ -1186,7 +2217,8 @@ impl<'db> CtfeMachine<'db> {
         value: CtfeConstValue<'db>,
         origin: SemOrigin<'db>,
     ) -> Result<VariantIndex, CtfeError<'db>> {
-        let SemConstValue::Enum { variant, .. } = value.value.value(self.db) else {
+        let value = self.expand_interned(value);
+        let CtfeConstKind::Enum { variant, .. } = value.kind else {
             return Err(CtfeError::VariantMismatch {
                 origin: value.error_origin(origin),
             });
@@ -1200,45 +2232,52 @@ impl<'db> CtfeMachine<'db> {
         value: CtfeConstValue<'db>,
         origin: SemOrigin<'db>,
     ) -> Result<bool, CtfeError<'db>> {
-        match value.value.value(self.db) {
-            SemConstValue::Scalar {
-                value: SemConstScalar::Bool(value),
-                ..
-            } => Ok(value),
-            SemConstValue::TypeLevel { ty, const_ty } if ty == TyId::bool(self.db) => {
-                let TyData::ConstTy(const_ty) = const_ty.data(self.db) else {
-                    return Err(CtfeError::InvalidOperation {
-                        origin: value.error_origin(origin),
-                        message: format!("expected bool, got {:?}", value.value.value(self.db)),
-                    });
-                };
-                let mut const_ty = const_ty.evaluate(self.db, Some(ty));
-                if matches!(const_ty.data(self.db), ConstTyData::Abstract(..)) {
-                    let subst = self.frames[frame_idx]
-                        .body
-                        .owner
-                        .key(self.db)
-                        .subst(self.db);
-                    let instantiated = instantiate_with_generic_args(
-                        self.db,
-                        TyId::const_ty(self.db, const_ty),
-                        subst.generic_args(self.db),
-                    );
-                    let TyData::ConstTy(instantiated) = instantiated.data(self.db) else {
-                        unreachable!("instantiating a const ty must yield a const ty");
+        match &value.kind {
+            CtfeConstKind::Bool(value) => Ok(*value),
+            CtfeConstKind::Interned(interned) => match interned.value(self.db) {
+                SemConstValue::Scalar {
+                    value: SemConstScalar::Bool(value),
+                    ..
+                } => Ok(value),
+                SemConstValue::TypeLevel { ty, const_ty } if ty == TyId::bool(self.db) => {
+                    let TyData::ConstTy(const_ty) = const_ty.data(self.db) else {
+                        return Err(CtfeError::InvalidOperation {
+                            origin: value.error_origin(origin),
+                            message: format!("expected bool, got {:?}", interned.value(self.db)),
+                        });
                     };
-                    const_ty = instantiated.evaluate(self.db, Some(ty));
+                    let mut const_ty = const_ty.evaluate(self.db, Some(ty));
+                    if matches!(const_ty.data(self.db), ConstTyData::Abstract(..)) {
+                        let subst = self.frames[frame_idx]
+                            .body
+                            .owner
+                            .key(self.db)
+                            .subst(self.db);
+                        let instantiated = instantiate_with_generic_args(
+                            self.db,
+                            TyId::const_ty(self.db, const_ty),
+                            subst.generic_args(self.db),
+                        );
+                        let TyData::ConstTy(instantiated) = instantiated.data(self.db) else {
+                            unreachable!("instantiating a const ty must yield a const ty");
+                        };
+                        const_ty = instantiated.evaluate(self.db, Some(ty));
+                    }
+                    let ConstTyData::Evaluated(EvaluatedConstTy::LitBool(value), _) =
+                        const_ty.data(self.db)
+                    else {
+                        return Err(CtfeError::InvalidOperation {
+                            origin: value.error_origin(origin),
+                            message: "expected bool".into(),
+                        });
+                    };
+                    Ok(*value)
                 }
-                let ConstTyData::Evaluated(EvaluatedConstTy::LitBool(value), _) =
-                    const_ty.data(self.db)
-                else {
-                    return Err(CtfeError::InvalidOperation {
-                        origin: value.error_origin(origin),
-                        message: "expected bool".into(),
-                    });
-                };
-                Ok(*value)
-            }
+                _ => Err(CtfeError::InvalidOperation {
+                    origin: value.error_origin(origin),
+                    message: "expected bool".into(),
+                }),
+            },
             _ => Err(CtfeError::InvalidOperation {
                 origin: value.error_origin(origin),
                 message: "expected bool".into(),
@@ -1247,23 +2286,31 @@ impl<'db> CtfeMachine<'db> {
     }
 
     fn is_bool_like(&self, value: &CtfeConstValue<'db>) -> bool {
-        match value.value.value(self.db) {
-            SemConstValue::Scalar {
-                value: SemConstScalar::Bool(_),
-                ..
-            } => true,
-            SemConstValue::TypeLevel { ty, .. } => ty == TyId::bool(self.db),
+        match &value.kind {
+            CtfeConstKind::Bool(_) => true,
+            CtfeConstKind::Interned(value) => match value.value(self.db) {
+                SemConstValue::Scalar {
+                    value: SemConstScalar::Bool(_),
+                    ..
+                } => true,
+                SemConstValue::TypeLevel { ty, .. } => ty == TyId::bool(self.db),
+                _ => false,
+            },
             _ => false,
         }
     }
 
     fn is_int_like(&self, value: &CtfeConstValue<'db>) -> bool {
-        match value.value.value(self.db) {
-            SemConstValue::Scalar {
-                value: SemConstScalar::Int { .. },
-                ..
-            } => true,
-            SemConstValue::TypeLevel { ty, .. } => int_ty_shape(self.db, ty).is_some(),
+        match &value.kind {
+            CtfeConstKind::Int { .. } => true,
+            CtfeConstKind::Interned(value) => match value.value(self.db) {
+                SemConstValue::Scalar {
+                    value: SemConstScalar::Int { .. },
+                    ..
+                } => true,
+                SemConstValue::TypeLevel { ty, .. } => int_ty_shape(self.db, ty).is_some(),
+                _ => false,
+            },
             _ => false,
         }
     }
@@ -1274,45 +2321,96 @@ impl<'db> CtfeMachine<'db> {
         value: CtfeConstValue<'db>,
         origin: SemOrigin<'db>,
     ) -> Result<BigInt, CtfeError<'db>> {
-        match value.value.value(self.db) {
-            SemConstValue::Scalar {
-                value: SemConstScalar::Int { value },
-                ..
-            } => Ok(value.clone()),
-            SemConstValue::TypeLevel { ty, const_ty } => {
-                let TyData::ConstTy(const_ty) = const_ty.data(self.db) else {
-                    return Err(CtfeError::InvalidOperation {
-                        origin: value.error_origin(origin),
-                        message: format!("expected int, got {:?}", value.value.value(self.db)),
-                    });
-                };
-                let mut const_ty = const_ty.evaluate(self.db, Some(ty));
-                if matches!(const_ty.data(self.db), ConstTyData::Abstract(..)) {
-                    let subst = self.frames[frame_idx]
-                        .body
-                        .owner
-                        .key(self.db)
-                        .subst(self.db);
-                    let instantiated = instantiate_with_generic_args(
-                        self.db,
-                        TyId::const_ty(self.db, const_ty),
-                        subst.generic_args(self.db),
-                    );
-                    let TyData::ConstTy(instantiated) = instantiated.data(self.db) else {
-                        unreachable!("instantiating a const ty must yield a const ty");
+        match &value.kind {
+            CtfeConstKind::Int { value, .. } => Ok(value.to_bigint()),
+            CtfeConstKind::Interned(interned) => match interned.value(self.db) {
+                SemConstValue::Scalar {
+                    value: SemConstScalar::Int { value },
+                    ..
+                } => Ok(value.clone()),
+                SemConstValue::TypeLevel { ty, const_ty } => {
+                    let TyData::ConstTy(const_ty) = const_ty.data(self.db) else {
+                        return Err(CtfeError::InvalidOperation {
+                            origin: value.error_origin(origin),
+                            message: format!("expected int, got {:?}", interned.value(self.db)),
+                        });
                     };
-                    const_ty = instantiated.evaluate(self.db, Some(ty));
+                    let mut const_ty = const_ty.evaluate(self.db, Some(ty));
+                    if matches!(const_ty.data(self.db), ConstTyData::Abstract(..)) {
+                        let subst = self.frames[frame_idx]
+                            .body
+                            .owner
+                            .key(self.db)
+                            .subst(self.db);
+                        let instantiated = instantiate_with_generic_args(
+                            self.db,
+                            TyId::const_ty(self.db, const_ty),
+                            subst.generic_args(self.db),
+                        );
+                        let TyData::ConstTy(instantiated) = instantiated.data(self.db) else {
+                            unreachable!("instantiating a const ty must yield a const ty");
+                        };
+                        const_ty = instantiated.evaluate(self.db, Some(ty));
+                    }
+                    let ConstTyData::Evaluated(EvaluatedConstTy::LitInt(int_id), _) =
+                        const_ty.data(self.db)
+                    else {
+                        return Err(CtfeError::InvalidOperation {
+                            origin: value.error_origin(origin),
+                            message: "expected int".into(),
+                        });
+                    };
+                    Ok(BigInt::from(int_id.data(self.db).clone()))
                 }
-                let ConstTyData::Evaluated(EvaluatedConstTy::LitInt(int_id), _) =
-                    const_ty.data(self.db)
-                else {
-                    return Err(CtfeError::InvalidOperation {
-                        origin: value.error_origin(origin),
-                        message: "expected int".into(),
-                    });
-                };
-                Ok(BigInt::from(int_id.data(self.db).clone()))
-            }
+                _ => Err(CtfeError::InvalidOperation {
+                    origin: value.error_origin(origin),
+                    message: "expected int".into(),
+                }),
+            },
+            _ => Err(CtfeError::InvalidOperation {
+                origin: value.error_origin(origin),
+                message: "expected int".into(),
+            }),
+        }
+    }
+
+    fn expect_matching_int_word(
+        &self,
+        value: &CtfeConstValue<'db>,
+        result_ty: TyId<'db>,
+        origin: SemOrigin<'db>,
+    ) -> Result<Option<U256>, CtfeError<'db>> {
+        let Some((bits, signed)) = int_ty_shape(self.db, result_ty) else {
+            return Ok(None);
+        };
+        match &value.kind {
+            CtfeConstKind::Int {
+                value:
+                    CtfeInt::Word {
+                        bits: value_bits,
+                        signed: value_signed,
+                        word,
+                    },
+                ..
+            } if (*value_bits, *value_signed) == (bits, signed) => Ok(Some(*word)),
+            CtfeConstKind::Int { .. } => Ok(None),
+            CtfeConstKind::Interned(interned) => match interned.value(self.db) {
+                SemConstValue::Scalar {
+                    ty,
+                    value: SemConstScalar::Int { value },
+                } if int_ty_shape(self.db, ty) == Some((bits, signed)) => Ok(Some(
+                    u256_from_bigint(&normalize_int_to_shape(value.clone(), bits, false)),
+                )),
+                SemConstValue::Scalar {
+                    value: SemConstScalar::Int { .. },
+                    ..
+                }
+                | SemConstValue::TypeLevel { .. } => Ok(None),
+                _ => Err(CtfeError::InvalidOperation {
+                    origin: value.error_origin(origin),
+                    message: "expected int".into(),
+                }),
+            },
             _ => Err(CtfeError::InvalidOperation {
                 origin: value.error_origin(origin),
                 message: "expected int".into(),
@@ -1344,12 +2442,27 @@ impl<'db> CtfeMachine<'db> {
         match op {
             UnOp::Plus => Ok(CtfeValue::Value(value)),
             UnOp::Minus => {
-                let value = self.expect_int(frame_idx, value, origin)?;
-                let value = match self.frames[frame_idx]
+                if self.is_type_level(&value)
+                    && let Some(value) =
+                        self.eval_type_level_unary(result_ty, op, value.clone(), origin)
+                {
+                    return Ok(CtfeValue::Value(value));
+                }
+                let arithmetic_mode = self.frames[frame_idx]
                     .body
                     .template_owner
-                    .arithmetic_mode(self.db)
+                    .arithmetic_mode(self.db);
+                if arithmetic_mode == ArithmeticMode::Unchecked
+                    && let Some(word) = self.expect_matching_int_word(&value, result_ty, origin)?
                 {
+                    return Ok(CtfeValue::Value(CtfeConstValue::int_word(
+                        self.db,
+                        result_ty,
+                        word.wrapping_neg(),
+                    )));
+                }
+                let value = self.expect_int(frame_idx, value, origin)?;
+                let value = match arithmetic_mode {
                     ArithmeticMode::Checked => {
                         let value = -value;
                         if !self.int_in_range(result_ty, &value) {
@@ -1359,15 +2472,23 @@ impl<'db> CtfeMachine<'db> {
                     }
                     ArithmeticMode::Unchecked => -value,
                 };
-                Ok(CtfeValue::concrete(int_const(self.db, result_ty, value)))
+                Ok(CtfeValue::Value(CtfeConstValue::int(
+                    self.db, result_ty, value,
+                )))
             }
-            UnOp::Not => Ok(CtfeValue::concrete(bool_const(
-                self.db,
+            UnOp::Not => Ok(CtfeValue::Value(CtfeConstValue::bool(
                 !self.expect_bool(frame_idx, value, origin)?,
             ))),
             UnOp::BitNot => {
+                if let Some(word) = self.expect_matching_int_word(&value, result_ty, origin)? {
+                    return Ok(CtfeValue::Value(CtfeConstValue::int_word(
+                        self.db,
+                        result_ty,
+                        word.not(),
+                    )));
+                }
                 let int = self.expect_int(frame_idx, value, origin)?;
-                Ok(CtfeValue::concrete(int_const(
+                Ok(CtfeValue::Value(CtfeConstValue::int(
                     self.db,
                     result_ty,
                     -int - BigInt::one(),
@@ -1398,7 +2519,7 @@ impl<'db> CtfeMachine<'db> {
                     LogicalBinOp::And => lhs && rhs,
                     LogicalBinOp::Or => lhs || rhs,
                 };
-                Ok(CtfeValue::concrete(bool_const(self.db, value)))
+                Ok(CtfeValue::Value(CtfeConstValue::bool(value)))
             }
             BinOp::Index => Err(CtfeError::InvalidOperation {
                 origin,
@@ -1406,8 +2527,7 @@ impl<'db> CtfeMachine<'db> {
             }),
             BinOp::Arith(ArithBinOp::Range) => Err(CtfeError::NotConstEvaluable { origin }),
             BinOp::Arith(arith) => {
-                if (matches!(lhs.value.value(self.db), SemConstValue::TypeLevel { .. })
-                    || matches!(rhs.value.value(self.db), SemConstValue::TypeLevel { .. }))
+                if (self.is_type_level(&lhs) || self.is_type_level(&rhs))
                     && let Some(value) = self.eval_type_level_binary(
                         result_ty,
                         arith,
@@ -1420,18 +2540,15 @@ impl<'db> CtfeMachine<'db> {
                 }
                 if self.is_bool_like(&lhs) && self.is_bool_like(&rhs) {
                     return match arith {
-                        ArithBinOp::BitAnd => Ok(CtfeValue::concrete(bool_const(
-                            self.db,
+                        ArithBinOp::BitAnd => Ok(CtfeValue::Value(CtfeConstValue::bool(
                             self.expect_bool(frame_idx, lhs, origin)?
                                 & self.expect_bool(frame_idx, rhs, origin)?,
                         ))),
-                        ArithBinOp::BitOr => Ok(CtfeValue::concrete(bool_const(
-                            self.db,
+                        ArithBinOp::BitOr => Ok(CtfeValue::Value(CtfeConstValue::bool(
                             self.expect_bool(frame_idx, lhs, origin)?
                                 | self.expect_bool(frame_idx, rhs, origin)?,
                         ))),
-                        ArithBinOp::BitXor => Ok(CtfeValue::concrete(bool_const(
-                            self.db,
+                        ArithBinOp::BitXor => Ok(CtfeValue::Value(CtfeConstValue::bool(
                             self.expect_bool(frame_idx, lhs, origin)?
                                 ^ self.expect_bool(frame_idx, rhs, origin)?,
                         ))),
@@ -1551,7 +2668,9 @@ impl<'db> CtfeMachine<'db> {
                     }
                     ArithBinOp::Range => unreachable!(),
                 };
-                Ok(CtfeValue::concrete(int_const(self.db, result_ty, value)))
+                Ok(CtfeValue::Value(CtfeConstValue::int(
+                    self.db, result_ty, value,
+                )))
             }
         }
     }
@@ -1588,8 +2707,12 @@ impl<'db> CtfeMachine<'db> {
             }
         } else {
             match op {
-                CompBinOp::Eq => sem_const_eq(self.db, lhs.value, rhs.value),
-                CompBinOp::NotEq => !sem_const_eq(self.db, lhs.value, rhs.value),
+                CompBinOp::Eq => {
+                    sem_const_eq(self.db, lhs.materialize(self.db), rhs.materialize(self.db))
+                }
+                CompBinOp::NotEq => {
+                    !sem_const_eq(self.db, lhs.materialize(self.db), rhs.materialize(self.db))
+                }
                 CompBinOp::Lt => {
                     self.expect_int(frame_idx, lhs, origin)?
                         < self.expect_int(frame_idx, rhs, origin)?
@@ -1608,7 +2731,27 @@ impl<'db> CtfeMachine<'db> {
                 }
             }
         };
-        Ok(CtfeValue::concrete(bool_const(self.db, result)))
+        Ok(CtfeValue::Value(CtfeConstValue::bool(result)))
+    }
+
+    fn eval_type_level_unary(
+        &self,
+        result_ty: TyId<'db>,
+        op: UnOp,
+        value: CtfeConstValue<'db>,
+        origin: SemOrigin<'db>,
+    ) -> Option<CtfeConstValue<'db>> {
+        let const_value = value.materialize(self.db);
+        let const_ty = TyId::const_ty(self.db, const_ty_from_sem_const(self.db, const_value));
+        let expr = ConstExprId::new(self.db, ConstExpr::UnOp { op, expr: const_ty });
+        let const_ty = ConstTyId::new(self.db, ConstTyData::Abstract(expr, result_ty))
+            .evaluate(self.db, Some(result_ty));
+        sem_const_from_ty(self.db, TyId::const_ty(self.db, const_ty)).map(|const_value| {
+            self.value_with_origin(
+                CtfeConstValue::concrete(self.db, const_value),
+                value.deferred_origin.or(Some(origin)),
+            )
+        })
     }
 
     fn eval_type_level_binary(
@@ -1619,8 +2762,10 @@ impl<'db> CtfeMachine<'db> {
         rhs: CtfeConstValue<'db>,
         origin: SemOrigin<'db>,
     ) -> Option<CtfeConstValue<'db>> {
-        let lhs_ty = TyId::const_ty(self.db, const_ty_from_sem_const(self.db, lhs.value));
-        let rhs_ty = TyId::const_ty(self.db, const_ty_from_sem_const(self.db, rhs.value));
+        let lhs_value = lhs.materialize(self.db);
+        let rhs_value = rhs.materialize(self.db);
+        let lhs_ty = TyId::const_ty(self.db, const_ty_from_sem_const(self.db, lhs_value));
+        let rhs_ty = TyId::const_ty(self.db, const_ty_from_sem_const(self.db, rhs_value));
         let expr = ConstExprId::new(
             self.db,
             ConstExpr::ArithBinOp {
@@ -1633,10 +2778,113 @@ impl<'db> CtfeMachine<'db> {
             .evaluate(self.db, Some(result_ty));
         sem_const_from_ty(self.db, TyId::const_ty(self.db, const_ty)).map(|value| {
             self.value_with_origin(
-                value,
+                CtfeConstValue::concrete(self.db, value),
                 lhs.deferred_origin.or(rhs.deferred_origin).or(Some(origin)),
             )
         })
+    }
+
+    fn signed_div_overflows(&self, result_ty: TyId<'db>, lhs: &BigInt, rhs: &BigInt) -> bool {
+        if let Some((bits, true)) = int_ty_shape(self.db, result_ty) {
+            lhs == &-(BigInt::one() << (usize::from(bits) - 1)) && rhs == &-BigInt::one()
+        } else {
+            false
+        }
+    }
+
+    fn checked_pow(
+        &self,
+        result_ty: TyId<'db>,
+        lhs: BigInt,
+        rhs: BigInt,
+        origin: SemOrigin<'db>,
+    ) -> Result<BigInt, CtfeError<'db>> {
+        if rhs.sign() == num_bigint::Sign::Minus {
+            return Err(CtfeError::NegativeExponent { origin });
+        }
+        let Some(mut exp) = rhs.to_biguint() else {
+            return Err(CtfeError::NegativeExponent { origin });
+        };
+        let mut acc = BigInt::one();
+        let mut base = lhs;
+        while !exp.is_zero() {
+            if (&exp & BigUint::one()) == BigUint::one() {
+                acc *= base.clone();
+                if !self.int_in_range(result_ty, &acc) {
+                    return Err(CtfeError::ArithmeticOverflow { origin });
+                }
+            }
+            exp >>= 1usize;
+            if exp.is_zero() {
+                break;
+            }
+            base = base.clone() * base;
+            if !self.int_in_range(result_ty, &base) {
+                return Err(CtfeError::ArithmeticOverflow { origin });
+            }
+        }
+        Ok(acc)
+    }
+
+    fn wrapping_pow(
+        &self,
+        result_ty: TyId<'db>,
+        lhs: &BigInt,
+        rhs: &BigInt,
+        origin: SemOrigin<'db>,
+    ) -> Result<BigInt, CtfeError<'db>> {
+        let Some((bits, _)) = int_ty_shape(self.db, result_ty) else {
+            return Err(CtfeError::NotConstEvaluable { origin });
+        };
+        if bits == 0 {
+            return Ok(BigInt::zero());
+        }
+        let modulus = BigUint::one() << usize::from(bits);
+        let base = biguint_from_u256(u256_from_bigint(&normalize_int_to_shape(
+            lhs.clone(),
+            bits,
+            false,
+        )));
+        let exp = biguint_from_u256(u256_from_bigint(&normalize_int_to_shape(
+            rhs.clone(),
+            bits,
+            false,
+        )));
+        Ok(BigInt::from_biguint(
+            Sign::Plus,
+            base.modpow(&exp, &modulus),
+        ))
+    }
+
+    fn wrapping_shift(
+        &self,
+        result_ty: TyId<'db>,
+        lhs: BigInt,
+        rhs: BigInt,
+        left: bool,
+        origin: SemOrigin<'db>,
+    ) -> Result<BigInt, CtfeError<'db>> {
+        let Some((bits, signed)) = int_ty_shape(self.db, result_ty) else {
+            let Some(shift) = rhs.to_usize() else {
+                return Err(CtfeError::InvalidOperation {
+                    origin,
+                    message: "invalid shift amount".into(),
+                });
+            };
+            return Ok(if left { lhs << shift } else { lhs >> shift });
+        };
+        let shift_word = u256_from_bigint(&normalize_int_to_shape(rhs, bits, false));
+        if shift_word >= U256::from(256u16) {
+            return Ok(if left || !signed || lhs.sign() != Sign::Minus {
+                BigInt::zero()
+            } else {
+                -BigInt::one()
+            });
+        }
+        let shift = bigint_from_u256(shift_word)
+            .to_usize()
+            .expect("shift amount below 256 fits usize");
+        Ok(if left { lhs << shift } else { lhs >> shift })
     }
 
     fn bitwise(
@@ -1674,36 +2922,28 @@ impl<'db> CtfeMachine<'db> {
         value: CtfeConstValue<'db>,
         origin: SemOrigin<'db>,
     ) -> Result<CtfeValue<'db>, CtfeError<'db>> {
-        match value.value.value(self.db) {
-            SemConstValue::Scalar {
-                value: SemConstScalar::Bool(value),
-                ..
-            } if int_ty_shape(self.db, result_ty).is_some() => Ok(CtfeValue::concrete(int_const(
-                self.db,
-                result_ty,
-                if value { BigInt::one() } else { BigInt::zero() },
-            ))),
-            SemConstValue::Scalar {
-                value: SemConstScalar::Int { value },
-                ..
-            } if result_ty == TyId::bool(self.db) => {
-                Ok(CtfeValue::concrete(bool_const(self.db, !value.is_zero())))
+        let value = self.expand_interned(value);
+        match &value.kind {
+            CtfeConstKind::Bool(value) if int_ty_shape(self.db, result_ty).is_some() => {
+                Ok(CtfeValue::Value(CtfeConstValue::int(
+                    self.db,
+                    result_ty,
+                    if *value {
+                        BigInt::one()
+                    } else {
+                        BigInt::zero()
+                    },
+                )))
             }
-            SemConstValue::Scalar {
-                value: SemConstScalar::Int { value },
-                ..
-            } if int_ty_shape(self.db, result_ty).is_some() => Ok(CtfeValue::concrete(int_const(
-                self.db,
+            CtfeConstKind::Int { value, .. } if result_ty == TyId::bool(self.db) => Ok(
+                CtfeValue::Value(CtfeConstValue::bool(!value.to_bigint().is_zero())),
+            ),
+            CtfeConstKind::Int { value, .. } if int_ty_shape(self.db, result_ty).is_some() => Ok(
+                CtfeValue::Value(CtfeConstValue::int(self.db, result_ty, value.to_bigint())),
+            ),
+            CtfeConstKind::Bytes { bytes, .. } => Ok(CtfeValue::Value(CtfeConstValue::bytes(
                 result_ty,
-                value.clone(),
-            ))),
-            SemConstValue::Scalar {
-                value: SemConstScalar::Bytes(bytes),
-                ..
-            } => Ok(CtfeValue::concrete(bytes_const(
-                self.db,
-                result_ty,
-                bytes.clone(),
+                bytes.to_vec(),
             ))),
             _ => Err(CtfeError::InvalidOperation {
                 origin: value.error_origin(origin),
@@ -1718,17 +2958,12 @@ impl<'db> CtfeMachine<'db> {
         fields: Vec<CtfeConstValue<'db>>,
     ) -> CtfeValue<'db> {
         let deferred_origin = fields.iter().find_map(|field| field.deferred_origin);
-        let fields = fields
-            .into_iter()
-            .map(|field| field.value)
-            .collect::<Vec<_>>()
-            .into_boxed_slice();
         let value = if result_ty.is_tuple(self.db) {
-            tuple_const(self.db, result_ty, fields)
+            CtfeConstValue::tuple(result_ty, fields)
         } else if result_ty.is_array(self.db) {
-            array_const(self.db, result_ty, fields)
+            CtfeConstValue::array(result_ty, fields)
         } else {
-            struct_const(self.db, result_ty, fields)
+            CtfeConstValue::struct_(result_ty, fields)
         };
         CtfeValue::Value(self.value_with_origin(value, deferred_origin))
     }
@@ -1739,41 +2974,196 @@ impl<'db> CtfeMachine<'db> {
         path: &[CtfePathElem],
         origin: SemOrigin<'db>,
     ) -> Result<CtfeConstValue<'db>, CtfeError<'db>> {
-        if matches!(value.value.value(self.db), SemConstValue::TypeLevel { .. }) {
-            return Err(CtfeError::InvalidOperation {
-                origin: value.error_origin(origin),
-                message: "invalid const projection".into(),
-            });
+        let mut value = value;
+        for elem in path {
+            value = self.expand_interned(value);
+            let projected = match (&value.kind, elem) {
+                (CtfeConstKind::Tuple { elems, .. }, CtfePathElem::Field(field))
+                | (CtfeConstKind::Struct { fields: elems, .. }, CtfePathElem::Field(field)) => {
+                    elems
+                        .get(field.0 as usize)
+                        .cloned()
+                        .ok_or(CtfeError::OutOfBounds { origin })?
+                }
+                (
+                    CtfeConstKind::Enum {
+                        variant: actual,
+                        fields,
+                        ..
+                    },
+                    CtfePathElem::VariantField { variant, field },
+                ) if actual == variant => fields
+                    .get(field.0 as usize)
+                    .cloned()
+                    .ok_or(CtfeError::OutOfBounds { origin })?,
+                (CtfeConstKind::Bytes { bytes, .. }, CtfePathElem::Index(index)) => {
+                    let byte = *bytes.get(*index).ok_or(CtfeError::OutOfBounds { origin })?;
+                    CtfeConstValue::int(
+                        self.db,
+                        TyId::new(self.db, TyData::TyBase(TyBase::Prim(PrimTy::U8))),
+                        byte.into(),
+                    )
+                }
+                (CtfeConstKind::Array { elems, .. }, CtfePathElem::Index(index)) => elems
+                    .get(*index)
+                    .cloned()
+                    .ok_or(CtfeError::OutOfBounds { origin })?,
+                (CtfeConstKind::Interned(interned), _)
+                    if matches!(interned.value(self.db), SemConstValue::TypeLevel { .. }) =>
+                {
+                    return Err(CtfeError::InvalidOperation {
+                        origin: value.error_origin(origin),
+                        message: "invalid const projection".into(),
+                    });
+                }
+                _ => {
+                    return Err(CtfeError::InvalidOperation {
+                        origin,
+                        message: "invalid const projection".into(),
+                    });
+                }
+            };
+            value = self.value_with_origin(projected, value.deferred_origin);
         }
-        project_const(self.db, value.value, path, origin)
-            .map(|projected| self.value_with_origin(projected, value.deferred_origin))
+        Ok(value)
     }
 
     fn value_with_origin(
         &self,
-        value: SemConstId<'db>,
+        value: CtfeConstValue<'db>,
         deferred_origin: Option<SemOrigin<'db>>,
     ) -> CtfeConstValue<'db> {
-        CtfeConstValue::with_deferred_origin(
-            value,
-            self.sem_const_contains_type_level(value)
-                .then_some(())
-                .and(deferred_origin),
+        value.with_deferred_origin(self.db, deferred_origin)
+    }
+
+    fn is_type_level(&self, value: &CtfeConstValue<'db>) -> bool {
+        matches!(
+            &value.kind,
+            CtfeConstKind::Interned(value)
+                if matches!(value.value(self.db), SemConstValue::TypeLevel { .. })
         )
     }
 
-    fn sem_const_contains_type_level(&self, value: SemConstId<'db>) -> bool {
-        match value.value(self.db) {
-            SemConstValue::TypeLevel { .. } => true,
-            SemConstValue::Tuple { elems, .. }
-            | SemConstValue::Struct { fields: elems, .. }
-            | SemConstValue::Array { elems, .. }
-            | SemConstValue::Enum { fields: elems, .. } => elems
-                .iter()
-                .copied()
-                .any(|elem| self.sem_const_contains_type_level(elem)),
-            SemConstValue::Unit | SemConstValue::Scalar { .. } => false,
+    fn expand_interned(&self, value: CtfeConstValue<'db>) -> CtfeConstValue<'db> {
+        let deferred_origin = value.deferred_origin;
+        match value.kind {
+            CtfeConstKind::Interned(interned)
+                if !matches!(interned.value(self.db), SemConstValue::TypeLevel { .. }) =>
+            {
+                CtfeConstValue::expand_sem_const_shallow(self.db, interned)
+                    .with_deferred_origin(self.db, deferred_origin)
+            }
+            kind => CtfeConstValue {
+                kind,
+                deferred_origin,
+            },
         }
+    }
+
+    fn expand_interned_in_place(&self, value: &mut CtfeConstValue<'db>) {
+        let interned = match &value.kind {
+            CtfeConstKind::Interned(interned)
+                if !matches!(interned.value(self.db), SemConstValue::TypeLevel { .. }) =>
+            {
+                *interned
+            }
+            _ => return,
+        };
+        *value = CtfeConstValue::expand_sem_const_shallow(self.db, interned)
+            .with_deferred_origin(self.db, value.deferred_origin);
+    }
+
+    fn store_const_value_in_place(
+        &self,
+        root: &mut CtfeConstValue<'db>,
+        path: &[CtfePathElem],
+        new_value: CtfeConstValue<'db>,
+        origin: SemOrigin<'db>,
+    ) -> Result<(), CtfeError<'db>> {
+        self.expand_interned_in_place(root);
+        let Some((head, tail)) = path.split_first() else {
+            *root = new_value;
+            return Ok(());
+        };
+        let root_origin = root.error_origin(origin);
+        let root_deferred_origin = root.deferred_origin;
+        let deferred_origin = match &mut root.kind {
+            CtfeConstKind::Tuple { elems, .. } => {
+                let CtfePathElem::Field(field) = head else {
+                    return Err(CtfeError::InvalidOperation {
+                        origin: root_origin,
+                        message: "tuple store requires field projection".into(),
+                    });
+                };
+                let elems = Rc::make_mut(elems);
+                let slot = elems
+                    .get_mut(field.0 as usize)
+                    .ok_or(CtfeError::OutOfBounds { origin })?;
+                self.store_const_value_in_place(slot, tail, new_value, origin)?;
+                slot.deferred_origin.or(root_deferred_origin)
+            }
+            CtfeConstKind::Struct { fields, .. } => {
+                let CtfePathElem::Field(field) = head else {
+                    return Err(CtfeError::InvalidOperation {
+                        origin: root_origin,
+                        message: "struct store requires field projection".into(),
+                    });
+                };
+                let fields = Rc::make_mut(fields);
+                let slot = fields
+                    .get_mut(field.0 as usize)
+                    .ok_or(CtfeError::OutOfBounds { origin })?;
+                self.store_const_value_in_place(slot, tail, new_value, origin)?;
+                slot.deferred_origin.or(root_deferred_origin)
+            }
+            CtfeConstKind::Array { elems, .. } => {
+                let CtfePathElem::Index(index) = head else {
+                    return Err(CtfeError::InvalidOperation {
+                        origin: root_origin,
+                        message: "array store requires index projection".into(),
+                    });
+                };
+                let elems = Rc::make_mut(elems);
+                let slot = elems
+                    .get_mut(*index)
+                    .ok_or(CtfeError::OutOfBounds { origin })?;
+                self.store_const_value_in_place(slot, tail, new_value, origin)?;
+                slot.deferred_origin.or(root_deferred_origin)
+            }
+            CtfeConstKind::Enum {
+                variant, fields, ..
+            } => {
+                let CtfePathElem::VariantField {
+                    variant: expected,
+                    field,
+                } = head
+                else {
+                    return Err(CtfeError::InvalidOperation {
+                        origin: root_origin,
+                        message: "enum store requires variant field projection".into(),
+                    });
+                };
+                if *variant != *expected {
+                    return Err(CtfeError::VariantMismatch {
+                        origin: root_origin,
+                    });
+                }
+                let fields = Rc::make_mut(fields);
+                let slot = fields
+                    .get_mut(field.0 as usize)
+                    .ok_or(CtfeError::OutOfBounds { origin })?;
+                self.store_const_value_in_place(slot, tail, new_value, origin)?;
+                slot.deferred_origin.or(root_deferred_origin)
+            }
+            _ => {
+                return Err(CtfeError::InvalidOperation {
+                    origin: root_origin,
+                    message: "invalid CTFE store target".into(),
+                });
+            }
+        };
+        root.set_deferred_origin(self.db, deferred_origin);
+        Ok(())
     }
 
     fn bump(&mut self, origin: SemOrigin<'db>) -> Result<(), CtfeError<'db>> {
@@ -1786,45 +3176,50 @@ impl<'db> CtfeMachine<'db> {
 
     fn const_as_bytes(
         &self,
-        value: SemConstId<'db>,
+        value: &CtfeConstValue<'db>,
         origin: SemOrigin<'db>,
     ) -> Result<Vec<u8>, CtfeError<'db>> {
-        match value.value(self.db) {
-            SemConstValue::Scalar {
-                value: SemConstScalar::Bool(flag),
-                ..
-            } => Ok(vec![u8::from(flag)]),
-            SemConstValue::Scalar {
-                ty,
-                value: SemConstScalar::Int { value },
-            } => {
-                let Some((bits, _)) = int_ty_shape(self.db, ty) else {
+        let value = self.expand_interned(value.clone());
+        match &value.kind {
+            CtfeConstKind::Bool(flag) => Ok(vec![u8::from(*flag)]),
+            CtfeConstKind::Int { ty, value } => {
+                let Some((bits, _)) = int_ty_shape(self.db, *ty) else {
                     return Err(CtfeError::NotConstEvaluable { origin });
                 };
                 let width = usize::from(bits / 8);
-                let (_, bytes) = normalize_int_to_shape(value.clone(), bits, false).to_bytes_be();
-                if bytes.len() > width {
-                    return Err(CtfeError::NotConstEvaluable { origin });
+                match value {
+                    CtfeInt::Word { word, .. } => {
+                        Ok(word.to_be_bytes::<32>()[32 - width..].to_vec())
+                    }
+                    CtfeInt::Big(value) => {
+                        let (_, bytes) =
+                            normalize_int_to_shape(value.clone(), bits, false).to_bytes_be();
+                        if bytes.len() > width {
+                            return Err(CtfeError::NotConstEvaluable { origin });
+                        }
+                        let mut out = vec![0u8; width];
+                        let offset = width - bytes.len();
+                        out[offset..].copy_from_slice(&bytes);
+                        Ok(out)
+                    }
                 }
-                let mut out = vec![0u8; width];
-                let offset = width - bytes.len();
-                out[offset..].copy_from_slice(&bytes);
-                Ok(out)
             }
-            SemConstValue::Scalar {
-                value: SemConstScalar::Bytes(bytes),
-                ..
-            } => Ok(bytes.clone()),
-            SemConstValue::Tuple { elems, .. }
-            | SemConstValue::Struct { fields: elems, .. }
-            | SemConstValue::Array { elems, .. } => {
+            CtfeConstKind::Bytes { bytes, .. } => Ok(bytes.to_vec()),
+            CtfeConstKind::Tuple { elems, .. } | CtfeConstKind::Array { elems, .. } => {
                 let mut out = Vec::new();
-                for elem in elems.iter().copied() {
+                for elem in elems.iter() {
                     out.extend(self.const_as_bytes(elem, origin)?);
                 }
                 Ok(out)
             }
-            SemConstValue::Enum { ty, variant, .. } if ty.is_unit_variant_only_enum(self.db) => {
+            CtfeConstKind::Struct { fields, .. } => {
+                let mut out = Vec::new();
+                for field in fields.iter() {
+                    out.extend(self.const_as_bytes(field, origin)?);
+                }
+                Ok(out)
+            }
+            CtfeConstKind::Enum { ty, variant, .. } if ty.is_unit_variant_only_enum(self.db) => {
                 let width = 32;
                 let (_, bytes) = BigInt::from(variant.0).to_bytes_be();
                 let mut out = vec![0u8; width];
@@ -1832,7 +3227,7 @@ impl<'db> CtfeMachine<'db> {
                 out[offset..].copy_from_slice(&bytes);
                 Ok(out)
             }
-            SemConstValue::Unit | SemConstValue::TypeLevel { .. } | SemConstValue::Enum { .. } => {
+            CtfeConstKind::Unit | CtfeConstKind::Interned(_) | CtfeConstKind::Enum { .. } => {
                 Err(CtfeError::NotConstEvaluable { origin })
             }
         }

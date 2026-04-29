@@ -2207,6 +2207,7 @@ dependencies = [
  "num-bigint",
  "num-traits",
  "paste",
+ "ruint",
  "rustc-hash 2.1.1",
  "salsa",
  "smallvec 1.15.1",

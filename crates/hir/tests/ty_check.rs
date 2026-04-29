@@ -119,6 +119,49 @@ fn trigger() {
     assert!(!diagnostics_contain(&diags, "const eval"), "{diags:#?}");
 }
 
+#[test]
+fn generic_operator_ambiguity_preserves_checked_candidates() {
+    let mut db = HirAnalysisTestDb::default();
+    let file = db.new_stand_alone(
+        "generic_operator_ambiguity_preserves_checked_candidates.fe".into(),
+        r#"
+use core::ops::Add
+
+struct Box<T> {
+    value: T,
+}
+
+impl<T: Copy> Copy for Box<T> {}
+
+impl<T> Box<T> {
+    fn new(value: T) -> Box<T> {
+        Box { value: value }
+    }
+}
+
+impl<T: Copy> Add for Box<T> {
+    fn add(own self, _ other: own Box<T>) -> Box<T> {
+        self
+    }
+}
+
+impl<T: Copy> Add<T> for Box<T> {
+    fn add(own self, _ other: own T) -> Box<T> {
+        self + Box::new(value: other)
+    }
+}
+
+fn probe() -> u256 {
+    let box: Box<u256> = Box::new(value: 1)
+    (box + 2).value
+}
+"#,
+    );
+    let (top_mod, _) = db.top_mod(file);
+
+    db.assert_no_diags(top_mod);
+}
+
 fn diagnostics_for<'db>(
     db: &'db HirAnalysisTestDb,
     top_mod: TopLevelMod<'db>,

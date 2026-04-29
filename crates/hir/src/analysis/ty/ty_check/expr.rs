@@ -2968,7 +2968,7 @@ impl<'db> TyChecker<'db> {
             Ok(candidate) => candidate,
             Err(err) => {
                 match err {
-                    MethodSelectionError::AmbiguousTraitMethod(insts) => {
+                    MethodSelectionError::AmbiguousTraitMethod(ambiguous) => {
                         // Defer resolution using return-type constraints
                         let ret_ty = self.fresh_ty();
                         let typed = ExprProp::new(ret_ty, true);
@@ -2978,14 +2978,19 @@ impl<'db> TyChecker<'db> {
                         for arg in args.iter() {
                             self.check_expr_unknown(arg.expr);
                         }
-                        // Instantiate candidates with fresh inference vars so
-                        // later unifications can bind their parameters.
-                        let cands: Vec<_> = insts
+                        let candidates = ambiguous
+                            .candidates
                             .into_iter()
-                            .map(|inst| {
-                                self.table.instantiate_with_fresh_vars(
-                                    crate::analysis::ty::binder::Binder::bind(inst),
-                                )
+                            .map(|candidate| {
+                                let inst = canonical_r_ty
+                                    .extract_solution(&mut self.table, candidate.cand.inst);
+                                let inst =
+                                    self.specialize_same_trait_method_inst(method_name, inst);
+                                super::env::PendingMethodCandidate {
+                                    inst,
+                                    method: candidate.cand.method,
+                                    needs_confirmation: candidate.needs_confirmation,
+                                }
                             })
                             .collect();
 
@@ -2993,7 +2998,7 @@ impl<'db> TyChecker<'db> {
                             expr,
                             recv_ty: selected_receiver_ty,
                             method_name,
-                            candidates: cands,
+                            candidates,
                             span: call_span.method_name().into(),
                         });
                         return typed;
@@ -4143,7 +4148,7 @@ impl<'db> TyChecker<'db> {
 
                 (func_ty, inst)
             }
-            Err(MethodSelectionError::AmbiguousTraitMethod(insts)) => {
+            Err(MethodSelectionError::AmbiguousTraitMethod(ambiguous)) => {
                 let Some(rhs_expr) = rhs_expr else {
                     unreachable!("unary core::ops ambiguity");
                 };
@@ -4153,36 +4158,34 @@ impl<'db> TyChecker<'db> {
                     return ExprProp::invalid(self.db);
                 }
 
-                let method_ident = op.trait_method(self.db);
-                let trait_method = *trait_def.method_defs(self.db).get(&method_ident).unwrap();
-
-                let mut viable: Vec<(TyId<'db>, TraitInstId<'db>, TyId<'db>)> = Vec::new();
-                for inst in insts.iter().copied() {
+                let mut viable = Vec::new();
+                for candidate in ambiguous.candidates.iter().copied() {
                     let snapshot = self.snapshot_state();
-                    let candidate_func_ty = super::instantiate_trait_method(
-                        self.db,
-                        trait_method,
-                        &mut self.table,
-                        selected_lhs_ty,
-                        inst,
-                    );
-                    let candidate_func_ty = self.table.instantiate_to_term(candidate_func_ty);
-                    let (base, gen_args) = candidate_func_ty.decompose_ty_app(self.db);
-                    let expected_rhs =
-                        if let TyData::TyBase(TyBase::Func(func_def)) = base.data(self.db) {
-                            let mut subst = AssocTySubst::new(inst);
-                            let ty = func_def.arg_tys(self.db)[1].instantiate(self.db, gen_args);
-                            self.normalize_ty(ty.fold_with(self.db, &mut subst))
-                        } else {
-                            unreachable!("candidate func ty should be a func");
-                        };
-                    let rhs_ty = self
-                        .try_coerce_capability_for_expr_to_expected(rhs_expr, rhs.ty, expected_rhs)
-                        .unwrap_or(rhs.ty);
-                    let unifies = self.table.unify(rhs_ty, expected_rhs).is_ok();
+                    let unifies = (|| {
+                        let inst = c_lhs_ty.extract_solution(&mut self.table, candidate.cand.inst);
+                        let func_ty = super::try_instantiate_trait_method(
+                            self.db,
+                            candidate.cand.method,
+                            &mut self.table,
+                            selected_lhs_ty,
+                            inst,
+                        )
+                        .ok()?;
+                        let func_ty = self.table.instantiate_to_term(func_ty);
+                        let expected_rhs = self.instantiated_ops_rhs_ty(func_ty, inst)?;
+                        let rhs_ty = self
+                            .try_coerce_capability_for_expr_to_expected(
+                                rhs_expr,
+                                rhs.ty,
+                                expected_rhs,
+                            )
+                            .unwrap_or(rhs.ty);
+                        self.table.unify(rhs_ty, expected_rhs).ok()
+                    })()
+                    .is_some();
                     self.rollback_state(snapshot);
                     if unifies {
-                        viable.push((candidate_func_ty, inst, expected_rhs));
+                        viable.push(candidate);
                     }
                 }
 
@@ -4198,26 +4201,46 @@ impl<'db> TyChecker<'db> {
                         return ExprProp::invalid(self.db);
                     }
                     1 => {
-                        let (func_ty, inst, expected_rhs) = viable.pop().unwrap();
-                        self.env.register_trait_obligation(TraitObligation {
-                            goal: inst,
-                            origin: TraitObligationOrigin::GenericConfirmation,
-                            span: expr.span(self.body()).into(),
-                        });
-                        let rhs_ty = self
-                            .try_coerce_capability_for_expr_to_expected(
-                                rhs_expr,
-                                rhs.ty,
+                        let candidate = viable.pop().unwrap();
+                        let inst = c_lhs_ty.extract_solution(&mut self.table, candidate.cand.inst);
+                        if candidate.needs_confirmation {
+                            self.env.register_trait_obligation(TraitObligation {
+                                goal: inst,
+                                origin: TraitObligationOrigin::GenericConfirmation,
+                                span: expr.span(self.body()).into(),
+                            });
+                        }
+                        let func_ty = self.instantiate_trait_method_to_term(
+                            candidate.cand.method,
+                            selected_lhs_ty,
+                            inst,
+                        );
+                        if let Some(expected_rhs) = self.instantiated_ops_rhs_ty(func_ty, inst) {
+                            let rhs_ty = self
+                                .try_coerce_capability_for_expr_to_expected(
+                                    rhs_expr,
+                                    rhs.ty,
+                                    expected_rhs,
+                                )
+                                .unwrap_or(rhs.ty);
+                            self.unify_ty(
+                                Typeable::Expr(rhs_expr, rhs.clone()),
+                                rhs_ty,
                                 expected_rhs,
-                            )
-                            .unwrap_or(rhs.ty);
-                        self.unify_ty(Typeable::Expr(rhs_expr, rhs.clone()), rhs_ty, expected_rhs);
+                            );
+                        }
                         (func_ty, inst)
                     }
                     _ => {
+                        let cands = viable
+                            .into_iter()
+                            .map(|candidate| {
+                                c_lhs_ty.extract_solution(&mut self.table, candidate.cand.inst)
+                            })
+                            .collect();
                         self.push_diag(BodyDiag::AmbiguousTraitInst {
                             primary: expr.span(self.body()).into(),
-                            cands: viable.into_iter().map(|(_, inst, _)| inst).collect(),
+                            cands,
                             required_by: None,
                         });
                         return ExprProp::invalid(self.db);
@@ -4413,10 +4436,10 @@ fn body_diag_from_method_selection_err<'db>(
             .into()
         }
 
-        MethodSelectionError::AmbiguousTraitMethod(traits) => BodyDiag::AmbiguousTrait {
+        MethodSelectionError::AmbiguousTraitMethod(ambiguous) => BodyDiag::AmbiguousTrait {
             primary: method.span,
             method_name: method.data,
-            traits,
+            traits: ambiguous.diagnostic_traits,
         }
         .into(),
 

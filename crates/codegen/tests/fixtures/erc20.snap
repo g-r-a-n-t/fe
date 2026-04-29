@@ -724,15 +724,12 @@ object "CoolCoin" {
       mstore(0x40, add(r1, 32))
       mstore(r0, p0)
       mstore(r1, p1)
-      let t8 := mload(r0)
-      let v2 := t8
-      let t9 := mload(r1)
-      let v5 := t9
-      mstore(r1, v5)
-      let t10 := mload(r1)
-      let v6 := t10
-      let v7 := iszero(iszero(eq(v2, v6)))
-      let v4 := iszero(iszero(v7))
+      let t7 := mload(r0)
+      let v2 := t7
+      let t8 := mload(r1)
+      let v5 := t8
+      let v6 := iszero(iszero(eq(v2, v5)))
+      let v4 := iszero(iszero(v6))
       ret := iszero(iszero(v4))
       leave
     }
@@ -1048,50 +1045,47 @@ object "CoolCoin" {
       let v22 := $std$lib$evm$memory_input$impl_trait$MemoryBytes$c1cd$len_5bb5(v4)
       let v5 := v22
       v1 := v5
-      let t34 := mload(add(p0, 64))
-      let v6 := t34
+      let t33 := mload(add(p0, 64))
+      let v6 := t33
       let v23 := 0x20
       let v7 := v23
-      let t35 := add(v6, v7)
-      if lt(t35, v6) {
+      let t34 := add(v6, v7)
+      if lt(t34, v6) {
         mstore(0, 0x4e487b7100000000000000000000000000000000000000000000000000000000)
         mstore(4, 0x11)
         revert(0, 36)
       }
-      let v24 := t35
+      let v24 := t34
       let v8 := v24
       v2 := v8
-      let t36 := mload(add(p0, 64))
-      let v25 := t36
-      mstore(add(p0, 64), v25)
-      let t37 := mload(add(p0, 64))
-      let v26 := t37
-      let v27 := iszero(iszero(lt(v2, v26)))
-      let v11 := iszero(iszero(v27))
+      let t35 := mload(add(p0, 64))
+      let v25 := t35
+      let v26 := iszero(iszero(lt(v2, v25)))
+      let v11 := iszero(iszero(v26))
       if iszero(iszero(v11)) {
+        let v27 := 0x00
+        let v14 := v27
         let v28 := 0x00
-        let v14 := v28
-        let v29 := 0x00
-        let v15 := v29
+        let v15 := v28
         revert(v14, v15)
       }
       if iszero(iszero(iszero(v11))) {
         let v12 := v1
-        let v33 := iszero(iszero(gt(v2, v12)))
-        let v13 := iszero(iszero(v33))
+        let v32 := iszero(iszero(gt(v2, v12)))
+        let v13 := iszero(iszero(v32))
         if iszero(iszero(v13)) {
+          let v27 := 0x00
+          let v14 := v27
           let v28 := 0x00
-          let v14 := v28
-          let v29 := 0x00
-          let v15 := v29
+          let v15 := v28
           revert(v14, v15)
         }
         if iszero(iszero(iszero(v13))) {
           let v18 := p0
-          let t38 := mload(add(p0, 64))
-          let v19 := t38
-          let v32 := $std$lib$evm$memory_input$impl_trait$MemoryBytes$c1cd$word_at_2d1c(v18, v19)
-          let v20 := v32
+          let t36 := mload(add(p0, 64))
+          let v19 := t36
+          let v31 := $std$lib$evm$memory_input$impl_trait$MemoryBytes$c1cd$word_at_2d1c(v18, v19)
+          let v20 := v31
           let v3 := v20
           mstore(add(p0, 64), v2)
           ret := v3
@@ -1106,50 +1100,47 @@ object "CoolCoin" {
       let v22 := $std$lib$evm$memory_input$impl_trait$MemoryBytes$c1cd$len_6aca(v4)
       let v5 := v22
       v1 := v5
-      let t34 := mload(add(p0, 64))
-      let v6 := t34
+      let t33 := mload(add(p0, 64))
+      let v6 := t33
       let v23 := 0x20
       let v7 := v23
-      let t35 := add(v6, v7)
-      if lt(t35, v6) {
+      let t34 := add(v6, v7)
+      if lt(t34, v6) {
         mstore(0, 0x4e487b7100000000000000000000000000000000000000000000000000000000)
         mstore(4, 0x11)
         revert(0, 36)
       }
-      let v24 := t35
+      let v24 := t34
       let v8 := v24
       v2 := v8
-      let t36 := mload(add(p0, 64))
-      let v25 := t36
-      mstore(add(p0, 64), v25)
-      let t37 := mload(add(p0, 64))
-      let v26 := t37
-      let v27 := iszero(iszero(lt(v2, v26)))
-      let v11 := iszero(iszero(v27))
+      let t35 := mload(add(p0, 64))
+      let v25 := t35
+      let v26 := iszero(iszero(lt(v2, v25)))
+      let v11 := iszero(iszero(v26))
       if iszero(iszero(v11)) {
+        let v27 := 0x00
+        let v14 := v27
         let v28 := 0x00
-        let v14 := v28
-        let v29 := 0x00
-        let v15 := v29
+        let v15 := v28
         revert(v14, v15)
       }
       if iszero(iszero(iszero(v11))) {
         let v12 := v1
-        let v33 := iszero(iszero(gt(v2, v12)))
-        let v13 := iszero(iszero(v33))
+        let v32 := iszero(iszero(gt(v2, v12)))
+        let v13 := iszero(iszero(v32))
         if iszero(iszero(v13)) {
+          let v27 := 0x00
+          let v14 := v27
           let v28 := 0x00
-          let v14 := v28
-          let v29 := 0x00
-          let v15 := v29
+          let v15 := v28
           revert(v14, v15)
         }
         if iszero(iszero(iszero(v13))) {
           let v18 := p0
-          let t38 := mload(add(p0, 64))
-          let v19 := t38
-          let v32 := $std$lib$evm$memory_input$impl_trait$MemoryBytes$c1cd$word_at_8ba4(v18, v19)
-          let v20 := v32
+          let t36 := mload(add(p0, 64))
+          let v19 := t36
+          let v31 := $std$lib$evm$memory_input$impl_trait$MemoryBytes$c1cd$word_at_8ba4(v18, v19)
+          let v20 := v31
           let v3 := v20
           mstore(add(p0, 64), v2)
           ret := v3
@@ -1164,50 +1155,47 @@ object "CoolCoin" {
       let v22 := $std$lib$evm$memory_input$impl_trait$MemoryBytes$c1cd$len_c9e2_0(v4)
       let v5 := v22
       v1 := v5
-      let t34 := mload(add(p0, 64))
-      let v6 := t34
+      let t33 := mload(add(p0, 64))
+      let v6 := t33
       let v23 := 0x20
       let v7 := v23
-      let t35 := add(v6, v7)
-      if lt(t35, v6) {
+      let t34 := add(v6, v7)
+      if lt(t34, v6) {
         mstore(0, 0x4e487b7100000000000000000000000000000000000000000000000000000000)
         mstore(4, 0x11)
         revert(0, 36)
       }
-      let v24 := t35
+      let v24 := t34
       let v8 := v24
       v2 := v8
-      let t36 := mload(add(p0, 64))
-      let v25 := t36
-      mstore(add(p0, 64), v25)
-      let t37 := mload(add(p0, 64))
-      let v26 := t37
-      let v27 := iszero(iszero(lt(v2, v26)))
-      let v11 := iszero(iszero(v27))
+      let t35 := mload(add(p0, 64))
+      let v25 := t35
+      let v26 := iszero(iszero(lt(v2, v25)))
+      let v11 := iszero(iszero(v26))
       if iszero(iszero(v11)) {
+        let v27 := 0x00
+        let v14 := v27
         let v28 := 0x00
-        let v14 := v28
-        let v29 := 0x00
-        let v15 := v29
+        let v15 := v28
         revert(v14, v15)
       }
       if iszero(iszero(iszero(v11))) {
         let v12 := v1
-        let v33 := iszero(iszero(gt(v2, v12)))
-        let v13 := iszero(iszero(v33))
+        let v32 := iszero(iszero(gt(v2, v12)))
+        let v13 := iszero(iszero(v32))
         if iszero(iszero(v13)) {
+          let v27 := 0x00
+          let v14 := v27
           let v28 := 0x00
-          let v14 := v28
-          let v29 := 0x00
-          let v15 := v29
+          let v15 := v28
           revert(v14, v15)
         }
         if iszero(iszero(iszero(v13))) {
           let v18 := p0
-          let t38 := mload(add(p0, 64))
-          let v19 := t38
-          let v32 := $std$lib$evm$memory_input$impl_trait$MemoryBytes$c1cd$word_at_b2e2_0(v18, v19)
-          let v20 := v32
+          let t36 := mload(add(p0, 64))
+          let v19 := t36
+          let v31 := $std$lib$evm$memory_input$impl_trait$MemoryBytes$c1cd$word_at_b2e2_0(v18, v19)
+          let v20 := v31
           let v3 := v20
           mstore(add(p0, 64), v2)
           ret := v3
@@ -1222,50 +1210,47 @@ object "CoolCoin" {
       let v22 := $std$lib$evm$memory_input$impl_trait$MemoryBytes$c1cd$len_c9e2(v4)
       let v5 := v22
       v1 := v5
-      let t34 := mload(add(p0, 64))
-      let v6 := t34
+      let t33 := mload(add(p0, 64))
+      let v6 := t33
       let v23 := 0x20
       let v7 := v23
-      let t35 := add(v6, v7)
-      if lt(t35, v6) {
+      let t34 := add(v6, v7)
+      if lt(t34, v6) {
         mstore(0, 0x4e487b7100000000000000000000000000000000000000000000000000000000)
         mstore(4, 0x11)
         revert(0, 36)
       }
-      let v24 := t35
+      let v24 := t34
       let v8 := v24
       v2 := v8
-      let t36 := mload(add(p0, 64))
-      let v25 := t36
-      mstore(add(p0, 64), v25)
-      let t37 := mload(add(p0, 64))
-      let v26 := t37
-      let v27 := iszero(iszero(lt(v2, v26)))
-      let v11 := iszero(iszero(v27))
+      let t35 := mload(add(p0, 64))
+      let v25 := t35
+      let v26 := iszero(iszero(lt(v2, v25)))
+      let v11 := iszero(iszero(v26))
       if iszero(iszero(v11)) {
+        let v27 := 0x00
+        let v14 := v27
         let v28 := 0x00
-        let v14 := v28
-        let v29 := 0x00
-        let v15 := v29
+        let v15 := v28
         revert(v14, v15)
       }
       if iszero(iszero(iszero(v11))) {
         let v12 := v1
-        let v33 := iszero(iszero(gt(v2, v12)))
-        let v13 := iszero(iszero(v33))
+        let v32 := iszero(iszero(gt(v2, v12)))
+        let v13 := iszero(iszero(v32))
         if iszero(iszero(v13)) {
+          let v27 := 0x00
+          let v14 := v27
           let v28 := 0x00
-          let v14 := v28
-          let v29 := 0x00
-          let v15 := v29
+          let v15 := v28
           revert(v14, v15)
         }
         if iszero(iszero(iszero(v13))) {
           let v18 := p0
-          let t38 := mload(add(p0, 64))
-          let v19 := t38
-          let v32 := $std$lib$evm$memory_input$impl_trait$MemoryBytes$c1cd$word_at_b2e2(v18, v19)
-          let v20 := v32
+          let t36 := mload(add(p0, 64))
+          let v19 := t36
+          let v31 := $std$lib$evm$memory_input$impl_trait$MemoryBytes$c1cd$word_at_b2e2(v18, v19)
+          let v20 := v31
           let v3 := v20
           mstore(add(p0, 64), v2)
           ret := v3
@@ -6674,15 +6659,12 @@ object "CoolCoin" {
         mstore(0x40, add(r1, 32))
         mstore(r0, p0)
         mstore(r1, p1)
-        let t8 := mload(r0)
-        let v2 := t8
-        let t9 := mload(r1)
-        let v5 := t9
-        mstore(r1, v5)
-        let t10 := mload(r1)
-        let v6 := t10
-        let v7 := iszero(iszero(eq(v2, v6)))
-        let v4 := iszero(iszero(v7))
+        let t7 := mload(r0)
+        let v2 := t7
+        let t8 := mload(r1)
+        let v5 := t8
+        let v6 := iszero(iszero(eq(v2, v5)))
+        let v4 := iszero(iszero(v6))
         ret := iszero(iszero(v4))
         leave
       }
@@ -8371,50 +8353,47 @@ object "CoolCoin" {
         let v22 := $std$lib$evm$memory_input$impl_trait$MemoryBytes$c1cd$len_4b56(v4)
         let v5 := v22
         v1 := v5
-        let t34 := mload(add(p0, 64))
-        let v6 := t34
+        let t33 := mload(add(p0, 64))
+        let v6 := t33
         let v23 := 0x20
         let v7 := v23
-        let t35 := add(v6, v7)
-        if lt(t35, v6) {
+        let t34 := add(v6, v7)
+        if lt(t34, v6) {
           mstore(0, 0x4e487b7100000000000000000000000000000000000000000000000000000000)
           mstore(4, 0x11)
           revert(0, 36)
         }
-        let v24 := t35
+        let v24 := t34
         let v8 := v24
         v2 := v8
-        let t36 := mload(add(p0, 64))
-        let v25 := t36
-        mstore(add(p0, 64), v25)
-        let t37 := mload(add(p0, 64))
-        let v26 := t37
-        let v27 := iszero(iszero(lt(v2, v26)))
-        let v11 := iszero(iszero(v27))
+        let t35 := mload(add(p0, 64))
+        let v25 := t35
+        let v26 := iszero(iszero(lt(v2, v25)))
+        let v11 := iszero(iszero(v26))
         if iszero(iszero(v11)) {
+          let v27 := 0x00
+          let v14 := v27
           let v28 := 0x00
-          let v14 := v28
-          let v29 := 0x00
-          let v15 := v29
+          let v15 := v28
           revert(v14, v15)
         }
         if iszero(iszero(iszero(v11))) {
           let v12 := v1
-          let v33 := iszero(iszero(gt(v2, v12)))
-          let v13 := iszero(iszero(v33))
+          let v32 := iszero(iszero(gt(v2, v12)))
+          let v13 := iszero(iszero(v32))
           if iszero(iszero(v13)) {
+            let v27 := 0x00
+            let v14 := v27
             let v28 := 0x00
-            let v14 := v28
-            let v29 := 0x00
-            let v15 := v29
+            let v15 := v28
             revert(v14, v15)
           }
           if iszero(iszero(iszero(v13))) {
             let v18 := p0
-            let t38 := mload(add(p0, 64))
-            let v19 := t38
-            let v32 := $std$lib$evm$memory_input$impl_trait$MemoryBytes$c1cd$word_at_f700(v18, v19)
-            let v20 := v32
+            let t36 := mload(add(p0, 64))
+            let v19 := t36
+            let v31 := $std$lib$evm$memory_input$impl_trait$MemoryBytes$c1cd$word_at_f700(v18, v19)
+            let v20 := v31
             let v3 := v20
             mstore(add(p0, 64), v2)
             ret := v3
@@ -8429,50 +8408,47 @@ object "CoolCoin" {
         let v22 := $std$lib$evm$memory_input$impl_trait$MemoryBytes$c1cd$len_52e4(v4)
         let v5 := v22
         v1 := v5
-        let t34 := mload(add(p0, 64))
-        let v6 := t34
+        let t33 := mload(add(p0, 64))
+        let v6 := t33
         let v23 := 0x20
         let v7 := v23
-        let t35 := add(v6, v7)
-        if lt(t35, v6) {
+        let t34 := add(v6, v7)
+        if lt(t34, v6) {
           mstore(0, 0x4e487b7100000000000000000000000000000000000000000000000000000000)
           mstore(4, 0x11)
           revert(0, 36)
         }
-        let v24 := t35
+        let v24 := t34
         let v8 := v24
         v2 := v8
-        let t36 := mload(add(p0, 64))
-        let v25 := t36
-        mstore(add(p0, 64), v25)
-        let t37 := mload(add(p0, 64))
-        let v26 := t37
-        let v27 := iszero(iszero(lt(v2, v26)))
-        let v11 := iszero(iszero(v27))
+        let t35 := mload(add(p0, 64))
+        let v25 := t35
+        let v26 := iszero(iszero(lt(v2, v25)))
+        let v11 := iszero(iszero(v26))
         if iszero(iszero(v11)) {
+          let v27 := 0x00
+          let v14 := v27
           let v28 := 0x00
-          let v14 := v28
-          let v29 := 0x00
-          let v15 := v29
+          let v15 := v28
           revert(v14, v15)
         }
         if iszero(iszero(iszero(v11))) {
           let v12 := v1
-          let v33 := iszero(iszero(gt(v2, v12)))
-          let v13 := iszero(iszero(v33))
+          let v32 := iszero(iszero(gt(v2, v12)))
+          let v13 := iszero(iszero(v32))
           if iszero(iszero(v13)) {
+            let v27 := 0x00
+            let v14 := v27
             let v28 := 0x00
-            let v14 := v28
-            let v29 := 0x00
-            let v15 := v29
+            let v15 := v28
             revert(v14, v15)
           }
           if iszero(iszero(iszero(v13))) {
             let v18 := p0
-            let t38 := mload(add(p0, 64))
-            let v19 := t38
-            let v32 := $std$lib$evm$memory_input$impl_trait$MemoryBytes$c1cd$word_at_ebca(v18, v19)
-            let v20 := v32
+            let t36 := mload(add(p0, 64))
+            let v19 := t36
+            let v31 := $std$lib$evm$memory_input$impl_trait$MemoryBytes$c1cd$word_at_ebca(v18, v19)
+            let v20 := v31
             let v3 := v20
             mstore(add(p0, 64), v2)
             ret := v3
@@ -8487,50 +8463,47 @@ object "CoolCoin" {
         let v22 := $std$lib$evm$memory_input$impl_trait$MemoryBytes$c1cd$len_d29e(v4)
         let v5 := v22
         v1 := v5
-        let t34 := mload(add(p0, 64))
-        let v6 := t34
+        let t33 := mload(add(p0, 64))
+        let v6 := t33
         let v23 := 0x20
         let v7 := v23
-        let t35 := add(v6, v7)
-        if lt(t35, v6) {
+        let t34 := add(v6, v7)
+        if lt(t34, v6) {
           mstore(0, 0x4e487b7100000000000000000000000000000000000000000000000000000000)
           mstore(4, 0x11)
           revert(0, 36)
         }
-        let v24 := t35
+        let v24 := t34
         let v8 := v24
         v2 := v8
-        let t36 := mload(add(p0, 64))
-        let v25 := t36
-        mstore(add(p0, 64), v25)
-        let t37 := mload(add(p0, 64))
-        let v26 := t37
-        let v27 := iszero(iszero(lt(v2, v26)))
-        let v11 := iszero(iszero(v27))
+        let t35 := mload(add(p0, 64))
+        let v25 := t35
+        let v26 := iszero(iszero(lt(v2, v25)))
+        let v11 := iszero(iszero(v26))
         if iszero(iszero(v11)) {
+          let v27 := 0x00
+          let v14 := v27
           let v28 := 0x00
-          let v14 := v28
-          let v29 := 0x00
-          let v15 := v29
+          let v15 := v28
           revert(v14, v15)
         }
         if iszero(iszero(iszero(v11))) {
           let v12 := v1
-          let v33 := iszero(iszero(gt(v2, v12)))
-          let v13 := iszero(iszero(v33))
+          let v32 := iszero(iszero(gt(v2, v12)))
+          let v13 := iszero(iszero(v32))
           if iszero(iszero(v13)) {
+            let v27 := 0x00
+            let v14 := v27
             let v28 := 0x00
-            let v14 := v28
-            let v29 := 0x00
-            let v15 := v29
+            let v15 := v28
             revert(v14, v15)
           }
           if iszero(iszero(iszero(v13))) {
             let v18 := p0
-            let t38 := mload(add(p0, 64))
-            let v19 := t38
-            let v32 := $std$lib$evm$memory_input$impl_trait$MemoryBytes$c1cd$word_at_90b5(v18, v19)
-            let v20 := v32
+            let t36 := mload(add(p0, 64))
+            let v19 := t36
+            let v31 := $std$lib$evm$memory_input$impl_trait$MemoryBytes$c1cd$word_at_90b5(v18, v19)
+            let v20 := v31
             let v3 := v20
             mstore(add(p0, 64), v2)
             ret := v3
@@ -8545,50 +8518,47 @@ object "CoolCoin" {
         let v22 := $std$lib$evm$memory_input$impl_trait$MemoryBytes$c1cd$len_f69f(v4)
         let v5 := v22
         v1 := v5
-        let t34 := mload(add(p0, 64))
-        let v6 := t34
+        let t33 := mload(add(p0, 64))
+        let v6 := t33
         let v23 := 0x20
         let v7 := v23
-        let t35 := add(v6, v7)
-        if lt(t35, v6) {
+        let t34 := add(v6, v7)
+        if lt(t34, v6) {
           mstore(0, 0x4e487b7100000000000000000000000000000000000000000000000000000000)
           mstore(4, 0x11)
           revert(0, 36)
         }
-        let v24 := t35
+        let v24 := t34
         let v8 := v24
         v2 := v8
-        let t36 := mload(add(p0, 64))
-        let v25 := t36
-        mstore(add(p0, 64), v25)
-        let t37 := mload(add(p0, 64))
-        let v26 := t37
-        let v27 := iszero(iszero(lt(v2, v26)))
-        let v11 := iszero(iszero(v27))
+        let t35 := mload(add(p0, 64))
+        let v25 := t35
+        let v26 := iszero(iszero(lt(v2, v25)))
+        let v11 := iszero(iszero(v26))
         if iszero(iszero(v11)) {
+          let v27 := 0x00
+          let v14 := v27
           let v28 := 0x00
-          let v14 := v28
-          let v29 := 0x00
-          let v15 := v29
+          let v15 := v28
           revert(v14, v15)
         }
         if iszero(iszero(iszero(v11))) {
           let v12 := v1
-          let v33 := iszero(iszero(gt(v2, v12)))
-          let v13 := iszero(iszero(v33))
+          let v32 := iszero(iszero(gt(v2, v12)))
+          let v13 := iszero(iszero(v32))
           if iszero(iszero(v13)) {
+            let v27 := 0x00
+            let v14 := v27
             let v28 := 0x00
-            let v14 := v28
-            let v29 := 0x00
-            let v15 := v29
+            let v15 := v28
             revert(v14, v15)
           }
           if iszero(iszero(iszero(v13))) {
             let v18 := p0
-            let t38 := mload(add(p0, 64))
-            let v19 := t38
-            let v32 := $std$lib$evm$memory_input$impl_trait$MemoryBytes$c1cd$word_at_a844(v18, v19)
-            let v20 := v32
+            let t36 := mload(add(p0, 64))
+            let v19 := t36
+            let v31 := $std$lib$evm$memory_input$impl_trait$MemoryBytes$c1cd$word_at_a844(v18, v19)
+            let v20 := v31
             let v3 := v20
             mstore(add(p0, 64), v2)
             ret := v3
@@ -8603,50 +8573,47 @@ object "CoolCoin" {
         let v22 := $std$lib$evm$memory_input$impl_trait$MemoryBytes$c1cd$len_6eac(v4)
         let v5 := v22
         v1 := v5
-        let t34 := mload(add(p0, 64))
-        let v6 := t34
+        let t33 := mload(add(p0, 64))
+        let v6 := t33
         let v23 := 0x20
         let v7 := v23
-        let t35 := add(v6, v7)
-        if lt(t35, v6) {
+        let t34 := add(v6, v7)
+        if lt(t34, v6) {
           mstore(0, 0x4e487b7100000000000000000000000000000000000000000000000000000000)
           mstore(4, 0x11)
           revert(0, 36)
         }
-        let v24 := t35
+        let v24 := t34
         let v8 := v24
         v2 := v8
-        let t36 := mload(add(p0, 64))
-        let v25 := t36
-        mstore(add(p0, 64), v25)
-        let t37 := mload(add(p0, 64))
-        let v26 := t37
-        let v27 := iszero(iszero(lt(v2, v26)))
-        let v11 := iszero(iszero(v27))
+        let t35 := mload(add(p0, 64))
+        let v25 := t35
+        let v26 := iszero(iszero(lt(v2, v25)))
+        let v11 := iszero(iszero(v26))
         if iszero(iszero(v11)) {
+          let v27 := 0x00
+          let v14 := v27
           let v28 := 0x00
-          let v14 := v28
-          let v29 := 0x00
-          let v15 := v29
+          let v15 := v28
           revert(v14, v15)
         }
         if iszero(iszero(iszero(v11))) {
           let v12 := v1
-          let v33 := iszero(iszero(gt(v2, v12)))
-          let v13 := iszero(iszero(v33))
+          let v32 := iszero(iszero(gt(v2, v12)))
+          let v13 := iszero(iszero(v32))
           if iszero(iszero(v13)) {
+            let v27 := 0x00
+            let v14 := v27
             let v28 := 0x00
-            let v14 := v28
-            let v29 := 0x00
-            let v15 := v29
+            let v15 := v28
             revert(v14, v15)
           }
           if iszero(iszero(iszero(v13))) {
             let v18 := p0
-            let t38 := mload(add(p0, 64))
-            let v19 := t38
-            let v32 := $std$lib$evm$memory_input$impl_trait$MemoryBytes$c1cd$word_at_dbef(v18, v19)
-            let v20 := v32
+            let t36 := mload(add(p0, 64))
+            let v19 := t36
+            let v31 := $std$lib$evm$memory_input$impl_trait$MemoryBytes$c1cd$word_at_dbef(v18, v19)
+            let v20 := v31
             let v3 := v20
             mstore(add(p0, 64), v2)
             ret := v3
@@ -8661,50 +8628,47 @@ object "CoolCoin" {
         let v22 := $std$lib$evm$memory_input$impl_trait$MemoryBytes$c1cd$len_acd0(v4)
         let v5 := v22
         v1 := v5
-        let t34 := mload(add(p0, 64))
-        let v6 := t34
+        let t33 := mload(add(p0, 64))
+        let v6 := t33
         let v23 := 0x20
         let v7 := v23
-        let t35 := add(v6, v7)
-        if lt(t35, v6) {
+        let t34 := add(v6, v7)
+        if lt(t34, v6) {
           mstore(0, 0x4e487b7100000000000000000000000000000000000000000000000000000000)
           mstore(4, 0x11)
           revert(0, 36)
         }
-        let v24 := t35
+        let v24 := t34
         let v8 := v24
         v2 := v8
-        let t36 := mload(add(p0, 64))
-        let v25 := t36
-        mstore(add(p0, 64), v25)
-        let t37 := mload(add(p0, 64))
-        let v26 := t37
-        let v27 := iszero(iszero(lt(v2, v26)))
-        let v11 := iszero(iszero(v27))
+        let t35 := mload(add(p0, 64))
+        let v25 := t35
+        let v26 := iszero(iszero(lt(v2, v25)))
+        let v11 := iszero(iszero(v26))
         if iszero(iszero(v11)) {
+          let v27 := 0x00
+          let v14 := v27
           let v28 := 0x00
-          let v14 := v28
-          let v29 := 0x00
-          let v15 := v29
+          let v15 := v28
           revert(v14, v15)
         }
         if iszero(iszero(iszero(v11))) {
           let v12 := v1
-          let v33 := iszero(iszero(gt(v2, v12)))
-          let v13 := iszero(iszero(v33))
+          let v32 := iszero(iszero(gt(v2, v12)))
+          let v13 := iszero(iszero(v32))
           if iszero(iszero(v13)) {
+            let v27 := 0x00
+            let v14 := v27
             let v28 := 0x00
-            let v14 := v28
-            let v29 := 0x00
-            let v15 := v29
+            let v15 := v28
             revert(v14, v15)
           }
           if iszero(iszero(iszero(v13))) {
             let v18 := p0
-            let t38 := mload(add(p0, 64))
-            let v19 := t38
-            let v32 := $std$lib$evm$memory_input$impl_trait$MemoryBytes$c1cd$word_at_5d2f(v18, v19)
-            let v20 := v32
+            let t36 := mload(add(p0, 64))
+            let v19 := t36
+            let v31 := $std$lib$evm$memory_input$impl_trait$MemoryBytes$c1cd$word_at_5d2f(v18, v19)
+            let v20 := v31
             let v3 := v20
             mstore(add(p0, 64), v2)
             ret := v3
@@ -8719,50 +8683,47 @@ object "CoolCoin" {
         let v22 := $std$lib$evm$memory_input$impl_trait$MemoryBytes$c1cd$len_3fdb(v4)
         let v5 := v22
         v1 := v5
-        let t34 := mload(add(p0, 64))
-        let v6 := t34
+        let t33 := mload(add(p0, 64))
+        let v6 := t33
         let v23 := 0x20
         let v7 := v23
-        let t35 := add(v6, v7)
-        if lt(t35, v6) {
+        let t34 := add(v6, v7)
+        if lt(t34, v6) {
           mstore(0, 0x4e487b7100000000000000000000000000000000000000000000000000000000)
           mstore(4, 0x11)
           revert(0, 36)
         }
-        let v24 := t35
+        let v24 := t34
         let v8 := v24
         v2 := v8
-        let t36 := mload(add(p0, 64))
-        let v25 := t36
-        mstore(add(p0, 64), v25)
-        let t37 := mload(add(p0, 64))
-        let v26 := t37
-        let v27 := iszero(iszero(lt(v2, v26)))
-        let v11 := iszero(iszero(v27))
+        let t35 := mload(add(p0, 64))
+        let v25 := t35
+        let v26 := iszero(iszero(lt(v2, v25)))
+        let v11 := iszero(iszero(v26))
         if iszero(iszero(v11)) {
+          let v27 := 0x00
+          let v14 := v27
           let v28 := 0x00
-          let v14 := v28
-          let v29 := 0x00
-          let v15 := v29
+          let v15 := v28
           revert(v14, v15)
         }
         if iszero(iszero(iszero(v11))) {
           let v12 := v1
-          let v33 := iszero(iszero(gt(v2, v12)))
-          let v13 := iszero(iszero(v33))
+          let v32 := iszero(iszero(gt(v2, v12)))
+          let v13 := iszero(iszero(v32))
           if iszero(iszero(v13)) {
+            let v27 := 0x00
+            let v14 := v27
             let v28 := 0x00
-            let v14 := v28
-            let v29 := 0x00
-            let v15 := v29
+            let v15 := v28
             revert(v14, v15)
           }
           if iszero(iszero(iszero(v13))) {
             let v18 := p0
-            let t38 := mload(add(p0, 64))
-            let v19 := t38
-            let v32 := $std$lib$evm$memory_input$impl_trait$MemoryBytes$c1cd$word_at_bd7e(v18, v19)
-            let v20 := v32
+            let t36 := mload(add(p0, 64))
+            let v19 := t36
+            let v31 := $std$lib$evm$memory_input$impl_trait$MemoryBytes$c1cd$word_at_bd7e(v18, v19)
+            let v20 := v31
             let v3 := v20
             mstore(add(p0, 64), v2)
             ret := v3
@@ -8777,50 +8738,47 @@ object "CoolCoin" {
         let v22 := $std$lib$evm$memory_input$impl_trait$MemoryBytes$c1cd$len_54c0(v4)
         let v5 := v22
         v1 := v5
-        let t34 := mload(add(p0, 64))
-        let v6 := t34
+        let t33 := mload(add(p0, 64))
+        let v6 := t33
         let v23 := 0x20
         let v7 := v23
-        let t35 := add(v6, v7)
-        if lt(t35, v6) {
+        let t34 := add(v6, v7)
+        if lt(t34, v6) {
           mstore(0, 0x4e487b7100000000000000000000000000000000000000000000000000000000)
           mstore(4, 0x11)
           revert(0, 36)
         }
-        let v24 := t35
+        let v24 := t34
         let v8 := v24
         v2 := v8
-        let t36 := mload(add(p0, 64))
-        let v25 := t36
-        mstore(add(p0, 64), v25)
-        let t37 := mload(add(p0, 64))
-        let v26 := t37
-        let v27 := iszero(iszero(lt(v2, v26)))
-        let v11 := iszero(iszero(v27))
+        let t35 := mload(add(p0, 64))
+        let v25 := t35
+        let v26 := iszero(iszero(lt(v2, v25)))
+        let v11 := iszero(iszero(v26))
         if iszero(iszero(v11)) {
+          let v27 := 0x00
+          let v14 := v27
           let v28 := 0x00
-          let v14 := v28
-          let v29 := 0x00
-          let v15 := v29
+          let v15 := v28
           revert(v14, v15)
         }
         if iszero(iszero(iszero(v11))) {
           let v12 := v1
-          let v33 := iszero(iszero(gt(v2, v12)))
-          let v13 := iszero(iszero(v33))
+          let v32 := iszero(iszero(gt(v2, v12)))
+          let v13 := iszero(iszero(v32))
           if iszero(iszero(v13)) {
+            let v27 := 0x00
+            let v14 := v27
             let v28 := 0x00
-            let v14 := v28
-            let v29 := 0x00
-            let v15 := v29
+            let v15 := v28
             revert(v14, v15)
           }
           if iszero(iszero(iszero(v13))) {
             let v18 := p0
-            let t38 := mload(add(p0, 64))
-            let v19 := t38
-            let v32 := $std$lib$evm$memory_input$impl_trait$MemoryBytes$c1cd$word_at_3e3b(v18, v19)
-            let v20 := v32
+            let t36 := mload(add(p0, 64))
+            let v19 := t36
+            let v31 := $std$lib$evm$memory_input$impl_trait$MemoryBytes$c1cd$word_at_3e3b(v18, v19)
+            let v20 := v31
             let v3 := v20
             mstore(add(p0, 64), v2)
             ret := v3
@@ -8835,50 +8793,47 @@ object "CoolCoin" {
         let v22 := $std$lib$evm$memory_input$impl_trait$MemoryBytes$c1cd$len_8f90(v4)
         let v5 := v22
         v1 := v5
-        let t34 := mload(add(p0, 64))
-        let v6 := t34
+        let t33 := mload(add(p0, 64))
+        let v6 := t33
         let v23 := 0x20
         let v7 := v23
-        let t35 := add(v6, v7)
-        if lt(t35, v6) {
+        let t34 := add(v6, v7)
+        if lt(t34, v6) {
           mstore(0, 0x4e487b7100000000000000000000000000000000000000000000000000000000)
           mstore(4, 0x11)
           revert(0, 36)
         }
-        let v24 := t35
+        let v24 := t34
         let v8 := v24
         v2 := v8
-        let t36 := mload(add(p0, 64))
-        let v25 := t36
-        mstore(add(p0, 64), v25)
-        let t37 := mload(add(p0, 64))
-        let v26 := t37
-        let v27 := iszero(iszero(lt(v2, v26)))
-        let v11 := iszero(iszero(v27))
+        let t35 := mload(add(p0, 64))
+        let v25 := t35
+        let v26 := iszero(iszero(lt(v2, v25)))
+        let v11 := iszero(iszero(v26))
         if iszero(iszero(v11)) {
+          let v27 := 0x00
+          let v14 := v27
           let v28 := 0x00
-          let v14 := v28
-          let v29 := 0x00
-          let v15 := v29
+          let v15 := v28
           revert(v14, v15)
         }
         if iszero(iszero(iszero(v11))) {
           let v12 := v1
-          let v33 := iszero(iszero(gt(v2, v12)))
-          let v13 := iszero(iszero(v33))
+          let v32 := iszero(iszero(gt(v2, v12)))
+          let v13 := iszero(iszero(v32))
           if iszero(iszero(v13)) {
+            let v27 := 0x00
+            let v14 := v27
             let v28 := 0x00
-            let v14 := v28
-            let v29 := 0x00
-            let v15 := v29
+            let v15 := v28
             revert(v14, v15)
           }
           if iszero(iszero(iszero(v13))) {
             let v18 := p0
-            let t38 := mload(add(p0, 64))
-            let v19 := t38
-            let v32 := $std$lib$evm$memory_input$impl_trait$MemoryBytes$c1cd$word_at_47bf(v18, v19)
-            let v20 := v32
+            let t36 := mload(add(p0, 64))
+            let v19 := t36
+            let v31 := $std$lib$evm$memory_input$impl_trait$MemoryBytes$c1cd$word_at_47bf(v18, v19)
+            let v20 := v31
             let v3 := v20
             mstore(add(p0, 64), v2)
             ret := v3
@@ -8893,50 +8848,47 @@ object "CoolCoin" {
         let v22 := $std$lib$evm$memory_input$impl_trait$MemoryBytes$c1cd$len_3194(v4)
         let v5 := v22
         v1 := v5
-        let t34 := mload(add(p0, 64))
-        let v6 := t34
+        let t33 := mload(add(p0, 64))
+        let v6 := t33
         let v23 := 0x20
         let v7 := v23
-        let t35 := add(v6, v7)
-        if lt(t35, v6) {
+        let t34 := add(v6, v7)
+        if lt(t34, v6) {
           mstore(0, 0x4e487b7100000000000000000000000000000000000000000000000000000000)
           mstore(4, 0x11)
           revert(0, 36)
         }
-        let v24 := t35
+        let v24 := t34
         let v8 := v24
         v2 := v8
-        let t36 := mload(add(p0, 64))
-        let v25 := t36
-        mstore(add(p0, 64), v25)
-        let t37 := mload(add(p0, 64))
-        let v26 := t37
-        let v27 := iszero(iszero(lt(v2, v26)))
-        let v11 := iszero(iszero(v27))
+        let t35 := mload(add(p0, 64))
+        let v25 := t35
+        let v26 := iszero(iszero(lt(v2, v25)))
+        let v11 := iszero(iszero(v26))
         if iszero(iszero(v11)) {
+          let v27 := 0x00
+          let v14 := v27
           let v28 := 0x00
-          let v14 := v28
-          let v29 := 0x00
-          let v15 := v29
+          let v15 := v28
           revert(v14, v15)
         }
         if iszero(iszero(iszero(v11))) {
           let v12 := v1
-          let v33 := iszero(iszero(gt(v2, v12)))
-          let v13 := iszero(iszero(v33))
+          let v32 := iszero(iszero(gt(v2, v12)))
+          let v13 := iszero(iszero(v32))
           if iszero(iszero(v13)) {
+            let v27 := 0x00
+            let v14 := v27
             let v28 := 0x00
-            let v14 := v28
-            let v29 := 0x00
-            let v15 := v29
+            let v15 := v28
             revert(v14, v15)
           }
           if iszero(iszero(iszero(v13))) {
             let v18 := p0
-            let t38 := mload(add(p0, 64))
-            let v19 := t38
-            let v32 := $std$lib$evm$memory_input$impl_trait$MemoryBytes$c1cd$word_at_f4a7(v18, v19)
-            let v20 := v32
+            let t36 := mload(add(p0, 64))
+            let v19 := t36
+            let v31 := $std$lib$evm$memory_input$impl_trait$MemoryBytes$c1cd$word_at_f4a7(v18, v19)
+            let v20 := v31
             let v3 := v20
             mstore(add(p0, 64), v2)
             ret := v3
@@ -8951,50 +8903,47 @@ object "CoolCoin" {
         let v22 := $std$lib$evm$memory_input$impl_trait$MemoryBytes$c1cd$len_8042(v4)
         let v5 := v22
         v1 := v5
-        let t34 := mload(add(p0, 64))
-        let v6 := t34
+        let t33 := mload(add(p0, 64))
+        let v6 := t33
         let v23 := 0x20
         let v7 := v23
-        let t35 := add(v6, v7)
-        if lt(t35, v6) {
+        let t34 := add(v6, v7)
+        if lt(t34, v6) {
           mstore(0, 0x4e487b7100000000000000000000000000000000000000000000000000000000)
           mstore(4, 0x11)
           revert(0, 36)
         }
-        let v24 := t35
+        let v24 := t34
         let v8 := v24
         v2 := v8
-        let t36 := mload(add(p0, 64))
-        let v25 := t36
-        mstore(add(p0, 64), v25)
-        let t37 := mload(add(p0, 64))
-        let v26 := t37
-        let v27 := iszero(iszero(lt(v2, v26)))
-        let v11 := iszero(iszero(v27))
+        let t35 := mload(add(p0, 64))
+        let v25 := t35
+        let v26 := iszero(iszero(lt(v2, v25)))
+        let v11 := iszero(iszero(v26))
         if iszero(iszero(v11)) {
+          let v27 := 0x00
+          let v14 := v27
           let v28 := 0x00
-          let v14 := v28
-          let v29 := 0x00
-          let v15 := v29
+          let v15 := v28
           revert(v14, v15)
         }
         if iszero(iszero(iszero(v11))) {
           let v12 := v1
-          let v33 := iszero(iszero(gt(v2, v12)))
-          let v13 := iszero(iszero(v33))
+          let v32 := iszero(iszero(gt(v2, v12)))
+          let v13 := iszero(iszero(v32))
           if iszero(iszero(v13)) {
+            let v27 := 0x00
+            let v14 := v27
             let v28 := 0x00
-            let v14 := v28
-            let v29 := 0x00
-            let v15 := v29
+            let v15 := v28
             revert(v14, v15)
           }
           if iszero(iszero(iszero(v13))) {
             let v18 := p0
-            let t38 := mload(add(p0, 64))
-            let v19 := t38
-            let v32 := $std$lib$evm$memory_input$impl_trait$MemoryBytes$c1cd$word_at_71ef(v18, v19)
-            let v20 := v32
+            let t36 := mload(add(p0, 64))
+            let v19 := t36
+            let v31 := $std$lib$evm$memory_input$impl_trait$MemoryBytes$c1cd$word_at_71ef(v18, v19)
+            let v20 := v31
             let v3 := v20
             mstore(add(p0, 64), v2)
             ret := v3
@@ -9009,50 +8958,47 @@ object "CoolCoin" {
         let v22 := $std$lib$evm$memory_input$impl_trait$MemoryBytes$c1cd$len_8e49(v4)
         let v5 := v22
         v1 := v5
-        let t34 := mload(add(p0, 64))
-        let v6 := t34
+        let t33 := mload(add(p0, 64))
+        let v6 := t33
         let v23 := 0x20
         let v7 := v23
-        let t35 := add(v6, v7)
-        if lt(t35, v6) {
+        let t34 := add(v6, v7)
+        if lt(t34, v6) {
           mstore(0, 0x4e487b7100000000000000000000000000000000000000000000000000000000)
           mstore(4, 0x11)
           revert(0, 36)
         }
-        let v24 := t35
+        let v24 := t34
         let v8 := v24
         v2 := v8
-        let t36 := mload(add(p0, 64))
-        let v25 := t36
-        mstore(add(p0, 64), v25)
-        let t37 := mload(add(p0, 64))
-        let v26 := t37
-        let v27 := iszero(iszero(lt(v2, v26)))
-        let v11 := iszero(iszero(v27))
+        let t35 := mload(add(p0, 64))
+        let v25 := t35
+        let v26 := iszero(iszero(lt(v2, v25)))
+        let v11 := iszero(iszero(v26))
         if iszero(iszero(v11)) {
+          let v27 := 0x00
+          let v14 := v27
           let v28 := 0x00
-          let v14 := v28
-          let v29 := 0x00
-          let v15 := v29
+          let v15 := v28
           revert(v14, v15)
         }
         if iszero(iszero(iszero(v11))) {
           let v12 := v1
-          let v33 := iszero(iszero(gt(v2, v12)))
-          let v13 := iszero(iszero(v33))
+          let v32 := iszero(iszero(gt(v2, v12)))
+          let v13 := iszero(iszero(v32))
           if iszero(iszero(v13)) {
+            let v27 := 0x00
+            let v14 := v27
             let v28 := 0x00
-            let v14 := v28
-            let v29 := 0x00
-            let v15 := v29
+            let v15 := v28
             revert(v14, v15)
           }
           if iszero(iszero(iszero(v13))) {
             let v18 := p0
-            let t38 := mload(add(p0, 64))
-            let v19 := t38
-            let v32 := $std$lib$evm$memory_input$impl_trait$MemoryBytes$c1cd$word_at_10fb(v18, v19)
-            let v20 := v32
+            let t36 := mload(add(p0, 64))
+            let v19 := t36
+            let v31 := $std$lib$evm$memory_input$impl_trait$MemoryBytes$c1cd$word_at_10fb(v18, v19)
+            let v20 := v31
             let v3 := v20
             mstore(add(p0, 64), v2)
             ret := v3
@@ -9067,50 +9013,47 @@ object "CoolCoin" {
         let v22 := $std$lib$evm$memory_input$impl_trait$MemoryBytes$c1cd$len_83a5(v4)
         let v5 := v22
         v1 := v5
-        let t34 := mload(add(p0, 64))
-        let v6 := t34
+        let t33 := mload(add(p0, 64))
+        let v6 := t33
         let v23 := 0x20
         let v7 := v23
-        let t35 := add(v6, v7)
-        if lt(t35, v6) {
+        let t34 := add(v6, v7)
+        if lt(t34, v6) {
           mstore(0, 0x4e487b7100000000000000000000000000000000000000000000000000000000)
           mstore(4, 0x11)
           revert(0, 36)
         }
-        let v24 := t35
+        let v24 := t34
         let v8 := v24
         v2 := v8
-        let t36 := mload(add(p0, 64))
-        let v25 := t36
-        mstore(add(p0, 64), v25)
-        let t37 := mload(add(p0, 64))
-        let v26 := t37
-        let v27 := iszero(iszero(lt(v2, v26)))
-        let v11 := iszero(iszero(v27))
+        let t35 := mload(add(p0, 64))
+        let v25 := t35
+        let v26 := iszero(iszero(lt(v2, v25)))
+        let v11 := iszero(iszero(v26))
         if iszero(iszero(v11)) {
+          let v27 := 0x00
+          let v14 := v27
           let v28 := 0x00
-          let v14 := v28
-          let v29 := 0x00
-          let v15 := v29
+          let v15 := v28
           revert(v14, v15)
         }
         if iszero(iszero(iszero(v11))) {
           let v12 := v1
-          let v33 := iszero(iszero(gt(v2, v12)))
-          let v13 := iszero(iszero(v33))
+          let v32 := iszero(iszero(gt(v2, v12)))
+          let v13 := iszero(iszero(v32))
           if iszero(iszero(v13)) {
+            let v27 := 0x00
+            let v14 := v27
             let v28 := 0x00
-            let v14 := v28
-            let v29 := 0x00
-            let v15 := v29
+            let v15 := v28
             revert(v14, v15)
           }
           if iszero(iszero(iszero(v13))) {
             let v18 := p0
-            let t38 := mload(add(p0, 64))
-            let v19 := t38
-            let v32 := $std$lib$evm$memory_input$impl_trait$MemoryBytes$c1cd$word_at_63c2(v18, v19)
-            let v20 := v32
+            let t36 := mload(add(p0, 64))
+            let v19 := t36
+            let v31 := $std$lib$evm$memory_input$impl_trait$MemoryBytes$c1cd$word_at_63c2(v18, v19)
+            let v20 := v31
             let v3 := v20
             mstore(add(p0, 64), v2)
             ret := v3
@@ -9125,50 +9068,47 @@ object "CoolCoin" {
         let v22 := $std$lib$evm$memory_input$impl_trait$MemoryBytes$c1cd$len_7aa7(v4)
         let v5 := v22
         v1 := v5
-        let t34 := mload(add(p0, 64))
-        let v6 := t34
+        let t33 := mload(add(p0, 64))
+        let v6 := t33
         let v23 := 0x20
         let v7 := v23
-        let t35 := add(v6, v7)
-        if lt(t35, v6) {
+        let t34 := add(v6, v7)
+        if lt(t34, v6) {
           mstore(0, 0x4e487b7100000000000000000000000000000000000000000000000000000000)
           mstore(4, 0x11)
           revert(0, 36)
         }
-        let v24 := t35
+        let v24 := t34
         let v8 := v24
         v2 := v8
-        let t36 := mload(add(p0, 64))
-        let v25 := t36
-        mstore(add(p0, 64), v25)
-        let t37 := mload(add(p0, 64))
-        let v26 := t37
-        let v27 := iszero(iszero(lt(v2, v26)))
-        let v11 := iszero(iszero(v27))
+        let t35 := mload(add(p0, 64))
+        let v25 := t35
+        let v26 := iszero(iszero(lt(v2, v25)))
+        let v11 := iszero(iszero(v26))
         if iszero(iszero(v11)) {
+          let v27 := 0x00
+          let v14 := v27
           let v28 := 0x00
-          let v14 := v28
-          let v29 := 0x00
-          let v15 := v29
+          let v15 := v28
           revert(v14, v15)
         }
         if iszero(iszero(iszero(v11))) {
           let v12 := v1
-          let v33 := iszero(iszero(gt(v2, v12)))
-          let v13 := iszero(iszero(v33))
+          let v32 := iszero(iszero(gt(v2, v12)))
+          let v13 := iszero(iszero(v32))
           if iszero(iszero(v13)) {
+            let v27 := 0x00
+            let v14 := v27
             let v28 := 0x00
-            let v14 := v28
-            let v29 := 0x00
-            let v15 := v29
+            let v15 := v28
             revert(v14, v15)
           }
           if iszero(iszero(iszero(v13))) {
             let v18 := p0
-            let t38 := mload(add(p0, 64))
-            let v19 := t38
-            let v32 := $std$lib$evm$memory_input$impl_trait$MemoryBytes$c1cd$word_at_348a(v18, v19)
-            let v20 := v32
+            let t36 := mload(add(p0, 64))
+            let v19 := t36
+            let v31 := $std$lib$evm$memory_input$impl_trait$MemoryBytes$c1cd$word_at_348a(v18, v19)
+            let v20 := v31
             let v3 := v20
             mstore(add(p0, 64), v2)
             ret := v3
@@ -9183,50 +9123,47 @@ object "CoolCoin" {
         let v22 := $std$lib$evm$memory_input$impl_trait$MemoryBytes$c1cd$len_07fa(v4)
         let v5 := v22
         v1 := v5
-        let t34 := mload(add(p0, 64))
-        let v6 := t34
+        let t33 := mload(add(p0, 64))
+        let v6 := t33
         let v23 := 0x20
         let v7 := v23
-        let t35 := add(v6, v7)
-        if lt(t35, v6) {
+        let t34 := add(v6, v7)
+        if lt(t34, v6) {
           mstore(0, 0x4e487b7100000000000000000000000000000000000000000000000000000000)
           mstore(4, 0x11)
           revert(0, 36)
         }
-        let v24 := t35
+        let v24 := t34
         let v8 := v24
         v2 := v8
-        let t36 := mload(add(p0, 64))
-        let v25 := t36
-        mstore(add(p0, 64), v25)
-        let t37 := mload(add(p0, 64))
-        let v26 := t37
-        let v27 := iszero(iszero(lt(v2, v26)))
-        let v11 := iszero(iszero(v27))
+        let t35 := mload(add(p0, 64))
+        let v25 := t35
+        let v26 := iszero(iszero(lt(v2, v25)))
+        let v11 := iszero(iszero(v26))
         if iszero(iszero(v11)) {
+          let v27 := 0x00
+          let v14 := v27
           let v28 := 0x00
-          let v14 := v28
-          let v29 := 0x00
-          let v15 := v29
+          let v15 := v28
           revert(v14, v15)
         }
         if iszero(iszero(iszero(v11))) {
           let v12 := v1
-          let v33 := iszero(iszero(gt(v2, v12)))
-          let v13 := iszero(iszero(v33))
+          let v32 := iszero(iszero(gt(v2, v12)))
+          let v13 := iszero(iszero(v32))
           if iszero(iszero(v13)) {
+            let v27 := 0x00
+            let v14 := v27
             let v28 := 0x00
-            let v14 := v28
-            let v29 := 0x00
-            let v15 := v29
+            let v15 := v28
             revert(v14, v15)
           }
           if iszero(iszero(iszero(v13))) {
             let v18 := p0
-            let t38 := mload(add(p0, 64))
-            let v19 := t38
-            let v32 := $std$lib$evm$memory_input$impl_trait$MemoryBytes$c1cd$word_at_4b4e(v18, v19)
-            let v20 := v32
+            let t36 := mload(add(p0, 64))
+            let v19 := t36
+            let v31 := $std$lib$evm$memory_input$impl_trait$MemoryBytes$c1cd$word_at_4b4e(v18, v19)
+            let v20 := v31
             let v3 := v20
             mstore(add(p0, 64), v2)
             ret := v3
@@ -9241,50 +9178,47 @@ object "CoolCoin" {
         let v22 := $std$lib$evm$memory_input$impl_trait$MemoryBytes$c1cd$len_9e12(v4)
         let v5 := v22
         v1 := v5
-        let t34 := mload(add(p0, 64))
-        let v6 := t34
+        let t33 := mload(add(p0, 64))
+        let v6 := t33
         let v23 := 0x20
         let v7 := v23
-        let t35 := add(v6, v7)
-        if lt(t35, v6) {
+        let t34 := add(v6, v7)
+        if lt(t34, v6) {
           mstore(0, 0x4e487b7100000000000000000000000000000000000000000000000000000000)
           mstore(4, 0x11)
           revert(0, 36)
         }
-        let v24 := t35
+        let v24 := t34
         let v8 := v24
         v2 := v8
-        let t36 := mload(add(p0, 64))
-        let v25 := t36
-        mstore(add(p0, 64), v25)
-        let t37 := mload(add(p0, 64))
-        let v26 := t37
-        let v27 := iszero(iszero(lt(v2, v26)))
-        let v11 := iszero(iszero(v27))
+        let t35 := mload(add(p0, 64))
+        let v25 := t35
+        let v26 := iszero(iszero(lt(v2, v25)))
+        let v11 := iszero(iszero(v26))
         if iszero(iszero(v11)) {
+          let v27 := 0x00
+          let v14 := v27
           let v28 := 0x00
-          let v14 := v28
-          let v29 := 0x00
-          let v15 := v29
+          let v15 := v28
           revert(v14, v15)
         }
         if iszero(iszero(iszero(v11))) {
           let v12 := v1
-          let v33 := iszero(iszero(gt(v2, v12)))
-          let v13 := iszero(iszero(v33))
+          let v32 := iszero(iszero(gt(v2, v12)))
+          let v13 := iszero(iszero(v32))
           if iszero(iszero(v13)) {
+            let v27 := 0x00
+            let v14 := v27
             let v28 := 0x00
-            let v14 := v28
-            let v29 := 0x00
-            let v15 := v29
+            let v15 := v28
             revert(v14, v15)
           }
           if iszero(iszero(iszero(v13))) {
             let v18 := p0
-            let t38 := mload(add(p0, 64))
-            let v19 := t38
-            let v32 := $std$lib$evm$memory_input$impl_trait$MemoryBytes$c1cd$word_at_ece9(v18, v19)
-            let v20 := v32
+            let t36 := mload(add(p0, 64))
+            let v19 := t36
+            let v31 := $std$lib$evm$memory_input$impl_trait$MemoryBytes$c1cd$word_at_ece9(v18, v19)
+            let v20 := v31
             let v3 := v20
             mstore(add(p0, 64), v2)
             ret := v3
@@ -9299,50 +9233,47 @@ object "CoolCoin" {
         let v22 := $std$lib$evm$memory_input$impl_trait$MemoryBytes$c1cd$len_8f13(v4)
         let v5 := v22
         v1 := v5
-        let t34 := mload(add(p0, 64))
-        let v6 := t34
+        let t33 := mload(add(p0, 64))
+        let v6 := t33
         let v23 := 0x20
         let v7 := v23
-        let t35 := add(v6, v7)
-        if lt(t35, v6) {
+        let t34 := add(v6, v7)
+        if lt(t34, v6) {
           mstore(0, 0x4e487b7100000000000000000000000000000000000000000000000000000000)
           mstore(4, 0x11)
           revert(0, 36)
         }
-        let v24 := t35
+        let v24 := t34
         let v8 := v24
         v2 := v8
-        let t36 := mload(add(p0, 64))
-        let v25 := t36
-        mstore(add(p0, 64), v25)
-        let t37 := mload(add(p0, 64))
-        let v26 := t37
-        let v27 := iszero(iszero(lt(v2, v26)))
-        let v11 := iszero(iszero(v27))
+        let t35 := mload(add(p0, 64))
+        let v25 := t35
+        let v26 := iszero(iszero(lt(v2, v25)))
+        let v11 := iszero(iszero(v26))
         if iszero(iszero(v11)) {
+          let v27 := 0x00
+          let v14 := v27
           let v28 := 0x00
-          let v14 := v28
-          let v29 := 0x00
-          let v15 := v29
+          let v15 := v28
           revert(v14, v15)
         }
         if iszero(iszero(iszero(v11))) {
           let v12 := v1
-          let v33 := iszero(iszero(gt(v2, v12)))
-          let v13 := iszero(iszero(v33))
+          let v32 := iszero(iszero(gt(v2, v12)))
+          let v13 := iszero(iszero(v32))
           if iszero(iszero(v13)) {
+            let v27 := 0x00
+            let v14 := v27
             let v28 := 0x00
-            let v14 := v28
-            let v29 := 0x00
-            let v15 := v29
+            let v15 := v28
             revert(v14, v15)
           }
           if iszero(iszero(iszero(v13))) {
             let v18 := p0
-            let t38 := mload(add(p0, 64))
-            let v19 := t38
-            let v32 := $std$lib$evm$memory_input$impl_trait$MemoryBytes$c1cd$word_at_2fc3(v18, v19)
-            let v20 := v32
+            let t36 := mload(add(p0, 64))
+            let v19 := t36
+            let v31 := $std$lib$evm$memory_input$impl_trait$MemoryBytes$c1cd$word_at_2fc3(v18, v19)
+            let v20 := v31
             let v3 := v20
             mstore(add(p0, 64), v2)
             ret := v3
@@ -9357,50 +9288,47 @@ object "CoolCoin" {
         let v22 := $std$lib$evm$memory_input$impl_trait$MemoryBytes$c1cd$len_c5d0(v4)
         let v5 := v22
         v1 := v5
-        let t34 := mload(add(p0, 64))
-        let v6 := t34
+        let t33 := mload(add(p0, 64))
+        let v6 := t33
         let v23 := 0x20
         let v7 := v23
-        let t35 := add(v6, v7)
-        if lt(t35, v6) {
+        let t34 := add(v6, v7)
+        if lt(t34, v6) {
           mstore(0, 0x4e487b7100000000000000000000000000000000000000000000000000000000)
           mstore(4, 0x11)
           revert(0, 36)
         }
-        let v24 := t35
+        let v24 := t34
         let v8 := v24
         v2 := v8
-        let t36 := mload(add(p0, 64))
-        let v25 := t36
-        mstore(add(p0, 64), v25)
-        let t37 := mload(add(p0, 64))
-        let v26 := t37
-        let v27 := iszero(iszero(lt(v2, v26)))
-        let v11 := iszero(iszero(v27))
+        let t35 := mload(add(p0, 64))
+        let v25 := t35
+        let v26 := iszero(iszero(lt(v2, v25)))
+        let v11 := iszero(iszero(v26))
         if iszero(iszero(v11)) {
+          let v27 := 0x00
+          let v14 := v27
           let v28 := 0x00
-          let v14 := v28
-          let v29 := 0x00
-          let v15 := v29
+          let v15 := v28
           revert(v14, v15)
         }
         if iszero(iszero(iszero(v11))) {
           let v12 := v1
-          let v33 := iszero(iszero(gt(v2, v12)))
-          let v13 := iszero(iszero(v33))
+          let v32 := iszero(iszero(gt(v2, v12)))
+          let v13 := iszero(iszero(v32))
           if iszero(iszero(v13)) {
+            let v27 := 0x00
+            let v14 := v27
             let v28 := 0x00
-            let v14 := v28
-            let v29 := 0x00
-            let v15 := v29
+            let v15 := v28
             revert(v14, v15)
           }
           if iszero(iszero(iszero(v13))) {
             let v18 := p0
-            let t38 := mload(add(p0, 64))
-            let v19 := t38
-            let v32 := $std$lib$evm$memory_input$impl_trait$MemoryBytes$c1cd$word_at_6fee(v18, v19)
-            let v20 := v32
+            let t36 := mload(add(p0, 64))
+            let v19 := t36
+            let v31 := $std$lib$evm$memory_input$impl_trait$MemoryBytes$c1cd$word_at_6fee(v18, v19)
+            let v20 := v31
             let v3 := v20
             mstore(add(p0, 64), v2)
             ret := v3
@@ -9415,50 +9343,47 @@ object "CoolCoin" {
         let v22 := $std$lib$evm$memory_input$impl_trait$MemoryBytes$c1cd$len_5fa6(v4)
         let v5 := v22
         v1 := v5
-        let t34 := mload(add(p0, 64))
-        let v6 := t34
+        let t33 := mload(add(p0, 64))
+        let v6 := t33
         let v23 := 0x20
         let v7 := v23
-        let t35 := add(v6, v7)
-        if lt(t35, v6) {
+        let t34 := add(v6, v7)
+        if lt(t34, v6) {
           mstore(0, 0x4e487b7100000000000000000000000000000000000000000000000000000000)
           mstore(4, 0x11)
           revert(0, 36)
         }
-        let v24 := t35
+        let v24 := t34
         let v8 := v24
         v2 := v8
-        let t36 := mload(add(p0, 64))
-        let v25 := t36
-        mstore(add(p0, 64), v25)
-        let t37 := mload(add(p0, 64))
-        let v26 := t37
-        let v27 := iszero(iszero(lt(v2, v26)))
-        let v11 := iszero(iszero(v27))
+        let t35 := mload(add(p0, 64))
+        let v25 := t35
+        let v26 := iszero(iszero(lt(v2, v25)))
+        let v11 := iszero(iszero(v26))
         if iszero(iszero(v11)) {
+          let v27 := 0x00
+          let v14 := v27
           let v28 := 0x00
-          let v14 := v28
-          let v29 := 0x00
-          let v15 := v29
+          let v15 := v28
           revert(v14, v15)
         }
         if iszero(iszero(iszero(v11))) {
           let v12 := v1
-          let v33 := iszero(iszero(gt(v2, v12)))
-          let v13 := iszero(iszero(v33))
+          let v32 := iszero(iszero(gt(v2, v12)))
+          let v13 := iszero(iszero(v32))
           if iszero(iszero(v13)) {
+            let v27 := 0x00
+            let v14 := v27
             let v28 := 0x00
-            let v14 := v28
-            let v29 := 0x00
-            let v15 := v29
+            let v15 := v28
             revert(v14, v15)
           }
           if iszero(iszero(iszero(v13))) {
             let v18 := p0
-            let t38 := mload(add(p0, 64))
-            let v19 := t38
-            let v32 := $std$lib$evm$memory_input$impl_trait$MemoryBytes$c1cd$word_at_c1bd(v18, v19)
-            let v20 := v32
+            let t36 := mload(add(p0, 64))
+            let v19 := t36
+            let v31 := $std$lib$evm$memory_input$impl_trait$MemoryBytes$c1cd$word_at_c1bd(v18, v19)
+            let v20 := v31
             let v3 := v20
             mstore(add(p0, 64), v2)
             ret := v3
@@ -9473,50 +9398,47 @@ object "CoolCoin" {
         let v22 := $std$lib$evm$memory_input$impl_trait$MemoryBytes$c1cd$len_8379(v4)
         let v5 := v22
         v1 := v5
-        let t34 := mload(add(p0, 64))
-        let v6 := t34
+        let t33 := mload(add(p0, 64))
+        let v6 := t33
         let v23 := 0x20
         let v7 := v23
-        let t35 := add(v6, v7)
-        if lt(t35, v6) {
+        let t34 := add(v6, v7)
+        if lt(t34, v6) {
           mstore(0, 0x4e487b7100000000000000000000000000000000000000000000000000000000)
           mstore(4, 0x11)
           revert(0, 36)
         }
-        let v24 := t35
+        let v24 := t34
         let v8 := v24
         v2 := v8
-        let t36 := mload(add(p0, 64))
-        let v25 := t36
-        mstore(add(p0, 64), v25)
-        let t37 := mload(add(p0, 64))
-        let v26 := t37
-        let v27 := iszero(iszero(lt(v2, v26)))
-        let v11 := iszero(iszero(v27))
+        let t35 := mload(add(p0, 64))
+        let v25 := t35
+        let v26 := iszero(iszero(lt(v2, v25)))
+        let v11 := iszero(iszero(v26))
         if iszero(iszero(v11)) {
+          let v27 := 0x00
+          let v14 := v27
           let v28 := 0x00
-          let v14 := v28
-          let v29 := 0x00
-          let v15 := v29
+          let v15 := v28
           revert(v14, v15)
         }
         if iszero(iszero(iszero(v11))) {
           let v12 := v1
-          let v33 := iszero(iszero(gt(v2, v12)))
-          let v13 := iszero(iszero(v33))
+          let v32 := iszero(iszero(gt(v2, v12)))
+          let v13 := iszero(iszero(v32))
           if iszero(iszero(v13)) {
+            let v27 := 0x00
+            let v14 := v27
             let v28 := 0x00
-            let v14 := v28
-            let v29 := 0x00
-            let v15 := v29
+            let v15 := v28
             revert(v14, v15)
           }
           if iszero(iszero(iszero(v13))) {
             let v18 := p0
-            let t38 := mload(add(p0, 64))
-            let v19 := t38
-            let v32 := $std$lib$evm$memory_input$impl_trait$MemoryBytes$c1cd$word_at_2cc5(v18, v19)
-            let v20 := v32
+            let t36 := mload(add(p0, 64))
+            let v19 := t36
+            let v31 := $std$lib$evm$memory_input$impl_trait$MemoryBytes$c1cd$word_at_2cc5(v18, v19)
+            let v20 := v31
             let v3 := v20
             mstore(add(p0, 64), v2)
             ret := v3
@@ -9531,50 +9453,47 @@ object "CoolCoin" {
         let v22 := $std$lib$evm$memory_input$impl_trait$MemoryBytes$c1cd$len_1af2(v4)
         let v5 := v22
         v1 := v5
-        let t34 := mload(add(p0, 64))
-        let v6 := t34
+        let t33 := mload(add(p0, 64))
+        let v6 := t33
         let v23 := 0x20
         let v7 := v23
-        let t35 := add(v6, v7)
-        if lt(t35, v6) {
+        let t34 := add(v6, v7)
+        if lt(t34, v6) {
           mstore(0, 0x4e487b7100000000000000000000000000000000000000000000000000000000)
           mstore(4, 0x11)
           revert(0, 36)
         }
-        let v24 := t35
+        let v24 := t34
         let v8 := v24
         v2 := v8
-        let t36 := mload(add(p0, 64))
-        let v25 := t36
-        mstore(add(p0, 64), v25)
-        let t37 := mload(add(p0, 64))
-        let v26 := t37
-        let v27 := iszero(iszero(lt(v2, v26)))
-        let v11 := iszero(iszero(v27))
+        let t35 := mload(add(p0, 64))
+        let v25 := t35
+        let v26 := iszero(iszero(lt(v2, v25)))
+        let v11 := iszero(iszero(v26))
         if iszero(iszero(v11)) {
+          let v27 := 0x00
+          let v14 := v27
           let v28 := 0x00
-          let v14 := v28
-          let v29 := 0x00
-          let v15 := v29
+          let v15 := v28
           revert(v14, v15)
         }
         if iszero(iszero(iszero(v11))) {
           let v12 := v1
-          let v33 := iszero(iszero(gt(v2, v12)))
-          let v13 := iszero(iszero(v33))
+          let v32 := iszero(iszero(gt(v2, v12)))
+          let v13 := iszero(iszero(v32))
           if iszero(iszero(v13)) {
+            let v27 := 0x00
+            let v14 := v27
             let v28 := 0x00
-            let v14 := v28
-            let v29 := 0x00
-            let v15 := v29
+            let v15 := v28
             revert(v14, v15)
           }
           if iszero(iszero(iszero(v13))) {
             let v18 := p0
-            let t38 := mload(add(p0, 64))
-            let v19 := t38
-            let v32 := $std$lib$evm$memory_input$impl_trait$MemoryBytes$c1cd$word_at_7f9b(v18, v19)
-            let v20 := v32
+            let t36 := mload(add(p0, 64))
+            let v19 := t36
+            let v31 := $std$lib$evm$memory_input$impl_trait$MemoryBytes$c1cd$word_at_7f9b(v18, v19)
+            let v20 := v31
             let v3 := v20
             mstore(add(p0, 64), v2)
             ret := v3
@@ -9589,50 +9508,47 @@ object "CoolCoin" {
         let v22 := $std$lib$evm$memory_input$impl_trait$MemoryBytes$c1cd$len_af05(v4)
         let v5 := v22
         v1 := v5
-        let t34 := mload(add(p0, 64))
-        let v6 := t34
+        let t33 := mload(add(p0, 64))
+        let v6 := t33
         let v23 := 0x20
         let v7 := v23
-        let t35 := add(v6, v7)
-        if lt(t35, v6) {
+        let t34 := add(v6, v7)
+        if lt(t34, v6) {
           mstore(0, 0x4e487b7100000000000000000000000000000000000000000000000000000000)
           mstore(4, 0x11)
           revert(0, 36)
         }
-        let v24 := t35
+        let v24 := t34
         let v8 := v24
         v2 := v8
-        let t36 := mload(add(p0, 64))
-        let v25 := t36
-        mstore(add(p0, 64), v25)
-        let t37 := mload(add(p0, 64))
-        let v26 := t37
-        let v27 := iszero(iszero(lt(v2, v26)))
-        let v11 := iszero(iszero(v27))
+        let t35 := mload(add(p0, 64))
+        let v25 := t35
+        let v26 := iszero(iszero(lt(v2, v25)))
+        let v11 := iszero(iszero(v26))
         if iszero(iszero(v11)) {
+          let v27 := 0x00
+          let v14 := v27
           let v28 := 0x00
-          let v14 := v28
-          let v29 := 0x00
-          let v15 := v29
+          let v15 := v28
           revert(v14, v15)
         }
         if iszero(iszero(iszero(v11))) {
           let v12 := v1
-          let v33 := iszero(iszero(gt(v2, v12)))
-          let v13 := iszero(iszero(v33))
+          let v32 := iszero(iszero(gt(v2, v12)))
+          let v13 := iszero(iszero(v32))
           if iszero(iszero(v13)) {
+            let v27 := 0x00
+            let v14 := v27
             let v28 := 0x00
-            let v14 := v28
-            let v29 := 0x00
-            let v15 := v29
+            let v15 := v28
             revert(v14, v15)
           }
           if iszero(iszero(iszero(v13))) {
             let v18 := p0
-            let t38 := mload(add(p0, 64))
-            let v19 := t38
-            let v32 := $std$lib$evm$memory_input$impl_trait$MemoryBytes$c1cd$word_at_091f(v18, v19)
-            let v20 := v32
+            let t36 := mload(add(p0, 64))
+            let v19 := t36
+            let v31 := $std$lib$evm$memory_input$impl_trait$MemoryBytes$c1cd$word_at_091f(v18, v19)
+            let v20 := v31
             let v3 := v20
             mstore(add(p0, 64), v2)
             ret := v3
@@ -9647,50 +9563,47 @@ object "CoolCoin" {
         let v22 := $std$lib$evm$memory_input$impl_trait$MemoryBytes$c1cd$len_10c2(v4)
         let v5 := v22
         v1 := v5
-        let t34 := mload(add(p0, 64))
-        let v6 := t34
+        let t33 := mload(add(p0, 64))
+        let v6 := t33
         let v23 := 0x20
         let v7 := v23
-        let t35 := add(v6, v7)
-        if lt(t35, v6) {
+        let t34 := add(v6, v7)
+        if lt(t34, v6) {
           mstore(0, 0x4e487b7100000000000000000000000000000000000000000000000000000000)
           mstore(4, 0x11)
           revert(0, 36)
         }
-        let v24 := t35
+        let v24 := t34
         let v8 := v24
         v2 := v8
-        let t36 := mload(add(p0, 64))
-        let v25 := t36
-        mstore(add(p0, 64), v25)
-        let t37 := mload(add(p0, 64))
-        let v26 := t37
-        let v27 := iszero(iszero(lt(v2, v26)))
-        let v11 := iszero(iszero(v27))
+        let t35 := mload(add(p0, 64))
+        let v25 := t35
+        let v26 := iszero(iszero(lt(v2, v25)))
+        let v11 := iszero(iszero(v26))
         if iszero(iszero(v11)) {
+          let v27 := 0x00
+          let v14 := v27
           let v28 := 0x00
-          let v14 := v28
-          let v29 := 0x00
-          let v15 := v29
+          let v15 := v28
           revert(v14, v15)
         }
         if iszero(iszero(iszero(v11))) {
           let v12 := v1
-          let v33 := iszero(iszero(gt(v2, v12)))
-          let v13 := iszero(iszero(v33))
+          let v32 := iszero(iszero(gt(v2, v12)))
+          let v13 := iszero(iszero(v32))
           if iszero(iszero(v13)) {
+            let v27 := 0x00
+            let v14 := v27
             let v28 := 0x00
-            let v14 := v28
-            let v29 := 0x00
-            let v15 := v29
+            let v15 := v28
             revert(v14, v15)
           }
           if iszero(iszero(iszero(v13))) {
             let v18 := p0
-            let t38 := mload(add(p0, 64))
-            let v19 := t38
-            let v32 := $std$lib$evm$memory_input$impl_trait$MemoryBytes$c1cd$word_at_aab1(v18, v19)
-            let v20 := v32
+            let t36 := mload(add(p0, 64))
+            let v19 := t36
+            let v31 := $std$lib$evm$memory_input$impl_trait$MemoryBytes$c1cd$word_at_aab1(v18, v19)
+            let v20 := v31
             let v3 := v20
             mstore(add(p0, 64), v2)
             ret := v3
@@ -9705,50 +9618,47 @@ object "CoolCoin" {
         let v22 := $std$lib$evm$memory_input$impl_trait$MemoryBytes$c1cd$len_6679(v4)
         let v5 := v22
         v1 := v5
-        let t34 := mload(add(p0, 64))
-        let v6 := t34
+        let t33 := mload(add(p0, 64))
+        let v6 := t33
         let v23 := 0x20
         let v7 := v23
-        let t35 := add(v6, v7)
-        if lt(t35, v6) {
+        let t34 := add(v6, v7)
+        if lt(t34, v6) {
           mstore(0, 0x4e487b7100000000000000000000000000000000000000000000000000000000)
           mstore(4, 0x11)
           revert(0, 36)
         }
-        let v24 := t35
+        let v24 := t34
         let v8 := v24
         v2 := v8
-        let t36 := mload(add(p0, 64))
-        let v25 := t36
-        mstore(add(p0, 64), v25)
-        let t37 := mload(add(p0, 64))
-        let v26 := t37
-        let v27 := iszero(iszero(lt(v2, v26)))
-        let v11 := iszero(iszero(v27))
+        let t35 := mload(add(p0, 64))
+        let v25 := t35
+        let v26 := iszero(iszero(lt(v2, v25)))
+        let v11 := iszero(iszero(v26))
         if iszero(iszero(v11)) {
+          let v27 := 0x00
+          let v14 := v27
           let v28 := 0x00
-          let v14 := v28
-          let v29 := 0x00
-          let v15 := v29
+          let v15 := v28
           revert(v14, v15)
         }
         if iszero(iszero(iszero(v11))) {
           let v12 := v1
-          let v33 := iszero(iszero(gt(v2, v12)))
-          let v13 := iszero(iszero(v33))
+          let v32 := iszero(iszero(gt(v2, v12)))
+          let v13 := iszero(iszero(v32))
           if iszero(iszero(v13)) {
+            let v27 := 0x00
+            let v14 := v27
             let v28 := 0x00
-            let v14 := v28
-            let v29 := 0x00
-            let v15 := v29
+            let v15 := v28
             revert(v14, v15)
           }
           if iszero(iszero(iszero(v13))) {
             let v18 := p0
-            let t38 := mload(add(p0, 64))
-            let v19 := t38
-            let v32 := $std$lib$evm$memory_input$impl_trait$MemoryBytes$c1cd$word_at_8e1e(v18, v19)
-            let v20 := v32
+            let t36 := mload(add(p0, 64))
+            let v19 := t36
+            let v31 := $std$lib$evm$memory_input$impl_trait$MemoryBytes$c1cd$word_at_8e1e(v18, v19)
+            let v20 := v31
             let v3 := v20
             mstore(add(p0, 64), v2)
             ret := v3
@@ -9763,50 +9673,47 @@ object "CoolCoin" {
         let v22 := $std$lib$evm$memory_input$impl_trait$MemoryBytes$c1cd$len_7c3a(v4)
         let v5 := v22
         v1 := v5
-        let t34 := mload(add(p0, 64))
-        let v6 := t34
+        let t33 := mload(add(p0, 64))
+        let v6 := t33
         let v23 := 0x20
         let v7 := v23
-        let t35 := add(v6, v7)
-        if lt(t35, v6) {
+        let t34 := add(v6, v7)
+        if lt(t34, v6) {
           mstore(0, 0x4e487b7100000000000000000000000000000000000000000000000000000000)
           mstore(4, 0x11)
           revert(0, 36)
         }
-        let v24 := t35
+        let v24 := t34
         let v8 := v24
         v2 := v8
-        let t36 := mload(add(p0, 64))
-        let v25 := t36
-        mstore(add(p0, 64), v25)
-        let t37 := mload(add(p0, 64))
-        let v26 := t37
-        let v27 := iszero(iszero(lt(v2, v26)))
-        let v11 := iszero(iszero(v27))
+        let t35 := mload(add(p0, 64))
+        let v25 := t35
+        let v26 := iszero(iszero(lt(v2, v25)))
+        let v11 := iszero(iszero(v26))
         if iszero(iszero(v11)) {
+          let v27 := 0x00
+          let v14 := v27
           let v28 := 0x00
-          let v14 := v28
-          let v29 := 0x00
-          let v15 := v29
+          let v15 := v28
           revert(v14, v15)
         }
         if iszero(iszero(iszero(v11))) {
           let v12 := v1
-          let v33 := iszero(iszero(gt(v2, v12)))
-          let v13 := iszero(iszero(v33))
+          let v32 := iszero(iszero(gt(v2, v12)))
+          let v13 := iszero(iszero(v32))
           if iszero(iszero(v13)) {
+            let v27 := 0x00
+            let v14 := v27
             let v28 := 0x00
-            let v14 := v28
-            let v29 := 0x00
-            let v15 := v29
+            let v15 := v28
             revert(v14, v15)
           }
           if iszero(iszero(iszero(v13))) {
             let v18 := p0
-            let t38 := mload(add(p0, 64))
-            let v19 := t38
-            let v32 := $std$lib$evm$memory_input$impl_trait$MemoryBytes$c1cd$word_at_0ddd(v18, v19)
-            let v20 := v32
+            let t36 := mload(add(p0, 64))
+            let v19 := t36
+            let v31 := $std$lib$evm$memory_input$impl_trait$MemoryBytes$c1cd$word_at_0ddd(v18, v19)
+            let v20 := v31
             let v3 := v20
             mstore(add(p0, 64), v2)
             ret := v3
@@ -9821,50 +9728,47 @@ object "CoolCoin" {
         let v22 := $std$lib$evm$memory_input$impl_trait$MemoryBytes$c1cd$len_a6d8(v4)
         let v5 := v22
         v1 := v5
-        let t34 := mload(add(p0, 64))
-        let v6 := t34
+        let t33 := mload(add(p0, 64))
+        let v6 := t33
         let v23 := 0x20
         let v7 := v23
-        let t35 := add(v6, v7)
-        if lt(t35, v6) {
+        let t34 := add(v6, v7)
+        if lt(t34, v6) {
           mstore(0, 0x4e487b7100000000000000000000000000000000000000000000000000000000)
           mstore(4, 0x11)
           revert(0, 36)
         }
-        let v24 := t35
+        let v24 := t34
         let v8 := v24
         v2 := v8
-        let t36 := mload(add(p0, 64))
-        let v25 := t36
-        mstore(add(p0, 64), v25)
-        let t37 := mload(add(p0, 64))
-        let v26 := t37
-        let v27 := iszero(iszero(lt(v2, v26)))
-        let v11 := iszero(iszero(v27))
+        let t35 := mload(add(p0, 64))
+        let v25 := t35
+        let v26 := iszero(iszero(lt(v2, v25)))
+        let v11 := iszero(iszero(v26))
         if iszero(iszero(v11)) {
+          let v27 := 0x00
+          let v14 := v27
           let v28 := 0x00
-          let v14 := v28
-          let v29 := 0x00
-          let v15 := v29
+          let v15 := v28
           revert(v14, v15)
         }
         if iszero(iszero(iszero(v11))) {
           let v12 := v1
-          let v33 := iszero(iszero(gt(v2, v12)))
-          let v13 := iszero(iszero(v33))
+          let v32 := iszero(iszero(gt(v2, v12)))
+          let v13 := iszero(iszero(v32))
           if iszero(iszero(v13)) {
+            let v27 := 0x00
+            let v14 := v27
             let v28 := 0x00
-            let v14 := v28
-            let v29 := 0x00
-            let v15 := v29
+            let v15 := v28
             revert(v14, v15)
           }
           if iszero(iszero(iszero(v13))) {
             let v18 := p0
-            let t38 := mload(add(p0, 64))
-            let v19 := t38
-            let v32 := $std$lib$evm$memory_input$impl_trait$MemoryBytes$c1cd$word_at_de6a(v18, v19)
-            let v20 := v32
+            let t36 := mload(add(p0, 64))
+            let v19 := t36
+            let v31 := $std$lib$evm$memory_input$impl_trait$MemoryBytes$c1cd$word_at_de6a(v18, v19)
+            let v20 := v31
             let v3 := v20
             mstore(add(p0, 64), v2)
             ret := v3
@@ -9879,50 +9783,47 @@ object "CoolCoin" {
         let v22 := $std$lib$evm$memory_input$impl_trait$MemoryBytes$c1cd$len_8ee6(v4)
         let v5 := v22
         v1 := v5
-        let t34 := mload(add(p0, 64))
-        let v6 := t34
+        let t33 := mload(add(p0, 64))
+        let v6 := t33
         let v23 := 0x20
         let v7 := v23
-        let t35 := add(v6, v7)
-        if lt(t35, v6) {
+        let t34 := add(v6, v7)
+        if lt(t34, v6) {
           mstore(0, 0x4e487b7100000000000000000000000000000000000000000000000000000000)
           mstore(4, 0x11)
           revert(0, 36)
         }
-        let v24 := t35
+        let v24 := t34
         let v8 := v24
         v2 := v8
-        let t36 := mload(add(p0, 64))
-        let v25 := t36
-        mstore(add(p0, 64), v25)
-        let t37 := mload(add(p0, 64))
-        let v26 := t37
-        let v27 := iszero(iszero(lt(v2, v26)))
-        let v11 := iszero(iszero(v27))
+        let t35 := mload(add(p0, 64))
+        let v25 := t35
+        let v26 := iszero(iszero(lt(v2, v25)))
+        let v11 := iszero(iszero(v26))
         if iszero(iszero(v11)) {
+          let v27 := 0x00
+          let v14 := v27
           let v28 := 0x00
-          let v14 := v28
-          let v29 := 0x00
-          let v15 := v29
+          let v15 := v28
           revert(v14, v15)
         }
         if iszero(iszero(iszero(v11))) {
           let v12 := v1
-          let v33 := iszero(iszero(gt(v2, v12)))
-          let v13 := iszero(iszero(v33))
+          let v32 := iszero(iszero(gt(v2, v12)))
+          let v13 := iszero(iszero(v32))
           if iszero(iszero(v13)) {
+            let v27 := 0x00
+            let v14 := v27
             let v28 := 0x00
-            let v14 := v28
-            let v29 := 0x00
-            let v15 := v29
+            let v15 := v28
             revert(v14, v15)
           }
           if iszero(iszero(iszero(v13))) {
             let v18 := p0
-            let t38 := mload(add(p0, 64))
-            let v19 := t38
-            let v32 := $std$lib$evm$memory_input$impl_trait$MemoryBytes$c1cd$word_at_142c(v18, v19)
-            let v20 := v32
+            let t36 := mload(add(p0, 64))
+            let v19 := t36
+            let v31 := $std$lib$evm$memory_input$impl_trait$MemoryBytes$c1cd$word_at_142c(v18, v19)
+            let v20 := v31
             let v3 := v20
             mstore(add(p0, 64), v2)
             ret := v3
@@ -9937,50 +9838,47 @@ object "CoolCoin" {
         let v22 := $std$lib$evm$memory_input$impl_trait$MemoryBytes$c1cd$len_cf02(v4)
         let v5 := v22
         v1 := v5
-        let t34 := mload(add(p0, 64))
-        let v6 := t34
+        let t33 := mload(add(p0, 64))
+        let v6 := t33
         let v23 := 0x20
         let v7 := v23
-        let t35 := add(v6, v7)
-        if lt(t35, v6) {
+        let t34 := add(v6, v7)
+        if lt(t34, v6) {
           mstore(0, 0x4e487b7100000000000000000000000000000000000000000000000000000000)
           mstore(4, 0x11)
           revert(0, 36)
         }
-        let v24 := t35
+        let v24 := t34
         let v8 := v24
         v2 := v8
-        let t36 := mload(add(p0, 64))
-        let v25 := t36
-        mstore(add(p0, 64), v25)
-        let t37 := mload(add(p0, 64))
-        let v26 := t37
-        let v27 := iszero(iszero(lt(v2, v26)))
-        let v11 := iszero(iszero(v27))
+        let t35 := mload(add(p0, 64))
+        let v25 := t35
+        let v26 := iszero(iszero(lt(v2, v25)))
+        let v11 := iszero(iszero(v26))
         if iszero(iszero(v11)) {
+          let v27 := 0x00
+          let v14 := v27
           let v28 := 0x00
-          let v14 := v28
-          let v29 := 0x00
-          let v15 := v29
+          let v15 := v28
           revert(v14, v15)
         }
         if iszero(iszero(iszero(v11))) {
           let v12 := v1
-          let v33 := iszero(iszero(gt(v2, v12)))
-          let v13 := iszero(iszero(v33))
+          let v32 := iszero(iszero(gt(v2, v12)))
+          let v13 := iszero(iszero(v32))
           if iszero(iszero(v13)) {
+            let v27 := 0x00
+            let v14 := v27
             let v28 := 0x00
-            let v14 := v28
-            let v29 := 0x00
-            let v15 := v29
+            let v15 := v28
             revert(v14, v15)
           }
           if iszero(iszero(iszero(v13))) {
             let v18 := p0
-            let t38 := mload(add(p0, 64))
-            let v19 := t38
-            let v32 := $std$lib$evm$memory_input$impl_trait$MemoryBytes$c1cd$word_at_f768(v18, v19)
-            let v20 := v32
+            let t36 := mload(add(p0, 64))
+            let v19 := t36
+            let v31 := $std$lib$evm$memory_input$impl_trait$MemoryBytes$c1cd$word_at_f768(v18, v19)
+            let v20 := v31
             let v3 := v20
             mstore(add(p0, 64), v2)
             ret := v3
@@ -9995,50 +9893,47 @@ object "CoolCoin" {
         let v22 := $std$lib$evm$memory_input$impl_trait$MemoryBytes$c1cd$len_5b55(v4)
         let v5 := v22
         v1 := v5
-        let t34 := mload(add(p0, 64))
-        let v6 := t34
+        let t33 := mload(add(p0, 64))
+        let v6 := t33
         let v23 := 0x20
         let v7 := v23
-        let t35 := add(v6, v7)
-        if lt(t35, v6) {
+        let t34 := add(v6, v7)
+        if lt(t34, v6) {
           mstore(0, 0x4e487b7100000000000000000000000000000000000000000000000000000000)
           mstore(4, 0x11)
           revert(0, 36)
         }
-        let v24 := t35
+        let v24 := t34
         let v8 := v24
         v2 := v8
-        let t36 := mload(add(p0, 64))
-        let v25 := t36
-        mstore(add(p0, 64), v25)
-        let t37 := mload(add(p0, 64))
-        let v26 := t37
-        let v27 := iszero(iszero(lt(v2, v26)))
-        let v11 := iszero(iszero(v27))
+        let t35 := mload(add(p0, 64))
+        let v25 := t35
+        let v26 := iszero(iszero(lt(v2, v25)))
+        let v11 := iszero(iszero(v26))
         if iszero(iszero(v11)) {
+          let v27 := 0x00
+          let v14 := v27
           let v28 := 0x00
-          let v14 := v28
-          let v29 := 0x00
-          let v15 := v29
+          let v15 := v28
           revert(v14, v15)
         }
         if iszero(iszero(iszero(v11))) {
           let v12 := v1
-          let v33 := iszero(iszero(gt(v2, v12)))
-          let v13 := iszero(iszero(v33))
+          let v32 := iszero(iszero(gt(v2, v12)))
+          let v13 := iszero(iszero(v32))
           if iszero(iszero(v13)) {
+            let v27 := 0x00
+            let v14 := v27
             let v28 := 0x00
-            let v14 := v28
-            let v29 := 0x00
-            let v15 := v29
+            let v15 := v28
             revert(v14, v15)
           }
           if iszero(iszero(iszero(v13))) {
             let v18 := p0
-            let t38 := mload(add(p0, 64))
-            let v19 := t38
-            let v32 := $std$lib$evm$memory_input$impl_trait$MemoryBytes$c1cd$word_at_a988(v18, v19)
-            let v20 := v32
+            let t36 := mload(add(p0, 64))
+            let v19 := t36
+            let v31 := $std$lib$evm$memory_input$impl_trait$MemoryBytes$c1cd$word_at_a988(v18, v19)
+            let v20 := v31
             let v3 := v20
             mstore(add(p0, 64), v2)
             ret := v3
@@ -10053,50 +9948,47 @@ object "CoolCoin" {
         let v22 := $std$lib$evm$memory_input$impl_trait$MemoryBytes$c1cd$len_c5ca(v4)
         let v5 := v22
         v1 := v5
-        let t34 := mload(add(p0, 64))
-        let v6 := t34
+        let t33 := mload(add(p0, 64))
+        let v6 := t33
         let v23 := 0x20
         let v7 := v23
-        let t35 := add(v6, v7)
-        if lt(t35, v6) {
+        let t34 := add(v6, v7)
+        if lt(t34, v6) {
           mstore(0, 0x4e487b7100000000000000000000000000000000000000000000000000000000)
           mstore(4, 0x11)
           revert(0, 36)
         }
-        let v24 := t35
+        let v24 := t34
         let v8 := v24
         v2 := v8
-        let t36 := mload(add(p0, 64))
-        let v25 := t36
-        mstore(add(p0, 64), v25)
-        let t37 := mload(add(p0, 64))
-        let v26 := t37
-        let v27 := iszero(iszero(lt(v2, v26)))
-        let v11 := iszero(iszero(v27))
+        let t35 := mload(add(p0, 64))
+        let v25 := t35
+        let v26 := iszero(iszero(lt(v2, v25)))
+        let v11 := iszero(iszero(v26))
         if iszero(iszero(v11)) {
+          let v27 := 0x00
+          let v14 := v27
           let v28 := 0x00
-          let v14 := v28
-          let v29 := 0x00
-          let v15 := v29
+          let v15 := v28
           revert(v14, v15)
         }
         if iszero(iszero(iszero(v11))) {
           let v12 := v1
-          let v33 := iszero(iszero(gt(v2, v12)))
-          let v13 := iszero(iszero(v33))
+          let v32 := iszero(iszero(gt(v2, v12)))
+          let v13 := iszero(iszero(v32))
           if iszero(iszero(v13)) {
+            let v27 := 0x00
+            let v14 := v27
             let v28 := 0x00
-            let v14 := v28
-            let v29 := 0x00
-            let v15 := v29
+            let v15 := v28
             revert(v14, v15)
           }
           if iszero(iszero(iszero(v13))) {
             let v18 := p0
-            let t38 := mload(add(p0, 64))
-            let v19 := t38
-            let v32 := $std$lib$evm$memory_input$impl_trait$MemoryBytes$c1cd$word_at_3283(v18, v19)
-            let v20 := v32
+            let t36 := mload(add(p0, 64))
+            let v19 := t36
+            let v31 := $std$lib$evm$memory_input$impl_trait$MemoryBytes$c1cd$word_at_3283(v18, v19)
+            let v20 := v31
             let v3 := v20
             mstore(add(p0, 64), v2)
             ret := v3
@@ -10111,50 +10003,47 @@ object "CoolCoin" {
         let v22 := $std$lib$evm$memory_input$impl_trait$MemoryBytes$c1cd$len_98ab(v4)
         let v5 := v22
         v1 := v5
-        let t34 := mload(add(p0, 64))
-        let v6 := t34
+        let t33 := mload(add(p0, 64))
+        let v6 := t33
         let v23 := 0x20
         let v7 := v23
-        let t35 := add(v6, v7)
-        if lt(t35, v6) {
+        let t34 := add(v6, v7)
+        if lt(t34, v6) {
           mstore(0, 0x4e487b7100000000000000000000000000000000000000000000000000000000)
           mstore(4, 0x11)
           revert(0, 36)
         }
-        let v24 := t35
+        let v24 := t34
         let v8 := v24
         v2 := v8
-        let t36 := mload(add(p0, 64))
-        let v25 := t36
-        mstore(add(p0, 64), v25)
-        let t37 := mload(add(p0, 64))
-        let v26 := t37
-        let v27 := iszero(iszero(lt(v2, v26)))
-        let v11 := iszero(iszero(v27))
+        let t35 := mload(add(p0, 64))
+        let v25 := t35
+        let v26 := iszero(iszero(lt(v2, v25)))
+        let v11 := iszero(iszero(v26))
         if iszero(iszero(v11)) {
+          let v27 := 0x00
+          let v14 := v27
           let v28 := 0x00
-          let v14 := v28
-          let v29 := 0x00
-          let v15 := v29
+          let v15 := v28
           revert(v14, v15)
         }
         if iszero(iszero(iszero(v11))) {
           let v12 := v1
-          let v33 := iszero(iszero(gt(v2, v12)))
-          let v13 := iszero(iszero(v33))
+          let v32 := iszero(iszero(gt(v2, v12)))
+          let v13 := iszero(iszero(v32))
           if iszero(iszero(v13)) {
+            let v27 := 0x00
+            let v14 := v27
             let v28 := 0x00
-            let v14 := v28
-            let v29 := 0x00
-            let v15 := v29
+            let v15 := v28
             revert(v14, v15)
           }
           if iszero(iszero(iszero(v13))) {
             let v18 := p0
-            let t38 := mload(add(p0, 64))
-            let v19 := t38
-            let v32 := $std$lib$evm$memory_input$impl_trait$MemoryBytes$c1cd$word_at_8ac3(v18, v19)
-            let v20 := v32
+            let t36 := mload(add(p0, 64))
+            let v19 := t36
+            let v31 := $std$lib$evm$memory_input$impl_trait$MemoryBytes$c1cd$word_at_8ac3(v18, v19)
+            let v20 := v31
             let v3 := v20
             mstore(add(p0, 64), v2)
             ret := v3
@@ -10169,50 +10058,47 @@ object "CoolCoin" {
         let v22 := $std$lib$evm$memory_input$impl_trait$MemoryBytes$c1cd$len_4f68(v4)
         let v5 := v22
         v1 := v5
-        let t34 := mload(add(p0, 64))
-        let v6 := t34
+        let t33 := mload(add(p0, 64))
+        let v6 := t33
         let v23 := 0x20
         let v7 := v23
-        let t35 := add(v6, v7)
-        if lt(t35, v6) {
+        let t34 := add(v6, v7)
+        if lt(t34, v6) {
           mstore(0, 0x4e487b7100000000000000000000000000000000000000000000000000000000)
           mstore(4, 0x11)
           revert(0, 36)
         }
-        let v24 := t35
+        let v24 := t34
         let v8 := v24
         v2 := v8
-        let t36 := mload(add(p0, 64))
-        let v25 := t36
-        mstore(add(p0, 64), v25)
-        let t37 := mload(add(p0, 64))
-        let v26 := t37
-        let v27 := iszero(iszero(lt(v2, v26)))
-        let v11 := iszero(iszero(v27))
+        let t35 := mload(add(p0, 64))
+        let v25 := t35
+        let v26 := iszero(iszero(lt(v2, v25)))
+        let v11 := iszero(iszero(v26))
         if iszero(iszero(v11)) {
+          let v27 := 0x00
+          let v14 := v27
           let v28 := 0x00
-          let v14 := v28
-          let v29 := 0x00
-          let v15 := v29
+          let v15 := v28
           revert(v14, v15)
         }
         if iszero(iszero(iszero(v11))) {
           let v12 := v1
-          let v33 := iszero(iszero(gt(v2, v12)))
-          let v13 := iszero(iszero(v33))
+          let v32 := iszero(iszero(gt(v2, v12)))
+          let v13 := iszero(iszero(v32))
           if iszero(iszero(v13)) {
+            let v27 := 0x00
+            let v14 := v27
             let v28 := 0x00
-            let v14 := v28
-            let v29 := 0x00
-            let v15 := v29
+            let v15 := v28
             revert(v14, v15)
           }
           if iszero(iszero(iszero(v13))) {
             let v18 := p0
-            let t38 := mload(add(p0, 64))
-            let v19 := t38
-            let v32 := $std$lib$evm$memory_input$impl_trait$MemoryBytes$c1cd$word_at_9d5e(v18, v19)
-            let v20 := v32
+            let t36 := mload(add(p0, 64))
+            let v19 := t36
+            let v31 := $std$lib$evm$memory_input$impl_trait$MemoryBytes$c1cd$word_at_9d5e(v18, v19)
+            let v20 := v31
             let v3 := v20
             mstore(add(p0, 64), v2)
             ret := v3
@@ -10227,50 +10113,47 @@ object "CoolCoin" {
         let v22 := $std$lib$evm$memory_input$impl_trait$MemoryBytes$c1cd$len_6e05(v4)
         let v5 := v22
         v1 := v5
-        let t34 := mload(add(p0, 64))
-        let v6 := t34
+        let t33 := mload(add(p0, 64))
+        let v6 := t33
         let v23 := 0x20
         let v7 := v23
-        let t35 := add(v6, v7)
-        if lt(t35, v6) {
+        let t34 := add(v6, v7)
+        if lt(t34, v6) {
           mstore(0, 0x4e487b7100000000000000000000000000000000000000000000000000000000)
           mstore(4, 0x11)
           revert(0, 36)
         }
-        let v24 := t35
+        let v24 := t34
         let v8 := v24
         v2 := v8
-        let t36 := mload(add(p0, 64))
-        let v25 := t36
-        mstore(add(p0, 64), v25)
-        let t37 := mload(add(p0, 64))
-        let v26 := t37
-        let v27 := iszero(iszero(lt(v2, v26)))
-        let v11 := iszero(iszero(v27))
+        let t35 := mload(add(p0, 64))
+        let v25 := t35
+        let v26 := iszero(iszero(lt(v2, v25)))
+        let v11 := iszero(iszero(v26))
         if iszero(iszero(v11)) {
+          let v27 := 0x00
+          let v14 := v27
           let v28 := 0x00
-          let v14 := v28
-          let v29 := 0x00
-          let v15 := v29
+          let v15 := v28
           revert(v14, v15)
         }
         if iszero(iszero(iszero(v11))) {
           let v12 := v1
-          let v33 := iszero(iszero(gt(v2, v12)))
-          let v13 := iszero(iszero(v33))
+          let v32 := iszero(iszero(gt(v2, v12)))
+          let v13 := iszero(iszero(v32))
           if iszero(iszero(v13)) {
+            let v27 := 0x00
+            let v14 := v27
             let v28 := 0x00
-            let v14 := v28
-            let v29 := 0x00
-            let v15 := v29
+            let v15 := v28
             revert(v14, v15)
           }
           if iszero(iszero(iszero(v13))) {
             let v18 := p0
-            let t38 := mload(add(p0, 64))
-            let v19 := t38
-            let v32 := $std$lib$evm$memory_input$impl_trait$MemoryBytes$c1cd$word_at_5ebd(v18, v19)
-            let v20 := v32
+            let t36 := mload(add(p0, 64))
+            let v19 := t36
+            let v31 := $std$lib$evm$memory_input$impl_trait$MemoryBytes$c1cd$word_at_5ebd(v18, v19)
+            let v20 := v31
             let v3 := v20
             mstore(add(p0, 64), v2)
             ret := v3
@@ -10285,50 +10168,47 @@ object "CoolCoin" {
         let v22 := $std$lib$evm$memory_input$impl_trait$MemoryBytes$c1cd$len_d2a6(v4)
         let v5 := v22
         v1 := v5
-        let t34 := mload(add(p0, 64))
-        let v6 := t34
+        let t33 := mload(add(p0, 64))
+        let v6 := t33
         let v23 := 0x20
         let v7 := v23
-        let t35 := add(v6, v7)
-        if lt(t35, v6) {
+        let t34 := add(v6, v7)
+        if lt(t34, v6) {
           mstore(0, 0x4e487b7100000000000000000000000000000000000000000000000000000000)
           mstore(4, 0x11)
           revert(0, 36)
         }
-        let v24 := t35
+        let v24 := t34
         let v8 := v24
         v2 := v8
-        let t36 := mload(add(p0, 64))
-        let v25 := t36
-        mstore(add(p0, 64), v25)
-        let t37 := mload(add(p0, 64))
-        let v26 := t37
-        let v27 := iszero(iszero(lt(v2, v26)))
-        let v11 := iszero(iszero(v27))
+        let t35 := mload(add(p0, 64))
+        let v25 := t35
+        let v26 := iszero(iszero(lt(v2, v25)))
+        let v11 := iszero(iszero(v26))
         if iszero(iszero(v11)) {
+          let v27 := 0x00
+          let v14 := v27
           let v28 := 0x00
-          let v14 := v28
-          let v29 := 0x00
-          let v15 := v29
+          let v15 := v28
           revert(v14, v15)
         }
         if iszero(iszero(iszero(v11))) {
           let v12 := v1
-          let v33 := iszero(iszero(gt(v2, v12)))
-          let v13 := iszero(iszero(v33))
+          let v32 := iszero(iszero(gt(v2, v12)))
+          let v13 := iszero(iszero(v32))
           if iszero(iszero(v13)) {
+            let v27 := 0x00
+            let v14 := v27
             let v28 := 0x00
-            let v14 := v28
-            let v29 := 0x00
-            let v15 := v29
+            let v15 := v28
             revert(v14, v15)
           }
           if iszero(iszero(iszero(v13))) {
             let v18 := p0
-            let t38 := mload(add(p0, 64))
-            let v19 := t38
-            let v32 := $std$lib$evm$memory_input$impl_trait$MemoryBytes$c1cd$word_at_41fc(v18, v19)
-            let v20 := v32
+            let t36 := mload(add(p0, 64))
+            let v19 := t36
+            let v31 := $std$lib$evm$memory_input$impl_trait$MemoryBytes$c1cd$word_at_41fc(v18, v19)
+            let v20 := v31
             let v3 := v20
             mstore(add(p0, 64), v2)
             ret := v3

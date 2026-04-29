@@ -1,0 +1,119 @@
+use std::evm::effects::assert
+
+enum Maybe {
+    Some(usize),
+    None,
+}
+
+struct Pair {
+    a: usize,
+    b: usize,
+}
+
+const fn mutate_fields() -> usize {
+    let mut pair = Pair { a: 1, b: 2 }
+    pair.a += 4
+    pair.b += pair.a
+    pair.b
+}
+
+const fn sum_while() -> usize {
+    let mut i: usize = 0
+    let mut sum: usize = 0
+    while i < 6 {
+        i += 1
+        if i == 2 {
+            continue
+        }
+        sum += i
+        if sum > 7 {
+            break
+        }
+    }
+    sum
+}
+
+const fn while_let_payload() -> usize {
+    let mut maybe = Maybe::Some(5)
+    let mut total: usize = 0
+    while let Maybe::Some(value) = maybe {
+        total += value
+        maybe = Maybe::None
+    }
+    total
+}
+
+const fn match_payload() -> usize {
+    match Maybe::Some(3) {
+        Maybe::Some(value) => value + mutate_fields()
+        Maybe::None => 0
+    }
+}
+
+const fn rewrite_array() -> [usize; 4] {
+    let mut values: [usize; 4] = [1, 2, 3, 4]
+    let idx: usize = 2
+    values[idx] = 9
+    values[3] = values[0] + values[1] + values[2]
+    values
+}
+
+const fn repeated_inner_array_cow_score() -> usize {
+    let mut rows: [[usize; 2]; 2] = [[1, 2]; 2]
+    rows[0][1] = 9
+    rows[0][1] + rows[1][1]
+}
+
+const fn copied_local_array_cow_score() -> usize {
+    let mut original: [[usize; 2]; 2] = [[1, 2], [3, 4]]
+    let mut copy = original
+    copy[0][0] = 9
+    original[0][0] * 10 + copy[0][0]
+}
+
+const fn diagonal_matrix_cow_score() -> usize {
+    let mut rows: [[usize; 4]; 4] = [[0; 4]; 4]
+    let mut i: usize = 0
+    while i < 4 {
+        rows[i][i] = i + 1
+        i += 1
+    }
+    rows[0][0]
+        + rows[1][1]
+        + rows[2][2]
+        + rows[3][3]
+        + rows[0][1] * 100
+        + rows[1][0] * 1000
+}
+
+const MUTATED_FIELDS: usize = mutate_fields()
+const WHILE_SUM: usize = sum_while()
+const WHILE_LET_PAYLOAD: usize = while_let_payload()
+const MATCH_PAYLOAD: usize = match_payload()
+const REWRITTEN_VALUES: [usize; 4] = rewrite_array()
+const REPEATED_INNER_ARRAY_COW_SCORE: usize = repeated_inner_array_cow_score()
+const COPIED_LOCAL_ARRAY_COW_SCORE: usize = copied_local_array_cow_score()
+const DIAGONAL_MATRIX_COW_SCORE: usize = diagonal_matrix_cow_score()
+
+#[test]
+fn test_const_ctfe_mutation_and_control_flow() {
+    assert(MUTATED_FIELDS == 7)
+    assert(WHILE_SUM == 8)
+    assert(WHILE_LET_PAYLOAD == 5)
+    assert(MATCH_PAYLOAD == 10)
+}
+
+#[test]
+fn test_const_ctfe_array_index_writes() {
+    assert(REWRITTEN_VALUES[0] == 1)
+    assert(REWRITTEN_VALUES[1] == 2)
+    assert(REWRITTEN_VALUES[2] == 9)
+    assert(REWRITTEN_VALUES[3] == 12)
+}
+
+#[test]
+fn test_const_ctfe_aggregate_copy_on_write() {
+    assert(REPEATED_INNER_ARRAY_COW_SCORE == 11)
+    assert(COPIED_LOCAL_ARRAY_COW_SCORE == 19)
+    assert(DIAGONAL_MATRIX_COW_SCORE == 10)
+}

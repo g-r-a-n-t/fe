@@ -5,7 +5,7 @@ use super::{
     binder::Binder,
     const_expr::ConstExpr,
     const_ty::{
-        CallableInputLayoutHoleOrigin, ConstCanonEnv, ConstCanonMode, ConstTyData,
+        CallableInputLayoutHoleOrigin, ConstCanonEnv, ConstCanonMode, ConstTyData, ConstTyId,
         canonicalize_ty_for_mode, const_ty_from_assoc_const_use,
         normalize_const_tys_for_comparison,
     },
@@ -26,6 +26,7 @@ use super::{
     },
     ty_check::{ConstRef, check_anon_const_body},
     ty_def::{InvalidCause, TyData, TyId},
+    unify::UnificationTable,
 };
 use crate::analysis::{HirAnalysisDb, semantic::instantiate_with_generic_args};
 use crate::hir_def::{CallableDef, Expr, Partial, PathKind, scope_graph::ScopeId};
@@ -552,17 +553,40 @@ fn collect_effect_provider_entries<'db>(
                     }
                 };
             }
+            let rebase_same_trait_uses = param_subst.is_some();
+            let mut identity = canonical_effect_identity_for_binding(
+                db,
+                &binding,
+                scope,
+                assumptions,
+                Some(trait_inst),
+                EffectKeyCanonMode::Compare,
+            );
+            identity.key_ty = identity.key_ty.map(|ty| {
+                normalize_compare_assoc_consts(
+                    db,
+                    normalize_ty(db, ty, scope, assumptions),
+                    scope,
+                    assumptions,
+                    trait_inst,
+                    rebase_same_trait_uses,
+                )
+            });
+            identity.key_trait = identity.key_trait.map(|inst| {
+                normalize_predicate_for_comparison(
+                    db,
+                    inst,
+                    scope,
+                    assumptions,
+                    trait_inst,
+                    rebase_same_trait_uses,
+                )
+            });
+
             Some(EffectProviderEntry {
                 effect_idx,
                 provider_param,
-                identity: canonical_effect_identity_for_binding(
-                    db,
-                    &binding,
-                    scope,
-                    assumptions,
-                    Some(trait_inst),
-                    EffectKeyCanonMode::Compare,
-                ),
+                identity,
             })
         })
         .collect()
@@ -623,21 +647,29 @@ fn effect_identity_matches<'db>(
     match trait_identity.key_kind {
         EffectKeyKind::Type => match (trait_identity.key_ty, impl_identity.key_ty) {
             (Some(trait_key_ty), Some(impl_key_ty)) => {
-                alpha_rename_hidden_layout_placeholders(db, trait_key_ty, impl_key_ty)
-                    == impl_key_ty
+                effect_identity_tys_match(db, trait_key_ty, impl_key_ty)
             }
             _ => false,
         },
         EffectKeyKind::Trait => match (trait_identity.key_trait, impl_identity.key_trait) {
             (Some(trait_key_trait), Some(impl_key_trait)) => {
                 trait_effect_key_matches_with(db, trait_key_trait, impl_key_trait, |lhs, rhs| {
-                    lhs == rhs
+                    effect_identity_tys_match(db, lhs, rhs)
                 })
             }
             _ => false,
         },
         EffectKeyKind::Other => trait_identity.key_path == impl_identity.key_path,
     }
+}
+
+fn effect_identity_tys_match<'db>(
+    db: &'db dyn HirAnalysisDb,
+    expected: TyId<'db>,
+    actual: TyId<'db>,
+) -> bool {
+    let expected = alpha_rename_hidden_layout_placeholders(db, expected, actual);
+    UnificationTable::new(db).unify(expected, actual).is_ok()
 }
 
 fn instantiate_with_partial_map<'db, T>(
@@ -816,6 +848,25 @@ fn normalize_compare_assoc_consts<'db>(
 
             self.normalize_assoc_const_ty(db, assoc, expected_ty)
         }
+
+        fn normalize_unevaluated_const_fn_call(
+            &mut self,
+            db: &'db dyn HirAnalysisDb,
+            const_ty: ConstTyId<'db>,
+            expected_ty: TyId<'db>,
+        ) -> Option<TyId<'db>> {
+            let evaluated = const_ty.evaluate(db, Some(expected_ty));
+            if evaluated == const_ty || evaluated.ty(db).invalid_cause(db).is_some() {
+                return None;
+            }
+            if !matches!(
+                evaluated.data(db),
+                ConstTyData::Evaluated(..) | ConstTyData::Abstract(..)
+            ) {
+                return None;
+            }
+            Some(self.fold_ty(db, TyId::new(db, TyData::ConstTy(evaluated))))
+        }
     }
 
     impl<'db> TyFolder<'db> for CompareAssocConstNormalizer<'db> {
@@ -859,7 +910,9 @@ fn normalize_compare_assoc_consts<'db>(
                     };
                     let expr = body.expr(db);
                     let Partial::Present(Expr::Path(path)) = expr.data(db, *body) else {
-                        return ty;
+                        return self
+                            .normalize_unevaluated_const_fn_call(db, *const_ty, expected_ty)
+                            .unwrap_or(ty);
                     };
                     let Some(path) = path.to_opt() else {
                         return ty;
@@ -875,7 +928,9 @@ fn normalize_compare_assoc_consts<'db>(
                         return ty;
                     };
                     if !parent.is_self_ty(db) || !path_generic_args.is_empty(db) {
-                        return ty;
+                        return self
+                            .normalize_unevaluated_const_fn_call(db, *const_ty, expected_ty)
+                            .unwrap_or(ty);
                     }
 
                     self.normalize_unevaluated_assoc_const(db, *body, expected_ty, generic_args)
@@ -892,12 +947,13 @@ fn normalize_compare_assoc_consts<'db>(
         trait_inst,
         rebase_same_trait_uses,
     };
-    canonicalize_ty_for_mode(
+    let ty = canonicalize_ty_for_mode(
         db,
         ty.fold_with(db, &mut folder),
         ConstCanonEnv::new(scope, assumptions, None),
         ConstCanonMode::Identity,
-    )
+    );
+    ty.fold_with(db, &mut folder)
 }
 
 /// Checks if the method constraints are stricter than the trait constraints.

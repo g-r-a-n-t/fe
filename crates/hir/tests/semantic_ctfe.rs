@@ -134,10 +134,6 @@ fn const_fn_match_has_no_const_body_diagnostic() {
             FuncBodyDiag::Body(
                 BodyDiag::ConstFnEffectsNotAllowed(_)
                     | BodyDiag::ConstFnWithNotAllowed(_)
-                    | BodyDiag::ConstFnLoopNotAllowed(_)
-                    | BodyDiag::ConstFnAssignmentNotAllowed(_)
-                    | BodyDiag::ConstFnAggregateNotAllowed(_)
-                    | BodyDiag::ConstFnMutableBindingNotAllowed(_)
                     | BodyDiag::ConstFnNonConstCall { .. }
                     | BodyDiag::ConstFnEffectfulCall { .. }
             )

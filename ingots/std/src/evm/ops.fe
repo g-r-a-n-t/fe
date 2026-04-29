@@ -32,8 +32,8 @@ extern {
     pub(ingot) fn codecopy(dest: u256, offset: u256, len: u256)
     pub(ingot) fn codesize() -> u256
     pub(ingot) fn keccak256(offset: u256, len: u256) -> u256
-    pub(ingot) fn addmod(_ a: u256, _ b: u256, m: u256) -> u256
-    pub(ingot) fn mulmod(_ a: u256, _ b: u256, m: u256) -> u256
+    pub(ingot) const fn addmod(_ a: u256, _ b: u256, m: u256) -> u256
+    pub(ingot) const fn mulmod(_ a: u256, _ b: u256, m: u256) -> u256
 
     // -------------------------------------------------------------------------
     // Environment

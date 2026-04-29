@@ -423,6 +423,7 @@ impl<'a> tracing_subscriber::fmt::MakeWriter<'a> for RotatingFileWriter {
 /// it as the thread-local default. The returned [`DefaultGuard`] must be
 /// held for as long as the subscriber should remain active — dropping it
 /// resets the thread-local dispatch.
+#[allow(clippy::print_stderr)]
 pub fn setup_default_subscriber(client: ClientSocket) -> Option<DefaultGuard> {
     use tracing::subscriber::set_default;
 

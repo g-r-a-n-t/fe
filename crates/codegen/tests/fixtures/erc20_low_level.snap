@@ -40,15 +40,12 @@ object "Erc20Contract" {
       mstore(0x40, add(r1, 32))
       mstore(r0, p0)
       mstore(r1, p1)
-      let t8 := mload(r0)
-      let v2 := t8
-      let t9 := mload(r1)
-      let v5 := t9
-      mstore(r1, v5)
-      let t10 := mload(r1)
-      let v6 := t10
-      let v7 := iszero(iszero(eq(v2, v6)))
-      let v4 := iszero(iszero(v7))
+      let t7 := mload(r0)
+      let v2 := t7
+      let t8 := mload(r1)
+      let v5 := t8
+      let v6 := iszero(iszero(eq(v2, v5)))
+      let v4 := iszero(iszero(v6))
       ret := iszero(iszero(v4))
       leave
     }
@@ -324,15 +321,12 @@ object "Erc20Contract" {
         mstore(0x40, add(r1, 32))
         mstore(r0, p0)
         mstore(r1, p1)
-        let t8 := mload(r0)
-        let v2 := t8
-        let t9 := mload(r1)
-        let v5 := t9
-        mstore(r1, v5)
-        let t10 := mload(r1)
-        let v6 := t10
-        let v7 := iszero(iszero(eq(v2, v6)))
-        let v4 := iszero(iszero(v7))
+        let t7 := mload(r0)
+        let v2 := t7
+        let t8 := mload(r1)
+        let v5 := t8
+        let v6 := iszero(iszero(eq(v2, v5)))
+        let v4 := iszero(iszero(v6))
         ret := iszero(iszero(v4))
         leave
       }
@@ -463,48 +457,45 @@ object "Erc20Contract" {
         let v26 := $std$lib$evm$effects$impl_trait$Evm$a1e8$caller_1c07_1()
         let v7 := v26
         let v5 := v7
-        let t39 := sload(add(p0, div(add(32, 31), 32)))
-        let v27 := t39
-        sstore(add(p0, div(add(32, 31), 32)), v27)
-        let t40 := sload(add(p0, div(add(32, 31), 32)))
-        let v28 := t40
-        let v29 := $core$lib$ops$trait$Eq$ne$g7528_a982_0(v5, v28)
-        let v10 := iszero(iszero(v29))
+        let t38 := sload(add(p0, div(add(32, 31), 32)))
+        let v27 := t38
+        let v28 := $core$lib$ops$trait$Eq$ne$g7528_a982_0(v5, v27)
+        let v10 := iszero(iszero(v28))
         if iszero(iszero(v10)) {
+          let v29 := 0x00
+          let v11 := v29
           let v30 := 0x00
-          let v11 := v30
-          let v31 := 0x00
-          let v12 := v31
+          let v12 := v30
           $std$lib$evm$effects$impl_trait$Evm$0098$revert_7c32_1(v11, v12)
           invalid()
         }
         if iszero(iszero(iszero(v10))) {
           let v15 := p1
-          let v34 := $standalone$erc20_low_level$erc20_low_level$impl$Erc20$16d9$balance_of$g35d6_6d6f_1(p0, v15)
-          let v16 := v34
+          let v33 := $standalone$erc20_low_level$erc20_low_level$impl$Erc20$16d9$balance_of$g35d6_6d6f_1(p0, v15)
+          let v16 := v33
           let v6 := v16
           let v18 := p1
           let v19 := p2
-          let t41 := add(v6, v19)
-          if lt(t41, v6) {
+          let t39 := add(v6, v19)
+          if lt(t39, v6) {
             mstore(0, 0x4e487b7100000000000000000000000000000000000000000000000000000000)
             mstore(4, 0x11)
             revert(0, 36)
           }
-          let v35 := t41
-          let v20 := v35
+          let v34 := t39
+          let v20 := v34
           $std$lib$evm$storage_map$impl$StorageMap$9f54$set$g2163_a4c9_1(v18, v20)
-          let t42 := sload(p0)
-          let v22 := t42
+          let t40 := sload(p0)
+          let v22 := t40
           let v23 := p2
-          let t43 := add(v22, v23)
-          if lt(t43, v22) {
+          let t41 := add(v22, v23)
+          if lt(t41, v22) {
             mstore(0, 0x4e487b7100000000000000000000000000000000000000000000000000000000)
             mstore(4, 0x11)
             revert(0, 36)
           }
-          let v38 := t43
-          let v24 := v38
+          let v37 := t41
+          let v24 := v37
           sstore(p0, v24)
           leave
         }

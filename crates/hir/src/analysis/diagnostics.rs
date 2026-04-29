@@ -4132,38 +4132,6 @@ impl DiagnosticVoucher for BodyDiag<'_> {
                 error_code,
             ),
 
-            BodyDiag::ConstFnLoopNotAllowed(primary) => primary_diag(
-                severity,
-                "loops are not allowed in a `const fn`",
-                "loops are not supported in const evaluation (MVP)",
-                primary.resolve(db),
-                error_code,
-            ),
-
-            BodyDiag::ConstFnAssignmentNotAllowed(primary) => primary_diag(
-                severity,
-                "assignment is not allowed in a `const fn`",
-                "mutation is not supported in const evaluation (MVP)",
-                primary.resolve(db),
-                error_code,
-            ),
-
-            BodyDiag::ConstFnAggregateNotAllowed(primary) => primary_diag(
-                severity,
-                "aggregate operations are not allowed in a `const fn`",
-                "aggregates are not supported in const evaluation (MVP)",
-                primary.resolve(db),
-                error_code,
-            ),
-
-            BodyDiag::ConstFnMutableBindingNotAllowed(primary) => primary_diag(
-                severity,
-                "`mut` bindings are not allowed in a `const fn`",
-                "mutation is not supported in const evaluation (MVP)",
-                primary.resolve(db),
-                error_code,
-            ),
-
             BodyDiag::ConstFnNonConstCall { primary, callee } => {
                 let name = callee
                     .name(db)

@@ -1,5 +1,4 @@
 use crate::analysis::HirAnalysisDb;
-use crate::analysis::ty::corelib::ctfe_primitive_call_kind;
 use crate::analysis::ty::diagnostics::{BodyDiag, FuncBodyDiag};
 use crate::analysis::ty::trait_def::resolve_trait_method_instance;
 use crate::analysis::ty::trait_resolution::TraitSolveCx;
@@ -51,11 +50,6 @@ impl<'db> ConstFnChecker<'db, '_> {
         let Some(callee) = self.callable_func(callable) else {
             return;
         };
-        if !callee.is_extern(self.db)
-            && ctfe_primitive_call_kind(self.db, callee, callable.ret_ty(self.db)).is_some()
-        {
-            return;
-        }
 
         if !callee.is_const(self.db) {
             self.push(BodyDiag::ConstFnNonConstCall {

@@ -245,86 +245,6 @@ pub enum PrimitiveWrapperCallKind {
     Assign(BinOp),
 }
 
-pub fn ctfe_primitive_call_kind<'db>(
-    db: &'db dyn HirAnalysisDb,
-    func: Func<'db>,
-    result_ty: TyId<'db>,
-) -> Option<PrimitiveWrapperCallKind> {
-    if func.is_extern(db) {
-        return extern_ctfe_primitive_call_kind(db, func);
-    }
-    core_primitive_wrapper_call_kind(db, func, result_ty)
-}
-
-fn extern_ctfe_primitive_call_kind<'db>(
-    db: &'db dyn HirAnalysisDb,
-    func: Func<'db>,
-) -> Option<PrimitiveWrapperCallKind> {
-    fn has_numeric_suffix(name: &str) -> bool {
-        matches!(
-            name,
-            "u8" | "u16"
-                | "u32"
-                | "u64"
-                | "u128"
-                | "u256"
-                | "usize"
-                | "i8"
-                | "i16"
-                | "i32"
-                | "i64"
-                | "i128"
-                | "i256"
-                | "isize"
-        )
-    }
-
-    let name = func.name(db).to_opt()?.data(db);
-    Some(match name.as_str() {
-        "__checked_add" => PrimitiveWrapperCallKind::Binary(BinOp::Arith(ArithBinOp::Add)),
-        "__checked_sub" => PrimitiveWrapperCallKind::Binary(BinOp::Arith(ArithBinOp::Sub)),
-        "__checked_mul" => PrimitiveWrapperCallKind::Binary(BinOp::Arith(ArithBinOp::Mul)),
-        "__checked_div" => PrimitiveWrapperCallKind::Binary(BinOp::Arith(ArithBinOp::Div)),
-        "__checked_rem" => PrimitiveWrapperCallKind::Binary(BinOp::Arith(ArithBinOp::Rem)),
-        "__checked_pow" => PrimitiveWrapperCallKind::Binary(BinOp::Arith(ArithBinOp::Pow)),
-        "__checked_neg" => PrimitiveWrapperCallKind::Unary(UnOp::Minus),
-        "__not_bool" => PrimitiveWrapperCallKind::Unary(UnOp::Not),
-        _ => {
-            let suffix = |prefix| {
-                name.strip_prefix(prefix)
-                    .filter(|suffix| has_numeric_suffix(suffix))
-            };
-            if suffix("__shl_").is_some() {
-                PrimitiveWrapperCallKind::Binary(BinOp::Arith(ArithBinOp::LShift))
-            } else if suffix("__shr_").is_some() {
-                PrimitiveWrapperCallKind::Binary(BinOp::Arith(ArithBinOp::RShift))
-            } else if suffix("__bitand_").is_some() || name == "__bitand_bool" {
-                PrimitiveWrapperCallKind::Binary(BinOp::Arith(ArithBinOp::BitAnd))
-            } else if suffix("__bitor_").is_some() || name == "__bitor_bool" {
-                PrimitiveWrapperCallKind::Binary(BinOp::Arith(ArithBinOp::BitOr))
-            } else if suffix("__bitxor_").is_some() || name == "__bitxor_bool" {
-                PrimitiveWrapperCallKind::Binary(BinOp::Arith(ArithBinOp::BitXor))
-            } else if suffix("__eq_").is_some() || name == "__eq_bool" {
-                PrimitiveWrapperCallKind::Binary(BinOp::Comp(CompBinOp::Eq))
-            } else if suffix("__ne_").is_some() || name == "__ne_bool" {
-                PrimitiveWrapperCallKind::Binary(BinOp::Comp(CompBinOp::NotEq))
-            } else if suffix("__lt_").is_some() {
-                PrimitiveWrapperCallKind::Binary(BinOp::Comp(CompBinOp::Lt))
-            } else if suffix("__le_").is_some() {
-                PrimitiveWrapperCallKind::Binary(BinOp::Comp(CompBinOp::LtEq))
-            } else if suffix("__gt_").is_some() {
-                PrimitiveWrapperCallKind::Binary(BinOp::Comp(CompBinOp::Gt))
-            } else if suffix("__ge_").is_some() {
-                PrimitiveWrapperCallKind::Binary(BinOp::Comp(CompBinOp::GtEq))
-            } else if suffix("__bitnot_").is_some() {
-                PrimitiveWrapperCallKind::Unary(UnOp::BitNot)
-            } else {
-                return None;
-            }
-        }
-    })
-}
-
 pub fn core_primitive_wrapper_call_kind<'db>(
     db: &'db dyn HirAnalysisDb,
     func: Func<'db>,
@@ -411,6 +331,7 @@ pub fn core_primitive_wrapper_call_kind<'db>(
     })
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct CoreRangeTypes<'db> {
     pub range: TyId<'db>,
     pub known: TyId<'db>,

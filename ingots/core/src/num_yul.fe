@@ -3,34 +3,34 @@ use super::num::{IntWord, sign_extend}
 use super::panic
 
 extern {
-    fn __div_u8(_: u8, _: u8) -> u8
-    fn __rem_u8(_: u8, _: u8) -> u8
-    fn __div_i8(_: i8, _: i8) -> i8
-    fn __rem_i8(_: i8, _: i8) -> i8
-    fn __div_i16(_: i16, _: i16) -> i16
-    fn __rem_i16(_: i16, _: i16) -> i16
-    fn __div_u16(_: u16, _: u16) -> u16
-    fn __rem_u16(_: u16, _: u16) -> u16
-    fn __div_i32(_: i32, _: i32) -> i32
-    fn __rem_i32(_: i32, _: i32) -> i32
-    fn __div_u32(_: u32, _: u32) -> u32
-    fn __rem_u32(_: u32, _: u32) -> u32
-    fn __div_i64(_: i64, _: i64) -> i64
-    fn __rem_i64(_: i64, _: i64) -> i64
-    fn __div_i128(_: i128, _: i128) -> i128
-    fn __rem_i128(_: i128, _: i128) -> i128
-    fn __div_u64(_: u64, _: u64) -> u64
-    fn __rem_u64(_: u64, _: u64) -> u64
-    fn __div_u128(_: u128, _: u128) -> u128
-    fn __rem_u128(_: u128, _: u128) -> u128
-    fn __div_usize(_: usize, _: usize) -> usize
-    fn __rem_usize(_: usize, _: usize) -> usize
-    fn __div_i256(_: i256, _: i256) -> i256
-    fn __rem_i256(_: i256, _: i256) -> i256
-    fn __div_u256(_: u256, _: u256) -> u256
-    fn __rem_u256(_: u256, _: u256) -> u256
-    fn __div_isize(_: isize, _: isize) -> isize
-    fn __rem_isize(_: isize, _: isize) -> isize
+    const fn __div_u8(_: u8, _: u8) -> u8
+    const fn __rem_u8(_: u8, _: u8) -> u8
+    const fn __div_i8(_: i8, _: i8) -> i8
+    const fn __rem_i8(_: i8, _: i8) -> i8
+    const fn __div_i16(_: i16, _: i16) -> i16
+    const fn __rem_i16(_: i16, _: i16) -> i16
+    const fn __div_u16(_: u16, _: u16) -> u16
+    const fn __rem_u16(_: u16, _: u16) -> u16
+    const fn __div_i32(_: i32, _: i32) -> i32
+    const fn __rem_i32(_: i32, _: i32) -> i32
+    const fn __div_u32(_: u32, _: u32) -> u32
+    const fn __rem_u32(_: u32, _: u32) -> u32
+    const fn __div_i64(_: i64, _: i64) -> i64
+    const fn __rem_i64(_: i64, _: i64) -> i64
+    const fn __div_i128(_: i128, _: i128) -> i128
+    const fn __rem_i128(_: i128, _: i128) -> i128
+    const fn __div_u64(_: u64, _: u64) -> u64
+    const fn __rem_u64(_: u64, _: u64) -> u64
+    const fn __div_u128(_: u128, _: u128) -> u128
+    const fn __rem_u128(_: u128, _: u128) -> u128
+    const fn __div_usize(_: usize, _: usize) -> usize
+    const fn __rem_usize(_: usize, _: usize) -> usize
+    const fn __div_i256(_: i256, _: i256) -> i256
+    const fn __rem_i256(_: i256, _: i256) -> i256
+    const fn __div_u256(_: u256, _: u256) -> u256
+    const fn __rem_u256(_: u256, _: u256) -> u256
+    const fn __div_isize(_: isize, _: isize) -> isize
+    const fn __rem_isize(_: isize, _: isize) -> isize
 }
 
 // ---------- generic checked-arithmetic helpers ----------

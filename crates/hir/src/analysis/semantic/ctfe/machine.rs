@@ -1,5 +1,5 @@
 use cranelift_entity::EntityRef;
-use num_bigint::{BigInt, Sign};
+use num_bigint::{BigInt, BigUint, Sign};
 use num_traits::{One, ToPrimitive, Zero};
 use ruint::aliases::U256;
 use rustc_hash::FxHashMap;
@@ -25,7 +25,7 @@ use crate::{
             const_expr::{ConstExpr, ConstExprId},
             const_ty::{ConstTyData, ConstTyId, EvaluatedConstTy, const_ty_from_sem_const},
             corelib::{
-                PrimitiveWrapperCallKind, RuntimeBuiltinFuncKind, ctfe_primitive_call_kind,
+                PrimitiveWrapperCallKind, RuntimeBuiltinFuncKind, core_primitive_wrapper_call_kind,
                 runtime_builtin_func_kind,
             },
             normalize::normalize_ty,
@@ -108,6 +108,26 @@ pub enum CtfeError<'db> {
 #[derive(Clone, Copy)]
 enum EvmModularArithmetic {
     Add,
+    Mul,
+}
+
+#[derive(Clone, Copy)]
+enum NumericExternIntrinsic {
+    CheckedBinary(ArithBinOp),
+    WrappingBinary(ArithBinOp),
+    SaturatingBinary(SaturatingArithmetic),
+    Comparison(CompBinOp),
+    BoolBinary(ArithBinOp),
+    CheckedNeg,
+    WrappingNeg,
+    BitNot,
+    BoolNot,
+}
+
+#[derive(Clone, Copy)]
+enum SaturatingArithmetic {
+    Add,
+    Sub,
     Mul,
 }
 
@@ -639,8 +659,133 @@ fn u256_from_bigint(value: &BigInt) -> U256 {
     U256::from_be_bytes(out)
 }
 
+fn biguint_from_u256(value: U256) -> BigUint {
+    BigUint::from_bytes_be(&value.to_be_bytes::<32>())
+}
+
 fn bigint_from_u256(value: U256) -> BigInt {
     BigInt::from_bytes_be(Sign::Plus, &value.to_be_bytes::<32>())
+}
+
+fn expect_binary_args<'a, 'db>(
+    args: &'a [CtfeConstValue<'db>],
+    origin: SemOrigin<'db>,
+) -> Result<(&'a CtfeConstValue<'db>, &'a CtfeConstValue<'db>), CtfeError<'db>> {
+    let [lhs, rhs] = args else {
+        return Err(CtfeError::NotConstEvaluable { origin });
+    };
+    Ok((lhs, rhs))
+}
+
+fn checked_result<'db>(
+    value: BigInt,
+    machine: &CtfeMachine<'db>,
+    result_ty: TyId<'db>,
+    origin: SemOrigin<'db>,
+) -> Result<BigInt, CtfeError<'db>> {
+    if !machine.int_in_range(result_ty, &value) {
+        return Err(CtfeError::ArithmeticOverflow { origin });
+    }
+    Ok(value)
+}
+
+fn int_bounds(bits: u16, signed: bool) -> (BigInt, BigInt) {
+    if signed {
+        let half = BigInt::one() << (usize::from(bits) - 1);
+        (-half.clone(), half - BigInt::one())
+    } else {
+        (
+            BigInt::zero(),
+            (BigInt::one() << usize::from(bits)) - BigInt::one(),
+        )
+    }
+}
+
+fn numeric_extern_intrinsic(name: &str) -> Option<NumericExternIntrinsic> {
+    Some(match name {
+        "__checked_add" => NumericExternIntrinsic::CheckedBinary(ArithBinOp::Add),
+        "__checked_sub" => NumericExternIntrinsic::CheckedBinary(ArithBinOp::Sub),
+        "__checked_mul" => NumericExternIntrinsic::CheckedBinary(ArithBinOp::Mul),
+        "__checked_div" => NumericExternIntrinsic::CheckedBinary(ArithBinOp::Div),
+        "__checked_rem" => NumericExternIntrinsic::CheckedBinary(ArithBinOp::Rem),
+        "__checked_pow" => NumericExternIntrinsic::CheckedBinary(ArithBinOp::Pow),
+        "__checked_neg" => NumericExternIntrinsic::CheckedNeg,
+        "__saturating_add" => NumericExternIntrinsic::SaturatingBinary(SaturatingArithmetic::Add),
+        "__saturating_sub" => NumericExternIntrinsic::SaturatingBinary(SaturatingArithmetic::Sub),
+        "__saturating_mul" => NumericExternIntrinsic::SaturatingBinary(SaturatingArithmetic::Mul),
+        "__not_bool" => NumericExternIntrinsic::BoolNot,
+        "__bitand_bool" => NumericExternIntrinsic::BoolBinary(ArithBinOp::BitAnd),
+        "__bitor_bool" => NumericExternIntrinsic::BoolBinary(ArithBinOp::BitOr),
+        "__bitxor_bool" => NumericExternIntrinsic::BoolBinary(ArithBinOp::BitXor),
+        "__eq_bool" => NumericExternIntrinsic::Comparison(CompBinOp::Eq),
+        "__ne_bool" => NumericExternIntrinsic::Comparison(CompBinOp::NotEq),
+        _ => {
+            let suffix = |prefix| {
+                name.strip_prefix(prefix)
+                    .filter(|suffix| has_integer_numeric_suffix(suffix))
+            };
+            if suffix("__add_").is_some() {
+                NumericExternIntrinsic::WrappingBinary(ArithBinOp::Add)
+            } else if suffix("__sub_").is_some() {
+                NumericExternIntrinsic::WrappingBinary(ArithBinOp::Sub)
+            } else if suffix("__mul_").is_some() {
+                NumericExternIntrinsic::WrappingBinary(ArithBinOp::Mul)
+            } else if suffix("__div_").is_some() {
+                NumericExternIntrinsic::WrappingBinary(ArithBinOp::Div)
+            } else if suffix("__rem_").is_some() {
+                NumericExternIntrinsic::WrappingBinary(ArithBinOp::Rem)
+            } else if suffix("__pow_").is_some() {
+                NumericExternIntrinsic::WrappingBinary(ArithBinOp::Pow)
+            } else if suffix("__shl_").is_some() {
+                NumericExternIntrinsic::WrappingBinary(ArithBinOp::LShift)
+            } else if suffix("__shr_").is_some() {
+                NumericExternIntrinsic::WrappingBinary(ArithBinOp::RShift)
+            } else if suffix("__bitand_").is_some() {
+                NumericExternIntrinsic::WrappingBinary(ArithBinOp::BitAnd)
+            } else if suffix("__bitor_").is_some() {
+                NumericExternIntrinsic::WrappingBinary(ArithBinOp::BitOr)
+            } else if suffix("__bitxor_").is_some() {
+                NumericExternIntrinsic::WrappingBinary(ArithBinOp::BitXor)
+            } else if suffix("__eq_").is_some() {
+                NumericExternIntrinsic::Comparison(CompBinOp::Eq)
+            } else if suffix("__ne_").is_some() {
+                NumericExternIntrinsic::Comparison(CompBinOp::NotEq)
+            } else if suffix("__lt_").is_some() {
+                NumericExternIntrinsic::Comparison(CompBinOp::Lt)
+            } else if suffix("__le_").is_some() {
+                NumericExternIntrinsic::Comparison(CompBinOp::LtEq)
+            } else if suffix("__gt_").is_some() {
+                NumericExternIntrinsic::Comparison(CompBinOp::Gt)
+            } else if suffix("__ge_").is_some() {
+                NumericExternIntrinsic::Comparison(CompBinOp::GtEq)
+            } else if suffix("__neg_").is_some() {
+                NumericExternIntrinsic::WrappingNeg
+            } else if suffix("__bitnot_").is_some() {
+                NumericExternIntrinsic::BitNot
+            } else {
+                return None;
+            }
+        }
+    })
+}
+
+fn has_integer_numeric_suffix(suffix: &str) -> bool {
+    matches!(
+        suffix,
+        "u8" | "u16"
+            | "u32"
+            | "u64"
+            | "u128"
+            | "u256"
+            | "usize"
+            | "i8"
+            | "i16"
+            | "i32"
+            | "i64"
+            | "i128"
+            | "i256"
+            | "isize"
+    )
 }
 
 fn sem_const_contains_type_level<'db>(db: &'db dyn HirAnalysisDb, value: SemConstId<'db>) -> bool {
@@ -1032,9 +1177,9 @@ impl<'db> CtfeMachine<'db> {
                     .into_iter()
                     .collect::<Vec<_>>();
                 let instance = self.instance_for_key(callee.key);
-                if let Some(value) =
-                    self.try_eval_primitive_call(frame_idx, instance, result_ty, &args, origin)?
-                {
+                if let Some(value) = self.try_eval_core_primitive_wrapper_call(
+                    frame_idx, instance, result_ty, &args, origin,
+                )? {
                     return Ok(CtfeValue::Value(value));
                 }
                 if let BodyOwner::Func(func) = instance.key(self.db).owner(self.db)
@@ -1046,6 +1191,7 @@ impl<'db> CtfeMachine<'db> {
                     let deferred_origin = self.first_deferred_origin(&args).unwrap_or(origin);
                     let value_args = self.value_args(args, origin)?;
                     return match self.eval_extern_const_fn(
+                        frame_idx,
                         instance,
                         func,
                         result_ty,
@@ -1145,7 +1291,7 @@ impl<'db> CtfeMachine<'db> {
         }
     }
 
-    fn try_eval_primitive_call(
+    fn try_eval_core_primitive_wrapper_call(
         &mut self,
         frame_idx: usize,
         instance: SemanticInstance<'db>,
@@ -1156,11 +1302,11 @@ impl<'db> CtfeMachine<'db> {
         let BodyOwner::Func(func) = instance.key(self.db).owner(self.db) else {
             return Ok(None);
         };
-        let Some(call) = ctfe_primitive_call_kind(self.db, func, result_ty) else {
+        let Some(call) = core_primitive_wrapper_call_kind(self.db, func, result_ty) else {
             return Ok(None);
         };
         if let PrimitiveWrapperCallKind::Assign(op) = call {
-            return self.try_eval_primitive_assign(frame_idx, op, args, origin);
+            return self.try_eval_core_primitive_assign(frame_idx, op, args, origin);
         }
 
         let value_args = self.value_args(args.to_vec(), origin)?;
@@ -1196,7 +1342,7 @@ impl<'db> CtfeMachine<'db> {
         Ok(Some(value))
     }
 
-    fn try_eval_primitive_assign(
+    fn try_eval_core_primitive_assign(
         &mut self,
         frame_idx: usize,
         op: BinOp,
@@ -1268,6 +1414,7 @@ impl<'db> CtfeMachine<'db> {
 
     fn eval_extern_const_fn(
         &self,
+        frame_idx: usize,
         instance: SemanticInstance<'db>,
         func: crate::hir_def::Func<'db>,
         result_ty: TyId<'db>,
@@ -1303,8 +1450,288 @@ impl<'db> CtfeMachine<'db> {
             "__as_bytes" => self.eval_intrinsic_as_bytes(result_ty, args, origin),
             "__keccak256" => self.eval_intrinsic_keccak(result_ty, args, origin),
             "__bitcast" => self.eval_intrinsic_bitcast(result_ty, args, origin),
-            _ => Err(CtfeError::NotConstEvaluable { origin }),
+            name => self.eval_numeric_extern_intrinsic(frame_idx, name, result_ty, args, origin),
         }
+    }
+
+    fn eval_numeric_extern_intrinsic(
+        &self,
+        frame_idx: usize,
+        name: &str,
+        result_ty: TyId<'db>,
+        args: &[CtfeConstValue<'db>],
+        origin: SemOrigin<'db>,
+    ) -> Result<CtfeConstValue<'db>, CtfeError<'db>> {
+        let Some(kind) = numeric_extern_intrinsic(name) else {
+            return Err(CtfeError::NotConstEvaluable { origin });
+        };
+
+        match kind {
+            NumericExternIntrinsic::CheckedBinary(op) => {
+                let (lhs, rhs) = expect_binary_args(args, origin)?;
+                if self.is_type_level(lhs) || self.is_type_level(rhs) {
+                    let CtfeValue::Value(value) = self.eval_binary(
+                        frame_idx,
+                        result_ty,
+                        BinOp::Arith(op),
+                        lhs.clone(),
+                        rhs.clone(),
+                        origin,
+                    )?
+                    else {
+                        return Err(CtfeError::InvalidBorrow { origin });
+                    };
+                    return Ok(value);
+                }
+                self.eval_checked_numeric_binary(
+                    frame_idx,
+                    result_ty,
+                    op,
+                    lhs.clone(),
+                    rhs.clone(),
+                    origin,
+                )
+            }
+            NumericExternIntrinsic::WrappingBinary(op) => {
+                let (lhs, rhs) = expect_binary_args(args, origin)?;
+                if self.is_type_level(lhs) || self.is_type_level(rhs) {
+                    let CtfeValue::Value(value) = self.eval_binary(
+                        frame_idx,
+                        result_ty,
+                        BinOp::Arith(op),
+                        lhs.clone(),
+                        rhs.clone(),
+                        origin,
+                    )?
+                    else {
+                        return Err(CtfeError::InvalidBorrow { origin });
+                    };
+                    return Ok(value);
+                }
+                self.eval_wrapping_numeric_binary(
+                    frame_idx,
+                    result_ty,
+                    op,
+                    lhs.clone(),
+                    rhs.clone(),
+                    origin,
+                )
+            }
+            NumericExternIntrinsic::SaturatingBinary(op) => {
+                let (lhs, rhs) = expect_binary_args(args, origin)?;
+                if self.is_type_level(lhs) || self.is_type_level(rhs) {
+                    return Err(CtfeError::NotConstEvaluable { origin });
+                }
+                self.eval_saturating_numeric_binary(
+                    frame_idx,
+                    result_ty,
+                    op,
+                    lhs.clone(),
+                    rhs.clone(),
+                    origin,
+                )
+            }
+            NumericExternIntrinsic::Comparison(op) => {
+                let (lhs, rhs) = expect_binary_args(args, origin)?;
+                if self.is_type_level(lhs) || self.is_type_level(rhs) {
+                    return Err(CtfeError::NotConstEvaluable { origin });
+                }
+                let CtfeValue::Value(value) =
+                    self.eval_compare(frame_idx, op, lhs.clone(), rhs.clone(), origin)?
+                else {
+                    return Err(CtfeError::InvalidBorrow { origin });
+                };
+                Ok(value)
+            }
+            NumericExternIntrinsic::BoolBinary(op) => {
+                let (lhs, rhs) = expect_binary_args(args, origin)?;
+                if self.is_type_level(lhs) || self.is_type_level(rhs) {
+                    return Err(CtfeError::NotConstEvaluable { origin });
+                }
+                let lhs = self.expect_bool(frame_idx, lhs.clone(), origin)?;
+                let rhs = self.expect_bool(frame_idx, rhs.clone(), origin)?;
+                let value = match op {
+                    ArithBinOp::BitAnd => lhs & rhs,
+                    ArithBinOp::BitOr => lhs | rhs,
+                    ArithBinOp::BitXor => lhs ^ rhs,
+                    _ => return Err(CtfeError::NotConstEvaluable { origin }),
+                };
+                Ok(CtfeConstValue::bool(value))
+            }
+            NumericExternIntrinsic::CheckedNeg => {
+                let [value] = args else {
+                    return Err(CtfeError::NotConstEvaluable { origin });
+                };
+                if self.is_type_level(value) {
+                    let CtfeValue::Value(value) =
+                        self.eval_unary(frame_idx, result_ty, UnOp::Minus, value.clone(), origin)?
+                    else {
+                        return Err(CtfeError::InvalidBorrow { origin });
+                    };
+                    return Ok(value);
+                }
+                let value = -self.expect_int(frame_idx, value.clone(), origin)?;
+                if !self.int_in_range(result_ty, &value) {
+                    return Err(CtfeError::ArithmeticOverflow { origin });
+                }
+                Ok(CtfeConstValue::int(self.db, result_ty, value))
+            }
+            NumericExternIntrinsic::WrappingNeg => {
+                let [value] = args else {
+                    return Err(CtfeError::NotConstEvaluable { origin });
+                };
+                if self.is_type_level(value) {
+                    let CtfeValue::Value(value) =
+                        self.eval_unary(frame_idx, result_ty, UnOp::Minus, value.clone(), origin)?
+                    else {
+                        return Err(CtfeError::InvalidBorrow { origin });
+                    };
+                    return Ok(value);
+                }
+                Ok(CtfeConstValue::int(
+                    self.db,
+                    result_ty,
+                    -self.expect_int(frame_idx, value.clone(), origin)?,
+                ))
+            }
+            NumericExternIntrinsic::BitNot => {
+                let [value] = args else {
+                    return Err(CtfeError::NotConstEvaluable { origin });
+                };
+                if self.is_type_level(value) {
+                    return Err(CtfeError::NotConstEvaluable { origin });
+                }
+                let value = self.expect_int(frame_idx, value.clone(), origin)?;
+                Ok(CtfeConstValue::int(
+                    self.db,
+                    result_ty,
+                    -value - BigInt::one(),
+                ))
+            }
+            NumericExternIntrinsic::BoolNot => {
+                let [value] = args else {
+                    return Err(CtfeError::NotConstEvaluable { origin });
+                };
+                if self.is_type_level(value) {
+                    return Err(CtfeError::NotConstEvaluable { origin });
+                }
+                Ok(CtfeConstValue::bool(!self.expect_bool(
+                    frame_idx,
+                    value.clone(),
+                    origin,
+                )?))
+            }
+        }
+    }
+
+    fn eval_checked_numeric_binary(
+        &self,
+        frame_idx: usize,
+        result_ty: TyId<'db>,
+        op: ArithBinOp,
+        lhs: CtfeConstValue<'db>,
+        rhs: CtfeConstValue<'db>,
+        origin: SemOrigin<'db>,
+    ) -> Result<CtfeConstValue<'db>, CtfeError<'db>> {
+        let lhs = self.expect_int(frame_idx, lhs, origin)?;
+        let rhs = self.expect_int(frame_idx, rhs, origin)?;
+        let value = match op {
+            ArithBinOp::Add => checked_result(lhs + rhs, self, result_ty, origin)?,
+            ArithBinOp::Sub => checked_result(lhs - rhs, self, result_ty, origin)?,
+            ArithBinOp::Mul => checked_result(lhs * rhs, self, result_ty, origin)?,
+            ArithBinOp::Div => {
+                if rhs.is_zero() {
+                    return Err(CtfeError::DivisionByZero { origin });
+                }
+                if self.signed_div_overflows(result_ty, &lhs, &rhs) {
+                    return Err(CtfeError::ArithmeticOverflow { origin });
+                }
+                lhs / rhs
+            }
+            ArithBinOp::Rem => {
+                if rhs.is_zero() {
+                    return Err(CtfeError::DivisionByZero { origin });
+                }
+                lhs % rhs
+            }
+            ArithBinOp::Pow => self.checked_pow(result_ty, lhs, rhs, origin)?,
+            ArithBinOp::Range
+            | ArithBinOp::LShift
+            | ArithBinOp::RShift
+            | ArithBinOp::BitAnd
+            | ArithBinOp::BitOr
+            | ArithBinOp::BitXor => {
+                return Err(CtfeError::NotConstEvaluable { origin });
+            }
+        };
+        Ok(CtfeConstValue::int(self.db, result_ty, value))
+    }
+
+    fn eval_wrapping_numeric_binary(
+        &self,
+        frame_idx: usize,
+        result_ty: TyId<'db>,
+        op: ArithBinOp,
+        lhs: CtfeConstValue<'db>,
+        rhs: CtfeConstValue<'db>,
+        origin: SemOrigin<'db>,
+    ) -> Result<CtfeConstValue<'db>, CtfeError<'db>> {
+        let lhs = self.expect_int(frame_idx, lhs, origin)?;
+        let rhs = self.expect_int(frame_idx, rhs, origin)?;
+        let value = match op {
+            ArithBinOp::Add => lhs + rhs,
+            ArithBinOp::Sub => lhs - rhs,
+            ArithBinOp::Mul => lhs * rhs,
+            ArithBinOp::Div => {
+                if rhs.is_zero() {
+                    BigInt::zero()
+                } else {
+                    lhs / rhs
+                }
+            }
+            ArithBinOp::Rem => {
+                if rhs.is_zero() {
+                    BigInt::zero()
+                } else {
+                    lhs % rhs
+                }
+            }
+            ArithBinOp::Pow => self.wrapping_pow(result_ty, &lhs, &rhs, origin)?,
+            ArithBinOp::LShift => self.wrapping_shift(result_ty, lhs, rhs, true, origin)?,
+            ArithBinOp::RShift => self.wrapping_shift(result_ty, lhs, rhs, false, origin)?,
+            ArithBinOp::BitAnd => self.bitwise(result_ty, lhs, rhs, |lhs, rhs| lhs & rhs)?,
+            ArithBinOp::BitOr => self.bitwise(result_ty, lhs, rhs, |lhs, rhs| lhs | rhs)?,
+            ArithBinOp::BitXor => self.bitwise(result_ty, lhs, rhs, |lhs, rhs| lhs ^ rhs)?,
+            ArithBinOp::Range => return Err(CtfeError::NotConstEvaluable { origin }),
+        };
+        Ok(CtfeConstValue::int(self.db, result_ty, value))
+    }
+
+    fn eval_saturating_numeric_binary(
+        &self,
+        frame_idx: usize,
+        result_ty: TyId<'db>,
+        op: SaturatingArithmetic,
+        lhs: CtfeConstValue<'db>,
+        rhs: CtfeConstValue<'db>,
+        origin: SemOrigin<'db>,
+    ) -> Result<CtfeConstValue<'db>, CtfeError<'db>> {
+        let lhs = self.expect_int(frame_idx, lhs, origin)?;
+        let rhs = self.expect_int(frame_idx, rhs, origin)?;
+        let value = match op {
+            SaturatingArithmetic::Add => lhs + rhs,
+            SaturatingArithmetic::Sub => lhs - rhs,
+            SaturatingArithmetic::Mul => lhs * rhs,
+        };
+        let Some((bits, signed)) = int_ty_shape(self.db, result_ty) else {
+            return Err(CtfeError::NotConstEvaluable { origin });
+        };
+        let (min, max) = int_bounds(bits, signed);
+        Ok(CtfeConstValue::int(
+            self.db,
+            result_ty,
+            value.clamp(min, max),
+        ))
     }
 
     fn eval_evm_modular_arithmetic(
@@ -1881,6 +2308,12 @@ impl<'db> CtfeMachine<'db> {
         match op {
             UnOp::Plus => Ok(CtfeValue::Value(value)),
             UnOp::Minus => {
+                if self.is_type_level(&value)
+                    && let Some(value) =
+                        self.eval_type_level_unary(result_ty, op, value.clone(), origin)
+                {
+                    return Ok(CtfeValue::Value(value));
+                }
                 let value = self.expect_int(frame_idx, value, origin)?;
                 let value = match self.frames[frame_idx]
                     .body
@@ -2151,6 +2584,26 @@ impl<'db> CtfeMachine<'db> {
         Ok(CtfeValue::Value(CtfeConstValue::bool(result)))
     }
 
+    fn eval_type_level_unary(
+        &self,
+        result_ty: TyId<'db>,
+        op: UnOp,
+        value: CtfeConstValue<'db>,
+        origin: SemOrigin<'db>,
+    ) -> Option<CtfeConstValue<'db>> {
+        let const_value = value.materialize(self.db);
+        let const_ty = TyId::const_ty(self.db, const_ty_from_sem_const(self.db, const_value));
+        let expr = ConstExprId::new(self.db, ConstExpr::UnOp { op, expr: const_ty });
+        let const_ty = ConstTyId::new(self.db, ConstTyData::Abstract(expr, result_ty))
+            .evaluate(self.db, Some(result_ty));
+        sem_const_from_ty(self.db, TyId::const_ty(self.db, const_ty)).map(|const_value| {
+            self.value_with_origin(
+                CtfeConstValue::concrete(self.db, const_value),
+                value.deferred_origin.or(Some(origin)),
+            )
+        })
+    }
+
     fn eval_type_level_binary(
         &self,
         result_ty: TyId<'db>,
@@ -2179,6 +2632,109 @@ impl<'db> CtfeMachine<'db> {
                 lhs.deferred_origin.or(rhs.deferred_origin).or(Some(origin)),
             )
         })
+    }
+
+    fn signed_div_overflows(&self, result_ty: TyId<'db>, lhs: &BigInt, rhs: &BigInt) -> bool {
+        if let Some((bits, true)) = int_ty_shape(self.db, result_ty) {
+            lhs == &-(BigInt::one() << (usize::from(bits) - 1)) && rhs == &-BigInt::one()
+        } else {
+            false
+        }
+    }
+
+    fn checked_pow(
+        &self,
+        result_ty: TyId<'db>,
+        lhs: BigInt,
+        rhs: BigInt,
+        origin: SemOrigin<'db>,
+    ) -> Result<BigInt, CtfeError<'db>> {
+        if rhs.sign() == num_bigint::Sign::Minus {
+            return Err(CtfeError::NegativeExponent { origin });
+        }
+        let Some(mut exp) = rhs.to_biguint() else {
+            return Err(CtfeError::NegativeExponent { origin });
+        };
+        let mut acc = BigInt::one();
+        let mut base = lhs;
+        while !exp.is_zero() {
+            if (&exp & BigUint::one()) == BigUint::one() {
+                acc *= base.clone();
+                if !self.int_in_range(result_ty, &acc) {
+                    return Err(CtfeError::ArithmeticOverflow { origin });
+                }
+            }
+            exp >>= 1usize;
+            if exp.is_zero() {
+                break;
+            }
+            base = base.clone() * base;
+            if !self.int_in_range(result_ty, &base) {
+                return Err(CtfeError::ArithmeticOverflow { origin });
+            }
+        }
+        Ok(acc)
+    }
+
+    fn wrapping_pow(
+        &self,
+        result_ty: TyId<'db>,
+        lhs: &BigInt,
+        rhs: &BigInt,
+        origin: SemOrigin<'db>,
+    ) -> Result<BigInt, CtfeError<'db>> {
+        let Some((bits, _)) = int_ty_shape(self.db, result_ty) else {
+            return Err(CtfeError::NotConstEvaluable { origin });
+        };
+        if bits == 0 {
+            return Ok(BigInt::zero());
+        }
+        let modulus = BigUint::one() << usize::from(bits);
+        let base = biguint_from_u256(u256_from_bigint(&normalize_int_to_shape(
+            lhs.clone(),
+            bits,
+            false,
+        )));
+        let exp = biguint_from_u256(u256_from_bigint(&normalize_int_to_shape(
+            rhs.clone(),
+            bits,
+            false,
+        )));
+        Ok(BigInt::from_biguint(
+            Sign::Plus,
+            base.modpow(&exp, &modulus),
+        ))
+    }
+
+    fn wrapping_shift(
+        &self,
+        result_ty: TyId<'db>,
+        lhs: BigInt,
+        rhs: BigInt,
+        left: bool,
+        origin: SemOrigin<'db>,
+    ) -> Result<BigInt, CtfeError<'db>> {
+        let Some((bits, signed)) = int_ty_shape(self.db, result_ty) else {
+            let Some(shift) = rhs.to_usize() else {
+                return Err(CtfeError::InvalidOperation {
+                    origin,
+                    message: "invalid shift amount".into(),
+                });
+            };
+            return Ok(if left { lhs << shift } else { lhs >> shift });
+        };
+        let shift_word = u256_from_bigint(&normalize_int_to_shape(rhs, bits, false));
+        if shift_word >= U256::from(256u16) {
+            return Ok(if left || !signed || lhs.sign() != Sign::Minus {
+                BigInt::zero()
+            } else {
+                -BigInt::one()
+            });
+        }
+        let shift = bigint_from_u256(shift_word)
+            .to_usize()
+            .expect("shift amount below 256 fits usize");
+        Ok(if left { lhs << shift } else { lhs >> shift })
     }
 
     fn bitwise(

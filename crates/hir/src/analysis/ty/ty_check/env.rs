@@ -1510,8 +1510,15 @@ pub(super) struct PendingMethod<'db> {
     pub expr: crate::core::hir_def::ExprId,
     pub recv_ty: TyId<'db>,
     pub method_name: crate::core::hir_def::IdentId<'db>,
-    pub candidates: Vec<TraitInstId<'db>>,
+    pub candidates: Vec<PendingMethodCandidate<'db>>,
     pub span: DynLazySpan<'db>,
+}
+
+#[derive(Debug, Clone, Copy)]
+pub(super) struct PendingMethodCandidate<'db> {
+    pub inst: TraitInstId<'db>,
+    pub method: Func<'db>,
+    pub needs_confirmation: bool,
 }
 
 #[derive(Debug, Clone)]

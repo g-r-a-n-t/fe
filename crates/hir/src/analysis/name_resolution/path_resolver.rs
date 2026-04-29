@@ -204,8 +204,11 @@ impl<'db> PathResError<'db> {
                 MethodSelectionError::AmbiguousInherentMethod(cands) => {
                     format!("Ambiguous method; {} inherent candidates.", cands.len())
                 }
-                MethodSelectionError::AmbiguousTraitMethod(traits) => {
-                    format!("Ambiguous method; {} trait candidates.", traits.len())
+                MethodSelectionError::AmbiguousTraitMethod(ambiguous) => {
+                    format!(
+                        "Ambiguous method; {} trait candidates.",
+                        ambiguous.diagnostic_traits.len()
+                    )
                 }
                 MethodSelectionError::NotFound => "Method not found".to_string(),
                 MethodSelectionError::InvisibleInherentMethod(_) => {
@@ -393,11 +396,11 @@ impl<'db> PathResError<'db> {
                         candidates,
                     }
                 }
-                MethodSelectionError::AmbiguousTraitMethod(trait_insts) => {
+                MethodSelectionError::AmbiguousTraitMethod(ambiguous) => {
                     PathResDiag::AmbiguousTrait {
                         primary: span,
                         method_name: ident,
-                        trait_insts,
+                        trait_insts: ambiguous.diagnostic_traits,
                     }
                 }
                 MethodSelectionError::InvisibleInherentMethod(func) => {

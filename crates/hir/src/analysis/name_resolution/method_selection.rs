@@ -55,6 +55,18 @@ impl<'db> TraitMethodCand<'db> {
     }
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, salsa::Update)]
+pub struct AmbiguousTraitMethodCand<'db> {
+    pub cand: TraitMethodCand<'db>,
+    pub needs_confirmation: bool,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Hash, salsa::Update)]
+pub struct AmbiguousTraitMethods<'db> {
+    pub candidates: ThinVec<AmbiguousTraitMethodCand<'db>>,
+    pub diagnostic_traits: ThinVec<TraitInstId<'db>>,
+}
+
 pub(crate) fn select_method_candidate<'db>(
     db: &'db dyn HirAnalysisDb,
     receiver: &Canonicalized<'db, TyId<'db>>,
@@ -345,8 +357,19 @@ impl<'db, 'a> MethodSelector<'db, 'a> {
                     return Ok(MethodCandidate::TraitMethod(confirmed[0]));
                 }
 
+                let diagnostic_traits = visible_traits.iter().map(|cand| cand.0).collect();
+                let candidates = selected
+                    .into_iter()
+                    .map(|(cand, confirmed)| AmbiguousTraitMethodCand {
+                        cand,
+                        needs_confirmation: !confirmed,
+                    })
+                    .collect();
                 Err(MethodSelectionError::AmbiguousTraitMethod(
-                    visible_traits.into_iter().map(|cand| cand.0).collect(),
+                    AmbiguousTraitMethods {
+                        candidates,
+                        diagnostic_traits,
+                    },
                 ))
             }
         }
@@ -481,7 +504,7 @@ impl<'db, 'a> MethodSelector<'db, 'a> {
 #[derive(Debug, Clone, PartialEq, Eq, Hash, salsa::Update)]
 pub enum MethodSelectionError<'db> {
     AmbiguousInherentMethod(ThinVec<CallableDef<'db>>),
-    AmbiguousTraitMethod(ThinVec<TraitInstId<'db>>),
+    AmbiguousTraitMethod(AmbiguousTraitMethods<'db>),
     NotFound,
     InvisibleInherentMethod(CallableDef<'db>),
     InvisibleTraitMethod(ThinVec<Trait<'db>>),

@@ -1,0 +1,60 @@
+use core::ops::{Add, Mul}
+use std::evm::crypto::{addmod, mulmod}
+use std::evm::effects::assert
+
+const FIELD_MODULUS: u256 = 17
+
+struct Fr<const MODULUS: u256> {
+    value: u256,
+}
+
+impl<const MODULUS: u256> Copy for Fr<MODULUS> {}
+
+impl<const MODULUS: u256> Fr<MODULUS> {
+    const fn new(value: u256) -> Fr<MODULUS> {
+        Fr { value: value }
+    }
+}
+
+impl<const MODULUS: u256> Add for Fr<MODULUS> {
+    const fn add(own self, _ other: own Fr<MODULUS>) -> Fr<MODULUS> {
+        Fr::new(value: addmod(self.value, other.value, MODULUS))
+    }
+}
+
+impl<const MODULUS: u256> Add<u256> for Fr<MODULUS> {
+    const fn add(own self, _ other: own u256) -> Fr<MODULUS> {
+        self + Fr::new(value: other)
+    }
+}
+
+impl<const MODULUS: u256> Mul for Fr<MODULUS> {
+    const fn mul(own self, _ other: own Fr<MODULUS>) -> Fr<MODULUS> {
+        Fr::new(value: mulmod(self.value, other.value, MODULUS))
+    }
+}
+
+impl<const MODULUS: u256> Mul<u256> for Fr<MODULUS> {
+    const fn mul(own self, _ other: own u256) -> Fr<MODULUS> {
+        self * Fr::new(value: other)
+    }
+}
+
+type F17 = Fr<FIELD_MODULUS>
+
+const fn mixed_add_wraps() -> u256 {
+    (F17::new(value: FIELD_MODULUS - 1) + 2).value
+}
+
+const fn mixed_mul_wraps() -> u256 {
+    (F17::new(value: FIELD_MODULUS - 1) * 3).value
+}
+
+static_assert(mixed_add_wraps() == 1)
+static_assert(mixed_mul_wraps() == 14)
+
+#[test]
+fn test_const_generic_field_ops() {
+    assert(mixed_add_wraps() == 1)
+    assert(mixed_mul_wraps() == 14)
+}

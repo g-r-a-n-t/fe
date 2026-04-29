@@ -196,6 +196,7 @@ struct CtfeMachine<'db> {
     db: &'db dyn HirAnalysisDb,
     config: CtfeConfig,
     steps: usize,
+    instance_cache: FxHashMap<SemanticInstanceKey<'db>, SemanticInstance<'db>>,
     body_cache: FxHashMap<SemanticInstanceKey<'db>, Rc<SemanticBody<'db>>>,
     frames: Vec<CtfeFrame<'db>>,
 }
@@ -694,9 +695,19 @@ impl<'db> CtfeMachine<'db> {
             db,
             config,
             steps: 0,
+            instance_cache: FxHashMap::default(),
             body_cache: FxHashMap::default(),
             frames: Vec::new(),
         }
+    }
+
+    fn instance_for_key(&mut self, key: SemanticInstanceKey<'db>) -> SemanticInstance<'db> {
+        if let Some(instance) = self.instance_cache.get(&key).copied() {
+            return instance;
+        }
+        let instance = SemanticInstance::new(self.db, key);
+        self.instance_cache.insert(key, instance);
+        instance
     }
 
     fn body_for_instance(&mut self, instance: SemanticInstance<'db>) -> Rc<SemanticBody<'db>> {
@@ -1020,7 +1031,7 @@ impl<'db> CtfeMachine<'db> {
                     .eval_args(frame_idx, &args, origin)?
                     .into_iter()
                     .collect::<Vec<_>>();
-                let instance = SemanticInstance::new(self.db, callee.key);
+                let instance = self.instance_for_key(callee.key);
                 if let Some(value) =
                     self.try_eval_primitive_call(frame_idx, instance, result_ty, &args, origin)?
                 {

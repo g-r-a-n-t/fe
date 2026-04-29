@@ -16,6 +16,7 @@ extern {
     const fn __pow_u8(_: u8, _: u8) -> u8
     const fn __shl_u8(_: u8, _: u8) -> u8
     const fn __shr_i8(_: i8, _: i8) -> i8
+    const fn __shr_i16(_: i16, _: i16) -> i16
     const fn __bitand_u8(_: u8, _: u8) -> u8
     const fn __bitor_u8(_: u8, _: u8) -> u8
     const fn __bitxor_u8(_: u8, _: u8) -> u8
@@ -46,6 +47,8 @@ const WRAPPING_REM_ZERO: u8 = __rem_u8(9, 0)
 const WRAPPING_POW: u8 = __pow_u8(2, 8)
 const WRAPPING_SHL: u8 = __shl_u8(1, 8)
 const WRAPPING_SIGNED_SHR: i8 = __shr_i8(-128, 7)
+const WRAPPING_SIGNED_SHR_255: i8 = __shr_i8(-1, -1)
+const WRAPPING_SIGNED_SHR_300: i16 = __shr_i16(-1, 300)
 const WRAPPING_NEG: i8 = __neg_i8(-128)
 const BIT_NOT: u8 = __bitnot_u8(0)
 const BIT_AND: u8 = __bitand_u8(0b1010, 0b1100)
@@ -77,6 +80,8 @@ fn const_numeric_extern_intrinsics() {
     assert(WRAPPING_POW == 0)
     assert(WRAPPING_SHL == 0)
     assert(WRAPPING_SIGNED_SHR == -1)
+    assert(WRAPPING_SIGNED_SHR_255 == -1)
+    assert(WRAPPING_SIGNED_SHR_300 == -1)
     assert(WRAPPING_NEG == -128)
     assert(BIT_NOT == 255)
     assert(BIT_AND == 0b1000)

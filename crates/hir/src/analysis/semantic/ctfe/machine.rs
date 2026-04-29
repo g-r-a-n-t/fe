@@ -667,6 +667,34 @@ fn bigint_from_u256(value: U256) -> BigInt {
     BigInt::from_bytes_be(Sign::Plus, &value.to_be_bytes::<32>())
 }
 
+fn signed_word_is_negative(bits: u16, word: U256) -> bool {
+    bits > 0 && word.bit(usize::from(bits - 1))
+}
+
+fn sign_extend_word(bits: u16, word: U256) -> U256 {
+    if bits == 0 || bits == 256 || !signed_word_is_negative(bits, word) {
+        word
+    } else {
+        word | (U256::MAX << usize::from(bits))
+    }
+}
+
+fn wrapping_shift_word(bits: u16, signed: bool, lhs: U256, rhs: U256, left: bool) -> U256 {
+    if rhs >= U256::from(256u16) {
+        if left || !signed || !signed_word_is_negative(bits, lhs) {
+            U256::ZERO
+        } else {
+            U256::MAX
+        }
+    } else if left {
+        lhs.wrapping_shl(rhs.wrapping_to::<usize>())
+    } else if signed {
+        sign_extend_word(bits, lhs).arithmetic_shr(rhs.wrapping_to::<usize>())
+    } else {
+        lhs.wrapping_shr(rhs.wrapping_to::<usize>())
+    }
+}
+
 fn expect_binary_args<'a, 'db>(
     args: &'a [CtfeConstValue<'db>],
     origin: SemOrigin<'db>,
@@ -1588,6 +1616,13 @@ impl<'db> CtfeMachine<'db> {
                     };
                     return Ok(value);
                 }
+                if let Some(word) = self.expect_matching_int_word(value, result_ty, origin)? {
+                    return Ok(CtfeConstValue::int_word(
+                        self.db,
+                        result_ty,
+                        word.wrapping_neg(),
+                    ));
+                }
                 Ok(CtfeConstValue::int(
                     self.db,
                     result_ty,
@@ -1600,6 +1635,9 @@ impl<'db> CtfeMachine<'db> {
                 };
                 if self.is_type_level(value) {
                     return Err(CtfeError::NotConstEvaluable { origin });
+                }
+                if let Some(word) = self.expect_matching_int_word(value, result_ty, origin)? {
+                    return Ok(CtfeConstValue::int_word(self.db, result_ty, word.not()));
                 }
                 let value = self.expect_int(frame_idx, value.clone(), origin)?;
                 Ok(CtfeConstValue::int(
@@ -1676,6 +1714,11 @@ impl<'db> CtfeMachine<'db> {
         rhs: CtfeConstValue<'db>,
         origin: SemOrigin<'db>,
     ) -> Result<CtfeConstValue<'db>, CtfeError<'db>> {
+        if let Some(value) =
+            self.eval_wrapping_numeric_binary_word(result_ty, op, &lhs, &rhs, origin)?
+        {
+            return Ok(value);
+        }
         let lhs = self.expect_int(frame_idx, lhs, origin)?;
         let rhs = self.expect_int(frame_idx, rhs, origin)?;
         let value = match op {
@@ -1705,6 +1748,53 @@ impl<'db> CtfeMachine<'db> {
             ArithBinOp::Range => return Err(CtfeError::NotConstEvaluable { origin }),
         };
         Ok(CtfeConstValue::int(self.db, result_ty, value))
+    }
+
+    fn eval_wrapping_numeric_binary_word(
+        &self,
+        result_ty: TyId<'db>,
+        op: ArithBinOp,
+        lhs: &CtfeConstValue<'db>,
+        rhs: &CtfeConstValue<'db>,
+        origin: SemOrigin<'db>,
+    ) -> Result<Option<CtfeConstValue<'db>>, CtfeError<'db>> {
+        let Some((bits, signed)) = int_ty_shape(self.db, result_ty) else {
+            return Ok(None);
+        };
+        let Some(lhs) = self.expect_matching_int_word(lhs, result_ty, origin)? else {
+            return Ok(None);
+        };
+        let Some(rhs) = self.expect_matching_int_word(rhs, result_ty, origin)? else {
+            return Ok(None);
+        };
+        let value = match op {
+            ArithBinOp::Add => lhs.wrapping_add(rhs),
+            ArithBinOp::Sub => lhs.wrapping_sub(rhs),
+            ArithBinOp::Mul => lhs.wrapping_mul(rhs),
+            ArithBinOp::Div if !signed => {
+                if rhs.is_zero() {
+                    U256::ZERO
+                } else {
+                    lhs.wrapping_div(rhs)
+                }
+            }
+            ArithBinOp::Rem if !signed => {
+                if rhs.is_zero() {
+                    U256::ZERO
+                } else {
+                    lhs.wrapping_rem(rhs)
+                }
+            }
+            ArithBinOp::Pow => lhs.wrapping_pow(rhs),
+            ArithBinOp::LShift => wrapping_shift_word(bits, signed, lhs, rhs, true),
+            ArithBinOp::RShift => wrapping_shift_word(bits, signed, lhs, rhs, false),
+            ArithBinOp::BitAnd => lhs & rhs,
+            ArithBinOp::BitOr => lhs | rhs,
+            ArithBinOp::BitXor => lhs ^ rhs,
+            ArithBinOp::Div | ArithBinOp::Rem => return Ok(None),
+            ArithBinOp::Range => return Err(CtfeError::NotConstEvaluable { origin }),
+        };
+        Ok(Some(CtfeConstValue::int_word(self.db, result_ty, value)))
     }
 
     fn eval_saturating_numeric_binary(
@@ -2284,6 +2374,50 @@ impl<'db> CtfeMachine<'db> {
         }
     }
 
+    fn expect_matching_int_word(
+        &self,
+        value: &CtfeConstValue<'db>,
+        result_ty: TyId<'db>,
+        origin: SemOrigin<'db>,
+    ) -> Result<Option<U256>, CtfeError<'db>> {
+        let Some((bits, signed)) = int_ty_shape(self.db, result_ty) else {
+            return Ok(None);
+        };
+        match &value.kind {
+            CtfeConstKind::Int {
+                value:
+                    CtfeInt::Word {
+                        bits: value_bits,
+                        signed: value_signed,
+                        word,
+                    },
+                ..
+            } if (*value_bits, *value_signed) == (bits, signed) => Ok(Some(*word)),
+            CtfeConstKind::Int { .. } => Ok(None),
+            CtfeConstKind::Interned(interned) => match interned.value(self.db) {
+                SemConstValue::Scalar {
+                    ty,
+                    value: SemConstScalar::Int { value },
+                } if int_ty_shape(self.db, ty) == Some((bits, signed)) => Ok(Some(
+                    u256_from_bigint(&normalize_int_to_shape(value.clone(), bits, false)),
+                )),
+                SemConstValue::Scalar {
+                    value: SemConstScalar::Int { .. },
+                    ..
+                }
+                | SemConstValue::TypeLevel { .. } => Ok(None),
+                _ => Err(CtfeError::InvalidOperation {
+                    origin: value.error_origin(origin),
+                    message: "expected int".into(),
+                }),
+            },
+            _ => Err(CtfeError::InvalidOperation {
+                origin: value.error_origin(origin),
+                message: "expected int".into(),
+            }),
+        }
+    }
+
     fn index_from_value(
         &self,
         frame_idx: usize,
@@ -2314,12 +2448,21 @@ impl<'db> CtfeMachine<'db> {
                 {
                     return Ok(CtfeValue::Value(value));
                 }
-                let value = self.expect_int(frame_idx, value, origin)?;
-                let value = match self.frames[frame_idx]
+                let arithmetic_mode = self.frames[frame_idx]
                     .body
                     .template_owner
-                    .arithmetic_mode(self.db)
+                    .arithmetic_mode(self.db);
+                if arithmetic_mode == ArithmeticMode::Unchecked
+                    && let Some(word) = self.expect_matching_int_word(&value, result_ty, origin)?
                 {
+                    return Ok(CtfeValue::Value(CtfeConstValue::int_word(
+                        self.db,
+                        result_ty,
+                        word.wrapping_neg(),
+                    )));
+                }
+                let value = self.expect_int(frame_idx, value, origin)?;
+                let value = match arithmetic_mode {
                     ArithmeticMode::Checked => {
                         let value = -value;
                         if !self.int_in_range(result_ty, &value) {
@@ -2337,6 +2480,13 @@ impl<'db> CtfeMachine<'db> {
                 !self.expect_bool(frame_idx, value, origin)?,
             ))),
             UnOp::BitNot => {
+                if let Some(word) = self.expect_matching_int_word(&value, result_ty, origin)? {
+                    return Ok(CtfeValue::Value(CtfeConstValue::int_word(
+                        self.db,
+                        result_ty,
+                        word.not(),
+                    )));
+                }
                 let int = self.expect_int(frame_idx, value, origin)?;
                 Ok(CtfeValue::Value(CtfeConstValue::int(
                     self.db,

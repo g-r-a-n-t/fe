@@ -56,21 +56,26 @@ fn copy_view_words_to_memory<I>(_ view: BytesView<I>, _ dest: u256)
 ///
 /// `data_ptr` is a raw calldata byte offset.
 pub fn encode_bytes_return_from_calldata(data_ptr: u256, len: u256) -> ! {
-    ops::mstore(addr: 0, value: 32)
-    ops::mstore(addr: 32, value: len)
-    ops::calldatacopy(dest: 64, offset: data_ptr, len: len)
-    zero_pad_memory_bytes(ptr: 64, len: len)
-    ops::return_data(offset: 0, len: 64 + ceil_words(len) * 32)
+    let total_len = 64 + ceil_words(len) * 32
+    let ptr = mem::alloc(total_len)
+    ops::mstore(addr: ptr, value: 32)
+    ops::mstore(addr: ptr + 32, value: len)
+    ops::calldatacopy(dest: ptr + 64, offset: data_ptr, len: len)
+    zero_pad_memory_bytes(ptr: ptr + 64, len: len)
+    ops::return_data(offset: ptr, len: total_len)
 }
 
 /// Return ABI-encoded `bytes` copied from an arbitrary byte view.
 pub fn encode_bytes_return_view<I>(view: BytesView<I>) -> !
     where I: ByteInput
 {
-    ops::mstore(addr: 0, value: 32)
-    ops::mstore(addr: 32, value: view.len())
-    copy_view_words_to_memory(view, 64)
-    ops::return_data(offset: 0, len: 64 + ceil_words(view.len()) * 32)
+    let len = view.len()
+    let total_len = 64 + ceil_words(len) * 32
+    let ptr = mem::alloc(total_len)
+    ops::mstore(addr: ptr, value: 32)
+    ops::mstore(addr: ptr + 32, value: len)
+    copy_view_words_to_memory(view, ptr + 64)
+    ops::return_data(offset: ptr, len: total_len)
 }
 
 /// Emit a Solidity-compatible event with a single dynamic `bytes` payload.
@@ -187,16 +192,18 @@ impl<K: StorageKey + Copy, const LEN_SALT: u256, const WORD_SALT: u256>
         let words: StorageMap<(K, u256), u256, WORD_SALT> = StorageMap::new()
 
         let len = lengths.get(key)
-        ops::mstore(addr: 0, value: 32)
-        ops::mstore(addr: 32, value: len)
-
         let word_count = ceil_words(len)
+        let total_len = 64 + word_count * 32
+        let ptr = mem::alloc(total_len)
+        ops::mstore(addr: ptr, value: 32)
+        ops::mstore(addr: ptr + 32, value: len)
+
         let mut i: u256 = 0
         while i < word_count {
-            ops::mstore(addr: 64 + i * 32, value: words.get((key, i)))
+            ops::mstore(addr: ptr + 64 + i * 32, value: words.get((key, i)))
             i += 1
         }
 
-        ops::return_data(offset: 0, len: 64 + word_count * 32)
+        ops::return_data(offset: ptr, len: total_len)
     }
 }

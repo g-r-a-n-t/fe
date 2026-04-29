@@ -958,19 +958,13 @@ const POSEIDON_T6_ROUND_CONSTANTS: [[u256; 6]; 68] = [
     ],
 ]
 
-struct Fr {
-    value: u256,
-}
+struct Fr { value: u256 }
 
 impl Copy for Fr {}
 
 impl Fr {
-    const fn new(value: u256) -> Fr {
+    const fn new(_ value: u256) -> Fr {
         Fr { value: value }
-    }
-
-    const fn zero() -> Fr {
-        Fr::new(0)
     }
 
     const fn pow5(self) -> Fr {
@@ -1010,11 +1004,7 @@ const fn is_full_round(round: usize, half_full_rounds: usize, partial_rounds: us
 
 const fn apply_round_constants3(state: [Fr; 3], round: usize) -> [Fr; 3] {
     let constants = POSEIDON_T3_ROUND_CONSTANTS[round]
-    [
-        state[0] + constants[0],
-        state[1] + constants[1],
-        state[2] + constants[2],
-    ]
+    [state[0] + constants[0], state[1] + constants[1], state[2] + constants[2]]
 }
 
 const fn apply_round_constants6(state: [Fr; 6], round: usize) -> [Fr; 6] {
@@ -1051,7 +1041,7 @@ const fn apply_sbox6(state: [Fr; 6], full_round: bool) -> [Fr; 6] {
 }
 
 const fn mix3(state: [Fr; 3]) -> [Fr; 3] {
-    let mut mixed: [Fr; 3] = [Fr::zero(); 3]
+    let mut mixed: [Fr; 3] = [Fr::new(0); 3]
     let mut row: usize = 0
     while row < 3 {
         let mut col: usize = 0
@@ -1065,7 +1055,7 @@ const fn mix3(state: [Fr; 3]) -> [Fr; 3] {
 }
 
 const fn mix6(state: [Fr; 6]) -> [Fr; 6] {
-    let mut mixed: [Fr; 6] = [Fr::zero(); 6]
+    let mut mixed: [Fr; 6] = [Fr::new(0); 6]
     let mut row: usize = 0
     while row < 6 {
         let mut col: usize = 0
@@ -1078,17 +1068,16 @@ const fn mix6(state: [Fr; 6]) -> [Fr; 6] {
     mixed
 }
 
-const fn permute3(state: [Fr; 3]) -> [Fr; 3] {
-    let mut state = state
+const fn permute3(mut _ state: own [Fr; 3]) -> [Fr; 3] {
     let mut round: usize = 0
     while round < POSEIDON_T3_ROUNDS {
         state = apply_round_constants3(state, round)
         state = apply_sbox3(
             state,
-            is_full_round(
+            full_round: is_full_round(
                 round,
-                POSEIDON_T3_HALF_FULL_ROUNDS,
-                POSEIDON_T3_PARTIAL_ROUNDS,
+                half_full_rounds: POSEIDON_T3_HALF_FULL_ROUNDS,
+                partial_rounds: POSEIDON_T3_PARTIAL_ROUNDS,
             ),
         )
         state = mix3(state)
@@ -1097,17 +1086,16 @@ const fn permute3(state: [Fr; 3]) -> [Fr; 3] {
     state
 }
 
-const fn permute6(state: [Fr; 6]) -> [Fr; 6] {
-    let mut state = state
+const fn permute6(mut _ state: own [Fr; 6]) -> [Fr; 6] {
     let mut round: usize = 0
     while round < POSEIDON_T6_ROUNDS {
         state = apply_round_constants6(state, round)
         state = apply_sbox6(
             state,
-            is_full_round(
+            full_round: is_full_round(
                 round,
-                POSEIDON_T6_HALF_FULL_ROUNDS,
-                POSEIDON_T6_PARTIAL_ROUNDS,
+                half_full_rounds: POSEIDON_T6_HALF_FULL_ROUNDS,
+                partial_rounds: POSEIDON_T6_PARTIAL_ROUNDS,
             ),
         )
         state = mix6(state)
@@ -1116,25 +1104,18 @@ const fn permute6(state: [Fr; 6]) -> [Fr; 6] {
     state
 }
 
-pub const fn hash2(left: u256, right: u256) -> u256 {
-    permute3([Fr::zero(), Fr::new(left), Fr::new(right)])[0].value
+pub const fn hash2(_ left: u256, _ right: u256) -> u256 {
+    permute3([Fr::new(0), Fr::new(left), Fr::new(right)])[0].value
 }
 
-pub const fn hash5(a: u256, b: u256, c: u256, d: u256, e: u256) -> u256 {
-    permute6([
-        Fr::zero(),
-        Fr::new(a),
-        Fr::new(b),
-        Fr::new(c),
-        Fr::new(d),
-        Fr::new(e),
-    ])[0].value
+pub const fn hash5(_ a: u256, _ b: u256, _ c: u256, _ d: u256, _ e: u256) -> u256 {
+    permute6(
+        [Fr::new(0), Fr::new(a), Fr::new(b), Fr::new(c), Fr::new(d), Fr::new(e)],
+    )[0].value
 }
 
-static_assert(hash2(0, 0)
-    == 0x2098f5fb9e239eab3ceac3f27b81e481dc3124d55ffed523a839ee8446b64864)
-static_assert(hash2(1, 2)
-    == 0x115cc0f5e7d690413df64c6b9662e9cf2a3617f2743245519e19607a4417189a)
+static_assert(hash2(0, 0) == 0x2098f5fb9e239eab3ceac3f27b81e481dc3124d55ffed523a839ee8446b64864)
+static_assert(hash2(1, 2) == 0x115cc0f5e7d690413df64c6b9662e9cf2a3617f2743245519e19607a4417189a)
 static_assert(hash5(0, 0, 0, 0, 0)
     == 0x2066be41bebe6caf7e079360abe14fbf9118c62eabc42e2fe75e342b160a95bc)
 static_assert(hash5(1, 2, 3, 4, 5)
@@ -1143,8 +1124,7 @@ static_assert(hash5(1, 2, 3, 4, 5)
 #[test]
 fn test_const_poseidon_vectors() {
     assert(
-        hash2(0, 0)
-            == 0x2098f5fb9e239eab3ceac3f27b81e481dc3124d55ffed523a839ee8446b64864,
+        hash2(0, 0) == 0x2098f5fb9e239eab3ceac3f27b81e481dc3124d55ffed523a839ee8446b64864,
     )
     assert(
         hash2(1, 2) == 0x115cc0f5e7d690413df64c6b9662e9cf2a3617f2743245519e19607a4417189a,

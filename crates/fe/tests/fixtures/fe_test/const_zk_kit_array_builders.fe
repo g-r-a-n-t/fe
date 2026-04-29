@@ -83,9 +83,9 @@ const fn quinary_first_level_proof(
 }
 
 const BINARY_SLOTS: [u256; 4] = binary_depth2_slots()
-const BINARY_PROOF: ([u256; MAX_DEPTH], [u8; MAX_DEPTH]) = binary_depth2_proof_shape(BINARY_SLOTS, 2, 12)
-const QUINARY_SLOTS: [u256; QUINARY_TEST_MAX_LEAVES] = quinary_test_slots(6)
-const QUINARY_FIRST_LEVEL_PROOF: ([[u256; QUINARY_SIBLINGS_PER_LEVEL]; MAX_DEPTH], [u8; MAX_DEPTH]) = quinary_first_level_proof(QUINARY_SLOTS, 3)
+const BINARY_PROOF: ([u256; MAX_DEPTH], [u8; MAX_DEPTH]) = binary_depth2_proof_shape(slots: BINARY_SLOTS, index: 2, upper_sibling: 12)
+const QUINARY_SLOTS: [u256; QUINARY_TEST_MAX_LEAVES] = quinary_test_slots(count: 6)
+const QUINARY_FIRST_LEVEL_PROOF: ([[u256; QUINARY_SIBLINGS_PER_LEVEL]; MAX_DEPTH], [u8; MAX_DEPTH]) = quinary_first_level_proof(slots: QUINARY_SLOTS, target_index: 3)
 
 #[test]
 fn test_const_binary_imt_array_builders() {

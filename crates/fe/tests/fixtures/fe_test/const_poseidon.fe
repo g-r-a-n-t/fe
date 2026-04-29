@@ -1,6 +1,8 @@
+use core::ops::{Add, Mul}
 use std::evm::crypto::{addmod, mulmod}
 use std::evm::effects::assert
 
+// BN254 scalar field modulus.
 const SNARK_SCALAR_FIELD: u256 = 21888242871839275222246405745257275088548364400416034343698204186575808495617
 
 const POSEIDON_T3_FULL_ROUNDS: usize = 8
@@ -956,76 +958,105 @@ const POSEIDON_T6_ROUND_CONSTANTS: [[u256; 6]; 68] = [
     ],
 ]
 
-const fn field_add(lhs: u256, rhs: u256) -> u256 {
-    addmod(lhs, rhs, SNARK_SCALAR_FIELD)
+struct Fr {
+    value: u256,
 }
 
-const fn field_mul(lhs: u256, rhs: u256) -> u256 {
-    mulmod(lhs, rhs, SNARK_SCALAR_FIELD)
+impl Copy for Fr {}
+
+impl Fr {
+    const fn new(value: u256) -> Fr {
+        Fr { value: value }
+    }
+
+    const fn zero() -> Fr {
+        Fr::new(0)
+    }
+
+    const fn pow5(self) -> Fr {
+        let x2 = self * self
+        let x4 = x2 * x2
+        x4 * self
+    }
 }
 
-const fn sbox_5(x: u256) -> u256 {
-    let x2 = field_mul(x, x)
-    let x4 = field_mul(x2, x2)
-    field_mul(x4, x)
+impl Add for Fr {
+    const fn add(own self, _ other: own Fr) -> Fr {
+        Fr::new(addmod(self.value, other.value, SNARK_SCALAR_FIELD))
+    }
+}
+
+impl Add<u256> for Fr {
+    const fn add(own self, _ other: own u256) -> Fr {
+        self + Fr::new(other)
+    }
+}
+
+impl Mul for Fr {
+    const fn mul(own self, _ other: own Fr) -> Fr {
+        Fr::new(mulmod(self.value, other.value, SNARK_SCALAR_FIELD))
+    }
+}
+
+impl Mul<u256> for Fr {
+    const fn mul(own self, _ other: own u256) -> Fr {
+        self * Fr::new(other)
+    }
 }
 
 const fn is_full_round(round: usize, half_full_rounds: usize, partial_rounds: usize) -> bool {
     round < half_full_rounds || round >= half_full_rounds + partial_rounds
 }
 
-const fn apply_round_constants3(state: [u256; 3], round: usize) -> [u256; 3] {
+const fn apply_round_constants3(state: [Fr; 3], round: usize) -> [Fr; 3] {
     let constants = POSEIDON_T3_ROUND_CONSTANTS[round]
     [
-        field_add(state[0], constants[0]),
-        field_add(state[1], constants[1]),
-        field_add(state[2], constants[2]),
+        state[0] + constants[0],
+        state[1] + constants[1],
+        state[2] + constants[2],
     ]
 }
 
-const fn apply_round_constants6(state: [u256; 6], round: usize) -> [u256; 6] {
+const fn apply_round_constants6(state: [Fr; 6], round: usize) -> [Fr; 6] {
     let constants = POSEIDON_T6_ROUND_CONSTANTS[round]
     [
-        field_add(state[0], constants[0]),
-        field_add(state[1], constants[1]),
-        field_add(state[2], constants[2]),
-        field_add(state[3], constants[3]),
-        field_add(state[4], constants[4]),
-        field_add(state[5], constants[5]),
+        state[0] + constants[0],
+        state[1] + constants[1],
+        state[2] + constants[2],
+        state[3] + constants[3],
+        state[4] + constants[4],
+        state[5] + constants[5],
     ]
 }
 
-const fn apply_sbox3(state: [u256; 3], full_round: bool) -> [u256; 3] {
+const fn apply_sbox3(state: [Fr; 3], full_round: bool) -> [Fr; 3] {
     if full_round {
-        return [sbox_5(state[0]), sbox_5(state[1]), sbox_5(state[2])]
+        return [state[0].pow5(), state[1].pow5(), state[2].pow5()]
     }
-    [sbox_5(state[0]), state[1], state[2]]
+    [state[0].pow5(), state[1], state[2]]
 }
 
-const fn apply_sbox6(state: [u256; 6], full_round: bool) -> [u256; 6] {
+const fn apply_sbox6(state: [Fr; 6], full_round: bool) -> [Fr; 6] {
     if full_round {
         return [
-            sbox_5(state[0]),
-            sbox_5(state[1]),
-            sbox_5(state[2]),
-            sbox_5(state[3]),
-            sbox_5(state[4]),
-            sbox_5(state[5]),
+            state[0].pow5(),
+            state[1].pow5(),
+            state[2].pow5(),
+            state[3].pow5(),
+            state[4].pow5(),
+            state[5].pow5(),
         ]
     }
-    [sbox_5(state[0]), state[1], state[2], state[3], state[4], state[5]]
+    [state[0].pow5(), state[1], state[2], state[3], state[4], state[5]]
 }
 
-const fn mix3(state: [u256; 3]) -> [u256; 3] {
-    let mut mixed: [u256; 3] = [0; 3]
+const fn mix3(state: [Fr; 3]) -> [Fr; 3] {
+    let mut mixed: [Fr; 3] = [Fr::zero(); 3]
     let mut row: usize = 0
     while row < 3 {
         let mut col: usize = 0
         while col < 3 {
-            mixed[row] = field_add(
-                mixed[row],
-                field_mul(POSEIDON_T3_MDS[row][col], state[col]),
-            )
+            mixed[row] = mixed[row] + state[col] * POSEIDON_T3_MDS[row][col]
             col += 1
         }
         row += 1
@@ -1033,16 +1064,13 @@ const fn mix3(state: [u256; 3]) -> [u256; 3] {
     mixed
 }
 
-const fn mix6(state: [u256; 6]) -> [u256; 6] {
-    let mut mixed: [u256; 6] = [0; 6]
+const fn mix6(state: [Fr; 6]) -> [Fr; 6] {
+    let mut mixed: [Fr; 6] = [Fr::zero(); 6]
     let mut row: usize = 0
     while row < 6 {
         let mut col: usize = 0
         while col < 6 {
-            mixed[row] = field_add(
-                mixed[row],
-                field_mul(POSEIDON_T6_MDS[row][col], state[col]),
-            )
+            mixed[row] = mixed[row] + state[col] * POSEIDON_T6_MDS[row][col]
             col += 1
         }
         row += 1
@@ -1050,7 +1078,7 @@ const fn mix6(state: [u256; 6]) -> [u256; 6] {
     mixed
 }
 
-const fn permute3(state: [u256; 3]) -> [u256; 3] {
+const fn permute3(state: [Fr; 3]) -> [Fr; 3] {
     let mut state = state
     let mut round: usize = 0
     while round < POSEIDON_T3_ROUNDS {
@@ -1069,7 +1097,7 @@ const fn permute3(state: [u256; 3]) -> [u256; 3] {
     state
 }
 
-const fn permute6(state: [u256; 6]) -> [u256; 6] {
+const fn permute6(state: [Fr; 6]) -> [Fr; 6] {
     let mut state = state
     let mut round: usize = 0
     while round < POSEIDON_T6_ROUNDS {
@@ -1089,17 +1117,24 @@ const fn permute6(state: [u256; 6]) -> [u256; 6] {
 }
 
 pub const fn hash2(left: u256, right: u256) -> u256 {
-    permute3([0, left, right])[0]
+    permute3([Fr::zero(), Fr::new(left), Fr::new(right)])[0].value
 }
 
 pub const fn hash5(a: u256, b: u256, c: u256, d: u256, e: u256) -> u256 {
-    permute6([0, a, b, c, d, e])[0]
+    permute6([
+        Fr::zero(),
+        Fr::new(a),
+        Fr::new(b),
+        Fr::new(c),
+        Fr::new(d),
+        Fr::new(e),
+    ])[0].value
 }
 
 static_assert(hash2(0, 0)
-    == 14744269619966411208579211824598458697587494354926760081771325075741142829156)
+    == 0x2098f5fb9e239eab3ceac3f27b81e481dc3124d55ffed523a839ee8446b64864)
 static_assert(hash2(1, 2)
-    == 7853200120776062878684798364095072458815029376092732009249414926327459813530)
+    == 0x115cc0f5e7d690413df64c6b9662e9cf2a3617f2743245519e19607a4417189a)
 static_assert(hash5(0, 0, 0, 0, 0)
     == 0x2066be41bebe6caf7e079360abe14fbf9118c62eabc42e2fe75e342b160a95bc)
 static_assert(hash5(1, 2, 3, 4, 5)
@@ -1109,10 +1144,10 @@ static_assert(hash5(1, 2, 3, 4, 5)
 fn test_const_poseidon_vectors() {
     assert(
         hash2(0, 0)
-            == 14744269619966411208579211824598458697587494354926760081771325075741142829156,
+            == 0x2098f5fb9e239eab3ceac3f27b81e481dc3124d55ffed523a839ee8446b64864,
     )
     assert(
-        hash2(1, 2) == 7853200120776062878684798364095072458815029376092732009249414926327459813530,
+        hash2(1, 2) == 0x115cc0f5e7d690413df64c6b9662e9cf2a3617f2743245519e19607a4417189a,
     )
     assert(
         hash5(0, 0, 0, 0, 0) == 0x2066be41bebe6caf7e079360abe14fbf9118c62eabc42e2fe75e342b160a95bc,

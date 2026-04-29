@@ -51,7 +51,9 @@ impl<'db> ConstFnChecker<'db, '_> {
         let Some(callee) = self.callable_func(callable) else {
             return;
         };
-        if ctfe_primitive_call_kind(self.db, callee, callable.ret_ty(self.db)).is_some() {
+        if !callee.is_extern(self.db)
+            && ctfe_primitive_call_kind(self.db, callee, callable.ret_ty(self.db)).is_some()
+        {
             return;
         }
 

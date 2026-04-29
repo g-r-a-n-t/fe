@@ -10,13 +10,13 @@ extern {
 
 // Generic checked arithmetic intrinsics for primitive integer types.
 extern {
-    fn __checked_add<T: IntWord>(_: T, _: T) -> T
-    fn __checked_sub<T: IntWord>(_: T, _: T) -> T
-    fn __checked_mul<T: IntWord>(_: T, _: T) -> T
-    fn __checked_div<T: IntWord>(_: T, _: T) -> T
-    fn __checked_rem<T: IntWord>(_: T, _: T) -> T
-    fn __checked_pow<T: IntWord>(_: T, _: T) -> T
-    fn __checked_neg<T: IntWord>(_: T) -> T
+    const fn __checked_add<T: IntWord>(_: T, _: T) -> T
+    const fn __checked_sub<T: IntWord>(_: T, _: T) -> T
+    const fn __checked_mul<T: IntWord>(_: T, _: T) -> T
+    const fn __checked_div<T: IntWord>(_: T, _: T) -> T
+    const fn __checked_rem<T: IntWord>(_: T, _: T) -> T
+    const fn __checked_pow<T: IntWord>(_: T, _: T) -> T
+    const fn __checked_neg<T: IntWord>(_: T) -> T
 }
 
 // Generic saturating arithmetic intrinsics for primitive integer types.
@@ -34,20 +34,20 @@ extern {
     fn __div_u8(_: u8, _: u8) -> u8
     fn __rem_u8(_: u8, _: u8) -> u8
     fn __pow_u8(_: u8, _: u8) -> u8
-    fn __shl_u8(_: u8, _: u8) -> u8
-    fn __shr_u8(_: u8, _: u8) -> u8
-    fn __bitand_u8(_: u8, _: u8) -> u8
-    fn __bitor_u8(_: u8, _: u8) -> u8
-    fn __bitxor_u8(_: u8, _: u8) -> u8
+    const fn __shl_u8(_: u8, _: u8) -> u8
+    const fn __shr_u8(_: u8, _: u8) -> u8
+    const fn __bitand_u8(_: u8, _: u8) -> u8
+    const fn __bitor_u8(_: u8, _: u8) -> u8
+    const fn __bitxor_u8(_: u8, _: u8) -> u8
 
-    fn __eq_u8(_: u8, _: u8) -> bool
-    fn __ne_u8(_: u8, _: u8) -> bool
-    fn __lt_u8(_: u8, _: u8) -> bool
-    fn __le_u8(_: u8, _: u8) -> bool
-    fn __gt_u8(_: u8, _: u8) -> bool
-    fn __ge_u8(_: u8, _: u8) -> bool
+    const fn __eq_u8(_: u8, _: u8) -> bool
+    const fn __ne_u8(_: u8, _: u8) -> bool
+    const fn __lt_u8(_: u8, _: u8) -> bool
+    const fn __le_u8(_: u8, _: u8) -> bool
+    const fn __gt_u8(_: u8, _: u8) -> bool
+    const fn __ge_u8(_: u8, _: u8) -> bool
 
-    fn __bitnot_u8(_: u8) -> u8
+    const fn __bitnot_u8(_: u8) -> u8
 }
 
 // Extern intrinsics for i8
@@ -58,21 +58,21 @@ extern {
     fn __div_i8(_: i8, _: i8) -> i8
     fn __rem_i8(_: i8, _: i8) -> i8
     fn __pow_i8(_: i8, _: i8) -> i8
-    fn __shl_i8(_: i8, _: i8) -> i8
-    fn __shr_i8(_: i8, _: i8) -> i8
-    fn __bitand_i8(_: i8, _: i8) -> i8
-    fn __bitor_i8(_: i8, _: i8) -> i8
-    fn __bitxor_i8(_: i8, _: i8) -> i8
+    const fn __shl_i8(_: i8, _: i8) -> i8
+    const fn __shr_i8(_: i8, _: i8) -> i8
+    const fn __bitand_i8(_: i8, _: i8) -> i8
+    const fn __bitor_i8(_: i8, _: i8) -> i8
+    const fn __bitxor_i8(_: i8, _: i8) -> i8
 
-    fn __eq_i8(_: i8, _: i8) -> bool
-    fn __ne_i8(_: i8, _: i8) -> bool
-    fn __lt_i8(_: i8, _: i8) -> bool
-    fn __le_i8(_: i8, _: i8) -> bool
-    fn __gt_i8(_: i8, _: i8) -> bool
-    fn __ge_i8(_: i8, _: i8) -> bool
+    const fn __eq_i8(_: i8, _: i8) -> bool
+    const fn __ne_i8(_: i8, _: i8) -> bool
+    const fn __lt_i8(_: i8, _: i8) -> bool
+    const fn __le_i8(_: i8, _: i8) -> bool
+    const fn __gt_i8(_: i8, _: i8) -> bool
+    const fn __ge_i8(_: i8, _: i8) -> bool
 
     fn __neg_i8(_: i8) -> i8
-    fn __bitnot_i8(_: i8) -> i8
+    const fn __bitnot_i8(_: i8) -> i8
 }
 
 // Extern intrinsics for i16
@@ -83,21 +83,21 @@ extern {
     fn __div_i16(_: i16, _: i16) -> i16
     fn __rem_i16(_: i16, _: i16) -> i16
     fn __pow_i16(_: i16, _: i16) -> i16
-    fn __shl_i16(_: i16, _: i16) -> i16
-    fn __shr_i16(_: i16, _: i16) -> i16
-    fn __bitand_i16(_: i16, _: i16) -> i16
-    fn __bitor_i16(_: i16, _: i16) -> i16
-    fn __bitxor_i16(_: i16, _: i16) -> i16
+    const fn __shl_i16(_: i16, _: i16) -> i16
+    const fn __shr_i16(_: i16, _: i16) -> i16
+    const fn __bitand_i16(_: i16, _: i16) -> i16
+    const fn __bitor_i16(_: i16, _: i16) -> i16
+    const fn __bitxor_i16(_: i16, _: i16) -> i16
 
-    fn __eq_i16(_: i16, _: i16) -> bool
-    fn __ne_i16(_: i16, _: i16) -> bool
-    fn __lt_i16(_: i16, _: i16) -> bool
-    fn __le_i16(_: i16, _: i16) -> bool
-    fn __gt_i16(_: i16, _: i16) -> bool
-    fn __ge_i16(_: i16, _: i16) -> bool
+    const fn __eq_i16(_: i16, _: i16) -> bool
+    const fn __ne_i16(_: i16, _: i16) -> bool
+    const fn __lt_i16(_: i16, _: i16) -> bool
+    const fn __le_i16(_: i16, _: i16) -> bool
+    const fn __gt_i16(_: i16, _: i16) -> bool
+    const fn __ge_i16(_: i16, _: i16) -> bool
 
     fn __neg_i16(_: i16) -> i16
-    fn __bitnot_i16(_: i16) -> i16
+    const fn __bitnot_i16(_: i16) -> i16
 }
 
 // Extern intrinsics for u16
@@ -108,20 +108,20 @@ extern {
     fn __div_u16(_: u16, _: u16) -> u16
     fn __rem_u16(_: u16, _: u16) -> u16
     fn __pow_u16(_: u16, _: u16) -> u16
-    fn __shl_u16(_: u16, _: u16) -> u16
-    fn __shr_u16(_: u16, _: u16) -> u16
-    fn __bitand_u16(_: u16, _: u16) -> u16
-    fn __bitor_u16(_: u16, _: u16) -> u16
-    fn __bitxor_u16(_: u16, _: u16) -> u16
+    const fn __shl_u16(_: u16, _: u16) -> u16
+    const fn __shr_u16(_: u16, _: u16) -> u16
+    const fn __bitand_u16(_: u16, _: u16) -> u16
+    const fn __bitor_u16(_: u16, _: u16) -> u16
+    const fn __bitxor_u16(_: u16, _: u16) -> u16
 
-    fn __eq_u16(_: u16, _: u16) -> bool
-    fn __ne_u16(_: u16, _: u16) -> bool
-    fn __lt_u16(_: u16, _: u16) -> bool
-    fn __le_u16(_: u16, _: u16) -> bool
-    fn __gt_u16(_: u16, _: u16) -> bool
-    fn __ge_u16(_: u16, _: u16) -> bool
+    const fn __eq_u16(_: u16, _: u16) -> bool
+    const fn __ne_u16(_: u16, _: u16) -> bool
+    const fn __lt_u16(_: u16, _: u16) -> bool
+    const fn __le_u16(_: u16, _: u16) -> bool
+    const fn __gt_u16(_: u16, _: u16) -> bool
+    const fn __ge_u16(_: u16, _: u16) -> bool
 
-    fn __bitnot_u16(_: u16) -> u16
+    const fn __bitnot_u16(_: u16) -> u16
 }
 
 // Extern intrinsics for i32
@@ -132,21 +132,21 @@ extern {
     fn __div_i32(_: i32, _: i32) -> i32
     fn __rem_i32(_: i32, _: i32) -> i32
     fn __pow_i32(_: i32, _: i32) -> i32
-    fn __shl_i32(_: i32, _: i32) -> i32
-    fn __shr_i32(_: i32, _: i32) -> i32
-    fn __bitand_i32(_: i32, _: i32) -> i32
-    fn __bitor_i32(_: i32, _: i32) -> i32
-    fn __bitxor_i32(_: i32, _: i32) -> i32
+    const fn __shl_i32(_: i32, _: i32) -> i32
+    const fn __shr_i32(_: i32, _: i32) -> i32
+    const fn __bitand_i32(_: i32, _: i32) -> i32
+    const fn __bitor_i32(_: i32, _: i32) -> i32
+    const fn __bitxor_i32(_: i32, _: i32) -> i32
 
-    fn __eq_i32(_: i32, _: i32) -> bool
-    fn __ne_i32(_: i32, _: i32) -> bool
-    fn __lt_i32(_: i32, _: i32) -> bool
-    fn __le_i32(_: i32, _: i32) -> bool
-    fn __gt_i32(_: i32, _: i32) -> bool
-    fn __ge_i32(_: i32, _: i32) -> bool
+    const fn __eq_i32(_: i32, _: i32) -> bool
+    const fn __ne_i32(_: i32, _: i32) -> bool
+    const fn __lt_i32(_: i32, _: i32) -> bool
+    const fn __le_i32(_: i32, _: i32) -> bool
+    const fn __gt_i32(_: i32, _: i32) -> bool
+    const fn __ge_i32(_: i32, _: i32) -> bool
 
     fn __neg_i32(_: i32) -> i32
-    fn __bitnot_i32(_: i32) -> i32
+    const fn __bitnot_i32(_: i32) -> i32
 }
 
 // Extern intrinsics for u32
@@ -157,20 +157,20 @@ extern {
     fn __div_u32(_: u32, _: u32) -> u32
     fn __rem_u32(_: u32, _: u32) -> u32
     fn __pow_u32(_: u32, _: u32) -> u32
-    fn __shl_u32(_: u32, _: u32) -> u32
-    fn __shr_u32(_: u32, _: u32) -> u32
-    fn __bitand_u32(_: u32, _: u32) -> u32
-    fn __bitor_u32(_: u32, _: u32) -> u32
-    fn __bitxor_u32(_: u32, _: u32) -> u32
+    const fn __shl_u32(_: u32, _: u32) -> u32
+    const fn __shr_u32(_: u32, _: u32) -> u32
+    const fn __bitand_u32(_: u32, _: u32) -> u32
+    const fn __bitor_u32(_: u32, _: u32) -> u32
+    const fn __bitxor_u32(_: u32, _: u32) -> u32
 
-    fn __eq_u32(_: u32, _: u32) -> bool
-    fn __ne_u32(_: u32, _: u32) -> bool
-    fn __lt_u32(_: u32, _: u32) -> bool
-    fn __le_u32(_: u32, _: u32) -> bool
-    fn __gt_u32(_: u32, _: u32) -> bool
-    fn __ge_u32(_: u32, _: u32) -> bool
+    const fn __eq_u32(_: u32, _: u32) -> bool
+    const fn __ne_u32(_: u32, _: u32) -> bool
+    const fn __lt_u32(_: u32, _: u32) -> bool
+    const fn __le_u32(_: u32, _: u32) -> bool
+    const fn __gt_u32(_: u32, _: u32) -> bool
+    const fn __ge_u32(_: u32, _: u32) -> bool
 
-    fn __bitnot_u32(_: u32) -> u32
+    const fn __bitnot_u32(_: u32) -> u32
 }
 
 // Extern intrinsics for i64
@@ -181,21 +181,21 @@ extern {
     fn __div_i64(_: i64, _: i64) -> i64
     fn __rem_i64(_: i64, _: i64) -> i64
     fn __pow_i64(_: i64, _: i64) -> i64
-    fn __shl_i64(_: i64, _: i64) -> i64
-    fn __shr_i64(_: i64, _: i64) -> i64
-    fn __bitand_i64(_: i64, _: i64) -> i64
-    fn __bitor_i64(_: i64, _: i64) -> i64
-    fn __bitxor_i64(_: i64, _: i64) -> i64
+    const fn __shl_i64(_: i64, _: i64) -> i64
+    const fn __shr_i64(_: i64, _: i64) -> i64
+    const fn __bitand_i64(_: i64, _: i64) -> i64
+    const fn __bitor_i64(_: i64, _: i64) -> i64
+    const fn __bitxor_i64(_: i64, _: i64) -> i64
 
-    fn __eq_i64(_: i64, _: i64) -> bool
-    fn __ne_i64(_: i64, _: i64) -> bool
-    fn __lt_i64(_: i64, _: i64) -> bool
-    fn __le_i64(_: i64, _: i64) -> bool
-    fn __gt_i64(_: i64, _: i64) -> bool
-    fn __ge_i64(_: i64, _: i64) -> bool
+    const fn __eq_i64(_: i64, _: i64) -> bool
+    const fn __ne_i64(_: i64, _: i64) -> bool
+    const fn __lt_i64(_: i64, _: i64) -> bool
+    const fn __le_i64(_: i64, _: i64) -> bool
+    const fn __gt_i64(_: i64, _: i64) -> bool
+    const fn __ge_i64(_: i64, _: i64) -> bool
 
     fn __neg_i64(_: i64) -> i64
-    fn __bitnot_i64(_: i64) -> i64
+    const fn __bitnot_i64(_: i64) -> i64
 }
 
 // Extern intrinsics for i128
@@ -206,21 +206,21 @@ extern {
     fn __div_i128(_: i128, _: i128) -> i128
     fn __rem_i128(_: i128, _: i128) -> i128
     fn __pow_i128(_: i128, _: i128) -> i128
-    fn __shl_i128(_: i128, _: i128) -> i128
-    fn __shr_i128(_: i128, _: i128) -> i128
-    fn __bitand_i128(_: i128, _: i128) -> i128
-    fn __bitor_i128(_: i128, _: i128) -> i128
-    fn __bitxor_i128(_: i128, _: i128) -> i128
+    const fn __shl_i128(_: i128, _: i128) -> i128
+    const fn __shr_i128(_: i128, _: i128) -> i128
+    const fn __bitand_i128(_: i128, _: i128) -> i128
+    const fn __bitor_i128(_: i128, _: i128) -> i128
+    const fn __bitxor_i128(_: i128, _: i128) -> i128
 
-    fn __eq_i128(_: i128, _: i128) -> bool
-    fn __ne_i128(_: i128, _: i128) -> bool
-    fn __lt_i128(_: i128, _: i128) -> bool
-    fn __le_i128(_: i128, _: i128) -> bool
-    fn __gt_i128(_: i128, _: i128) -> bool
-    fn __ge_i128(_: i128, _: i128) -> bool
+    const fn __eq_i128(_: i128, _: i128) -> bool
+    const fn __ne_i128(_: i128, _: i128) -> bool
+    const fn __lt_i128(_: i128, _: i128) -> bool
+    const fn __le_i128(_: i128, _: i128) -> bool
+    const fn __gt_i128(_: i128, _: i128) -> bool
+    const fn __ge_i128(_: i128, _: i128) -> bool
 
     fn __neg_i128(_: i128) -> i128
-    fn __bitnot_i128(_: i128) -> i128
+    const fn __bitnot_i128(_: i128) -> i128
 }
 
 // Extern intrinsics for u64
@@ -231,20 +231,20 @@ extern {
     fn __div_u64(_: u64, _: u64) -> u64
     fn __rem_u64(_: u64, _: u64) -> u64
     fn __pow_u64(_: u64, _: u64) -> u64
-    fn __shl_u64(_: u64, _: u64) -> u64
-    fn __shr_u64(_: u64, _: u64) -> u64
-    fn __bitand_u64(_: u64, _: u64) -> u64
-    fn __bitor_u64(_: u64, _: u64) -> u64
-    fn __bitxor_u64(_: u64, _: u64) -> u64
+    const fn __shl_u64(_: u64, _: u64) -> u64
+    const fn __shr_u64(_: u64, _: u64) -> u64
+    const fn __bitand_u64(_: u64, _: u64) -> u64
+    const fn __bitor_u64(_: u64, _: u64) -> u64
+    const fn __bitxor_u64(_: u64, _: u64) -> u64
 
-    fn __eq_u64(_: u64, _: u64) -> bool
-    fn __ne_u64(_: u64, _: u64) -> bool
-    fn __lt_u64(_: u64, _: u64) -> bool
-    fn __le_u64(_: u64, _: u64) -> bool
-    fn __gt_u64(_: u64, _: u64) -> bool
-    fn __ge_u64(_: u64, _: u64) -> bool
+    const fn __eq_u64(_: u64, _: u64) -> bool
+    const fn __ne_u64(_: u64, _: u64) -> bool
+    const fn __lt_u64(_: u64, _: u64) -> bool
+    const fn __le_u64(_: u64, _: u64) -> bool
+    const fn __gt_u64(_: u64, _: u64) -> bool
+    const fn __ge_u64(_: u64, _: u64) -> bool
 
-     fn __bitnot_u64(_: u64) -> u64
+    const fn __bitnot_u64(_: u64) -> u64
 }
 
 // Extern intrinsics for u128
@@ -255,20 +255,20 @@ extern {
     fn __div_u128(_: u128, _: u128) -> u128
     fn __rem_u128(_: u128, _: u128) -> u128
     fn __pow_u128(_: u128, _: u128) -> u128
-    fn __shl_u128(_: u128, _: u128) -> u128
-    fn __shr_u128(_: u128, _: u128) -> u128
-    fn __bitand_u128(_: u128, _: u128) -> u128
-    fn __bitor_u128(_: u128, _: u128) -> u128
-    fn __bitxor_u128(_: u128, _: u128) -> u128
+    const fn __shl_u128(_: u128, _: u128) -> u128
+    const fn __shr_u128(_: u128, _: u128) -> u128
+    const fn __bitand_u128(_: u128, _: u128) -> u128
+    const fn __bitor_u128(_: u128, _: u128) -> u128
+    const fn __bitxor_u128(_: u128, _: u128) -> u128
 
-    fn __eq_u128(_: u128, _: u128) -> bool
-    fn __ne_u128(_: u128, _: u128) -> bool
-    fn __lt_u128(_: u128, _: u128) -> bool
-    fn __le_u128(_: u128, _: u128) -> bool
-    fn __gt_u128(_: u128, _: u128) -> bool
-    fn __ge_u128(_: u128, _: u128) -> bool
+    const fn __eq_u128(_: u128, _: u128) -> bool
+    const fn __ne_u128(_: u128, _: u128) -> bool
+    const fn __lt_u128(_: u128, _: u128) -> bool
+    const fn __le_u128(_: u128, _: u128) -> bool
+    const fn __gt_u128(_: u128, _: u128) -> bool
+    const fn __ge_u128(_: u128, _: u128) -> bool
 
-    fn __bitnot_u128(_: u128) -> u128
+    const fn __bitnot_u128(_: u128) -> u128
 }
 
 // Extern intrinsics for usize
@@ -279,20 +279,20 @@ extern {
     fn __div_usize(_: usize, _: usize) -> usize
     fn __rem_usize(_: usize, _: usize) -> usize
     fn __pow_usize(_: usize, _: usize) -> usize
-    fn __shl_usize(_: usize, _: usize) -> usize
-    fn __shr_usize(_: usize, _: usize) -> usize
-    fn __bitand_usize(_: usize, _: usize) -> usize
-    fn __bitor_usize(_: usize, _: usize) -> usize
-    fn __bitxor_usize(_: usize, _: usize) -> usize
+    const fn __shl_usize(_: usize, _: usize) -> usize
+    const fn __shr_usize(_: usize, _: usize) -> usize
+    const fn __bitand_usize(_: usize, _: usize) -> usize
+    const fn __bitor_usize(_: usize, _: usize) -> usize
+    const fn __bitxor_usize(_: usize, _: usize) -> usize
 
-    fn __eq_usize(_: usize, _: usize) -> bool
-    fn __ne_usize(_: usize, _: usize) -> bool
-    fn __lt_usize(_: usize, _: usize) -> bool
-    fn __le_usize(_: usize, _: usize) -> bool
-    fn __gt_usize(_: usize, _: usize) -> bool
-    fn __ge_usize(_: usize, _: usize) -> bool
+    const fn __eq_usize(_: usize, _: usize) -> bool
+    const fn __ne_usize(_: usize, _: usize) -> bool
+    const fn __lt_usize(_: usize, _: usize) -> bool
+    const fn __le_usize(_: usize, _: usize) -> bool
+    const fn __gt_usize(_: usize, _: usize) -> bool
+    const fn __ge_usize(_: usize, _: usize) -> bool
 
-    fn __bitnot_usize(_: usize) -> usize
+    const fn __bitnot_usize(_: usize) -> usize
 }
 
 // Extern intrinsics for i256
@@ -303,21 +303,21 @@ extern {
     fn __div_i256(_: i256, _: i256) -> i256
     fn __rem_i256(_: i256, _: i256) -> i256
     fn __pow_i256(_: i256, _: i256) -> i256
-    fn __shl_i256(_: i256, _: i256) -> i256
-    fn __shr_i256(_: i256, _: i256) -> i256
-    fn __bitand_i256(_: i256, _: i256) -> i256
-    fn __bitor_i256(_: i256, _: i256) -> i256
-    fn __bitxor_i256(_: i256, _: i256) -> i256
+    const fn __shl_i256(_: i256, _: i256) -> i256
+    const fn __shr_i256(_: i256, _: i256) -> i256
+    const fn __bitand_i256(_: i256, _: i256) -> i256
+    const fn __bitor_i256(_: i256, _: i256) -> i256
+    const fn __bitxor_i256(_: i256, _: i256) -> i256
 
-    fn __eq_i256(_: i256, _: i256) -> bool
-    fn __ne_i256(_: i256, _: i256) -> bool
-    fn __lt_i256(_: i256, _: i256) -> bool
-    fn __le_i256(_: i256, _: i256) -> bool
-    fn __gt_i256(_: i256, _: i256) -> bool
-    fn __ge_i256(_: i256, _: i256) -> bool
+    const fn __eq_i256(_: i256, _: i256) -> bool
+    const fn __ne_i256(_: i256, _: i256) -> bool
+    const fn __lt_i256(_: i256, _: i256) -> bool
+    const fn __le_i256(_: i256, _: i256) -> bool
+    const fn __gt_i256(_: i256, _: i256) -> bool
+    const fn __ge_i256(_: i256, _: i256) -> bool
 
     fn __neg_i256(_: i256) -> i256
-    fn __bitnot_i256(_: i256) -> i256
+    const fn __bitnot_i256(_: i256) -> i256
 }
 
 // Extern intrinsics for u256
@@ -328,20 +328,20 @@ extern {
     fn __div_u256(_: u256, _: u256) -> u256
     fn __rem_u256(_: u256, _: u256) -> u256
     fn __pow_u256(_: u256, _: u256) -> u256
-    fn __shl_u256(_: u256, _: u256) -> u256
-    fn __shr_u256(_: u256, _: u256) -> u256
-    fn __bitand_u256(_: u256, _: u256) -> u256
-    fn __bitor_u256(_: u256, _: u256) -> u256
-    fn __bitxor_u256(_: u256, _: u256) -> u256
+    const fn __shl_u256(_: u256, _: u256) -> u256
+    const fn __shr_u256(_: u256, _: u256) -> u256
+    const fn __bitand_u256(_: u256, _: u256) -> u256
+    const fn __bitor_u256(_: u256, _: u256) -> u256
+    const fn __bitxor_u256(_: u256, _: u256) -> u256
 
-    fn __eq_u256(_: u256, _: u256) -> bool
-    fn __ne_u256(_: u256, _: u256) -> bool
-    fn __lt_u256(_: u256, _: u256) -> bool
-    fn __le_u256(_: u256, _: u256) -> bool
-    fn __gt_u256(_: u256, _: u256) -> bool
-    fn __ge_u256(_: u256, _: u256) -> bool
+    const fn __eq_u256(_: u256, _: u256) -> bool
+    const fn __ne_u256(_: u256, _: u256) -> bool
+    const fn __lt_u256(_: u256, _: u256) -> bool
+    const fn __le_u256(_: u256, _: u256) -> bool
+    const fn __gt_u256(_: u256, _: u256) -> bool
+    const fn __ge_u256(_: u256, _: u256) -> bool
 
-    fn __bitnot_u256(_: u256) -> u256
+    const fn __bitnot_u256(_: u256) -> u256
 }
 
 // Extern intrinsics for isize
@@ -352,31 +352,31 @@ extern {
     fn __div_isize(_: isize, _: isize) -> isize
     fn __rem_isize(_: isize, _: isize) -> isize
     fn __pow_isize(_: isize, _: isize) -> isize
-    fn __shl_isize(_: isize, _: isize) -> isize
-    fn __shr_isize(_: isize, _: isize) -> isize
-    fn __bitand_isize(_: isize, _: isize) -> isize
-    fn __bitor_isize(_: isize, _: isize) -> isize
-    fn __bitxor_isize(_: isize, _: isize) -> isize
+    const fn __shl_isize(_: isize, _: isize) -> isize
+    const fn __shr_isize(_: isize, _: isize) -> isize
+    const fn __bitand_isize(_: isize, _: isize) -> isize
+    const fn __bitor_isize(_: isize, _: isize) -> isize
+    const fn __bitxor_isize(_: isize, _: isize) -> isize
 
-    fn __eq_isize(_: isize, _: isize) -> bool
-    fn __ne_isize(_: isize, _: isize) -> bool
-    fn __lt_isize(_: isize, _: isize) -> bool
-    fn __le_isize(_: isize, _: isize) -> bool
-    fn __gt_isize(_: isize, _: isize) -> bool
-    fn __ge_isize(_: isize, _: isize) -> bool
+    const fn __eq_isize(_: isize, _: isize) -> bool
+    const fn __ne_isize(_: isize, _: isize) -> bool
+    const fn __lt_isize(_: isize, _: isize) -> bool
+    const fn __le_isize(_: isize, _: isize) -> bool
+    const fn __gt_isize(_: isize, _: isize) -> bool
+    const fn __ge_isize(_: isize, _: isize) -> bool
 
     fn __neg_isize(_: isize) -> isize
-    fn __bitnot_isize(_: isize) -> isize
+    const fn __bitnot_isize(_: isize) -> isize
 }
 
 // Extern intrinsics for bool
 extern {
-    fn __not_bool(_: bool) -> bool
-    fn __bitand_bool(_: bool, _: bool) -> bool
-    fn __bitor_bool(_: bool, _: bool) -> bool
-    fn __bitxor_bool(_: bool, _: bool) -> bool
-    fn __eq_bool(_: bool, _: bool) -> bool
-    fn __ne_bool(_: bool, _: bool) -> bool
+    const fn __not_bool(_: bool) -> bool
+    const fn __bitand_bool(_: bool, _: bool) -> bool
+    const fn __bitor_bool(_: bool, _: bool) -> bool
+    const fn __bitxor_bool(_: bool, _: bool) -> bool
+    const fn __eq_bool(_: bool, _: bool) -> bool
+    const fn __ne_bool(_: bool, _: bool) -> bool
 }
 
 // Masks used to truncate a 256-bit word down to the requested primitive width.

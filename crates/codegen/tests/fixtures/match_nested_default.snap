@@ -8,85 +8,34 @@ object "main" {
     function $deeply_nested_wildcard(p0) -> ret {
       let v1 := 0
       let v8 := p0
-      let t23 := and(byte(0, mload(v8)), 0xff)
-      let v7 := t23
+      let t19 := and(byte(0, mload(v8)), 0xff)
+      let v7 := t19
       switch and(v7, 0xff)
       case 0 {
       }
       default {
           invalid()
       }
-      let v10 := p0
-      let v9 := add(v10, 1)
-      mstore(add(p0, 1), mload(v9))
-      let v12 := add(p0, 1)
-      let t25 := and(byte(0, mload(v12)), 0xff)
-      let v11 := t25
-      switch and(v11, 0xff)
+      let v10 := add(p0, 1)
+      let t20 := and(byte(0, mload(v10)), 0xff)
+      let v9 := t20
+      switch and(v9, 0xff)
       case 0 {
-          let v14 := add(p0, 1)
-          let v13 := add(v14, 1)
-          mstore(add(add(p0, 1), 1), mload(v13))
-          let v16 := add(add(p0, 1), 1)
-          let t27 := and(byte(0, mload(v16)), 0xff)
-          let v15 := t27
-          switch and(v15, 0xff)
-          case 0 {
-              let v19 := 0x01
-              let v4 := and(v19, 0xff)
-              let v20 := 0x01
-              v1 := and(v20, 0xff)
-          }
-          default {
-              let v21 := 0x00
-              let v5 := and(v21, 0xff)
-              let v22 := 0x00
-              v1 := and(v22, 0xff)
-          }
-      }
-      default {
-          let v17 := 0x00
-          let v6 := and(v17, 0xff)
-          let v18 := 0x00
-          v1 := and(v18, 0xff)
-      }
-      ret := and(v1, 0xff)
-      leave
-    }
-    function $exhaustive_inner_outer_wildcard(p0) -> ret {
-      let v1 := 0
-      let v8 := p0
-      let t21 := and(byte(0, mload(v8)), 0xff)
-      let v7 := t21
-      switch and(v7, 0xff)
-      case 0 {
-          let v10 := p0
-          let v9 := add(v10, 1)
-          mstore(add(p0, 1), mload(v9))
-          let v12 := add(p0, 1)
-          let t23 := and(byte(0, mload(v12)), 0xff)
-          let v11 := t23
+          let v12 := add(add(p0, 1), 1)
+          let t21 := and(byte(0, mload(v12)), 0xff)
+          let v11 := t21
           switch and(v11, 0xff)
           case 0 {
               let v15 := 0x01
-              let v3 := and(v15, 0xff)
+              let v4 := and(v15, 0xff)
               let v16 := 0x01
               v1 := and(v16, 0xff)
           }
-          case 1 {
-              let v17 := 0x02
-              let v4 := and(v17, 0xff)
-              let v18 := 0x02
-              v1 := and(v18, 0xff)
-          }
-          case 2 {
-              let v19 := 0x03
-              let v5 := and(v19, 0xff)
-              let v20 := 0x03
-              v1 := and(v20, 0xff)
-          }
           default {
-              invalid()
+              let v17 := 0x00
+              let v5 := and(v17, 0xff)
+              let v18 := 0x00
+              v1 := and(v18, 0xff)
           }
       }
       default {
@@ -94,6 +43,48 @@ object "main" {
           let v6 := and(v13, 0xff)
           let v14 := 0x00
           v1 := and(v14, 0xff)
+      }
+      ret := and(v1, 0xff)
+      leave
+    }
+    function $exhaustive_inner_outer_wildcard(p0) -> ret {
+      let v1 := 0
+      let v8 := p0
+      let t19 := and(byte(0, mload(v8)), 0xff)
+      let v7 := t19
+      switch and(v7, 0xff)
+      case 0 {
+          let v10 := add(p0, 1)
+          let t20 := and(byte(0, mload(v10)), 0xff)
+          let v9 := t20
+          switch and(v9, 0xff)
+          case 0 {
+              let v13 := 0x01
+              let v3 := and(v13, 0xff)
+              let v14 := 0x01
+              v1 := and(v14, 0xff)
+          }
+          case 1 {
+              let v15 := 0x02
+              let v4 := and(v15, 0xff)
+              let v16 := 0x02
+              v1 := and(v16, 0xff)
+          }
+          case 2 {
+              let v17 := 0x03
+              let v5 := and(v17, 0xff)
+              let v18 := 0x03
+              v1 := and(v18, 0xff)
+          }
+          default {
+              invalid()
+          }
+      }
+      default {
+          let v11 := 0x00
+          let v6 := and(v11, 0xff)
+          let v12 := 0x00
+          v1 := and(v12, 0xff)
       }
       ret := and(v1, 0xff)
       leave
@@ -252,49 +243,43 @@ object "main" {
     function $nested_with_defaults(p0) -> ret {
       let v1 := 0
       let v9 := p0
-      let t26 := and(byte(0, mload(v9)), 0xff)
-      let v8 := t26
+      let t22 := and(byte(0, mload(v9)), 0xff)
+      let v8 := t22
       switch and(v8, 0xff)
       case 0 {
-          let v11 := p0
-          let v10 := add(v11, 1)
-          mstore(add(p0, 1), mload(v10))
-          let v13 := add(p0, 1)
-          let t28 := and(byte(0, mload(v13)), 0xff)
-          let v12 := t28
-          switch and(v12, 0xff)
+          let v11 := add(p0, 1)
+          let t23 := and(byte(0, mload(v11)), 0xff)
+          let v10 := t23
+          switch and(v10, 0xff)
           case 0 {
-              let v18 := 0x01
-              let v3 := and(v18, 0xff)
-              let v19 := 0x01
+              let v14 := 0x01
+              let v3 := and(v14, 0xff)
+              let v15 := 0x01
+              v1 := and(v15, 0xff)
+          }
+          default {
+              let v16 := 0x00
+              let v4 := and(v16, 0xff)
+              let v17 := 0x00
+              v1 := and(v17, 0xff)
+          }
+      }
+      case 1 {
+          let v13 := add(p0, 1)
+          let t24 := and(byte(0, mload(v13)), 0xff)
+          let v12 := t24
+          switch and(v12, 0xff)
+          case 1 {
+              let v18 := 0x02
+              let v6 := and(v18, 0xff)
+              let v19 := 0x02
               v1 := and(v19, 0xff)
           }
           default {
               let v20 := 0x00
-              let v4 := and(v20, 0xff)
+              let v7 := and(v20, 0xff)
               let v21 := 0x00
               v1 := and(v21, 0xff)
-          }
-      }
-      case 1 {
-          let v15 := p0
-          let v14 := add(v15, 1)
-          mstore(add(p0, 1), mload(v14))
-          let v17 := add(p0, 1)
-          let t30 := and(byte(0, mload(v17)), 0xff)
-          let v16 := t30
-          switch and(v16, 0xff)
-          case 1 {
-              let v22 := 0x02
-              let v6 := and(v22, 0xff)
-              let v23 := 0x02
-              v1 := and(v23, 0xff)
-          }
-          default {
-              let v24 := 0x00
-              let v7 := and(v24, 0xff)
-              let v25 := 0x00
-              v1 := and(v25, 0xff)
           }
       }
       default {
@@ -306,35 +291,32 @@ object "main" {
     function $outer_specific_inner_wildcard(p0) -> ret {
       let v1 := 0
       let v7 := p0
-      let t18 := and(byte(0, mload(v7)), 0xff)
-      let v6 := t18
+      let t16 := and(byte(0, mload(v7)), 0xff)
+      let v6 := t16
       switch and(v6, 0xff)
       case 0 {
-          let v9 := p0
-          let v8 := add(v9, 1)
-          mstore(add(p0, 1), mload(v8))
-          let v11 := add(p0, 1)
-          let t20 := and(byte(0, mload(v11)), 0xff)
-          let v10 := t20
-          switch and(v10, 0xff)
+          let v9 := add(p0, 1)
+          let t17 := and(byte(0, mload(v9)), 0xff)
+          let v8 := t17
+          switch and(v8, 0xff)
           case 0 {
-              let v14 := 0x01
-              let v3 := and(v14, 0xff)
-              let v15 := 0x01
-              v1 := and(v15, 0xff)
+              let v12 := 0x01
+              let v3 := and(v12, 0xff)
+              let v13 := 0x01
+              v1 := and(v13, 0xff)
           }
           default {
-              let v16 := 0x02
-              let v4 := and(v16, 0xff)
-              let v17 := 0x02
-              v1 := and(v17, 0xff)
+              let v14 := 0x02
+              let v4 := and(v14, 0xff)
+              let v15 := 0x02
+              v1 := and(v15, 0xff)
           }
       }
       default {
-          let v12 := 0x03
-          let v5 := and(v12, 0xff)
-          let v13 := 0x03
-          v1 := and(v13, 0xff)
+          let v10 := 0x03
+          let v5 := and(v10, 0xff)
+          let v11 := 0x03
+          v1 := and(v11, 0xff)
       }
       ret := and(v1, 0xff)
       leave

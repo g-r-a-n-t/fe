@@ -4,7 +4,8 @@ use fe_codegen::{OptLevel, emit_module_sonatina_ir, emit_runtime_package_sonatin
 use mir::runtime::{AddressSpaceKind, RefKind};
 use mir::{
     IntrinsicArithBinOp, Layout, LayoutId, PlaceElem, PlaceRoot, RExpr, RLocalId, RStmt,
-    RuntimeBuiltin, RuntimeClass, build_runtime_package, build_test_runtime_package,
+    RuntimeBuiltin, RuntimeCarrier, RuntimeClass, RuntimeLocalRoot, build_runtime_package,
+    build_test_runtime_package,
 };
 use url::Url;
 
@@ -794,6 +795,76 @@ fn entry() -> u8 {
                 )
             }),
         "later projections should read from the owned aggregate local itself:\n{body:#?}"
+    );
+}
+
+#[test]
+fn derived_place_bound_field_aliases_do_not_write_back_to_receiver() {
+    let mut db = DriverDataBase::default();
+    let file_url =
+        Url::parse("file:///derived_place_bound_field_aliases_do_not_write_back_to_receiver.fe")
+            .unwrap();
+    db.workspace().touch(
+        &mut db,
+        file_url.clone(),
+        Some(
+            r#"pub struct Pair {
+    pub a: u256,
+    pub b: u256,
+}
+
+impl Copy for Pair {}
+
+impl Pair {
+    pub fn check(self, _ x: u256) -> bool {
+        x == self.a
+    }
+}
+
+pub fn entry() -> bool {
+    Pair { a: 1, b: 2 }.check(1)
+}
+"#
+            .to_string(),
+        ),
+    );
+    let file = db
+        .workspace()
+        .get(&db, &file_url)
+        .expect("file should be loaded");
+    let top_mod = db.top_mod(file);
+    let package = build_runtime_package(&db, top_mod).expect("runtime package");
+    let check = package
+        .functions(&db)
+        .iter()
+        .copied()
+        .find(|function| function.symbol(&db).contains("check"))
+        .expect("generated check runtime function");
+    let body = check.instance(&db).body(&db);
+    let receiver = RLocalId::from_u32(0);
+
+    assert!(
+        !body
+            .blocks
+            .iter()
+            .flat_map(|block| block.stmts.iter())
+            .any(|stmt| matches!(
+                stmt,
+                RStmt::Store { dst, .. } | RStmt::CopyInto { dst, .. }
+                    if dst.root == PlaceRoot::Slot(receiver)
+            )),
+        "field reads through a derived place-bound alias should not write back to the receiver:\n{body:#?}"
+    );
+    assert!(
+        body.locals
+            .iter()
+            .skip(body.signature.params.len())
+            .any(|local| {
+                local.semantic_ty.pretty_print(&db) == "u256"
+                    && matches!(local.carrier, RuntimeCarrier::Erased)
+                    && matches!(local.root, RuntimeLocalRoot::None)
+            }),
+        "derived place-bound scalar alias should stay carrierless/rootless:\n{body:#?}"
     );
 }
 

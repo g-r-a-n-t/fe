@@ -250,6 +250,15 @@ pub(crate) fn desired_runtime_value_carrier<'db>(
     local: &NSLocal<'db>,
     class: RuntimeClass<'db>,
 ) -> RuntimeCarrier<'db> {
+    if matches!(
+        (&local.facts.interface, &local.facts.origin),
+        (
+            SemanticLocalKind::PlaceBoundValue,
+            NLocalOrigin::AliasedPlace
+        )
+    ) {
+        return RuntimeCarrier::Erased;
+    }
     match class {
         RuntimeClass::AggregateValue { layout }
             if matches!(local.facts.interface, SemanticLocalKind::DirectValue)

@@ -7,23 +7,19 @@ object "main" {
   code {
     function $f(p0) -> ret {
       let v8 := p0
-      let t13 := and(byte(0, mload(v8)), 0xff)
-      let v7 := t13
+      let t11 := and(byte(0, mload(v8)), 0xff)
+      let v7 := t11
       switch and(v7, 0xff)
       case 0 {
-          let v10 := p0
-          let t14 := mload(add(v10, 1))
-          let v9 := t14
-          mstore(add(p0, 1), v9)
-          let t15 := mload(add(p0, 1))
-          let v11 := t15
-          let v1 := v11
+          let t12 := mload(add(p0, 1))
+          let v9 := t12
+          let v1 := v9
           ret := v1
           leave
       }
       case 1 {
-          let v12 := 0x00
-          let v5 := v12
+          let v10 := 0x00
+          let v5 := v10
           ret := v5
           leave
       }

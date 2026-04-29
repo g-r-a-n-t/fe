@@ -310,10 +310,10 @@ impl<'db> NormalizeCtxt<'db> {
             .map(|snapshot_source| self.normalize_snapshot_source(local, snapshot_source))
             .transpose()?;
         let mut root_demand = NLocalRootDemand::default();
-        if matches!(
-            interface,
-            SemanticLocalKind::PlaceBoundValue | SemanticLocalKind::PlaceCarrier
-        ) {
+        if matches!(interface, SemanticLocalKind::PlaceCarrier)
+            || (matches!(interface, SemanticLocalKind::PlaceBoundValue)
+                && !matches!(origin, NLocalOrigin::AliasedPlace))
+        {
             root_demand.always_rooted = true;
         }
         self.root_demands[local.index()] = root_demand;

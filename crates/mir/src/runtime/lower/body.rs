@@ -3,10 +3,11 @@ use hir::analysis::{
     semantic::{
         EffectProviderSubst, FieldIndex, GenericSubst, ImplEnv, SBlockId, SConst, SLocalId,
         SemConstId, SemConstScalar, SemConstValue, SemanticCalleeRef, SemanticCodeRegionRef,
-        SemanticInstance, SemanticInstanceKey, VariantIndex,
+        SemanticInstance, SemanticInstanceKey, SemanticLocalKind, VariantIndex,
         borrowck::{
-            NBorrowRoot, NEffectArg, NExpr, NOperand, NSPlace, NSPlaceRoot, NSStmt, NSStmtKind,
-            NSTerminator, NSTerminatorKind, NormalizedSemanticBody, normalize_semantic_body,
+            NBorrowRoot, NBorrowRootId, NEffectArg, NExpr, NLocalOrigin, NOperand, NSPlace,
+            NSPlaceRoot, NSStmt, NSStmtKind, NSTerminator, NSTerminatorKind,
+            NormalizedBindingLowering, NormalizedSemanticBody, normalize_semantic_body,
         },
         get_or_build_semantic_instance, reify_runtime_const_for_ty, sem_const_ty,
     },
@@ -522,6 +523,10 @@ impl<'db> RmirEmitter<'db> {
                 self.lower_expr_into(bb, sink, expr);
             }
             Some(desired) => {
+                if self.semantic_local_is_derived_place_bound_alias(dst) {
+                    self.lower_derived_place_bound_alias_assign(dst, expr);
+                    return;
+                }
                 if self.semantic_local_is_direct(dst) {
                     self.specialize_direct_assign_target_from_expr(dst, expr);
                     self.lower_expr_into(bb, self.runtime_value(dst), expr);
@@ -3581,6 +3586,128 @@ impl<'db> RmirEmitter<'db> {
             RuntimeLocalLowering::PlaceCarrier { .. }
                 | RuntimeLocalLowering::PlaceBoundValue { .. }
         )
+    }
+
+    fn semantic_local_is_derived_place_bound_alias(&self, local: SLocalId) -> bool {
+        self.semantic_body
+            .locals
+            .get(local.index())
+            .is_some_and(|local| {
+                matches!(
+                    (&local.facts.interface, &local.facts.origin),
+                    (
+                        SemanticLocalKind::PlaceBoundValue,
+                        NLocalOrigin::AliasedPlace
+                    )
+                )
+            })
+    }
+
+    fn lower_derived_place_bound_alias_assign(&self, local: SLocalId, expr: &NExpr<'db>) {
+        if self.derived_place_bound_alias_expr_matches_place(local, expr) {
+            return;
+        }
+        panic!(
+            "derived place-bound local assigned from non-alias expression: owner={:?}; local={local:?}; local_data={:?}; expr={expr:?}",
+            self.current_semantic_key().owner(self.db),
+            self.semantic_body.local(local),
+        );
+    }
+
+    fn derived_place_bound_alias_expr_matches_place(
+        &self,
+        local: SLocalId,
+        expr: &NExpr<'db>,
+    ) -> bool {
+        let Some(dst_place) = self
+            .semantic_body
+            .local(local)
+            .and_then(|local| local.backing_place())
+        else {
+            return false;
+        };
+        match expr {
+            NExpr::ReadPlace { place, .. } => place == dst_place,
+            NExpr::Use(operand) => {
+                self.semantic_body
+                    .local(operand.local)
+                    .and_then(|local| local.backing_place())
+                    == Some(dst_place)
+            }
+            NExpr::ExtractEnumField {
+                value,
+                variant,
+                field,
+            } => {
+                let Some(mut place) = self.alias_source_place_for_local(value.local) else {
+                    return false;
+                };
+                let Some(value_local) = self.semantic_body.local(value.local) else {
+                    return false;
+                };
+                place.path.push(Projection::VariantField {
+                    variant: *variant,
+                    enum_ty: value_local.ty,
+                    field_idx: field.0 as usize,
+                });
+                place == *dst_place
+            }
+            NExpr::CodeRegionRef { .. }
+            | NExpr::Const(_)
+            | NExpr::Unary { .. }
+            | NExpr::Binary { .. }
+            | NExpr::Cast { .. }
+            | NExpr::ArrayRepeat { .. }
+            | NExpr::AggregateMake { .. }
+            | NExpr::EnumMake { .. }
+            | NExpr::Borrow { .. }
+            | NExpr::GetEnumTag { .. }
+            | NExpr::IsEnumVariant { .. }
+            | NExpr::Call { .. }
+            | NExpr::CodeRegionOffset { .. }
+            | NExpr::CodeRegionLen { .. } => false,
+        }
+    }
+
+    fn alias_source_place_for_local(&self, local: SLocalId) -> Option<NSPlace<'db>> {
+        let local_data = self.semantic_body.local(local)?;
+        if let Some(place) = local_data.backing_place() {
+            return Some(place.clone());
+        }
+        match &local_data.lowering {
+            NormalizedBindingLowering::CarrierLocal { provider, .. } => {
+                let root = if let Some(provider) = provider {
+                    NSPlaceRoot::Root(self.provider_borrow_root(provider)?)
+                } else {
+                    NSPlaceRoot::CarrierDerefLocal(local)
+                };
+                Some(NSPlace {
+                    root,
+                    path: Default::default(),
+                })
+            }
+            NormalizedBindingLowering::Erased
+            | NormalizedBindingLowering::ValueLocal { .. }
+            | NormalizedBindingLowering::PlaceBoundValue { .. } => None,
+        }
+    }
+
+    fn provider_borrow_root(
+        &self,
+        provider: &hir::semantic::ProviderBinding<'db>,
+    ) -> Option<NBorrowRootId> {
+        self.semantic_body
+            .borrow_roots
+            .iter()
+            .enumerate()
+            .find_map(|(idx, root)| match root {
+                NBorrowRoot::Provider { binding } if binding == provider => {
+                    Some(NBorrowRootId::from_u32(idx as u32))
+                }
+                NBorrowRoot::Param { .. }
+                | NBorrowRoot::LocalSlot { .. }
+                | NBorrowRoot::Provider { .. } => None,
+            })
     }
 
     fn semantic_value_class(&self, local: SLocalId) -> Option<RuntimeClass<'db>> {

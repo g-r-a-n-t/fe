@@ -65,47 +65,32 @@ func private %match_struct_fields(v0.objref<@layout_1>) -> i8 {
         v2.*i8 = alloca i8;
         v3.*i8 = alloca i8;
         v4.*i8 = alloca i8;
-        v5.*i8 = alloca i8;
-        v6.*i8 = alloca i8;
-        v7.*i8 = alloca i8;
         jump block1;
 
     block1:
         jump block3;
 
     block2:
-        v9.i8 = phi (0.i8 block7) (v37 block8) (v41 block10) (v49 block14);
-        return v9;
+        v6.i8 = phi (0.i8 block7) (v25 block8) (v29 block10) (v37 block14);
+        return v6;
 
     block3:
-        v12.objref<i8> = obj.proj v0 1.i256;
-        v13.i8 = obj.load v12;
-        v14.objref<i8> = obj.proj v0 1.i256;
-        obj.store v14 v13;
-        v16.objref<i8> = obj.proj v0 1.i256;
-        v17.i8 = obj.load v16;
-        v18.i1 = eq v17 0.i8;
-        br v18 block4 block6;
+        v10.objref<i8> = obj.proj v0 1.i256;
+        v11.i8 = obj.load v10;
+        v12.i1 = eq v11 0.i8;
+        br v12 block4 block6;
 
     block4:
-        v21.objref<i8> = obj.proj v0 0.i256;
-        v22.i8 = obj.load v21;
-        v23.objref<i8> = obj.proj v0 0.i256;
-        obj.store v23 v22;
-        v24.objref<i8> = obj.proj v0 0.i256;
-        v25.i8 = obj.load v24;
-        v26.i1 = eq v25 0.i8;
-        br v26 block7 block9;
+        v15.objref<i8> = obj.proj v0 0.i256;
+        v16.i8 = obj.load v15;
+        v17.i1 = eq v16 0.i8;
+        br v17 block7 block9;
 
     block5:
-        v28.objref<i8> = obj.proj v0 0.i256;
-        v29.i8 = obj.load v28;
-        v30.objref<i8> = obj.proj v0 0.i256;
-        obj.store v30 v29;
-        v31.objref<i8> = obj.proj v0 0.i256;
-        v32.i8 = obj.load v31;
-        v33.i1 = eq v32 0.i8;
-        br v33 block10 block12;
+        v19.objref<i8> = obj.proj v0 0.i256;
+        v20.i8 = obj.load v19;
+        v21.i1 = eq v20 0.i8;
+        br v21 block10 block12;
 
     block6:
         jump block5;
@@ -114,33 +99,33 @@ func private %match_struct_fields(v0.objref<@layout_1>) -> i8 {
         jump block2;
 
     block8:
-        v35.objref<i8> = obj.proj v0 0.i256;
-        v36.i8 = obj.load v35;
-        mstore v2 v36 i8;
-        v37.i8 = mload v2 i8;
+        v23.objref<i8> = obj.proj v0 0.i256;
+        v24.i8 = obj.load v23;
+        mstore v2 v24 i8;
+        v25.i8 = mload v2 i8;
         jump block2;
 
     block9:
         jump block8;
 
     block10:
-        v39.objref<i8> = obj.proj v0 1.i256;
-        v40.i8 = obj.load v39;
-        mstore v1 v40 i8;
-        v41.i8 = mload v1 i8;
+        v27.objref<i8> = obj.proj v0 1.i256;
+        v28.i8 = obj.load v27;
+        mstore v1 v28 i8;
+        v29.i8 = mload v1 i8;
         jump block2;
 
     block11:
-        v43.objref<i8> = obj.proj v0 1.i256;
-        v44.i8 = obj.load v43;
-        mstore v4 v44 i8;
-        v45.objref<i8> = obj.proj v0 0.i256;
-        v46.i8 = obj.load v45;
-        mstore v3 v46 i8;
-        v47.i8 = mload v3 i8;
-        v48.i8 = mload v4 i8;
-        (v49.i8, v50.i1) = uaddo v47 v48;
-        br v50 block13 block14;
+        v31.objref<i8> = obj.proj v0 1.i256;
+        v32.i8 = obj.load v31;
+        mstore v4 v32 i8;
+        v33.objref<i8> = obj.proj v0 0.i256;
+        v34.i8 = obj.load v33;
+        mstore v3 v34 i8;
+        v35.i8 = mload v3 i8;
+        v36.i8 = mload v4 i8;
+        (v37.i8, v38.i1) = uaddo v35 v36;
+        br v38 block13 block14;
 
     block12:
         jump block11;
@@ -156,39 +141,29 @@ func private %match_struct_fields(v0.objref<@layout_1>) -> i8 {
 
 func private %match_struct_wildcard(v0.objref<@layout_1>) -> i8 {
     block0:
-        v1.*i8 = alloca i8;
-        v2.*i8 = alloca i8;
         jump block1;
 
     block1:
         jump block3;
 
     block2:
-        v4.i8 = phi (1.i8 block4) (2.i8 block7) (3.i8 block8);
-        return v4;
+        v2.i8 = phi (1.i8 block4) (2.i8 block7) (3.i8 block8);
+        return v2;
 
     block3:
-        v7.objref<i8> = obj.proj v0 0.i256;
-        v8.i8 = obj.load v7;
-        v9.objref<i8> = obj.proj v0 0.i256;
-        obj.store v9 v8;
-        v11.objref<i8> = obj.proj v0 0.i256;
-        v12.i8 = obj.load v11;
-        v13.i1 = eq v12 0.i8;
-        br v13 block4 block6;
+        v6.objref<i8> = obj.proj v0 0.i256;
+        v7.i8 = obj.load v6;
+        v8.i1 = eq v7 0.i8;
+        br v8 block4 block6;
 
     block4:
         jump block2;
 
     block5:
-        v17.objref<i8> = obj.proj v0 1.i256;
-        v18.i8 = obj.load v17;
-        v19.objref<i8> = obj.proj v0 1.i256;
-        obj.store v19 v18;
-        v20.objref<i8> = obj.proj v0 1.i256;
-        v21.i8 = obj.load v20;
-        v22.i1 = eq v21 0.i8;
-        br v22 block7 block9;
+        v12.objref<i8> = obj.proj v0 1.i256;
+        v13.i8 = obj.load v12;
+        v14.i1 = eq v13 0.i8;
+        br v14 block7 block9;
 
     block6:
         jump block5;

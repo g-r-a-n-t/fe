@@ -145,10 +145,14 @@ pub fn check_static_assert<'db>(
         Ok(value) => match static_assert_bool_value(db, value) {
             Some(true) => {}
             Some(false) => {
-                let mut diags = Vec::new();
-                let comparison = assert_.comparison(db).and_then(|comparison| {
-                    static_assert_comparison_values(db, condition, typed_body, comparison)
-                });
+                let mut diags = body_diags.clone();
+                let comparison = if body_diags.is_empty() {
+                    assert_.comparison(db).and_then(|comparison| {
+                        static_assert_comparison_values(db, condition, typed_body, comparison)
+                    })
+                } else {
+                    None
+                };
                 diags.push(
                     BodyDiag::StaticAssertFailed {
                         primary: condition.span().into(),

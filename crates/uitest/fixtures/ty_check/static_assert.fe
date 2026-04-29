@@ -5,6 +5,7 @@ const LIE: bool = false
 
 static_assert(false)
 static_assert(2 == 3)
+static_assert(1 + 2 == 2)
 static_assert(A + 2 == B)
 static_assert((TRUTH == LIE))
 static_assert(A < 1)

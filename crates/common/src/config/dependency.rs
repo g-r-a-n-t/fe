@@ -1,6 +1,7 @@
 use camino::Utf8PathBuf;
 use smol_str::SmolStr;
 use toml::Value;
+use typed_path::{Utf8UnixPath, Utf8WindowsPath};
 use url::Url;
 
 use crate::dependencies::RemoteFiles;
@@ -70,10 +71,10 @@ pub fn parse_dependencies_table(
                         DependencyEntryLocation::WorkspaceCurrent,
                         arguments,
                     ));
-                } else {
+                } else if let Some(path) = parse_dependency_path(&alias, path, diagnostics) {
                     dependencies.push(DependencyEntry::new(
                         alias.clone(),
-                        DependencyEntryLocation::RelativePath(Utf8PathBuf::from(path)),
+                        DependencyEntryLocation::RelativePath(path),
                         crate::dependencies::DependencyArguments::default(),
                     ));
                 }
@@ -127,11 +128,13 @@ pub fn parse_dependencies_table(
                         Err(diag) => diagnostics.push(diag),
                     }
                 } else if let Some(path) = table.get("path").and_then(|value| value.as_str()) {
-                    dependencies.push(DependencyEntry::new(
-                        alias.clone(),
-                        DependencyEntryLocation::RelativePath(Utf8PathBuf::from(path)),
-                        arguments,
-                    ));
+                    if let Some(path) = parse_dependency_path(&alias, path, diagnostics) {
+                        dependencies.push(DependencyEntry::new(
+                            alias.clone(),
+                            DependencyEntryLocation::RelativePath(path),
+                            arguments,
+                        ));
+                    }
                 } else if has_name || (!has_name_field && arguments.version.is_some()) {
                     if arguments.name.is_none() {
                         arguments.name = Some(alias.clone());
@@ -163,6 +166,39 @@ pub fn parse_dependencies_table(
         }
     }
     dependencies
+}
+
+fn parse_dependency_path(
+    alias: &SmolStr,
+    value: &str,
+    diagnostics: &mut Vec<ConfigDiagnostic>,
+) -> Option<Utf8PathBuf> {
+    if value.is_empty() || has_root(value) || has_url_scheme(value) {
+        diagnostics.push(ConfigDiagnostic::InvalidDependencyPath {
+            alias: alias.clone(),
+            value: value.into(),
+        });
+        return None;
+    }
+    Some(Utf8PathBuf::from(value))
+}
+
+fn has_root(value: &str) -> bool {
+    Utf8UnixPath::new(value).has_root() || Utf8WindowsPath::new(value).has_root()
+}
+
+fn has_url_scheme(value: &str) -> bool {
+    let Some((scheme, _)) = value.split_once(':') else {
+        return false;
+    };
+    let Some(first) = scheme.chars().next() else {
+        return false;
+    };
+    first.is_ascii_alphabetic()
+        && scheme
+            .chars()
+            .skip(1)
+            .all(|ch| ch.is_ascii_alphanumeric() || matches!(ch, '+' | '-' | '.'))
 }
 
 fn parse_git_dependency(

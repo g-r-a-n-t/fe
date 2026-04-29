@@ -115,33 +115,40 @@ pub fn is_workspace_content(content: &str) -> bool {
 }
 
 impl IngotConfig {
-    pub fn dependencies(&self, base_url: &Url) -> Vec<Dependency> {
-        self.dependency_entries
-            .iter()
-            .map(|dependency| match &dependency.location {
+    pub fn dependencies(&self, base_url: &Url) -> (Vec<Dependency>, Vec<ConfigDiagnostic>) {
+        let mut dependencies = Vec::new();
+        let mut diagnostics = Vec::new();
+        for dependency in &self.dependency_entries {
+            match &dependency.location {
                 DependencyEntryLocation::RelativePath(path) => {
-                    let url = base_url.join_directory(path).unwrap();
-                    Dependency {
-                        alias: dependency.alias.clone(),
-                        arguments: dependency.arguments.clone(),
-                        location: DependencyLocation::Local(LocalFiles {
-                            path: path.clone(),
-                            url,
+                    match base_url.join_directory(path) {
+                        Ok(url) => dependencies.push(Dependency {
+                            alias: dependency.alias.clone(),
+                            arguments: dependency.arguments.clone(),
+                            location: DependencyLocation::Local(LocalFiles {
+                                path: path.clone(),
+                                url,
+                            }),
+                        }),
+                        Err(_) => diagnostics.push(ConfigDiagnostic::InvalidDependencyPath {
+                            alias: dependency.alias.clone(),
+                            value: path.as_str().into(),
                         }),
                     }
                 }
-                DependencyEntryLocation::Remote(remote) => Dependency {
+                DependencyEntryLocation::Remote(remote) => dependencies.push(Dependency {
                     alias: dependency.alias.clone(),
                     arguments: dependency.arguments.clone(),
                     location: DependencyLocation::Remote(remote.clone()),
-                },
-                DependencyEntryLocation::WorkspaceCurrent => Dependency {
+                }),
+                DependencyEntryLocation::WorkspaceCurrent => dependencies.push(Dependency {
                     alias: dependency.alias.clone(),
                     arguments: dependency.arguments.clone(),
                     location: DependencyLocation::WorkspaceCurrent,
-                },
-            })
-            .collect()
+                }),
+            }
+        }
+        (dependencies, diagnostics)
     }
 
     pub fn formatted_diagnostics(&self) -> Option<String> {
@@ -180,6 +187,10 @@ pub enum ConfigDiagnostic {
     InvalidDependencyAlias(SmolStr),
     InvalidDependencyName(SmolStr),
     InvalidDependencyVersion(SmolStr),
+    InvalidDependencyPath {
+        alias: SmolStr,
+        value: SmolStr,
+    },
     MissingDependencyPath {
         alias: SmolStr,
         description: String,
@@ -254,6 +265,12 @@ impl Display for ConfigDiagnostic {
             }
             Self::InvalidDependencyVersion(version) => {
                 write!(f, "Invalid dependency version \"{version}\"")
+            }
+            Self::InvalidDependencyPath { alias, value } => {
+                write!(
+                    f,
+                    "The dependency \"{alias}\" has an invalid path \"{value}\""
+                )
             }
             Self::MissingDependencyPath { alias, description } => write!(
                 f,
@@ -498,6 +515,17 @@ fn format_field_path(parent: &str, key: &str) -> String {
 mod tests {
     use super::*;
 
+    use crate::dependencies::DependencyArguments;
+
+    fn dependencies(config: &IngotConfig, base: &Url) -> Vec<Dependency> {
+        let (dependencies, diagnostics) = config.dependencies(base);
+        assert!(
+            diagnostics.is_empty(),
+            "unexpected dependency diagnostics: {diagnostics:?}"
+        );
+        dependencies
+    }
+
     #[test]
     fn parses_git_dependency_entry() {
         let toml = r#"
@@ -518,7 +546,7 @@ remote = { source = "https://example.com/fe.git", rev = "abcd1234", path = "cont
             config.diagnostics
         );
         let base = Url::parse("file:///workspace/root/").unwrap();
-        let dependencies = config.dependencies(&base);
+        let dependencies = dependencies(&config, &base);
         assert_eq!(dependencies.len(), 1);
         match &dependencies[0].location {
             DependencyLocation::Remote(remote) => {
@@ -563,6 +591,72 @@ invalid_source = { source = "not a url", rev = "1234" }
     }
 
     #[test]
+    fn reports_diagnostics_for_invalid_dependency_paths() {
+        let toml = r#"
+[ingot]
+name = "root"
+version = "1.0.0"
+
+[dependencies]
+invalid_url = "http://[::1"
+invalid_file = { path = "file:///tmp/dep" }
+invalid_absolute = { path = "/tmp/dep" }
+invalid_windows_root = { path = '\tmp\dep' }
+invalid_windows_unc = { path = '\\server\share\dep' }
+invalid_empty = { path = "" }
+"#;
+        let config_file = Config::parse(toml).expect("config parses");
+        let Config::Ingot(config) = config_file else {
+            panic!("expected ingot config");
+        };
+        assert!(config.dependency_entries.is_empty());
+
+        for (expected_alias, expected_value) in [
+            ("invalid_url", "http://[::1"),
+            ("invalid_file", "file:///tmp/dep"),
+            ("invalid_absolute", "/tmp/dep"),
+            ("invalid_windows_root", r"\tmp\dep"),
+            ("invalid_windows_unc", r"\\server\share\dep"),
+            ("invalid_empty", ""),
+        ] {
+            assert!(config.diagnostics.iter().any(|diag| {
+                matches!(
+                    diag,
+                    ConfigDiagnostic::InvalidDependencyPath { alias, value }
+                        if alias.as_str() == expected_alias && value.as_str() == expected_value
+                )
+            }));
+        }
+    }
+
+    #[test]
+    fn reports_diagnostics_for_dependency_url_join_errors() {
+        let config = IngotConfig {
+            metadata: IngotMetadata::default(),
+            arithmetic: None,
+            dependency_arithmetic: None,
+            profiles: BTreeMap::new(),
+            dependency_entries: vec![DependencyEntry::new(
+                SmolStr::new("dep"),
+                DependencyEntryLocation::RelativePath("http://[::1".into()),
+                DependencyArguments::default(),
+            )],
+            diagnostics: Vec::new(),
+        };
+
+        let (dependencies, diagnostics) =
+            config.dependencies(&Url::parse("file:///workspace/root/").unwrap());
+
+        assert!(dependencies.is_empty());
+        assert_eq!(diagnostics.len(), 1);
+        assert!(matches!(
+            &diagnostics[0],
+            ConfigDiagnostic::InvalidDependencyPath { alias, value }
+                if alias.as_str() == "dep" && value.as_str() == "http://[::1"
+        ));
+    }
+
+    #[test]
     fn parses_name_only_dependency() {
         let toml = r#"
 [ingot]
@@ -577,12 +671,11 @@ util = { name = "utils" }
             panic!("expected ingot config");
         };
         assert_eq!(
-            config
-                .dependencies(&Url::parse("file:///workspace/root/").unwrap())
-                .len(),
+            dependencies(&config, &Url::parse("file:///workspace/root/").unwrap()).len(),
             1
         );
-        let dependency = &config.dependencies(&Url::parse("file:///workspace/root/").unwrap())[0];
+        let dependencies = dependencies(&config, &Url::parse("file:///workspace/root/").unwrap());
+        let dependency = &dependencies[0];
         assert_eq!(dependency.arguments.name.as_deref(), Some("utils"));
         assert!(matches!(
             dependency.location,
@@ -604,7 +697,8 @@ util = true
         let Config::Ingot(config) = config_file else {
             panic!("expected ingot config");
         };
-        let dependency = &config.dependencies(&Url::parse("file:///workspace/root/").unwrap())[0];
+        let dependencies = dependencies(&config, &Url::parse("file:///workspace/root/").unwrap());
+        let dependency = &dependencies[0];
         assert_eq!(dependency.arguments.name.as_deref(), Some("util"));
         assert!(matches!(
             dependency.location,
@@ -626,7 +720,8 @@ util = "0.1.0"
         let Config::Ingot(config) = config_file else {
             panic!("expected ingot config");
         };
-        let dependency = &config.dependencies(&Url::parse("file:///workspace/root/").unwrap())[0];
+        let dependencies = dependencies(&config, &Url::parse("file:///workspace/root/").unwrap());
+        let dependency = &dependencies[0];
         assert_eq!(dependency.arguments.name.as_deref(), Some("util"));
         assert_eq!(
             dependency

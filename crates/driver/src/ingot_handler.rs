@@ -1173,6 +1173,9 @@ impl<'a> ResolutionHandler<IngotResolverImpl> for IngotHandler<'a> {
             diagnostics.retain(|diag| !matches!(diag, ConfigDiagnostic::MissingVersion));
         }
 
+        let (config_dependencies, dependency_diagnostics) = config.dependencies(&ingot_url);
+        diagnostics.extend(dependency_diagnostics);
+
         if !diagnostics.is_empty() {
             match &origin {
                 IngotOrigin::Local => self.report_warn(IngotInitDiagnostics::ConfigDiagnostics {
@@ -1276,7 +1279,7 @@ impl<'a> ResolutionHandler<IngotResolverImpl> for IngotHandler<'a> {
             &config,
         );
         let mut dependencies = Vec::new();
-        for dependency in config.dependencies(&ingot_url) {
+        for dependency in config_dependencies {
             let is_external = self.is_external_dependency(workspace_root.as_ref(), &dependency);
             if let Some(converted) =
                 self.convert_dependency(&ingot_url, &origin, workspace_root.as_ref(), dependency)

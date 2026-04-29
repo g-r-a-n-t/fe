@@ -1,0 +1,8 @@
+---
+source: crates/fe/tests/cli_output.rs
+expression: output
+---
+=== STDERR ===
+Error: Invalid fe.toml in ingot file://<project>/crates/fe/tests/fixtures/cli_output/ingots/invalid_dependency_path/: The dependency "dep" has an invalid path "http://[::1"
+
+=== EXIT CODE: 1 ===

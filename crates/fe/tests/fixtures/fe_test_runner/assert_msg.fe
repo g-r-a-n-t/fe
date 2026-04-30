@@ -37,7 +37,7 @@ fn test_assert_msg_payload_layout() uses (evm: mut Evm) {
     assert(!ok)
 
     // Solidity `Error(string)` for "boom":
-    //   selector(4) | offset = 0x20 (32) | len = 4 (32) | "boom" left-padded (32) = 100
+    //   selector(4) | offset = 0x20 (32) | len = 4 (32) | "boom" right-padded (32) = 100
     // Catches the bug where assert_msg encodes the bare `Text` payload
     // (`len || bytes`) instead of the single-arg tuple `(message,)`
     // (`offset || len || bytes`).

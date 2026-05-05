@@ -1070,6 +1070,11 @@ pub enum RuntimeBuiltin<'db> {
         addr: RValueId,
         value: RValueId,
     },
+    Mcopy {
+        dst: RValueId,
+        src: RValueId,
+        len: RValueId,
+    },
     Msize,
     Sload {
         slot: RValueId,

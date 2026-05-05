@@ -895,6 +895,11 @@ fn collect_builtin_locals<'db>(builtin: &YBuiltin<'db>, out: &mut FxHashSet<YLoc
             out.insert(*addr);
             out.insert(*value);
         }
+        YBuiltin::Mcopy { dst, src, len } => {
+            out.insert(*dst);
+            out.insert(*src);
+            out.insert(*len);
+        }
         YBuiltin::ReturnDataCopy { dst, offset, len }
         | YBuiltin::CallDataCopy { dst, offset, len }
         | YBuiltin::CodeCopy { dst, offset, len } => {

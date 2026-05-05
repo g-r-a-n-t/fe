@@ -270,6 +270,11 @@ pub enum YBuiltin<'db> {
         addr: YLocalId,
         value: YLocalId,
     },
+    Mcopy {
+        dst: YLocalId,
+        src: YLocalId,
+        len: YLocalId,
+    },
     Msize,
     Sload {
         slot: YLocalId,
@@ -554,6 +559,7 @@ fn builtin_is_statement_only(builtin: &YBuiltin<'_>) -> bool {
         builtin,
         YBuiltin::Mstore { .. }
             | YBuiltin::Mstore8 { .. }
+            | YBuiltin::Mcopy { .. }
             | YBuiltin::Sstore { .. }
             | YBuiltin::ReturnDataCopy { .. }
             | YBuiltin::CallDataCopy { .. }
@@ -3241,6 +3247,11 @@ fn legalize_builtin<'db>(
         RuntimeBuiltin::Mstore8 { addr, value } => YBuiltin::Mstore8 {
             addr: YLocalId(addr.as_u32()),
             value: YLocalId(value.as_u32()),
+        },
+        RuntimeBuiltin::Mcopy { dst, src, len } => YBuiltin::Mcopy {
+            dst: YLocalId(dst.as_u32()),
+            src: YLocalId(src.as_u32()),
+            len: YLocalId(len.as_u32()),
         },
         RuntimeBuiltin::Msize => YBuiltin::Msize,
         RuntimeBuiltin::Sload { slot } => YBuiltin::Sload {

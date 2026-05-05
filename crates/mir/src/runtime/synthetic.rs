@@ -6,7 +6,9 @@ use hir::{
         ty::{
             corelib::{resolve_core_trait, resolve_lib_func_path, resolve_lib_type_path},
             trait_def::{TraitInstId, resolve_trait_method_instance},
-            trait_resolution::{PredicateListId, TraitSolveCx},
+            trait_resolution::{
+                GoalSatisfiability, PredicateListId, TraitSolveCx, is_goal_satisfiable,
+            },
             ty_check::BodyOwner,
             ty_def::{InvalidCause, TyId},
         },
@@ -476,6 +478,20 @@ impl<'db> SyntheticBodyBuilder<'db> {
             self.emit_nonpayable_guard(zero)
         };
 
+        if plan.passthrough
+            && matches!(plan.ret, RuntimeReturnPlan::Value { .. })
+            && let RuntimeInputPlan::DecodeCalldataPayload { msg_ty, .. } = &plan.input
+        {
+            self.build_contract_recv_passthrough(
+                plan.contract.scope(),
+                *msg_ty,
+                cont_bb,
+                zero,
+                four,
+            );
+            return;
+        }
+
         let mut call_args = Vec::new();
         if let RuntimeInputPlan::DecodeCalldataPayload {
             msg_ty,
@@ -560,6 +576,38 @@ impl<'db> SyntheticBodyBuilder<'db> {
                 self.blocks[cont_bb.index()].terminator = RTerminator::ReturnData { offset, len };
             }
         }
+    }
+
+    fn build_contract_recv_passthrough(
+        &mut self,
+        scope: hir::hir_def::scope_graph::ScopeId<'db>,
+        msg_ty: TyId<'db>,
+        cont_bb: RBlockId,
+        zero: RLocalId,
+        four: RLocalId,
+    ) {
+        let input = self.push_calldata_value(cont_bb, scope, zero);
+        let input_ty = self.locals[input.index()].semantic_ty;
+        let validate_payload_end = if has_abi_validate(self.db, scope, msg_ty) {
+            resolve_sol_validate_payload_end(self.db, scope, msg_ty, input_ty, true)
+        } else {
+            resolve_sol_validate_payload_end(self.db, scope, msg_ty, input_ty, false)
+        }
+        .expect("validate_payload_end");
+        let payload_end = self.push_call_result(cont_bb, validate_payload_end, vec![input, four]);
+        let payload_len = self.push_binary_word(cont_bb, ArithBinOp::Sub, payload_end, four);
+        self.push_side_effect_builtin(
+            cont_bb,
+            RuntimeBuiltin::CallDataCopy {
+                dst: zero,
+                offset: four,
+                len: payload_len,
+            },
+        );
+        self.blocks[cont_bb.index()].terminator = RTerminator::ReturnData {
+            offset: zero,
+            len: payload_len,
+        };
     }
 
     fn build_contract_init_root(
@@ -1295,6 +1343,45 @@ impl<'db> SyntheticBodyBuilder<'db> {
         local
     }
 
+    fn push_calldata_value(
+        &mut self,
+        bb: RBlockId,
+        scope: hir::hir_def::scope_graph::ScopeId<'db>,
+        base: RLocalId,
+    ) -> RLocalId {
+        let ty = calldata_ty(self.db, scope).expect("CallData");
+        let class = top_level_class_for_ty_in_env(
+            self.db,
+            self.runtime_type_env(scope),
+            ty,
+            AddressSpaceKind::Memory,
+        )
+        .expect("calldata runtime class");
+        let root = match &class {
+            RuntimeClass::Ref { .. } => RuntimeLocalRoot::Ref(class.clone()),
+            _ => RuntimeLocalRoot::Slot(class.clone()),
+        };
+        let local = self.push_local(ty, RuntimeCarrier::Value(class.clone()), root);
+        let root = match class {
+            RuntimeClass::Ref { .. } => PlaceRoot::Ref(local),
+            RuntimeClass::Scalar(_)
+            | RuntimeClass::RawAddr { .. }
+            | RuntimeClass::AggregateValue { .. } => PlaceRoot::Slot(local),
+        };
+        self.push_stmt(
+            bb,
+            RStmt::Store {
+                dst: RuntimePlace {
+                    root,
+                    path: vec![PlaceElem::Field(hir::analysis::semantic::FieldIndex(0))]
+                        .into_boxed_slice(),
+                },
+                src: base,
+            },
+        );
+        local
+    }
+
     fn push_synthetic_default_value(
         &mut self,
         bb: RBlockId,
@@ -1559,6 +1646,53 @@ fn u32_scalar(value: u32) -> ConstScalar {
     }
 }
 
+fn resolve_sol_validate_payload_end<'db>(
+    db: &'db dyn MirDb,
+    scope: hir::hir_def::scope_graph::ScopeId<'db>,
+    ty: TyId<'db>,
+    input_ty: TyId<'db>,
+    fast: bool,
+) -> Option<RuntimeInstance<'db>> {
+    let assumptions = PredicateListId::empty_list(db);
+    let path = if fast {
+        "std::abi::sol::validate_payload_end_fast"
+    } else {
+        "std::abi::sol::validate_payload_end"
+    };
+    let func = resolve_lib_func_path(db, scope, path)?;
+    let key = SemanticInstanceKey::new(
+        db,
+        BodyOwner::Func(func),
+        GenericSubst::new(db, vec![ty, input_ty]),
+        hir::analysis::semantic::EffectProviderSubst::empty(db),
+        ImplEnv::new(db, scope, assumptions, vec![]),
+    );
+    Some(runtime_instance_for_semantic(
+        db,
+        get_or_build_semantic_instance(db, key),
+    ))
+}
+
+fn has_abi_validate<'db>(
+    db: &'db dyn MirDb,
+    scope: hir::hir_def::scope_graph::ScopeId<'db>,
+    ty: TyId<'db>,
+) -> bool {
+    let Some(abi_ty) = sol_abi_ty(db, scope) else {
+        return false;
+    };
+    let Some(validate_trait) = resolve_core_trait(db, scope, &["abi", "AbiValidate"]) else {
+        return false;
+    };
+    let assumptions = PredicateListId::empty_list(db);
+    let inst = TraitInstId::new_simple(db, validate_trait, vec![ty, abi_ty]);
+    let solve_cx = TraitSolveCx::new(db, scope).with_assumptions(assumptions);
+    matches!(
+        is_goal_satisfiable(db, solve_cx, inst),
+        GoalSatisfiability::Satisfied(_)
+    )
+}
+
 fn resolve_sol_decoder_new<'db>(
     db: &'db dyn MirDb,
     scope: hir::hir_def::scope_graph::ScopeId<'db>,
@@ -1625,6 +1759,14 @@ fn sol_abi_ty<'db>(
     scope: hir::hir_def::scope_graph::ScopeId<'db>,
 ) -> Option<TyId<'db>> {
     resolve_lib_type_path(db, scope, "std::abi::Sol")
+}
+
+fn calldata_ty<'db>(
+    db: &'db dyn MirDb,
+    scope: hir::hir_def::scope_graph::ScopeId<'db>,
+) -> Option<TyId<'db>> {
+    resolve_lib_type_path(db, scope, "std::evm::calldata::CallData")
+        .or_else(|| resolve_lib_type_path(db, scope, "std::evm::CallData"))
 }
 
 fn memory_bytes_ty<'db>(

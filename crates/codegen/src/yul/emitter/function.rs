@@ -911,6 +911,10 @@ fn collect_builtin_locals<'db>(builtin: &YBuiltin<'db>, out: &mut FxHashSet<YLoc
             out.insert(*rhs);
             out.insert(*modulus);
         }
+        YBuiltin::SignExtend { byte, value } => {
+            out.insert(*byte);
+            out.insert(*value);
+        }
         YBuiltin::IntrinsicArith { lhs, rhs, .. } | YBuiltin::Saturating { lhs, rhs, .. } => {
             out.insert(*lhs);
             out.insert(*rhs);

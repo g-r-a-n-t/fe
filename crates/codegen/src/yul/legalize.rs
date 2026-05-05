@@ -314,6 +314,10 @@ pub enum YBuiltin<'db> {
         rhs: YLocalId,
         modulus: YLocalId,
     },
+    SignExtend {
+        byte: YLocalId,
+        value: YLocalId,
+    },
     IntrinsicArith {
         op: IntrinsicArithBinOp,
         checked: bool,
@@ -3281,6 +3285,10 @@ fn legalize_builtin<'db>(
             lhs: YLocalId(lhs.as_u32()),
             rhs: YLocalId(rhs.as_u32()),
             modulus: YLocalId(modulus.as_u32()),
+        },
+        RuntimeBuiltin::SignExtend { byte, value } => YBuiltin::SignExtend {
+            byte: YLocalId(byte.as_u32()),
+            value: YLocalId(value.as_u32()),
         },
         RuntimeBuiltin::IntrinsicArith {
             op,

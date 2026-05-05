@@ -505,6 +505,15 @@ impl<'a, 'db> FunctionEmitter<'a, 'db> {
                 ),
                 class: expected.cloned().unwrap_or_else(|| self.word_u256_class()),
             },
+            YBuiltin::SignExtend { byte, value } => RenderedValue {
+                setup: Vec::new(),
+                value: format!(
+                    "signextend({}, {})",
+                    self.scalar_word_expr(*byte)?,
+                    self.scalar_word_expr(*value)?
+                ),
+                class: expected.cloned().unwrap_or_else(|| self.word_u256_class()),
+            },
             YBuiltin::IntrinsicArith {
                 op,
                 checked,

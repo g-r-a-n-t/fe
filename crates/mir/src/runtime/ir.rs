@@ -1114,6 +1114,10 @@ pub enum RuntimeBuiltin<'db> {
         rhs: RValueId,
         modulus: RValueId,
     },
+    SignExtend {
+        byte: RValueId,
+        value: RValueId,
+    },
     IntrinsicArith {
         op: IntrinsicArithBinOp,
         checked: bool,

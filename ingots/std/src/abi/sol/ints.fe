@@ -1672,6 +1672,16 @@ impl<A: Abi> AbiSpan<A> for Int248 {
     fn payload_end<I: core::abi::ByteInput>(_: I, base: u256, pos: u256) -> u256 { pos + 32 }
 }
 
+#[inline(always)]
+#[arithmetic(unchecked)]
+fn abi_word_end(pos: u256) -> u256 {
+    let end = pos + 32
+    if end < pos {
+        revert(0, 0)
+    }
+    end
+}
+
 impl<A: Abi> AbiValidate<A> for Uint24 {
     fn validate_end<I: ByteInput>(input: I, base: u256, pos: u256) -> u256 {
         let _ = base
@@ -1679,7 +1689,7 @@ impl<A: Abi> AbiValidate<A> for Uint24 {
         if word >> 24 != 0 {
             revert(0, 0)
         }
-        pos + 32
+        abi_word_end(pos)
     }
 }
 impl<A: Abi> AbiValidate<A> for Uint40 {
@@ -1689,7 +1699,7 @@ impl<A: Abi> AbiValidate<A> for Uint40 {
         if word >> 40 != 0 {
             revert(0, 0)
         }
-        pos + 32
+        abi_word_end(pos)
     }
 }
 impl<A: Abi> AbiValidate<A> for Uint48 {
@@ -1699,7 +1709,7 @@ impl<A: Abi> AbiValidate<A> for Uint48 {
         if word >> 48 != 0 {
             revert(0, 0)
         }
-        pos + 32
+        abi_word_end(pos)
     }
 }
 impl<A: Abi> AbiValidate<A> for Uint56 {
@@ -1709,7 +1719,7 @@ impl<A: Abi> AbiValidate<A> for Uint56 {
         if word >> 56 != 0 {
             revert(0, 0)
         }
-        pos + 32
+        abi_word_end(pos)
     }
 }
 impl<A: Abi> AbiValidate<A> for Uint72 {
@@ -1719,7 +1729,7 @@ impl<A: Abi> AbiValidate<A> for Uint72 {
         if word >> 72 != 0 {
             revert(0, 0)
         }
-        pos + 32
+        abi_word_end(pos)
     }
 }
 impl<A: Abi> AbiValidate<A> for Uint80 {
@@ -1729,7 +1739,7 @@ impl<A: Abi> AbiValidate<A> for Uint80 {
         if word >> 80 != 0 {
             revert(0, 0)
         }
-        pos + 32
+        abi_word_end(pos)
     }
 }
 impl<A: Abi> AbiValidate<A> for Uint88 {
@@ -1739,7 +1749,7 @@ impl<A: Abi> AbiValidate<A> for Uint88 {
         if word >> 88 != 0 {
             revert(0, 0)
         }
-        pos + 32
+        abi_word_end(pos)
     }
 }
 impl<A: Abi> AbiValidate<A> for Uint96 {
@@ -1749,7 +1759,7 @@ impl<A: Abi> AbiValidate<A> for Uint96 {
         if word >> 96 != 0 {
             revert(0, 0)
         }
-        pos + 32
+        abi_word_end(pos)
     }
 }
 impl<A: Abi> AbiValidate<A> for Uint104 {
@@ -1759,7 +1769,7 @@ impl<A: Abi> AbiValidate<A> for Uint104 {
         if word >> 104 != 0 {
             revert(0, 0)
         }
-        pos + 32
+        abi_word_end(pos)
     }
 }
 impl<A: Abi> AbiValidate<A> for Uint112 {
@@ -1769,7 +1779,7 @@ impl<A: Abi> AbiValidate<A> for Uint112 {
         if word >> 112 != 0 {
             revert(0, 0)
         }
-        pos + 32
+        abi_word_end(pos)
     }
 }
 impl<A: Abi> AbiValidate<A> for Uint120 {
@@ -1779,7 +1789,7 @@ impl<A: Abi> AbiValidate<A> for Uint120 {
         if word >> 120 != 0 {
             revert(0, 0)
         }
-        pos + 32
+        abi_word_end(pos)
     }
 }
 impl<A: Abi> AbiValidate<A> for Uint136 {
@@ -1789,7 +1799,7 @@ impl<A: Abi> AbiValidate<A> for Uint136 {
         if word >> 136 != 0 {
             revert(0, 0)
         }
-        pos + 32
+        abi_word_end(pos)
     }
 }
 impl<A: Abi> AbiValidate<A> for Uint144 {
@@ -1799,7 +1809,7 @@ impl<A: Abi> AbiValidate<A> for Uint144 {
         if word >> 144 != 0 {
             revert(0, 0)
         }
-        pos + 32
+        abi_word_end(pos)
     }
 }
 impl<A: Abi> AbiValidate<A> for Uint152 {
@@ -1809,7 +1819,7 @@ impl<A: Abi> AbiValidate<A> for Uint152 {
         if word >> 152 != 0 {
             revert(0, 0)
         }
-        pos + 32
+        abi_word_end(pos)
     }
 }
 impl<A: Abi> AbiValidate<A> for Uint160 {
@@ -1819,7 +1829,7 @@ impl<A: Abi> AbiValidate<A> for Uint160 {
         if word >> 160 != 0 {
             revert(0, 0)
         }
-        pos + 32
+        abi_word_end(pos)
     }
 }
 impl<A: Abi> AbiValidate<A> for Uint168 {
@@ -1829,7 +1839,7 @@ impl<A: Abi> AbiValidate<A> for Uint168 {
         if word >> 168 != 0 {
             revert(0, 0)
         }
-        pos + 32
+        abi_word_end(pos)
     }
 }
 impl<A: Abi> AbiValidate<A> for Uint176 {
@@ -1839,7 +1849,7 @@ impl<A: Abi> AbiValidate<A> for Uint176 {
         if word >> 176 != 0 {
             revert(0, 0)
         }
-        pos + 32
+        abi_word_end(pos)
     }
 }
 impl<A: Abi> AbiValidate<A> for Uint184 {
@@ -1849,7 +1859,7 @@ impl<A: Abi> AbiValidate<A> for Uint184 {
         if word >> 184 != 0 {
             revert(0, 0)
         }
-        pos + 32
+        abi_word_end(pos)
     }
 }
 impl<A: Abi> AbiValidate<A> for Uint192 {
@@ -1859,7 +1869,7 @@ impl<A: Abi> AbiValidate<A> for Uint192 {
         if word >> 192 != 0 {
             revert(0, 0)
         }
-        pos + 32
+        abi_word_end(pos)
     }
 }
 impl<A: Abi> AbiValidate<A> for Uint200 {
@@ -1869,7 +1879,7 @@ impl<A: Abi> AbiValidate<A> for Uint200 {
         if word >> 200 != 0 {
             revert(0, 0)
         }
-        pos + 32
+        abi_word_end(pos)
     }
 }
 impl<A: Abi> AbiValidate<A> for Uint208 {
@@ -1879,7 +1889,7 @@ impl<A: Abi> AbiValidate<A> for Uint208 {
         if word >> 208 != 0 {
             revert(0, 0)
         }
-        pos + 32
+        abi_word_end(pos)
     }
 }
 impl<A: Abi> AbiValidate<A> for Uint216 {
@@ -1889,7 +1899,7 @@ impl<A: Abi> AbiValidate<A> for Uint216 {
         if word >> 216 != 0 {
             revert(0, 0)
         }
-        pos + 32
+        abi_word_end(pos)
     }
 }
 impl<A: Abi> AbiValidate<A> for Uint224 {
@@ -1899,7 +1909,7 @@ impl<A: Abi> AbiValidate<A> for Uint224 {
         if word >> 224 != 0 {
             revert(0, 0)
         }
-        pos + 32
+        abi_word_end(pos)
     }
 }
 impl<A: Abi> AbiValidate<A> for Uint232 {
@@ -1909,7 +1919,7 @@ impl<A: Abi> AbiValidate<A> for Uint232 {
         if word >> 232 != 0 {
             revert(0, 0)
         }
-        pos + 32
+        abi_word_end(pos)
     }
 }
 impl<A: Abi> AbiValidate<A> for Uint240 {
@@ -1919,7 +1929,7 @@ impl<A: Abi> AbiValidate<A> for Uint240 {
         if word >> 240 != 0 {
             revert(0, 0)
         }
-        pos + 32
+        abi_word_end(pos)
     }
 }
 impl<A: Abi> AbiValidate<A> for Uint248 {
@@ -1929,7 +1939,7 @@ impl<A: Abi> AbiValidate<A> for Uint248 {
         if word >> 248 != 0 {
             revert(0, 0)
         }
-        pos + 32
+        abi_word_end(pos)
     }
 }
 
@@ -1940,7 +1950,7 @@ impl<A: Abi> AbiValidate<A> for Int24 {
         if signextend(2, word) != word {
             revert(0, 0)
         }
-        pos + 32
+        abi_word_end(pos)
     }
 }
 impl<A: Abi> AbiValidate<A> for Int40 {
@@ -1950,7 +1960,7 @@ impl<A: Abi> AbiValidate<A> for Int40 {
         if signextend(4, word) != word {
             revert(0, 0)
         }
-        pos + 32
+        abi_word_end(pos)
     }
 }
 impl<A: Abi> AbiValidate<A> for Int48 {
@@ -1960,7 +1970,7 @@ impl<A: Abi> AbiValidate<A> for Int48 {
         if signextend(5, word) != word {
             revert(0, 0)
         }
-        pos + 32
+        abi_word_end(pos)
     }
 }
 impl<A: Abi> AbiValidate<A> for Int56 {
@@ -1970,7 +1980,7 @@ impl<A: Abi> AbiValidate<A> for Int56 {
         if signextend(6, word) != word {
             revert(0, 0)
         }
-        pos + 32
+        abi_word_end(pos)
     }
 }
 impl<A: Abi> AbiValidate<A> for Int72 {
@@ -1980,7 +1990,7 @@ impl<A: Abi> AbiValidate<A> for Int72 {
         if signextend(8, word) != word {
             revert(0, 0)
         }
-        pos + 32
+        abi_word_end(pos)
     }
 }
 impl<A: Abi> AbiValidate<A> for Int80 {
@@ -1990,7 +2000,7 @@ impl<A: Abi> AbiValidate<A> for Int80 {
         if signextend(9, word) != word {
             revert(0, 0)
         }
-        pos + 32
+        abi_word_end(pos)
     }
 }
 impl<A: Abi> AbiValidate<A> for Int88 {
@@ -2000,7 +2010,7 @@ impl<A: Abi> AbiValidate<A> for Int88 {
         if signextend(10, word) != word {
             revert(0, 0)
         }
-        pos + 32
+        abi_word_end(pos)
     }
 }
 impl<A: Abi> AbiValidate<A> for Int96 {
@@ -2010,7 +2020,7 @@ impl<A: Abi> AbiValidate<A> for Int96 {
         if signextend(11, word) != word {
             revert(0, 0)
         }
-        pos + 32
+        abi_word_end(pos)
     }
 }
 impl<A: Abi> AbiValidate<A> for Int104 {
@@ -2020,7 +2030,7 @@ impl<A: Abi> AbiValidate<A> for Int104 {
         if signextend(12, word) != word {
             revert(0, 0)
         }
-        pos + 32
+        abi_word_end(pos)
     }
 }
 impl<A: Abi> AbiValidate<A> for Int112 {
@@ -2030,7 +2040,7 @@ impl<A: Abi> AbiValidate<A> for Int112 {
         if signextend(13, word) != word {
             revert(0, 0)
         }
-        pos + 32
+        abi_word_end(pos)
     }
 }
 impl<A: Abi> AbiValidate<A> for Int120 {
@@ -2040,7 +2050,7 @@ impl<A: Abi> AbiValidate<A> for Int120 {
         if signextend(14, word) != word {
             revert(0, 0)
         }
-        pos + 32
+        abi_word_end(pos)
     }
 }
 impl<A: Abi> AbiValidate<A> for Int136 {
@@ -2050,7 +2060,7 @@ impl<A: Abi> AbiValidate<A> for Int136 {
         if signextend(16, word) != word {
             revert(0, 0)
         }
-        pos + 32
+        abi_word_end(pos)
     }
 }
 impl<A: Abi> AbiValidate<A> for Int144 {
@@ -2060,7 +2070,7 @@ impl<A: Abi> AbiValidate<A> for Int144 {
         if signextend(17, word) != word {
             revert(0, 0)
         }
-        pos + 32
+        abi_word_end(pos)
     }
 }
 impl<A: Abi> AbiValidate<A> for Int152 {
@@ -2070,7 +2080,7 @@ impl<A: Abi> AbiValidate<A> for Int152 {
         if signextend(18, word) != word {
             revert(0, 0)
         }
-        pos + 32
+        abi_word_end(pos)
     }
 }
 impl<A: Abi> AbiValidate<A> for Int160 {
@@ -2080,7 +2090,7 @@ impl<A: Abi> AbiValidate<A> for Int160 {
         if signextend(19, word) != word {
             revert(0, 0)
         }
-        pos + 32
+        abi_word_end(pos)
     }
 }
 impl<A: Abi> AbiValidate<A> for Int168 {
@@ -2090,7 +2100,7 @@ impl<A: Abi> AbiValidate<A> for Int168 {
         if signextend(20, word) != word {
             revert(0, 0)
         }
-        pos + 32
+        abi_word_end(pos)
     }
 }
 impl<A: Abi> AbiValidate<A> for Int176 {
@@ -2100,7 +2110,7 @@ impl<A: Abi> AbiValidate<A> for Int176 {
         if signextend(21, word) != word {
             revert(0, 0)
         }
-        pos + 32
+        abi_word_end(pos)
     }
 }
 impl<A: Abi> AbiValidate<A> for Int184 {
@@ -2110,7 +2120,7 @@ impl<A: Abi> AbiValidate<A> for Int184 {
         if signextend(22, word) != word {
             revert(0, 0)
         }
-        pos + 32
+        abi_word_end(pos)
     }
 }
 impl<A: Abi> AbiValidate<A> for Int192 {
@@ -2120,7 +2130,7 @@ impl<A: Abi> AbiValidate<A> for Int192 {
         if signextend(23, word) != word {
             revert(0, 0)
         }
-        pos + 32
+        abi_word_end(pos)
     }
 }
 impl<A: Abi> AbiValidate<A> for Int200 {
@@ -2130,7 +2140,7 @@ impl<A: Abi> AbiValidate<A> for Int200 {
         if signextend(24, word) != word {
             revert(0, 0)
         }
-        pos + 32
+        abi_word_end(pos)
     }
 }
 impl<A: Abi> AbiValidate<A> for Int208 {
@@ -2140,7 +2150,7 @@ impl<A: Abi> AbiValidate<A> for Int208 {
         if signextend(25, word) != word {
             revert(0, 0)
         }
-        pos + 32
+        abi_word_end(pos)
     }
 }
 impl<A: Abi> AbiValidate<A> for Int216 {
@@ -2150,7 +2160,7 @@ impl<A: Abi> AbiValidate<A> for Int216 {
         if signextend(26, word) != word {
             revert(0, 0)
         }
-        pos + 32
+        abi_word_end(pos)
     }
 }
 impl<A: Abi> AbiValidate<A> for Int224 {
@@ -2160,7 +2170,7 @@ impl<A: Abi> AbiValidate<A> for Int224 {
         if signextend(27, word) != word {
             revert(0, 0)
         }
-        pos + 32
+        abi_word_end(pos)
     }
 }
 impl<A: Abi> AbiValidate<A> for Int232 {
@@ -2170,7 +2180,7 @@ impl<A: Abi> AbiValidate<A> for Int232 {
         if signextend(28, word) != word {
             revert(0, 0)
         }
-        pos + 32
+        abi_word_end(pos)
     }
 }
 impl<A: Abi> AbiValidate<A> for Int240 {
@@ -2180,7 +2190,7 @@ impl<A: Abi> AbiValidate<A> for Int240 {
         if signextend(29, word) != word {
             revert(0, 0)
         }
-        pos + 32
+        abi_word_end(pos)
     }
 }
 impl<A: Abi> AbiValidate<A> for Int248 {
@@ -2190,7 +2200,7 @@ impl<A: Abi> AbiValidate<A> for Int248 {
         if signextend(30, word) != word {
             revert(0, 0)
         }
-        pos + 32
+        abi_word_end(pos)
     }
 }
 

@@ -1193,10 +1193,15 @@ impl<A: Abi> AbiSpan<A> for () {
 // -----------------------------------------------------------------------------
 
 impl<A: Abi> AbiValidate<A> for u256 {
-    fn validate_end<I: ByteInput>(_ input: I, base: u256, pos: u256) -> u256 {
+    #[arithmetic(unchecked)]
+    fn validate_end<I: ByteInput>(input: I, base: u256, pos: u256) -> u256 {
         let _ = base
         let _ = input.word_at(pos)
-        pos + 32
+        let end = pos + 32
+        if end < pos {
+            super::panic()
+        }
+        end
     }
 }
 
@@ -1247,125 +1252,195 @@ impl<A: Abi> AbiValidate<A> for DynString {
 }
 
 impl<A: Abi> AbiValidate<A> for bool {
-    fn validate_end<I: ByteInput>(_ input: I, base: u256, pos: u256) -> u256 {
+    #[arithmetic(unchecked)]
+    fn validate_end<I: ByteInput>(input: I, base: u256, pos: u256) -> u256 {
         let _ = base
         let word = input.word_at(pos)
         let _ = A::decode_bool_word(word)
-        pos + 32
+        let end = pos + 32
+        if end < pos {
+            super::panic()
+        }
+        end
     }
 }
 
 impl<A: Abi> AbiValidate<A> for u8 {
-    fn validate_end<I: ByteInput>(_ input: I, base: u256, pos: u256) -> u256 {
+    #[arithmetic(unchecked)]
+    fn validate_end<I: ByteInput>(input: I, base: u256, pos: u256) -> u256 {
         let _ = base
         let word = input.word_at(pos)
         let _ = A::decode_u8_word(word)
-        pos + 32
+        let end = pos + 32
+        if end < pos {
+            super::panic()
+        }
+        end
     }
 }
 
 impl<A: Abi> AbiValidate<A> for u16 {
-    fn validate_end<I: ByteInput>(_ input: I, base: u256, pos: u256) -> u256 {
+    #[arithmetic(unchecked)]
+    fn validate_end<I: ByteInput>(input: I, base: u256, pos: u256) -> u256 {
         let _ = base
         let word = input.word_at(pos)
         let _ = A::decode_u16_word(word)
-        pos + 32
+        let end = pos + 32
+        if end < pos {
+            super::panic()
+        }
+        end
     }
 }
 
 impl<A: Abi> AbiValidate<A> for u32 {
-    fn validate_end<I: ByteInput>(_ input: I, base: u256, pos: u256) -> u256 {
+    #[arithmetic(unchecked)]
+    fn validate_end<I: ByteInput>(input: I, base: u256, pos: u256) -> u256 {
         let _ = base
         let word = input.word_at(pos)
         let _ = A::decode_u32_word(word)
-        pos + 32
+        let end = pos + 32
+        if end < pos {
+            super::panic()
+        }
+        end
     }
 }
 
 impl<A: Abi> AbiValidate<A> for u64 {
-    fn validate_end<I: ByteInput>(_ input: I, base: u256, pos: u256) -> u256 {
+    #[arithmetic(unchecked)]
+    fn validate_end<I: ByteInput>(input: I, base: u256, pos: u256) -> u256 {
         let _ = base
         let word = input.word_at(pos)
         let _ = A::decode_u64_word(word)
-        pos + 32
+        let end = pos + 32
+        if end < pos {
+            super::panic()
+        }
+        end
     }
 }
 
 impl<A: Abi> AbiValidate<A> for u128 {
-    fn validate_end<I: ByteInput>(_ input: I, base: u256, pos: u256) -> u256 {
+    #[arithmetic(unchecked)]
+    fn validate_end<I: ByteInput>(input: I, base: u256, pos: u256) -> u256 {
         let _ = base
         let word = input.word_at(pos)
         let _ = A::decode_u128_word(word)
-        pos + 32
+        let end = pos + 32
+        if end < pos {
+            super::panic()
+        }
+        end
     }
 }
 
 impl<A: Abi> AbiValidate<A> for i8 {
-    fn validate_end<I: ByteInput>(_ input: I, base: u256, pos: u256) -> u256 {
+    #[arithmetic(unchecked)]
+    fn validate_end<I: ByteInput>(input: I, base: u256, pos: u256) -> u256 {
         let _ = base
         let word = input.word_at(pos)
         let _ = A::decode_i8_word(word)
-        pos + 32
+        let end = pos + 32
+        if end < pos {
+            super::panic()
+        }
+        end
     }
 }
 
 impl<A: Abi> AbiValidate<A> for i16 {
-    fn validate_end<I: ByteInput>(_ input: I, base: u256, pos: u256) -> u256 {
+    #[arithmetic(unchecked)]
+    fn validate_end<I: ByteInput>(input: I, base: u256, pos: u256) -> u256 {
         let _ = base
         let word = input.word_at(pos)
         let _ = A::decode_i16_word(word)
-        pos + 32
+        let end = pos + 32
+        if end < pos {
+            super::panic()
+        }
+        end
     }
 }
 
 impl<A: Abi> AbiValidate<A> for i32 {
-    fn validate_end<I: ByteInput>(_ input: I, base: u256, pos: u256) -> u256 {
+    #[arithmetic(unchecked)]
+    fn validate_end<I: ByteInput>(input: I, base: u256, pos: u256) -> u256 {
         let _ = base
         let word = input.word_at(pos)
         let _ = A::decode_i32_word(word)
-        pos + 32
+        let end = pos + 32
+        if end < pos {
+            super::panic()
+        }
+        end
     }
 }
 
 impl<A: Abi> AbiValidate<A> for i64 {
-    fn validate_end<I: ByteInput>(_ input: I, base: u256, pos: u256) -> u256 {
+    #[arithmetic(unchecked)]
+    fn validate_end<I: ByteInput>(input: I, base: u256, pos: u256) -> u256 {
         let _ = base
         let word = input.word_at(pos)
         let _ = A::decode_i64_word(word)
-        pos + 32
+        let end = pos + 32
+        if end < pos {
+            super::panic()
+        }
+        end
     }
 }
 
 impl<A: Abi> AbiValidate<A> for i128 {
-    fn validate_end<I: ByteInput>(_ input: I, base: u256, pos: u256) -> u256 {
+    #[arithmetic(unchecked)]
+    fn validate_end<I: ByteInput>(input: I, base: u256, pos: u256) -> u256 {
         let _ = base
         let word = input.word_at(pos)
         let _ = A::decode_i128_word(word)
-        pos + 32
+        let end = pos + 32
+        if end < pos {
+            super::panic()
+        }
+        end
     }
 }
 
 impl<A: Abi> AbiValidate<A> for i256 {
-    fn validate_end<I: ByteInput>(_ input: I, base: u256, pos: u256) -> u256 {
+    #[arithmetic(unchecked)]
+    fn validate_end<I: ByteInput>(input: I, base: u256, pos: u256) -> u256 {
         let _ = base
         let _ = input.word_at(pos)
-        pos + 32
+        let end = pos + 32
+        if end < pos {
+            super::panic()
+        }
+        end
     }
 }
 
 impl<A: Abi> AbiValidate<A> for usize {
-    fn validate_end<I: ByteInput>(_ input: I, base: u256, pos: u256) -> u256 {
+    #[arithmetic(unchecked)]
+    fn validate_end<I: ByteInput>(input: I, base: u256, pos: u256) -> u256 {
         let _ = base
         let _ = input.word_at(pos)
-        pos + 32
+        let end = pos + 32
+        if end < pos {
+            super::panic()
+        }
+        end
     }
 }
 
 impl<A: Abi> AbiValidate<A> for isize {
-    fn validate_end<I: ByteInput>(_ input: I, base: u256, pos: u256) -> u256 {
+    #[arithmetic(unchecked)]
+    fn validate_end<I: ByteInput>(input: I, base: u256, pos: u256) -> u256 {
         let _ = base
         let _ = input.word_at(pos)
-        pos + 32
+        let end = pos + 32
+        if end < pos {
+            super::panic()
+        }
+        end
     }
 }
 

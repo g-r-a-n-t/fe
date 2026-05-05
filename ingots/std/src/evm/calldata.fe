@@ -30,6 +30,7 @@ impl CallData {
 }
 
 impl ByteInput for CallData {
+    #[arithmetic(unchecked)]
     fn len(self) -> u256 {
         let total = calldatasize()
         if self.base > total {
@@ -53,6 +54,7 @@ impl ByteInput for CallData {
         (word >> shift).downcast_truncate()
     }
 
+    #[arithmetic(unchecked)]
     fn copy_to_memory(self, dest: u256, src_offset: u256, len: u256) {
         if len % 32 != 0 {
             revert(0, 0)

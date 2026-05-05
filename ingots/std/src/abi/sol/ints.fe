@@ -1,4 +1,4 @@
-use core::abi::{Abi, AbiDecoder, AbiEncoder, AbiSize, AbiSpan, Decode, Encode}
+use core::abi::{Abi, AbiDecoder, AbiEncoder, AbiSize, AbiSpan, AbiValidate, ByteInput, Decode, Encode}
 use core::num::IntDowncast
 use ingot::evm::{TopicValue, ops::revert}
 
@@ -1669,6 +1669,424 @@ impl<A: Abi> AbiSpan<A> for Int240 {
 }
 impl<A: Abi> AbiSpan<A> for Int248 {
     fn payload_end<I: core::abi::ByteInput>(_: I, base: u256, pos: u256) -> u256 { pos + 32 }
+}
+
+impl<A: Abi> AbiValidate<A> for Uint24 {
+    fn validate_end<I: ByteInput>(input: I, base: u256, pos: u256) -> u256 {
+        let _ = base
+        let word = input.word_at(pos)
+        let _ = canonical_unsigned_word(word, 24)
+        pos + 32
+    }
+}
+impl<A: Abi> AbiValidate<A> for Uint40 {
+    fn validate_end<I: ByteInput>(input: I, base: u256, pos: u256) -> u256 {
+        let _ = base
+        let word = input.word_at(pos)
+        let _ = canonical_unsigned_word(word, 40)
+        pos + 32
+    }
+}
+impl<A: Abi> AbiValidate<A> for Uint48 {
+    fn validate_end<I: ByteInput>(input: I, base: u256, pos: u256) -> u256 {
+        let _ = base
+        let word = input.word_at(pos)
+        let _ = canonical_unsigned_word(word, 48)
+        pos + 32
+    }
+}
+impl<A: Abi> AbiValidate<A> for Uint56 {
+    fn validate_end<I: ByteInput>(input: I, base: u256, pos: u256) -> u256 {
+        let _ = base
+        let word = input.word_at(pos)
+        let _ = canonical_unsigned_word(word, 56)
+        pos + 32
+    }
+}
+impl<A: Abi> AbiValidate<A> for Uint72 {
+    fn validate_end<I: ByteInput>(input: I, base: u256, pos: u256) -> u256 {
+        let _ = base
+        let word = input.word_at(pos)
+        let _ = canonical_unsigned_word(word, 72)
+        pos + 32
+    }
+}
+impl<A: Abi> AbiValidate<A> for Uint80 {
+    fn validate_end<I: ByteInput>(input: I, base: u256, pos: u256) -> u256 {
+        let _ = base
+        let word = input.word_at(pos)
+        let _ = canonical_unsigned_word(word, 80)
+        pos + 32
+    }
+}
+impl<A: Abi> AbiValidate<A> for Uint88 {
+    fn validate_end<I: ByteInput>(input: I, base: u256, pos: u256) -> u256 {
+        let _ = base
+        let word = input.word_at(pos)
+        let _ = canonical_unsigned_word(word, 88)
+        pos + 32
+    }
+}
+impl<A: Abi> AbiValidate<A> for Uint96 {
+    fn validate_end<I: ByteInput>(input: I, base: u256, pos: u256) -> u256 {
+        let _ = base
+        let word = input.word_at(pos)
+        let _ = canonical_unsigned_word(word, 96)
+        pos + 32
+    }
+}
+impl<A: Abi> AbiValidate<A> for Uint104 {
+    fn validate_end<I: ByteInput>(input: I, base: u256, pos: u256) -> u256 {
+        let _ = base
+        let word = input.word_at(pos)
+        let _ = canonical_unsigned_word(word, 104)
+        pos + 32
+    }
+}
+impl<A: Abi> AbiValidate<A> for Uint112 {
+    fn validate_end<I: ByteInput>(input: I, base: u256, pos: u256) -> u256 {
+        let _ = base
+        let word = input.word_at(pos)
+        let _ = canonical_unsigned_word(word, 112)
+        pos + 32
+    }
+}
+impl<A: Abi> AbiValidate<A> for Uint120 {
+    fn validate_end<I: ByteInput>(input: I, base: u256, pos: u256) -> u256 {
+        let _ = base
+        let word = input.word_at(pos)
+        let _ = canonical_unsigned_word(word, 120)
+        pos + 32
+    }
+}
+impl<A: Abi> AbiValidate<A> for Uint136 {
+    fn validate_end<I: ByteInput>(input: I, base: u256, pos: u256) -> u256 {
+        let _ = base
+        let word = input.word_at(pos)
+        let _ = canonical_unsigned_word(word, 136)
+        pos + 32
+    }
+}
+impl<A: Abi> AbiValidate<A> for Uint144 {
+    fn validate_end<I: ByteInput>(input: I, base: u256, pos: u256) -> u256 {
+        let _ = base
+        let word = input.word_at(pos)
+        let _ = canonical_unsigned_word(word, 144)
+        pos + 32
+    }
+}
+impl<A: Abi> AbiValidate<A> for Uint152 {
+    fn validate_end<I: ByteInput>(input: I, base: u256, pos: u256) -> u256 {
+        let _ = base
+        let word = input.word_at(pos)
+        let _ = canonical_unsigned_word(word, 152)
+        pos + 32
+    }
+}
+impl<A: Abi> AbiValidate<A> for Uint160 {
+    fn validate_end<I: ByteInput>(input: I, base: u256, pos: u256) -> u256 {
+        let _ = base
+        let word = input.word_at(pos)
+        let _ = canonical_unsigned_word(word, 160)
+        pos + 32
+    }
+}
+impl<A: Abi> AbiValidate<A> for Uint168 {
+    fn validate_end<I: ByteInput>(input: I, base: u256, pos: u256) -> u256 {
+        let _ = base
+        let word = input.word_at(pos)
+        let _ = canonical_unsigned_word(word, 168)
+        pos + 32
+    }
+}
+impl<A: Abi> AbiValidate<A> for Uint176 {
+    fn validate_end<I: ByteInput>(input: I, base: u256, pos: u256) -> u256 {
+        let _ = base
+        let word = input.word_at(pos)
+        let _ = canonical_unsigned_word(word, 176)
+        pos + 32
+    }
+}
+impl<A: Abi> AbiValidate<A> for Uint184 {
+    fn validate_end<I: ByteInput>(input: I, base: u256, pos: u256) -> u256 {
+        let _ = base
+        let word = input.word_at(pos)
+        let _ = canonical_unsigned_word(word, 184)
+        pos + 32
+    }
+}
+impl<A: Abi> AbiValidate<A> for Uint192 {
+    fn validate_end<I: ByteInput>(input: I, base: u256, pos: u256) -> u256 {
+        let _ = base
+        let word = input.word_at(pos)
+        let _ = canonical_unsigned_word(word, 192)
+        pos + 32
+    }
+}
+impl<A: Abi> AbiValidate<A> for Uint200 {
+    fn validate_end<I: ByteInput>(input: I, base: u256, pos: u256) -> u256 {
+        let _ = base
+        let word = input.word_at(pos)
+        let _ = canonical_unsigned_word(word, 200)
+        pos + 32
+    }
+}
+impl<A: Abi> AbiValidate<A> for Uint208 {
+    fn validate_end<I: ByteInput>(input: I, base: u256, pos: u256) -> u256 {
+        let _ = base
+        let word = input.word_at(pos)
+        let _ = canonical_unsigned_word(word, 208)
+        pos + 32
+    }
+}
+impl<A: Abi> AbiValidate<A> for Uint216 {
+    fn validate_end<I: ByteInput>(input: I, base: u256, pos: u256) -> u256 {
+        let _ = base
+        let word = input.word_at(pos)
+        let _ = canonical_unsigned_word(word, 216)
+        pos + 32
+    }
+}
+impl<A: Abi> AbiValidate<A> for Uint224 {
+    fn validate_end<I: ByteInput>(input: I, base: u256, pos: u256) -> u256 {
+        let _ = base
+        let word = input.word_at(pos)
+        let _ = canonical_unsigned_word(word, 224)
+        pos + 32
+    }
+}
+impl<A: Abi> AbiValidate<A> for Uint232 {
+    fn validate_end<I: ByteInput>(input: I, base: u256, pos: u256) -> u256 {
+        let _ = base
+        let word = input.word_at(pos)
+        let _ = canonical_unsigned_word(word, 232)
+        pos + 32
+    }
+}
+impl<A: Abi> AbiValidate<A> for Uint240 {
+    fn validate_end<I: ByteInput>(input: I, base: u256, pos: u256) -> u256 {
+        let _ = base
+        let word = input.word_at(pos)
+        let _ = canonical_unsigned_word(word, 240)
+        pos + 32
+    }
+}
+impl<A: Abi> AbiValidate<A> for Uint248 {
+    fn validate_end<I: ByteInput>(input: I, base: u256, pos: u256) -> u256 {
+        let _ = base
+        let word = input.word_at(pos)
+        let _ = canonical_unsigned_word(word, 248)
+        pos + 32
+    }
+}
+
+impl<A: Abi> AbiValidate<A> for Int24 {
+    fn validate_end<I: ByteInput>(input: I, base: u256, pos: u256) -> u256 {
+        let _ = base
+        let word = input.word_at(pos)
+        let _ = canonical_custom_signed_word(word, 24)
+        pos + 32
+    }
+}
+impl<A: Abi> AbiValidate<A> for Int40 {
+    fn validate_end<I: ByteInput>(input: I, base: u256, pos: u256) -> u256 {
+        let _ = base
+        let word = input.word_at(pos)
+        let _ = canonical_custom_signed_word(word, 40)
+        pos + 32
+    }
+}
+impl<A: Abi> AbiValidate<A> for Int48 {
+    fn validate_end<I: ByteInput>(input: I, base: u256, pos: u256) -> u256 {
+        let _ = base
+        let word = input.word_at(pos)
+        let _ = canonical_custom_signed_word(word, 48)
+        pos + 32
+    }
+}
+impl<A: Abi> AbiValidate<A> for Int56 {
+    fn validate_end<I: ByteInput>(input: I, base: u256, pos: u256) -> u256 {
+        let _ = base
+        let word = input.word_at(pos)
+        let _ = canonical_custom_signed_word(word, 56)
+        pos + 32
+    }
+}
+impl<A: Abi> AbiValidate<A> for Int72 {
+    fn validate_end<I: ByteInput>(input: I, base: u256, pos: u256) -> u256 {
+        let _ = base
+        let word = input.word_at(pos)
+        let _ = canonical_custom_signed_word(word, 72)
+        pos + 32
+    }
+}
+impl<A: Abi> AbiValidate<A> for Int80 {
+    fn validate_end<I: ByteInput>(input: I, base: u256, pos: u256) -> u256 {
+        let _ = base
+        let word = input.word_at(pos)
+        let _ = canonical_custom_signed_word(word, 80)
+        pos + 32
+    }
+}
+impl<A: Abi> AbiValidate<A> for Int88 {
+    fn validate_end<I: ByteInput>(input: I, base: u256, pos: u256) -> u256 {
+        let _ = base
+        let word = input.word_at(pos)
+        let _ = canonical_custom_signed_word(word, 88)
+        pos + 32
+    }
+}
+impl<A: Abi> AbiValidate<A> for Int96 {
+    fn validate_end<I: ByteInput>(input: I, base: u256, pos: u256) -> u256 {
+        let _ = base
+        let word = input.word_at(pos)
+        let _ = canonical_custom_signed_word(word, 96)
+        pos + 32
+    }
+}
+impl<A: Abi> AbiValidate<A> for Int104 {
+    fn validate_end<I: ByteInput>(input: I, base: u256, pos: u256) -> u256 {
+        let _ = base
+        let word = input.word_at(pos)
+        let _ = canonical_custom_signed_word(word, 104)
+        pos + 32
+    }
+}
+impl<A: Abi> AbiValidate<A> for Int112 {
+    fn validate_end<I: ByteInput>(input: I, base: u256, pos: u256) -> u256 {
+        let _ = base
+        let word = input.word_at(pos)
+        let _ = canonical_custom_signed_word(word, 112)
+        pos + 32
+    }
+}
+impl<A: Abi> AbiValidate<A> for Int120 {
+    fn validate_end<I: ByteInput>(input: I, base: u256, pos: u256) -> u256 {
+        let _ = base
+        let word = input.word_at(pos)
+        let _ = canonical_custom_signed_word(word, 120)
+        pos + 32
+    }
+}
+impl<A: Abi> AbiValidate<A> for Int136 {
+    fn validate_end<I: ByteInput>(input: I, base: u256, pos: u256) -> u256 {
+        let _ = base
+        let word = input.word_at(pos)
+        let _ = canonical_custom_signed_word(word, 136)
+        pos + 32
+    }
+}
+impl<A: Abi> AbiValidate<A> for Int144 {
+    fn validate_end<I: ByteInput>(input: I, base: u256, pos: u256) -> u256 {
+        let _ = base
+        let word = input.word_at(pos)
+        let _ = canonical_custom_signed_word(word, 144)
+        pos + 32
+    }
+}
+impl<A: Abi> AbiValidate<A> for Int152 {
+    fn validate_end<I: ByteInput>(input: I, base: u256, pos: u256) -> u256 {
+        let _ = base
+        let word = input.word_at(pos)
+        let _ = canonical_custom_signed_word(word, 152)
+        pos + 32
+    }
+}
+impl<A: Abi> AbiValidate<A> for Int160 {
+    fn validate_end<I: ByteInput>(input: I, base: u256, pos: u256) -> u256 {
+        let _ = base
+        let word = input.word_at(pos)
+        let _ = canonical_custom_signed_word(word, 160)
+        pos + 32
+    }
+}
+impl<A: Abi> AbiValidate<A> for Int168 {
+    fn validate_end<I: ByteInput>(input: I, base: u256, pos: u256) -> u256 {
+        let _ = base
+        let word = input.word_at(pos)
+        let _ = canonical_custom_signed_word(word, 168)
+        pos + 32
+    }
+}
+impl<A: Abi> AbiValidate<A> for Int176 {
+    fn validate_end<I: ByteInput>(input: I, base: u256, pos: u256) -> u256 {
+        let _ = base
+        let word = input.word_at(pos)
+        let _ = canonical_custom_signed_word(word, 176)
+        pos + 32
+    }
+}
+impl<A: Abi> AbiValidate<A> for Int184 {
+    fn validate_end<I: ByteInput>(input: I, base: u256, pos: u256) -> u256 {
+        let _ = base
+        let word = input.word_at(pos)
+        let _ = canonical_custom_signed_word(word, 184)
+        pos + 32
+    }
+}
+impl<A: Abi> AbiValidate<A> for Int192 {
+    fn validate_end<I: ByteInput>(input: I, base: u256, pos: u256) -> u256 {
+        let _ = base
+        let word = input.word_at(pos)
+        let _ = canonical_custom_signed_word(word, 192)
+        pos + 32
+    }
+}
+impl<A: Abi> AbiValidate<A> for Int200 {
+    fn validate_end<I: ByteInput>(input: I, base: u256, pos: u256) -> u256 {
+        let _ = base
+        let word = input.word_at(pos)
+        let _ = canonical_custom_signed_word(word, 200)
+        pos + 32
+    }
+}
+impl<A: Abi> AbiValidate<A> for Int208 {
+    fn validate_end<I: ByteInput>(input: I, base: u256, pos: u256) -> u256 {
+        let _ = base
+        let word = input.word_at(pos)
+        let _ = canonical_custom_signed_word(word, 208)
+        pos + 32
+    }
+}
+impl<A: Abi> AbiValidate<A> for Int216 {
+    fn validate_end<I: ByteInput>(input: I, base: u256, pos: u256) -> u256 {
+        let _ = base
+        let word = input.word_at(pos)
+        let _ = canonical_custom_signed_word(word, 216)
+        pos + 32
+    }
+}
+impl<A: Abi> AbiValidate<A> for Int224 {
+    fn validate_end<I: ByteInput>(input: I, base: u256, pos: u256) -> u256 {
+        let _ = base
+        let word = input.word_at(pos)
+        let _ = canonical_custom_signed_word(word, 224)
+        pos + 32
+    }
+}
+impl<A: Abi> AbiValidate<A> for Int232 {
+    fn validate_end<I: ByteInput>(input: I, base: u256, pos: u256) -> u256 {
+        let _ = base
+        let word = input.word_at(pos)
+        let _ = canonical_custom_signed_word(word, 232)
+        pos + 32
+    }
+}
+impl<A: Abi> AbiValidate<A> for Int240 {
+    fn validate_end<I: ByteInput>(input: I, base: u256, pos: u256) -> u256 {
+        let _ = base
+        let word = input.word_at(pos)
+        let _ = canonical_custom_signed_word(word, 240)
+        pos + 32
+    }
+}
+impl<A: Abi> AbiValidate<A> for Int248 {
+    fn validate_end<I: ByteInput>(input: I, base: u256, pos: u256) -> u256 {
+        let _ = base
+        let word = input.word_at(pos)
+        let _ = canonical_custom_signed_word(word, 248)
+        pos + 32
+    }
 }
 
 impl TopicValue for Uint24 {

@@ -166,6 +166,15 @@ pub trait AbiSpan<A: Abi>: AbiSize {
     fn payload_end<I: ByteInput>(_: I, base: u256, pos: u256) -> u256
 }
 
+/// ABI validation that computes the end offset of an encoded value.
+///
+/// This is intended for fast "passthrough" paths that must reject malformed
+/// calldata (matching Solidity ABI rules) but do not need to materialize owned
+/// values in memory.
+pub trait AbiValidate<A: Abi>: AbiSize {
+    fn validate_end<I: ByteInput>(_: I, base: u256, pos: u256) -> u256
+}
+
 pub trait Decode<A: Abi> {
     fn decode_payload<D: AbiDecoder<A>>(_: mut D) -> Self
 }
@@ -354,6 +363,19 @@ pub fn abi_field_end<A: Abi, T, I>(_ input: I, base: u256, pos: u256) -> u256
     }
 
     T::payload_end(input, base: base, pos: pos)
+}
+
+pub fn abi_field_validate_end<A: Abi, T, I>(_ input: I, base: u256, pos: u256) -> u256
+    where T: AbiValidate<A> + AbiSize,
+          I: ByteInput
+{
+    if T::IS_DYNAMIC {
+        let tail_rel = input.word_at(pos)
+        let tail_at = base + tail_rel
+        return T::validate_end(input, base: tail_at, pos: tail_at)
+    }
+
+    T::validate_end(input, base: base, pos: pos)
 }
 
 fn round_up_words(_ len: u256) -> u256 {
@@ -1166,6 +1188,195 @@ impl<A: Abi> AbiSpan<A> for () {
     }
 }
 
+// -----------------------------------------------------------------------------
+// Validation / measurement
+// -----------------------------------------------------------------------------
+
+impl<A: Abi> AbiValidate<A> for u256 {
+    fn validate_end<I: ByteInput>(_ input: I, base: u256, pos: u256) -> u256 {
+        let _ = base
+        let _ = input.word_at(pos)
+        pos + 32
+    }
+}
+
+impl<A: Abi, const N: usize> AbiValidate<A> for String<N> {
+    #[arithmetic(unchecked)]
+    fn validate_end<I: ByteInput>(_ input: I, base: u256, pos: u256) -> u256 {
+        let _ = base
+        let data_len = input.word_at(pos)
+
+        if data_len > 32 || data_len > (N as u256) {
+            super::panic()
+        }
+
+        let payload_end = pos + 32 + round_up_words(data_len)
+        if payload_end < pos || payload_end > input.len() {
+            super::panic()
+        }
+        payload_end
+    }
+}
+
+impl<A: Abi> AbiValidate<A> for Bytes {
+    #[arithmetic(unchecked)]
+    fn validate_end<I: ByteInput>(_ input: I, base: u256, pos: u256) -> u256 {
+        let _ = base
+        let data_len = input.word_at(pos)
+
+        let payload_end = pos + 32 + round_up_words(data_len)
+        if payload_end < pos || payload_end > input.len() {
+            super::panic()
+        }
+        payload_end
+    }
+}
+
+impl<A: Abi> AbiValidate<A> for DynString {
+    #[arithmetic(unchecked)]
+    fn validate_end<I: ByteInput>(_ input: I, base: u256, pos: u256) -> u256 {
+        let _ = base
+        let data_len = input.word_at(pos)
+
+        let payload_end = pos + 32 + round_up_words(data_len)
+        if payload_end < pos || payload_end > input.len() {
+            super::panic()
+        }
+        payload_end
+    }
+}
+
+impl<A: Abi> AbiValidate<A> for bool {
+    fn validate_end<I: ByteInput>(_ input: I, base: u256, pos: u256) -> u256 {
+        let _ = base
+        let word = input.word_at(pos)
+        let _ = A::decode_bool_word(word)
+        pos + 32
+    }
+}
+
+impl<A: Abi> AbiValidate<A> for u8 {
+    fn validate_end<I: ByteInput>(_ input: I, base: u256, pos: u256) -> u256 {
+        let _ = base
+        let word = input.word_at(pos)
+        let _ = A::decode_u8_word(word)
+        pos + 32
+    }
+}
+
+impl<A: Abi> AbiValidate<A> for u16 {
+    fn validate_end<I: ByteInput>(_ input: I, base: u256, pos: u256) -> u256 {
+        let _ = base
+        let word = input.word_at(pos)
+        let _ = A::decode_u16_word(word)
+        pos + 32
+    }
+}
+
+impl<A: Abi> AbiValidate<A> for u32 {
+    fn validate_end<I: ByteInput>(_ input: I, base: u256, pos: u256) -> u256 {
+        let _ = base
+        let word = input.word_at(pos)
+        let _ = A::decode_u32_word(word)
+        pos + 32
+    }
+}
+
+impl<A: Abi> AbiValidate<A> for u64 {
+    fn validate_end<I: ByteInput>(_ input: I, base: u256, pos: u256) -> u256 {
+        let _ = base
+        let word = input.word_at(pos)
+        let _ = A::decode_u64_word(word)
+        pos + 32
+    }
+}
+
+impl<A: Abi> AbiValidate<A> for u128 {
+    fn validate_end<I: ByteInput>(_ input: I, base: u256, pos: u256) -> u256 {
+        let _ = base
+        let word = input.word_at(pos)
+        let _ = A::decode_u128_word(word)
+        pos + 32
+    }
+}
+
+impl<A: Abi> AbiValidate<A> for i8 {
+    fn validate_end<I: ByteInput>(_ input: I, base: u256, pos: u256) -> u256 {
+        let _ = base
+        let word = input.word_at(pos)
+        let _ = A::decode_i8_word(word)
+        pos + 32
+    }
+}
+
+impl<A: Abi> AbiValidate<A> for i16 {
+    fn validate_end<I: ByteInput>(_ input: I, base: u256, pos: u256) -> u256 {
+        let _ = base
+        let word = input.word_at(pos)
+        let _ = A::decode_i16_word(word)
+        pos + 32
+    }
+}
+
+impl<A: Abi> AbiValidate<A> for i32 {
+    fn validate_end<I: ByteInput>(_ input: I, base: u256, pos: u256) -> u256 {
+        let _ = base
+        let word = input.word_at(pos)
+        let _ = A::decode_i32_word(word)
+        pos + 32
+    }
+}
+
+impl<A: Abi> AbiValidate<A> for i64 {
+    fn validate_end<I: ByteInput>(_ input: I, base: u256, pos: u256) -> u256 {
+        let _ = base
+        let word = input.word_at(pos)
+        let _ = A::decode_i64_word(word)
+        pos + 32
+    }
+}
+
+impl<A: Abi> AbiValidate<A> for i128 {
+    fn validate_end<I: ByteInput>(_ input: I, base: u256, pos: u256) -> u256 {
+        let _ = base
+        let word = input.word_at(pos)
+        let _ = A::decode_i128_word(word)
+        pos + 32
+    }
+}
+
+impl<A: Abi> AbiValidate<A> for i256 {
+    fn validate_end<I: ByteInput>(_ input: I, base: u256, pos: u256) -> u256 {
+        let _ = base
+        let _ = input.word_at(pos)
+        pos + 32
+    }
+}
+
+impl<A: Abi> AbiValidate<A> for usize {
+    fn validate_end<I: ByteInput>(_ input: I, base: u256, pos: u256) -> u256 {
+        let _ = base
+        let _ = input.word_at(pos)
+        pos + 32
+    }
+}
+
+impl<A: Abi> AbiValidate<A> for isize {
+    fn validate_end<I: ByteInput>(_ input: I, base: u256, pos: u256) -> u256 {
+        let _ = base
+        let _ = input.word_at(pos)
+        pos + 32
+    }
+}
+
+impl<A: Abi> AbiValidate<A> for () {
+    fn validate_end<I: ByteInput>(_ input: I, base: u256, pos: u256) -> u256 {
+        let _ = input
+        let _ = base
+        pos
+    }
+}
+
 impl<A: Abi> Decode<A> for u256 {
     fn decode_payload<D: AbiDecoder<A>>(_ d: mut D) -> Self {
         d.read_word()
@@ -1603,6 +1814,52 @@ fn dyn_array_payload_end<A: Abi, T, I>(_ input: I, tail_at: u256, elem_count: u2
     max_u256(a: head_end, b: abi_field_end<A, T, I>(input, base: elems_base, pos: last_head_pos))
 }
 
+fn dyn_array_validate_payload_end<A: Abi, T, I>(_ input: I, tail_at: u256, elem_count: u256) -> u256
+    where T: AbiValidate<A> + AbiSize,
+          I: ByteInput
+{
+    let elems_base = tail_at + 32
+    let head_size = elem_count * abi_field_head_size<T>()
+    let head_end = elems_base + head_size
+
+    if elem_count == 0 {
+        return head_end
+    }
+
+    if !T::IS_DYNAMIC {
+        let mut head_pos = elems_base
+        let mut i: u256 = 0
+        while i < elem_count {
+            let _ = T::validate_end(input, base: elems_base, pos: head_pos)
+            head_pos += abi_field_head_size<T>()
+            i += 1
+        }
+        return head_end
+    }
+
+    let mut prev_offset = head_size
+    let mut i: u256 = 0
+    while i < elem_count {
+        let offset = input.word_at(elems_base + (i * 32))
+        if offset < prev_offset || offset % 32 != 0 {
+            let mut head_pos = elems_base
+            let mut end = head_end
+            let mut j: u256 = 0
+            while j < elem_count {
+                end = max_u256(a: end, b: abi_field_validate_end<A, T, I>(input, base: elems_base, pos: head_pos))
+                head_pos += abi_field_head_size<T>()
+                j += 1
+            }
+            return end
+        }
+        prev_offset = offset
+        i += 1
+    }
+
+    let last_head_pos = elems_base + ((elem_count - 1) * 32)
+    max_u256(a: head_end, b: abi_field_validate_end<A, T, I>(input, base: elems_base, pos: last_head_pos))
+}
+
 impl<A: Abi, T> Decode<A> for DynArray<T>
     where T: AbiSpan<A> + AbiSize
 {
@@ -1647,6 +1904,21 @@ impl<A: Abi, T> AbiSpan<A> for DynArray<T>
     fn payload_end<I: ByteInput>(_ input: I, base: u256, pos: u256) -> u256 {
         let elem_count = input.word_at(pos)
         dyn_array_payload_end<A, T, I>(input, tail_at: pos, elem_count: elem_count)
+    }
+}
+
+impl<A: Abi, T> AbiValidate<A> for DynArray<T>
+    where T: AbiValidate<A> + AbiSize
+{
+    #[arithmetic(unchecked)]
+    fn validate_end<I: ByteInput>(_ input: I, base: u256, pos: u256) -> u256 {
+        let _ = base
+        let elem_count = input.word_at(pos)
+        let payload_end = dyn_array_validate_payload_end<A, T, I>(input, tail_at: pos, elem_count: elem_count)
+        if payload_end < pos || payload_end > input.len() {
+            super::panic()
+        }
+        payload_end
     }
 }
 
@@ -1825,6 +2097,68 @@ impl<A: Abi, T0, T1, T2, T3> AbiSpan<A> for (T0, T1, T2, T3)
         end = max_u256(a: end, b: abi_field_end<A, T1, I>(input, base: pos, pos: field1))
         end = max_u256(a: end, b: abi_field_end<A, T2, I>(input, base: pos, pos: field2))
         end = max_u256(a: end, b: abi_field_end<A, T3, I>(input, base: pos, pos: field3))
+        end
+    }
+}
+
+impl<A: Abi, T0> AbiValidate<A> for (T0,)
+    where T0: AbiValidate<A> + AbiSize
+{
+    fn validate_end<I: ByteInput>(_ input: I, base: u256, pos: u256) -> u256 {
+        let _ = base
+        let end = abi_field_validate_end<A, T0, I>(input, base: pos, pos: pos)
+        let head_end = pos + abi_field_head_size<T0>()
+        max_u256(a: end, b: head_end)
+    }
+}
+
+impl<A: Abi, T0, T1> AbiValidate<A> for (T0, T1)
+    where T0: AbiValidate<A> + AbiSize,
+          T1: AbiValidate<A> + AbiSize
+{
+    fn validate_end<I: ByteInput>(_ input: I, base: u256, pos: u256) -> u256 {
+        let _ = base
+        let field1 = pos + abi_field_head_size<T0>()
+        let mut end = field1 + abi_field_head_size<T1>()
+        end = max_u256(a: end, b: abi_field_validate_end<A, T0, I>(input, base: pos, pos: pos))
+        end = max_u256(a: end, b: abi_field_validate_end<A, T1, I>(input, base: pos, pos: field1))
+        end
+    }
+}
+
+impl<A: Abi, T0, T1, T2> AbiValidate<A> for (T0, T1, T2)
+    where T0: AbiValidate<A> + AbiSize,
+          T1: AbiValidate<A> + AbiSize,
+          T2: AbiValidate<A> + AbiSize
+{
+    fn validate_end<I: ByteInput>(_ input: I, base: u256, pos: u256) -> u256 {
+        let _ = base
+        let field1 = pos + abi_field_head_size<T0>()
+        let field2 = field1 + abi_field_head_size<T1>()
+        let mut end = field2 + abi_field_head_size<T2>()
+        end = max_u256(a: end, b: abi_field_validate_end<A, T0, I>(input, base: pos, pos: pos))
+        end = max_u256(a: end, b: abi_field_validate_end<A, T1, I>(input, base: pos, pos: field1))
+        end = max_u256(a: end, b: abi_field_validate_end<A, T2, I>(input, base: pos, pos: field2))
+        end
+    }
+}
+
+impl<A: Abi, T0, T1, T2, T3> AbiValidate<A> for (T0, T1, T2, T3)
+    where T0: AbiValidate<A> + AbiSize,
+          T1: AbiValidate<A> + AbiSize,
+          T2: AbiValidate<A> + AbiSize,
+          T3: AbiValidate<A> + AbiSize
+{
+    fn validate_end<I: ByteInput>(_ input: I, base: u256, pos: u256) -> u256 {
+        let _ = base
+        let field1 = pos + abi_field_head_size<T0>()
+        let field2 = field1 + abi_field_head_size<T1>()
+        let field3 = field2 + abi_field_head_size<T2>()
+        let mut end = field3 + abi_field_head_size<T3>()
+        end = max_u256(a: end, b: abi_field_validate_end<A, T0, I>(input, base: pos, pos: pos))
+        end = max_u256(a: end, b: abi_field_validate_end<A, T1, I>(input, base: pos, pos: field1))
+        end = max_u256(a: end, b: abi_field_validate_end<A, T2, I>(input, base: pos, pos: field2))
+        end = max_u256(a: end, b: abi_field_validate_end<A, T3, I>(input, base: pos, pos: field3))
         end
     }
 }
@@ -2436,6 +2770,23 @@ impl<A: Abi, T, const N: usize> AbiSpan<A> for [T; N]
         let mut i: usize = 0
         while i < N {
             end = max_u256(a: end, b: abi_field_end<A, T, I>(input, base: pos, pos: head_pos))
+            head_pos += abi_field_head_size<T>()
+            i += 1
+        }
+        max_u256(a: end, b: head_pos)
+    }
+}
+
+impl<A: Abi, T, const N: usize> AbiValidate<A> for [T; N]
+    where T: AbiValidate<A> + AbiSize + Copy
+{
+    fn validate_end<I: ByteInput>(_ input: I, base: u256, pos: u256) -> u256 {
+        let _ = base
+        let mut head_pos = pos
+        let mut end = pos
+        let mut i: usize = 0
+        while i < N {
+            end = max_u256(a: end, b: abi_field_validate_end<A, T, I>(input, base: pos, pos: head_pos))
             head_pos += abi_field_head_size<T>()
             i += 1
         }

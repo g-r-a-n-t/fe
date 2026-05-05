@@ -1,6 +1,7 @@
 use core::abi::{Abi, AbiDecoder, AbiEncoder, AbiSize, AbiSpan, AbiValidate, ByteInput, Decode, Encode}
 use core::num::IntDowncast
-use ingot::evm::{TopicValue, ops::revert}
+use ingot::evm::TopicValue
+use ingot::evm::ops::{revert, signextend}
 
 use super::types::SolCompat
 
@@ -1675,7 +1676,9 @@ impl<A: Abi> AbiValidate<A> for Uint24 {
     fn validate_end<I: ByteInput>(input: I, base: u256, pos: u256) -> u256 {
         let _ = base
         let word = input.word_at(pos)
-        let _ = canonical_unsigned_word(word, 24)
+        if word >> 24 != 0 {
+            revert(0, 0)
+        }
         pos + 32
     }
 }
@@ -1683,7 +1686,9 @@ impl<A: Abi> AbiValidate<A> for Uint40 {
     fn validate_end<I: ByteInput>(input: I, base: u256, pos: u256) -> u256 {
         let _ = base
         let word = input.word_at(pos)
-        let _ = canonical_unsigned_word(word, 40)
+        if word >> 40 != 0 {
+            revert(0, 0)
+        }
         pos + 32
     }
 }
@@ -1691,7 +1696,9 @@ impl<A: Abi> AbiValidate<A> for Uint48 {
     fn validate_end<I: ByteInput>(input: I, base: u256, pos: u256) -> u256 {
         let _ = base
         let word = input.word_at(pos)
-        let _ = canonical_unsigned_word(word, 48)
+        if word >> 48 != 0 {
+            revert(0, 0)
+        }
         pos + 32
     }
 }
@@ -1699,7 +1706,9 @@ impl<A: Abi> AbiValidate<A> for Uint56 {
     fn validate_end<I: ByteInput>(input: I, base: u256, pos: u256) -> u256 {
         let _ = base
         let word = input.word_at(pos)
-        let _ = canonical_unsigned_word(word, 56)
+        if word >> 56 != 0 {
+            revert(0, 0)
+        }
         pos + 32
     }
 }
@@ -1707,7 +1716,9 @@ impl<A: Abi> AbiValidate<A> for Uint72 {
     fn validate_end<I: ByteInput>(input: I, base: u256, pos: u256) -> u256 {
         let _ = base
         let word = input.word_at(pos)
-        let _ = canonical_unsigned_word(word, 72)
+        if word >> 72 != 0 {
+            revert(0, 0)
+        }
         pos + 32
     }
 }
@@ -1715,7 +1726,9 @@ impl<A: Abi> AbiValidate<A> for Uint80 {
     fn validate_end<I: ByteInput>(input: I, base: u256, pos: u256) -> u256 {
         let _ = base
         let word = input.word_at(pos)
-        let _ = canonical_unsigned_word(word, 80)
+        if word >> 80 != 0 {
+            revert(0, 0)
+        }
         pos + 32
     }
 }
@@ -1723,7 +1736,9 @@ impl<A: Abi> AbiValidate<A> for Uint88 {
     fn validate_end<I: ByteInput>(input: I, base: u256, pos: u256) -> u256 {
         let _ = base
         let word = input.word_at(pos)
-        let _ = canonical_unsigned_word(word, 88)
+        if word >> 88 != 0 {
+            revert(0, 0)
+        }
         pos + 32
     }
 }
@@ -1731,7 +1746,9 @@ impl<A: Abi> AbiValidate<A> for Uint96 {
     fn validate_end<I: ByteInput>(input: I, base: u256, pos: u256) -> u256 {
         let _ = base
         let word = input.word_at(pos)
-        let _ = canonical_unsigned_word(word, 96)
+        if word >> 96 != 0 {
+            revert(0, 0)
+        }
         pos + 32
     }
 }
@@ -1739,7 +1756,9 @@ impl<A: Abi> AbiValidate<A> for Uint104 {
     fn validate_end<I: ByteInput>(input: I, base: u256, pos: u256) -> u256 {
         let _ = base
         let word = input.word_at(pos)
-        let _ = canonical_unsigned_word(word, 104)
+        if word >> 104 != 0 {
+            revert(0, 0)
+        }
         pos + 32
     }
 }
@@ -1747,7 +1766,9 @@ impl<A: Abi> AbiValidate<A> for Uint112 {
     fn validate_end<I: ByteInput>(input: I, base: u256, pos: u256) -> u256 {
         let _ = base
         let word = input.word_at(pos)
-        let _ = canonical_unsigned_word(word, 112)
+        if word >> 112 != 0 {
+            revert(0, 0)
+        }
         pos + 32
     }
 }
@@ -1755,7 +1776,9 @@ impl<A: Abi> AbiValidate<A> for Uint120 {
     fn validate_end<I: ByteInput>(input: I, base: u256, pos: u256) -> u256 {
         let _ = base
         let word = input.word_at(pos)
-        let _ = canonical_unsigned_word(word, 120)
+        if word >> 120 != 0 {
+            revert(0, 0)
+        }
         pos + 32
     }
 }
@@ -1763,7 +1786,9 @@ impl<A: Abi> AbiValidate<A> for Uint136 {
     fn validate_end<I: ByteInput>(input: I, base: u256, pos: u256) -> u256 {
         let _ = base
         let word = input.word_at(pos)
-        let _ = canonical_unsigned_word(word, 136)
+        if word >> 136 != 0 {
+            revert(0, 0)
+        }
         pos + 32
     }
 }
@@ -1771,7 +1796,9 @@ impl<A: Abi> AbiValidate<A> for Uint144 {
     fn validate_end<I: ByteInput>(input: I, base: u256, pos: u256) -> u256 {
         let _ = base
         let word = input.word_at(pos)
-        let _ = canonical_unsigned_word(word, 144)
+        if word >> 144 != 0 {
+            revert(0, 0)
+        }
         pos + 32
     }
 }
@@ -1779,7 +1806,9 @@ impl<A: Abi> AbiValidate<A> for Uint152 {
     fn validate_end<I: ByteInput>(input: I, base: u256, pos: u256) -> u256 {
         let _ = base
         let word = input.word_at(pos)
-        let _ = canonical_unsigned_word(word, 152)
+        if word >> 152 != 0 {
+            revert(0, 0)
+        }
         pos + 32
     }
 }
@@ -1787,7 +1816,9 @@ impl<A: Abi> AbiValidate<A> for Uint160 {
     fn validate_end<I: ByteInput>(input: I, base: u256, pos: u256) -> u256 {
         let _ = base
         let word = input.word_at(pos)
-        let _ = canonical_unsigned_word(word, 160)
+        if word >> 160 != 0 {
+            revert(0, 0)
+        }
         pos + 32
     }
 }
@@ -1795,7 +1826,9 @@ impl<A: Abi> AbiValidate<A> for Uint168 {
     fn validate_end<I: ByteInput>(input: I, base: u256, pos: u256) -> u256 {
         let _ = base
         let word = input.word_at(pos)
-        let _ = canonical_unsigned_word(word, 168)
+        if word >> 168 != 0 {
+            revert(0, 0)
+        }
         pos + 32
     }
 }
@@ -1803,7 +1836,9 @@ impl<A: Abi> AbiValidate<A> for Uint176 {
     fn validate_end<I: ByteInput>(input: I, base: u256, pos: u256) -> u256 {
         let _ = base
         let word = input.word_at(pos)
-        let _ = canonical_unsigned_word(word, 176)
+        if word >> 176 != 0 {
+            revert(0, 0)
+        }
         pos + 32
     }
 }
@@ -1811,7 +1846,9 @@ impl<A: Abi> AbiValidate<A> for Uint184 {
     fn validate_end<I: ByteInput>(input: I, base: u256, pos: u256) -> u256 {
         let _ = base
         let word = input.word_at(pos)
-        let _ = canonical_unsigned_word(word, 184)
+        if word >> 184 != 0 {
+            revert(0, 0)
+        }
         pos + 32
     }
 }
@@ -1819,7 +1856,9 @@ impl<A: Abi> AbiValidate<A> for Uint192 {
     fn validate_end<I: ByteInput>(input: I, base: u256, pos: u256) -> u256 {
         let _ = base
         let word = input.word_at(pos)
-        let _ = canonical_unsigned_word(word, 192)
+        if word >> 192 != 0 {
+            revert(0, 0)
+        }
         pos + 32
     }
 }
@@ -1827,7 +1866,9 @@ impl<A: Abi> AbiValidate<A> for Uint200 {
     fn validate_end<I: ByteInput>(input: I, base: u256, pos: u256) -> u256 {
         let _ = base
         let word = input.word_at(pos)
-        let _ = canonical_unsigned_word(word, 200)
+        if word >> 200 != 0 {
+            revert(0, 0)
+        }
         pos + 32
     }
 }
@@ -1835,7 +1876,9 @@ impl<A: Abi> AbiValidate<A> for Uint208 {
     fn validate_end<I: ByteInput>(input: I, base: u256, pos: u256) -> u256 {
         let _ = base
         let word = input.word_at(pos)
-        let _ = canonical_unsigned_word(word, 208)
+        if word >> 208 != 0 {
+            revert(0, 0)
+        }
         pos + 32
     }
 }
@@ -1843,7 +1886,9 @@ impl<A: Abi> AbiValidate<A> for Uint216 {
     fn validate_end<I: ByteInput>(input: I, base: u256, pos: u256) -> u256 {
         let _ = base
         let word = input.word_at(pos)
-        let _ = canonical_unsigned_word(word, 216)
+        if word >> 216 != 0 {
+            revert(0, 0)
+        }
         pos + 32
     }
 }
@@ -1851,7 +1896,9 @@ impl<A: Abi> AbiValidate<A> for Uint224 {
     fn validate_end<I: ByteInput>(input: I, base: u256, pos: u256) -> u256 {
         let _ = base
         let word = input.word_at(pos)
-        let _ = canonical_unsigned_word(word, 224)
+        if word >> 224 != 0 {
+            revert(0, 0)
+        }
         pos + 32
     }
 }
@@ -1859,7 +1906,9 @@ impl<A: Abi> AbiValidate<A> for Uint232 {
     fn validate_end<I: ByteInput>(input: I, base: u256, pos: u256) -> u256 {
         let _ = base
         let word = input.word_at(pos)
-        let _ = canonical_unsigned_word(word, 232)
+        if word >> 232 != 0 {
+            revert(0, 0)
+        }
         pos + 32
     }
 }
@@ -1867,7 +1916,9 @@ impl<A: Abi> AbiValidate<A> for Uint240 {
     fn validate_end<I: ByteInput>(input: I, base: u256, pos: u256) -> u256 {
         let _ = base
         let word = input.word_at(pos)
-        let _ = canonical_unsigned_word(word, 240)
+        if word >> 240 != 0 {
+            revert(0, 0)
+        }
         pos + 32
     }
 }
@@ -1875,7 +1926,9 @@ impl<A: Abi> AbiValidate<A> for Uint248 {
     fn validate_end<I: ByteInput>(input: I, base: u256, pos: u256) -> u256 {
         let _ = base
         let word = input.word_at(pos)
-        let _ = canonical_unsigned_word(word, 248)
+        if word >> 248 != 0 {
+            revert(0, 0)
+        }
         pos + 32
     }
 }
@@ -1884,7 +1937,9 @@ impl<A: Abi> AbiValidate<A> for Int24 {
     fn validate_end<I: ByteInput>(input: I, base: u256, pos: u256) -> u256 {
         let _ = base
         let word = input.word_at(pos)
-        let _ = canonical_custom_signed_word(word, 24)
+        if signextend(2, word) != word {
+            revert(0, 0)
+        }
         pos + 32
     }
 }
@@ -1892,7 +1947,9 @@ impl<A: Abi> AbiValidate<A> for Int40 {
     fn validate_end<I: ByteInput>(input: I, base: u256, pos: u256) -> u256 {
         let _ = base
         let word = input.word_at(pos)
-        let _ = canonical_custom_signed_word(word, 40)
+        if signextend(4, word) != word {
+            revert(0, 0)
+        }
         pos + 32
     }
 }
@@ -1900,7 +1957,9 @@ impl<A: Abi> AbiValidate<A> for Int48 {
     fn validate_end<I: ByteInput>(input: I, base: u256, pos: u256) -> u256 {
         let _ = base
         let word = input.word_at(pos)
-        let _ = canonical_custom_signed_word(word, 48)
+        if signextend(5, word) != word {
+            revert(0, 0)
+        }
         pos + 32
     }
 }
@@ -1908,7 +1967,9 @@ impl<A: Abi> AbiValidate<A> for Int56 {
     fn validate_end<I: ByteInput>(input: I, base: u256, pos: u256) -> u256 {
         let _ = base
         let word = input.word_at(pos)
-        let _ = canonical_custom_signed_word(word, 56)
+        if signextend(6, word) != word {
+            revert(0, 0)
+        }
         pos + 32
     }
 }
@@ -1916,7 +1977,9 @@ impl<A: Abi> AbiValidate<A> for Int72 {
     fn validate_end<I: ByteInput>(input: I, base: u256, pos: u256) -> u256 {
         let _ = base
         let word = input.word_at(pos)
-        let _ = canonical_custom_signed_word(word, 72)
+        if signextend(8, word) != word {
+            revert(0, 0)
+        }
         pos + 32
     }
 }
@@ -1924,7 +1987,9 @@ impl<A: Abi> AbiValidate<A> for Int80 {
     fn validate_end<I: ByteInput>(input: I, base: u256, pos: u256) -> u256 {
         let _ = base
         let word = input.word_at(pos)
-        let _ = canonical_custom_signed_word(word, 80)
+        if signextend(9, word) != word {
+            revert(0, 0)
+        }
         pos + 32
     }
 }
@@ -1932,7 +1997,9 @@ impl<A: Abi> AbiValidate<A> for Int88 {
     fn validate_end<I: ByteInput>(input: I, base: u256, pos: u256) -> u256 {
         let _ = base
         let word = input.word_at(pos)
-        let _ = canonical_custom_signed_word(word, 88)
+        if signextend(10, word) != word {
+            revert(0, 0)
+        }
         pos + 32
     }
 }
@@ -1940,7 +2007,9 @@ impl<A: Abi> AbiValidate<A> for Int96 {
     fn validate_end<I: ByteInput>(input: I, base: u256, pos: u256) -> u256 {
         let _ = base
         let word = input.word_at(pos)
-        let _ = canonical_custom_signed_word(word, 96)
+        if signextend(11, word) != word {
+            revert(0, 0)
+        }
         pos + 32
     }
 }
@@ -1948,7 +2017,9 @@ impl<A: Abi> AbiValidate<A> for Int104 {
     fn validate_end<I: ByteInput>(input: I, base: u256, pos: u256) -> u256 {
         let _ = base
         let word = input.word_at(pos)
-        let _ = canonical_custom_signed_word(word, 104)
+        if signextend(12, word) != word {
+            revert(0, 0)
+        }
         pos + 32
     }
 }
@@ -1956,7 +2027,9 @@ impl<A: Abi> AbiValidate<A> for Int112 {
     fn validate_end<I: ByteInput>(input: I, base: u256, pos: u256) -> u256 {
         let _ = base
         let word = input.word_at(pos)
-        let _ = canonical_custom_signed_word(word, 112)
+        if signextend(13, word) != word {
+            revert(0, 0)
+        }
         pos + 32
     }
 }
@@ -1964,7 +2037,9 @@ impl<A: Abi> AbiValidate<A> for Int120 {
     fn validate_end<I: ByteInput>(input: I, base: u256, pos: u256) -> u256 {
         let _ = base
         let word = input.word_at(pos)
-        let _ = canonical_custom_signed_word(word, 120)
+        if signextend(14, word) != word {
+            revert(0, 0)
+        }
         pos + 32
     }
 }
@@ -1972,7 +2047,9 @@ impl<A: Abi> AbiValidate<A> for Int136 {
     fn validate_end<I: ByteInput>(input: I, base: u256, pos: u256) -> u256 {
         let _ = base
         let word = input.word_at(pos)
-        let _ = canonical_custom_signed_word(word, 136)
+        if signextend(16, word) != word {
+            revert(0, 0)
+        }
         pos + 32
     }
 }
@@ -1980,7 +2057,9 @@ impl<A: Abi> AbiValidate<A> for Int144 {
     fn validate_end<I: ByteInput>(input: I, base: u256, pos: u256) -> u256 {
         let _ = base
         let word = input.word_at(pos)
-        let _ = canonical_custom_signed_word(word, 144)
+        if signextend(17, word) != word {
+            revert(0, 0)
+        }
         pos + 32
     }
 }
@@ -1988,7 +2067,9 @@ impl<A: Abi> AbiValidate<A> for Int152 {
     fn validate_end<I: ByteInput>(input: I, base: u256, pos: u256) -> u256 {
         let _ = base
         let word = input.word_at(pos)
-        let _ = canonical_custom_signed_word(word, 152)
+        if signextend(18, word) != word {
+            revert(0, 0)
+        }
         pos + 32
     }
 }
@@ -1996,7 +2077,9 @@ impl<A: Abi> AbiValidate<A> for Int160 {
     fn validate_end<I: ByteInput>(input: I, base: u256, pos: u256) -> u256 {
         let _ = base
         let word = input.word_at(pos)
-        let _ = canonical_custom_signed_word(word, 160)
+        if signextend(19, word) != word {
+            revert(0, 0)
+        }
         pos + 32
     }
 }
@@ -2004,7 +2087,9 @@ impl<A: Abi> AbiValidate<A> for Int168 {
     fn validate_end<I: ByteInput>(input: I, base: u256, pos: u256) -> u256 {
         let _ = base
         let word = input.word_at(pos)
-        let _ = canonical_custom_signed_word(word, 168)
+        if signextend(20, word) != word {
+            revert(0, 0)
+        }
         pos + 32
     }
 }
@@ -2012,7 +2097,9 @@ impl<A: Abi> AbiValidate<A> for Int176 {
     fn validate_end<I: ByteInput>(input: I, base: u256, pos: u256) -> u256 {
         let _ = base
         let word = input.word_at(pos)
-        let _ = canonical_custom_signed_word(word, 176)
+        if signextend(21, word) != word {
+            revert(0, 0)
+        }
         pos + 32
     }
 }
@@ -2020,7 +2107,9 @@ impl<A: Abi> AbiValidate<A> for Int184 {
     fn validate_end<I: ByteInput>(input: I, base: u256, pos: u256) -> u256 {
         let _ = base
         let word = input.word_at(pos)
-        let _ = canonical_custom_signed_word(word, 184)
+        if signextend(22, word) != word {
+            revert(0, 0)
+        }
         pos + 32
     }
 }
@@ -2028,7 +2117,9 @@ impl<A: Abi> AbiValidate<A> for Int192 {
     fn validate_end<I: ByteInput>(input: I, base: u256, pos: u256) -> u256 {
         let _ = base
         let word = input.word_at(pos)
-        let _ = canonical_custom_signed_word(word, 192)
+        if signextend(23, word) != word {
+            revert(0, 0)
+        }
         pos + 32
     }
 }
@@ -2036,7 +2127,9 @@ impl<A: Abi> AbiValidate<A> for Int200 {
     fn validate_end<I: ByteInput>(input: I, base: u256, pos: u256) -> u256 {
         let _ = base
         let word = input.word_at(pos)
-        let _ = canonical_custom_signed_word(word, 200)
+        if signextend(24, word) != word {
+            revert(0, 0)
+        }
         pos + 32
     }
 }
@@ -2044,7 +2137,9 @@ impl<A: Abi> AbiValidate<A> for Int208 {
     fn validate_end<I: ByteInput>(input: I, base: u256, pos: u256) -> u256 {
         let _ = base
         let word = input.word_at(pos)
-        let _ = canonical_custom_signed_word(word, 208)
+        if signextend(25, word) != word {
+            revert(0, 0)
+        }
         pos + 32
     }
 }
@@ -2052,7 +2147,9 @@ impl<A: Abi> AbiValidate<A> for Int216 {
     fn validate_end<I: ByteInput>(input: I, base: u256, pos: u256) -> u256 {
         let _ = base
         let word = input.word_at(pos)
-        let _ = canonical_custom_signed_word(word, 216)
+        if signextend(26, word) != word {
+            revert(0, 0)
+        }
         pos + 32
     }
 }
@@ -2060,7 +2157,9 @@ impl<A: Abi> AbiValidate<A> for Int224 {
     fn validate_end<I: ByteInput>(input: I, base: u256, pos: u256) -> u256 {
         let _ = base
         let word = input.word_at(pos)
-        let _ = canonical_custom_signed_word(word, 224)
+        if signextend(27, word) != word {
+            revert(0, 0)
+        }
         pos + 32
     }
 }
@@ -2068,7 +2167,9 @@ impl<A: Abi> AbiValidate<A> for Int232 {
     fn validate_end<I: ByteInput>(input: I, base: u256, pos: u256) -> u256 {
         let _ = base
         let word = input.word_at(pos)
-        let _ = canonical_custom_signed_word(word, 232)
+        if signextend(28, word) != word {
+            revert(0, 0)
+        }
         pos + 32
     }
 }
@@ -2076,7 +2177,9 @@ impl<A: Abi> AbiValidate<A> for Int240 {
     fn validate_end<I: ByteInput>(input: I, base: u256, pos: u256) -> u256 {
         let _ = base
         let word = input.word_at(pos)
-        let _ = canonical_custom_signed_word(word, 240)
+        if signextend(29, word) != word {
+            revert(0, 0)
+        }
         pos + 32
     }
 }
@@ -2084,7 +2187,9 @@ impl<A: Abi> AbiValidate<A> for Int248 {
     fn validate_end<I: ByteInput>(input: I, base: u256, pos: u256) -> u256 {
         let _ = base
         let word = input.word_at(pos)
-        let _ = canonical_custom_signed_word(word, 248)
+        if signextend(30, word) != word {
+            revert(0, 0)
+        }
         pos + 32
     }
 }

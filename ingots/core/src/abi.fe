@@ -2106,9 +2106,20 @@ impl<A: Abi, T0> AbiValidate<A> for (T0,)
 {
     fn validate_end<I: ByteInput>(_ input: I, base: u256, pos: u256) -> u256 {
         let _ = base
-        let end = abi_field_validate_end<A, T0, I>(input, base: pos, pos: pos)
-        let head_end = pos + abi_field_head_size<T0>()
-        max_u256(a: end, b: head_end)
+        let slot0 = if T0::IS_DYNAMIC { 32 } else { T0::HEAD_SIZE }
+        let end = if T0::IS_DYNAMIC {
+            let tail_rel = input.word_at(pos)
+            let tail_at = pos + tail_rel
+            T0::validate_end(input, base: tail_at, pos: tail_at)
+        } else {
+            T0::validate_end(input, base: pos, pos: pos)
+        }
+        let head_end = pos + slot0
+        if end >= head_end {
+            end
+        } else {
+            head_end
+        }
     }
 }
 
@@ -2118,10 +2129,39 @@ impl<A: Abi, T0, T1> AbiValidate<A> for (T0, T1)
 {
     fn validate_end<I: ByteInput>(_ input: I, base: u256, pos: u256) -> u256 {
         let _ = base
-        let field1 = pos + abi_field_head_size<T0>()
-        let mut end = field1 + abi_field_head_size<T1>()
-        end = max_u256(a: end, b: abi_field_validate_end<A, T0, I>(input, base: pos, pos: pos))
-        end = max_u256(a: end, b: abi_field_validate_end<A, T1, I>(input, base: pos, pos: field1))
+        let slot0 = if T0::IS_DYNAMIC { 32 } else { T0::HEAD_SIZE }
+        let slot1 = if T1::IS_DYNAMIC { 32 } else { T1::HEAD_SIZE }
+        let field1 = pos + slot0
+        let head_end = field1 + slot1
+
+        if !T0::IS_DYNAMIC && !T1::IS_DYNAMIC {
+            let _ = T0::validate_end(input, base: pos, pos: pos)
+            let _ = T1::validate_end(input, base: pos, pos: field1)
+            return head_end
+        }
+
+        let mut end = head_end
+        let end0 = if T0::IS_DYNAMIC {
+            let tail_rel = input.word_at(pos)
+            let tail_at = pos + tail_rel
+            T0::validate_end(input, base: tail_at, pos: tail_at)
+        } else {
+            T0::validate_end(input, base: pos, pos: pos)
+        }
+        if end0 > end {
+            end = end0
+        }
+
+        let end1 = if T1::IS_DYNAMIC {
+            let tail_rel = input.word_at(field1)
+            let tail_at = pos + tail_rel
+            T1::validate_end(input, base: tail_at, pos: tail_at)
+        } else {
+            T1::validate_end(input, base: pos, pos: field1)
+        }
+        if end1 > end {
+            end = end1
+        }
         end
     }
 }
@@ -2133,12 +2173,53 @@ impl<A: Abi, T0, T1, T2> AbiValidate<A> for (T0, T1, T2)
 {
     fn validate_end<I: ByteInput>(_ input: I, base: u256, pos: u256) -> u256 {
         let _ = base
-        let field1 = pos + abi_field_head_size<T0>()
-        let field2 = field1 + abi_field_head_size<T1>()
-        let mut end = field2 + abi_field_head_size<T2>()
-        end = max_u256(a: end, b: abi_field_validate_end<A, T0, I>(input, base: pos, pos: pos))
-        end = max_u256(a: end, b: abi_field_validate_end<A, T1, I>(input, base: pos, pos: field1))
-        end = max_u256(a: end, b: abi_field_validate_end<A, T2, I>(input, base: pos, pos: field2))
+        let slot0 = if T0::IS_DYNAMIC { 32 } else { T0::HEAD_SIZE }
+        let slot1 = if T1::IS_DYNAMIC { 32 } else { T1::HEAD_SIZE }
+        let slot2 = if T2::IS_DYNAMIC { 32 } else { T2::HEAD_SIZE }
+        let field1 = pos + slot0
+        let field2 = field1 + slot1
+        let head_end = field2 + slot2
+
+        if !T0::IS_DYNAMIC && !T1::IS_DYNAMIC && !T2::IS_DYNAMIC {
+            let _ = T0::validate_end(input, base: pos, pos: pos)
+            let _ = T1::validate_end(input, base: pos, pos: field1)
+            let _ = T2::validate_end(input, base: pos, pos: field2)
+            return head_end
+        }
+
+        let mut end = head_end
+        let end0 = if T0::IS_DYNAMIC {
+            let tail_rel = input.word_at(pos)
+            let tail_at = pos + tail_rel
+            T0::validate_end(input, base: tail_at, pos: tail_at)
+        } else {
+            T0::validate_end(input, base: pos, pos: pos)
+        }
+        if end0 > end {
+            end = end0
+        }
+
+        let end1 = if T1::IS_DYNAMIC {
+            let tail_rel = input.word_at(field1)
+            let tail_at = pos + tail_rel
+            T1::validate_end(input, base: tail_at, pos: tail_at)
+        } else {
+            T1::validate_end(input, base: pos, pos: field1)
+        }
+        if end1 > end {
+            end = end1
+        }
+
+        let end2 = if T2::IS_DYNAMIC {
+            let tail_rel = input.word_at(field2)
+            let tail_at = pos + tail_rel
+            T2::validate_end(input, base: tail_at, pos: tail_at)
+        } else {
+            T2::validate_end(input, base: pos, pos: field2)
+        }
+        if end2 > end {
+            end = end2
+        }
         end
     }
 }
@@ -2783,14 +2864,40 @@ impl<A: Abi, T, const N: usize> AbiValidate<A> for [T; N]
     fn validate_end<I: ByteInput>(_ input: I, base: u256, pos: u256) -> u256 {
         let _ = base
         let mut head_pos = pos
+        if !T::IS_DYNAMIC {
+            let mut i: usize = 0
+            while i < N {
+                let _ = T::validate_end(input, base: pos, pos: head_pos)
+                head_pos += T::HEAD_SIZE
+                i += 1
+            }
+            return head_pos
+        }
+
+        let slot = if T::IS_DYNAMIC { 32 } else { T::HEAD_SIZE }
         let mut end = pos
         let mut i: usize = 0
         while i < N {
-            end = max_u256(a: end, b: abi_field_validate_end<A, T, I>(input, base: pos, pos: head_pos))
-            head_pos += abi_field_head_size<T>()
+            let field_end = if T::IS_DYNAMIC {
+                let tail_rel = input.word_at(head_pos)
+                let tail_at = pos + tail_rel
+                T::validate_end(input, base: tail_at, pos: tail_at)
+            } else {
+                T::validate_end(input, base: pos, pos: head_pos)
+            }
+            if field_end > end {
+                end = field_end
+            }
+
+            head_pos += slot
             i += 1
         }
-        max_u256(a: end, b: head_pos)
+
+        if head_pos > end {
+            head_pos
+        } else {
+            end
+        }
     }
 }
 

@@ -747,6 +747,12 @@ fn lower_msg_variant_abi_validate_impl<'db>(
                 bind(body, head_pos_ident, pos);
                 bind(body, end_ident, pos);
 
+                // For static-only variants, `IS_DYNAMIC` is false at compile-time.
+                // Use it to prune max(end, head_end) bookkeeping from passthrough validation.
+                let is_dynamic_ident = IdentId::new(db, "is_dynamic".to_string());
+                let is_dynamic_expr = body.abi_size_assoc_expr(ty, "IS_DYNAMIC");
+                bind(body, is_dynamic_ident, is_dynamic_expr);
+
                 for (idx, (_name, field_ty)) in fields.iter().copied().enumerate() {
                     let head_pos = body.ident_expr(head_pos_ident);
                     let field_end =
@@ -758,7 +764,9 @@ fn lower_msg_variant_abi_validate_impl<'db>(
                     let field_end = body.ident_expr(field_end_ident);
                     let cond =
                         body.push_expr(Expr::Bin(field_end, end, BinOp::Comp(CompBinOp::Gt)));
-                    let next_end = body.if_expr(cond, field_end, end);
+                    let max_end = body.if_expr(cond, field_end, end);
+                    let is_dynamic = body.ident_expr(is_dynamic_ident);
+                    let next_end = body.if_expr(is_dynamic, max_end, end);
                     bind(body, end_ident, next_end);
 
                     let head_pos = body.ident_expr(head_pos_ident);
@@ -771,7 +779,9 @@ fn lower_msg_variant_abi_validate_impl<'db>(
                 let end = body.ident_expr(end_ident);
                 let head_pos = body.ident_expr(head_pos_ident);
                 let cond = body.push_expr(Expr::Bin(head_pos, end, BinOp::Comp(CompBinOp::Gt)));
-                let ret = body.if_expr(cond, head_pos, end);
+                let ret_dynamic = body.if_expr(cond, head_pos, end);
+                let is_dynamic = body.ident_expr(is_dynamic_ident);
+                let ret = body.if_expr(is_dynamic, ret_dynamic, head_pos);
                 body.emit_return(Some(ret));
             },
         );

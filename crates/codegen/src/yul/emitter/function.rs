@@ -880,7 +880,7 @@ fn collect_builtin_locals<'db>(builtin: &YBuiltin<'db>, out: &mut FxHashSet<YLoc
         | YBuiltin::CurrentCodeRegionLen
         | YBuiltin::CodeRegionOffset { .. }
         | YBuiltin::CodeRegionLen { .. }
-        | YBuiltin::CallDataSelector
+        | YBuiltin::CallDataSelector { .. }
         | YBuiltin::MakeContractFieldRef { .. } => {}
         YBuiltin::Mload { addr }
         | YBuiltin::Sload { slot: addr }

@@ -419,7 +419,9 @@ pub enum YBuiltin<'db> {
         topic2: YLocalId,
         topic3: YLocalId,
     },
-    CallDataSelector,
+    CallDataSelector {
+        selector_size: u64,
+    },
     MakeContractFieldRef {
         slot: u128,
         class: YulValueClass<'db>,
@@ -3445,7 +3447,9 @@ fn legalize_builtin<'db>(
             topic2: YLocalId(topic2.as_u32()),
             topic3: YLocalId(topic3.as_u32()),
         },
-        RuntimeBuiltin::CallDataSelector => YBuiltin::CallDataSelector,
+        RuntimeBuiltin::CallDataSelector { selector_size, .. } => YBuiltin::CallDataSelector {
+            selector_size: *selector_size,
+        },
         RuntimeBuiltin::MakeContractFieldRef { slot, class, kind } => {
             YBuiltin::MakeContractFieldRef {
                 slot: *slot,

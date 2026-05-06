@@ -621,7 +621,10 @@ impl<'a, 'db> FunctionEmitter<'a, 'db> {
                 self.scalar_word_expr(*len)?,
                 self.scalar_word_expr(*salt)?,
             )),
-            YBuiltin::CallDataSelector => self.word_builtin("shr(224, calldataload(0))"),
+            YBuiltin::CallDataSelector { selector_size } => {
+                let shift_bits = 8u64 * (32u64.saturating_sub(*selector_size));
+                self.word_builtin(&format!("shr({shift_bits}, calldataload(0))"))
+            }
             YBuiltin::MakeContractFieldRef { slot, class, .. } => RenderedValue {
                 setup: Vec::new(),
                 value: slot.to_string(),

@@ -1,5 +1,6 @@
 ---
 source: crates/codegen/tests/sonatina_ir.rs
+assertion_line: 403
 expression: output
 input_file: crates/codegen/tests/fixtures/storage_map_contract.fe
 ---
@@ -157,7 +158,7 @@ func private %init(v0.objref<@layout_1>) {
         v1.i256 = sym_size &__BalanceMap_runtime;
         v2.i256 = sym_addr &__BalanceMap_runtime;
         call %codecopy v0 0.i256 v2 v1;
-        call %std__lib__evm__effects__impl_trait_Evm_0098__return_data_ad81_0 0.i256 v1;
+        call %std__lib__evm__effects__impl_trait_Evm_0098__return_data_ad81 0.i256 v1;
         unreachable;
 }
 
@@ -313,7 +314,7 @@ func private %runtime(v0.objref<@layout_1>) {
         unreachable;
 
     block7:
-        call %std__lib__evm__effects__impl_trait_Evm_0098__return_data_ad81 0.i256 0.i256;
+        call %std__lib__evm__effects__impl_trait_Evm_0098__return_data_ad81_0 0.i256 0.i256;
         unreachable;
 
     block8:

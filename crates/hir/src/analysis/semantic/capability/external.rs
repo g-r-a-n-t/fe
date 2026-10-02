@@ -15,7 +15,7 @@ use crate::{
             ty_def::{TyData, TyId},
         },
     },
-    semantic::{LayoutViewKind, ProviderSource},
+    semantic::{ContractFieldId, LayoutViewKind, ProviderSource},
 };
 
 use super::{
@@ -28,6 +28,17 @@ use super::{
     source::{InputSource, SourceExpr},
     value::{Guarded, IndexPayload},
 };
+
+/// What an alias comparison may treat as separation.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum AliasBasis {
+    /// Also the entry assumption that distinct certain sources are separate,
+    /// which call-boundary checks establish for the loans a body is given.
+    Assumed,
+    /// Only physical separation: address spaces, fresh objects against older
+    /// ones, and field, element and range separation within one object.
+    Physical,
+}
 
 /// Physical referent typing is independent of a capability's conversion views.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
@@ -118,11 +129,12 @@ pub enum AddressProvenance {
 }
 
 /// Whether a provider's target is the compiler-allocated storage of a
-/// contract field. This is a function of the interned binding, cached where a
-/// database is available so that aliasing stays database-free.
+/// contract field, and of which field. This is a function of the interned
+/// binding, cached where a database is available so that aliasing stays
+/// database-free.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub enum ProviderStorage {
-    AllocatedField,
+pub enum ProviderStorage<'db> {
+    AllocatedField(ContractFieldId<'db>),
     Other,
 }
 
@@ -134,7 +146,7 @@ pub enum ExternalOrigin<'db> {
     Provider {
         provider: ProviderRegionId<'db>,
         target_ty: TyId<'db>,
-        storage: ProviderStorage,
+        storage: ProviderStorage<'db>,
     },
     OpaqueHandle(OpaqueHandleRef<'db>),
     /// All addresses of this contract, without a distinguished object or loan.
@@ -404,6 +416,35 @@ impl<'db> ClobberCondition<'db> {
         }
         target.source.erase_clobber_conditions();
         written.source.erase_clobber_conditions();
+        // Bound raw write selectors by their containing object, but retain
+        // the clobbered cell: a callee's separation precondition may protect
+        // that cell without protecting every field in its containing object.
+        // If the written source is unchanged, its extent stays meaningful too.
+        // A widened written source loses its original offset and extent.
+        let object = |place: &SourceExpr<'db>| {
+            let mut place = place.clone();
+            while place.source.dereferences.is_empty()
+                && !place.source.reachable
+                && let ExternalOrigin::Memory { base, .. } = &place.source.origin
+            {
+                place = (**base).clone();
+            }
+            place.path = RegionPath::default();
+            place.views = Default::default();
+            place
+        };
+        let (target_object, written_object) = (object(&target), object(&written));
+        if written_object.source.in_raw_memory() && !target_object.source.in_raw_memory() {
+            return Self {
+                target,
+                extent: if written_object == written {
+                    extent
+                } else {
+                    AccessExtent::Unknown
+                },
+                written: written_object,
+            };
+        }
         Self {
             target,
             written,
@@ -571,7 +612,7 @@ impl<'db> ExternalSource<'db> {
                         .checked_add(layout.slot_count)
                         .is_some_and(|end| u64::try_from(end).is_ok())
                 }) {
-            ProviderStorage::AllocatedField
+            ProviderStorage::AllocatedField(*field)
         } else {
             ProviderStorage::Other
         };
@@ -618,11 +659,14 @@ impl<'db> ExternalSource<'db> {
         mut offset: MemoryOffset<'db>,
     ) -> Self {
         if matches!(base.source.origin, ExternalOrigin::OpaqueMemory) {
-            return Self::opaque_memory(ReferentContract::new(
+            // An offset into a conditional replacement exists under its condition.
+            let mut source = Self::opaque_memory(ReferentContract::new(
                 db,
                 target_ty,
                 base.source.contract.address_space,
             ));
+            source.clobber = base.source.clobber;
+            return source;
         }
         if matches!(offset, MemoryOffset::Element(_, IndexExpr::Const(0))) {
             offset = MemoryOffset::Zero;
@@ -907,6 +951,45 @@ impl<'db> ExternalSource<'db> {
             ExternalOrigin::Memory { base, .. } => base.source.is_incoming(),
             _ => false,
         }
+    }
+
+    /// How many nodes this source stores: itself, its dereference steps and
+    /// index arguments, and every Memory base and clobber dependency with their
+    /// projection steps and conversion views.
+    pub fn size(&self) -> usize {
+        let origin = match &self.origin {
+            ExternalOrigin::Input(input) => input.size(),
+            ExternalOrigin::OpaqueHandle(handle) | ExternalOrigin::Allocation(handle) => {
+                handle.arguments.len()
+            }
+            ExternalOrigin::Unknown { arguments, .. } => arguments.len(),
+            ExternalOrigin::Memory { base, offset, .. } => {
+                base.size() + usize::from(*offset != MemoryOffset::Zero)
+            }
+            ExternalOrigin::Provider { .. }
+            | ExternalOrigin::Local(_)
+            | ExternalOrigin::OpaqueMemory => 0,
+        };
+        let clobber = self.clobber.as_ref().map_or(0, |clobber| {
+            clobber.target.size() + clobber.written.size() + clobber.extent.indices().count()
+        });
+        let dereferences = self
+            .dereferences
+            .iter()
+            .map(|path| 1 + path.as_slice().len())
+            .sum::<usize>();
+        1 + origin + clobber + dereferences
+    }
+
+    /// Whether any part of this route, including Memory bases and clobber
+    /// dependencies, names storage local to the analyzed body.
+    pub fn names_local_storage(&self) -> bool {
+        matches!(self.origin, ExternalOrigin::Local(_))
+            || matches!(&self.origin, ExternalOrigin::Memory { base, .. } if base.source.names_local_storage())
+            || self.clobber.as_ref().is_some_and(|clobber| {
+                clobber.target.source.names_local_storage()
+                    || clobber.written.source.names_local_storage()
+            })
     }
 
     pub fn param(&self) -> Option<u32> {
@@ -1378,12 +1461,35 @@ impl<'db> ExternalSource<'db> {
         ) && matches!(
             field.origin,
             ExternalOrigin::Provider {
-                storage: ProviderStorage::AllocatedField,
+                storage: ProviderStorage::AllocatedField(_),
                 ..
             }
         ) && [self, field]
             .iter()
             .all(|source| source.dereferences.is_empty() && !source.reachable)
+    }
+
+    /// The layout gives each field of a contract its own block of slots, which
+    /// holds the field's typed contents. Storage named through the field's
+    /// layout roots, such as a `StorageMap` entry, is a different source. A raw
+    /// span may cross into the next block, and following or widening either
+    /// source forfeits the block.
+    fn is_allocated_field_beside(&self, other: &Self) -> bool {
+        matches!(
+            (&self.origin, &other.origin),
+            (
+                ExternalOrigin::Provider {
+                    storage: ProviderStorage::AllocatedField(left),
+                    ..
+                },
+                ExternalOrigin::Provider {
+                    storage: ProviderStorage::AllocatedField(right),
+                    ..
+                },
+            ) if left.contract == right.contract && left.index != right.index
+        ) && [self, other]
+            .iter()
+            .all(|source| source.dereferences.is_empty() && !source.uncertain())
     }
 
     pub(super) fn alias_guard(
@@ -1392,13 +1498,24 @@ impl<'db> ExternalSource<'db> {
         guard: Guard<'db>,
         allow_unknown: bool,
     ) -> Option<Guard<'db>> {
-        self.alias_guard_in(other, guard, allow_unknown, true)
+        self.alias_guard_in(other, guard, allow_unknown, true, AliasBasis::Assumed)
     }
 
     /// A raw byte span may cross from one cell into the next, so cells of one
     /// base are never separated by their elements.
     pub(super) fn byte_alias_guard(&self, other: &Self, guard: Guard<'db>) -> Option<Guard<'db>> {
-        self.alias_guard_in(other, guard, true, false)
+        self.alias_guard_in(other, guard, true, false, AliasBasis::Assumed)
+    }
+
+    /// Possible overlap without the entry assumption; `typed` compares typed
+    /// cells rather than byte spans.
+    pub(super) fn physical_alias_guard(
+        &self,
+        other: &Self,
+        guard: Guard<'db>,
+        typed: bool,
+    ) -> Option<Guard<'db>> {
+        self.alias_guard_in(other, guard, true, typed, AliasBasis::Physical)
     }
 
     fn alias_guard_in(
@@ -1407,6 +1524,7 @@ impl<'db> ExternalSource<'db> {
         guard: Guard<'db>,
         allow_unknown: bool,
         typed: bool,
+        basis: AliasBasis,
     ) -> Option<Guard<'db>> {
         let mut pairs = Vec::new();
         let exact = if !self.is_widened() && !other.is_widened() {
@@ -1438,7 +1556,7 @@ impl<'db> ExternalSource<'db> {
             // address, so bases are compared without cell separation.
             let possible = left
                 .source
-                .alias_guard_in(right, guard.clone(), true, false);
+                .alias_guard_in(right, guard.clone(), true, false, basis);
             // Where the bases are one object, the accessed typed cells of one
             // layout overlap only at an equal element, which `exact` states.
             match (
@@ -1452,7 +1570,7 @@ impl<'db> ExternalSource<'db> {
             && !other.reachable
             && let ExternalOrigin::Memory { base: right, .. } = &other.origin
         {
-            self.alias_guard_in(&right.source, guard, true, false)
+            self.alias_guard_in(&right.source, guard, true, false, basis)
         } else {
             // Distinct fresh allocations and incoming pointers cannot identify the
             // same object. Unknown manufactured addresses remain conservative.
@@ -1467,8 +1585,10 @@ impl<'db> ExternalSource<'db> {
             ) && self.dereferences.is_empty()
                 && other.dereferences.is_empty())
                 || self.is_hashed_slot_beside_allocated_field(other)
-                || other.is_hashed_slot_beside_allocated_field(self);
-            (!disjoint && (self.uncertain() || other.uncertain()))
+                || other.is_hashed_slot_beside_allocated_field(self)
+                || (typed && self.is_allocated_field_beside(other));
+            // Distinct certain sources are separate only by the entry assumption.
+            (!disjoint && (self.uncertain() || other.uncertain() || basis == AliasBasis::Physical))
                 .then_some(guard)
                 .filter(|_| self.contract.may_alias(other.contract))
         };
@@ -1476,6 +1596,53 @@ impl<'db> ExternalSource<'db> {
             (Some(exact), Some(possible)) => Some(exact.or(&possible)),
             (Some(exact), None) => Some(exact),
             (None, possible) => possible,
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::{
+        analysis::semantic::capability::path::{Projection, StructuralPath},
+        test_db::HirAnalysisTestDb,
+    };
+
+    #[test]
+    fn clobber_coarsening_keeps_the_target_and_unchanged_write_extent() {
+        let db = HirAnalysisTestDb::default();
+        let memory = HandleAddressSpace::Known(ProviderAddressSpace::Memory);
+        let mut target = SourceExpr::whole(ExternalSource::input(
+            InputSource::slot(0, StructuralPath::default()),
+            ReferentContract::new(&db, TyId::array_with_len(&db, TyId::u256(&db), 2), memory),
+            false,
+        ));
+        target.path = RegionPath::new([Projection::Index(IndexExpr::Const(1))]);
+        let written = SourceExpr::whole(ExternalSource::input(
+            InputSource::slot(1, StructuralPath::default()),
+            ReferentContract::new(&db, TyId::u8(&db), memory),
+            true,
+        ));
+        for extent in [
+            AccessExtent::Typed,
+            AccessExtent::Bytes(IndexExpr::Const(8)),
+            AccessExtent::Unknown,
+        ] {
+            let direct = ClobberCondition::new(target.clone(), written.clone(), extent);
+            assert_eq!(direct.target, target);
+            assert_eq!(direct.written, written);
+            assert_eq!(direct.extent, extent);
+
+            let offset = SourceExpr::whole(ExternalSource::memory(
+                &db,
+                written.clone(),
+                TyId::u8(&db),
+                MemoryOffset::Element(TyId::u8(&db), IndexExpr::Const(1)),
+            ));
+            let widened = ClobberCondition::new(target.clone(), offset, extent);
+            assert_eq!(widened.target, target);
+            assert_eq!(widened.written, written);
+            assert_eq!(widened.extent, AccessExtent::Unknown);
         }
     }
 }

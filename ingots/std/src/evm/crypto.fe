@@ -75,7 +75,7 @@ fn staticcall_memory(
     ret_len: u256,
 ) -> Result<PrecompileError, MemBuffer> {
     let mut out = MemBuffer::with_capacity(ret_len)
-    let ok: u256 = ops::staticcall(
+    let ok: u256 = ops::staticcall_precompile(
         gas: ops::gas(),
         addr: addr,
         args_offset: args.ptr(),
@@ -102,7 +102,7 @@ fn staticcall_fixed<const N: usize>(
     args: MemSpan,
 ) -> Result<PrecompileError, FixedMemBuffer<N>> {
     let out = FixedMemBuffer<N>::alloc()
-    let ok: u256 = ops::staticcall(
+    let ok: u256 = ops::staticcall_precompile(
         gas: ops::gas(),
         addr,
         args_offset: args.ptr(),
@@ -198,13 +198,9 @@ pub fn keccak256(_ data: MemSpan) -> u256 {
 /// Much cheaper than `keccak_packed` for word tuples: the words are written
 /// into one buffer without the packed builder's per-field bookkeeping.
 pub fn keccak_words<const N: usize>(_ words: [u256; N]) -> u256 {
-    let buffer = MemBuffer::alloc(N as u256 * 32)
-    let mut i: usize = 0
-    while i < N {
-        ops::mstore(addr: offset(buffer.ptr(), i as u256 * 32), value: words[i])
-        i += 1
-    }
-    ops::keccak256(offset: buffer.ptr(), len: N as u256 * 32)
+    let buffer = ptr::alloc<[u256; N]>()
+    *buffer = words
+    ops::keccak256(offset: ptr::byte_ptr(buffer), len: N as u256 * 32)
 }
 
 /// Address of a contract created with `CREATE2` by `deployer`:
@@ -292,7 +288,7 @@ pub fn ecrecover_raw(
     ops::mstore(addr: offset(buffer.ptr(), 32), value: v)
     ops::mstore(addr: offset(buffer.ptr(), 64), value: r)
     ops::mstore(addr: offset(buffer.ptr(), 96), value: s)
-    let ok: u256 = ops::staticcall(
+    let ok: u256 = ops::staticcall_precompile(
         gas: ops::gas(),
         addr: ECRECOVER_ADDRESS,
         args_offset: buffer.ptr(),

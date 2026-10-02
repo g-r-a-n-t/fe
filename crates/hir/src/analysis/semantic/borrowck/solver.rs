@@ -4,6 +4,8 @@ use crate::analysis::semantic::diagnostics::{
     BlockedSemanticBody, SemanticDiagnostic, SemanticDiagnosticKind, SemanticDiagnosticSpan,
     SemanticNormalizationFailure, normalized_body_internal_diag,
 };
+#[cfg(feature = "borrowck-profile")]
+use crate::analysis::{semantic::capability::profile::ProfileScope, ty::ty_check::BodyOwner};
 use std::{
     cell::{OnceCell, RefCell},
     collections::BTreeMap,
@@ -49,6 +51,7 @@ use crate::analysis::{
 use super::{
     access::ResolvedOperation,
     boundary::resolve_boundary_requirements,
+    events::ConflictAnalysis,
     inventory::Inventory,
     ir::{BoundaryRequirement, PendingSemanticValidation},
     loop_certificate::{FrontierCandidate, PrefixCertificate},
@@ -101,6 +104,8 @@ pub(super) struct Borrowck<'db> {
     pub operations: Vec<Vec<ResolvedOperation<'db>>>,
     pub boundary_requirements:
         Option<Result<Vec<BoundaryRequirement<'db>>, SemanticDiagnostic<'db>>>,
+    /// Published with the converged fixed point, like `boundary_requirements`.
+    pub(super) conflicts: Option<ConflictAnalysis<'db>>,
     pub blocked: Option<BlockedSemanticBody<'db>>,
     pub pending: PendingSemanticValidation<'db>,
     pub validation_dependencies: Vec<Vec<bool>>,
@@ -156,6 +161,7 @@ impl<'db> Borrowck<'db> {
             terminal: vec![None; body.blocks.len()],
             operations: vec![Vec::new(); body.blocks.len()],
             boundary_requirements: None,
+            conflicts: None,
             validation_dependencies: body
                 .blocks
                 .iter()
@@ -628,7 +634,29 @@ impl<'db> Borrowck<'db> {
         self.boundary_requirements.is_some()
     }
 
+    #[cfg(feature = "borrowck-profile")]
+    pub(super) fn profile_scope(&self, phase: &str) -> ProfileScope {
+        ProfileScope::new(|| {
+            format!(
+                "{phase} {:?} owner={:?} name={} blocks={}",
+                self.summary_mode,
+                self.instance.key(self.db).owner(self.db),
+                match self.instance.key(self.db).owner(self.db) {
+                    BodyOwner::Func(func) => func
+                        .name(self.db)
+                        .to_opt()
+                        .map(|name| name.data(self.db).as_str())
+                        .unwrap_or("anonymous"),
+                    _ => "generated",
+                },
+                self.body.blocks.len(),
+            )
+        })
+    }
+
     pub fn solve(&mut self) -> Result<(), SemanticDiagnostic<'db>> {
+        #[cfg(feature = "borrowck-profile")]
+        let profile = self.profile_scope("solve");
         self.prepare_calls()?;
         if self
             .calls
@@ -647,6 +675,7 @@ impl<'db> Borrowck<'db> {
             self.terminal.fill(None);
             self.operations.fill(Vec::new());
             self.boundary_requirements = None;
+            self.conflicts = None;
             let mut incoming = vec![None; self.body.blocks.len()];
             incoming[self.body.entry.index()] = Some(self.inventory.entry.clone());
             let mut certificate_application_failed = false;
@@ -656,6 +685,8 @@ impl<'db> Borrowck<'db> {
             let mut before = vec![Vec::new(); self.body.blocks.len()];
             let mut terminal = vec![None; self.body.blocks.len()];
             loop {
+                #[cfg(feature = "borrowck-profile")]
+                profile.sweep(self.inventory.loans.len(), self.source_generation);
                 let previous_incoming = incoming.clone();
                 self.loan_facts_changed = false;
                 self.storage_facts_changed = false;
@@ -670,6 +701,8 @@ impl<'db> Borrowck<'db> {
                     let mut snapshots = Vec::with_capacity(block.statements.len());
                     let mut returns = true;
                     for statement in &block.statements {
+                        #[cfg(feature = "borrowck-profile")]
+                        profile.point("transfer", index, snapshots.len());
                         snapshots.push(state.clone());
                         if self.statement_diverges(statement) {
                             returns = false;
@@ -689,6 +722,8 @@ impl<'db> Borrowck<'db> {
                         let Some(edge_guard) = edge_guard else {
                             continue;
                         };
+                        #[cfg(feature = "borrowck-profile")]
+                        profile.point("constrain", index, successor_index);
                         if !edge.constrain(&edge_guard, &mut self.inventory.values) {
                             continue;
                         }
@@ -733,11 +768,15 @@ impl<'db> Borrowck<'db> {
                             .loops
                             .feedback(NBlockId::new(index), successor.block)
                         {
+                            #[cfg(feature = "borrowck-profile")]
+                            profile.point("forget_iteration", index, successor_index);
                             let repeated = self.inventory.loops.repeated(iteration);
                             edge.forget_iteration(&mut self.inventory.values, incoming[successor.block.index()].as_ref(),
                             |index| matches!(index, IndexExpr::Iteration(region) if region == iteration) || matches!(index, IndexExpr::Runtime(value) if repeated.contains(&value)),
                             |occurrence| self.inventory.loops.repeats_occurrence(iteration, occurrence));
                         }
+                        #[cfg(feature = "borrowck-profile")]
+                        profile.point("join", index, successor_index);
                         if let Some(previous) = &mut incoming[successor.block.index()] {
                             previous.extend_storage(&self.inventory.entry);
                             previous.join(&edge, &mut self.inventory.values);
@@ -801,7 +840,11 @@ impl<'db> Borrowck<'db> {
             self.before = before;
             self.terminal = terminal;
             self.availability_diagnostic = OnceCell::new();
+            #[cfg(feature = "borrowck-profile")]
+            profile.point("resolve_operations", 0, 0);
             self.resolve_operations()?;
+            #[cfg(feature = "borrowck-profile")]
+            profile.point("boundary", 0, 0);
             let boundary_requirements = resolve_boundary_requirements(self);
             if !self.loan_facts_changed && !self.storage_facts_changed {
                 if self.prefix_certificates.is_empty() && !self.failed_prefix_certificates {
@@ -813,6 +856,7 @@ impl<'db> Borrowck<'db> {
                     }
                 }
                 self.boundary_requirements = Some(boundary_requirements);
+                self.conflicts = Some(self.analyze_conflicts());
                 return Ok(());
             }
             self.prefix_certificates.clear();
